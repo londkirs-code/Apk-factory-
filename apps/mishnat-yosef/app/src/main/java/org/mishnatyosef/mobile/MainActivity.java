@@ -124,6 +124,7 @@ public class MainActivity extends Activity {
         loginButton = button("התחברות");
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
         bp.topMargin = dp(18);
+        bp.bottomMargin = dp(12);
         root.addView(loginButton, bp);
         loginButton.setOnClickListener(v -> login());
     }
@@ -137,11 +138,12 @@ public class MainActivity extends Activity {
         addFeatureMenu("💳 זיכויים ותנועות בחשבון", this::loadFeatureTransactions);
         addFeatureMenu("🛒 הזמנה חדשה", this::loadFeatureSales);
         Button refresh = button("רענון מכירות פתוחות");
-        root.addView(refresh, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(-1, -2); refreshLp.topMargin = dp(8); refreshLp.bottomMargin = dp(12); root.addView(refresh, refreshLp);
         refresh.setOnClickListener(v -> loadOpenSales());
         Button logout = button("התנתקות");
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.topMargin = dp(8);
+        lp.bottomMargin = dp(12);
         root.addView(logout, lp);
         logout.setOnClickListener(v -> {
             prefs.edit().remove("token").remove("expires_at").apply();
@@ -327,7 +329,7 @@ public class MainActivity extends Activity {
         return new HttpResult(code, response.toString());
     }
 
-    private void addFeatureMenu(String label, Runnable action) { Button b=button(label); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->action.run()); }
+    private void addFeatureMenu(String label, Runnable action) { Button b=button(label); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(12); root.addView(b,lp); b.setOnClickListener(v->action.run()); }
     private JSONArray featureProducts=new JSONArray();
     private JSONObject featureSale=null;
     private final java.util.Map<Integer,Integer> featureQuantities=new java.util.LinkedHashMap<>();
@@ -464,16 +466,10 @@ public class MainActivity extends Activity {
         });
     }
     private JSONArray orderItemsFrom(JSONObject order) {
-        String[] keys = {"items", "order_items", "orderItems", "products", "details", "lines", "order_details", "orderDetails"};
-        for (String key : keys) {
-            JSONArray a = order.optJSONArray(key);
-            if (a != null) return a;
-        }
-        JSONObject nested = order.optJSONObject("order");
-        if (nested != null && nested != order) {
-            JSONArray a = orderItemsFrom(nested);
-            if (a.length() > 0) return a;
-        }
+        String[] keys = {"items", "order_items", "orderItems", "products", "details", "lines", "order_details", "orderDetails", "order_lines", "orderLines"};
+        for (String key : keys) { JSONArray a = order.optJSONArray(key); if (a != null) return a; }
+        String[] nestedKeys = {"order", "data", "result", "order_detail", "orderDetail"};
+        for (String key : nestedKeys) { JSONObject nested = order.optJSONObject(key); if (nested != null && nested != order) { JSONArray a = orderItemsFrom(nested); if (a.length() > 0) return a; } }
         return new JSONArray();
     }
 
@@ -497,11 +493,25 @@ public class MainActivity extends Activity {
     }
 
     private String orderImageUrl(JSONObject item, JSONObject product) {
-        String url = firstOrderString(product, "image_url", "imageUrl", "image", "photo", "picture", "thumbnail", "img", "image_path");
-        if (url.isEmpty()) url = firstOrderString(item, "image_url", "imageUrl", "image", "photo", "picture", "thumbnail", "img", "image_path");
+        String[] keys = {"image_url", "imageUrl", "featured_image", "featuredImage", "image", "photo", "picture", "thumbnail", "img", "image_path", "imagePath", "picture_url", "pictureUrl", "url"};
+        String url = firstOrderString(product, keys);
+        if (url.isEmpty()) url = firstOrderString(item, keys);
+        if (url.isEmpty()) {
+            JSONArray images = product.optJSONArray("images"); if (images == null) images = item.optJSONArray("images");
+            if (images != null && images.length() > 0) { Object first = images.opt(0); if (first instanceof JSONObject) url = firstOrderString((JSONObject) first, "url", "src", "path", "original", "large", "thumbnail"); else if (first != null) url = String.valueOf(first); }
+        }
+        if (url.isEmpty()) { JSONObject image = product.optJSONObject("image"); if (image == null) image = product.optJSONObject("featured_image"); if (image == null) image = item.optJSONObject("image"); if (image != null) url = firstOrderString(image, "url", "src", "path", "original", "large", "thumbnail"); }
         if (url.startsWith("//")) url = "https:" + url;
         if (url.startsWith("/")) url = API + url;
         return url.startsWith("http://") || url.startsWith("https://") ? url : "";
+    }
+
+    private String orderPrice(JSONObject item, JSONObject product, String quantity) {
+        String price = firstOrderString(item, "total_list", "totalList", "price_list", "priceList", "price", "unit_price", "unitPrice", "item_price", "itemPrice", "total_price", "totalPrice", "subtotal", "sum", "amount_price", "amountPrice");
+        if (price.isEmpty()) price = firstOrderString(product, "total_list", "totalList", "price_list", "priceList", "price", "unit_price", "unitPrice", "item_price", "itemPrice", "total_price", "totalPrice", "amount_price", "amountPrice");
+        if (price.isEmpty()) return "—";
+        if (price.matches(".*[₪$€].*")) return price;
+        return price + " ₪";
     }
 
     private void addOrderItemRow(JSONObject item, int index) {
@@ -512,9 +522,7 @@ public class MainActivity extends Activity {
         String quantity = firstOrderString(item, "amount", "quantity", "qty", "count");
         if (quantity.isEmpty()) quantity = firstOrderString(product, "amount", "quantity", "qty", "count");
         if (quantity.isEmpty()) quantity = "—";
-        String price = firstOrderString(item, "price", "unit_price", "unitPrice", "item_price", "total_price", "totalPrice", "subtotal", "sum");
-        if (price.isEmpty()) price = firstOrderString(product, "price", "unit_price", "unitPrice", "item_price", "total_price", "totalPrice");
-        if (price.isEmpty()) price = "—";
+        String price = orderPrice(item, product, quantity);
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
@@ -546,7 +554,7 @@ public class MainActivity extends Activity {
         TextView qtyView = text("כמות: " + quantity, 13, false);
         qtyView.setPadding(0, dp(2), 0, dp(2));
         details.addView(qtyView);
-        TextView priceView = text("מחיר: " + price + " ₪", 13, true);
+        TextView priceView = text("מחיר: " + price, 13, true);
         priceView.setTextColor(Color.rgb(191, 70, 12));
         priceView.setPadding(0, dp(2), 0, dp(2));
         details.addView(priceView);
