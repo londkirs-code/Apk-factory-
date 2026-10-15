@@ -1,6 +1,8 @@
 package org.mishnatyosef.mobile;
 
 import android.app.AlarmManager;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -43,9 +45,11 @@ public class SaleMonitor extends BroadcastReceiver {
         }
         if (START.equals(action)) {
             SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            if (!p.getBoolean("sale_monitor_enabled", true) || !isWithinMonitoringWindow(Calendar.getInstance())) { scheduleNextStart(context); return; }
             p.edit().putBoolean("sale_monitor_active", true).remove("sale_monitor_ids").putBoolean("sale_monitor_baseline_done", false).apply();
             runCheckAsync(context, true);
         } else if (CHECK.equals(action)) {
+            if (!isWithinMonitoringWindow(Calendar.getInstance())) { stopMonitoring(context); scheduleNextStart(context); return; }
             runCheckAsync(context, false);
         }
     }
@@ -60,8 +64,10 @@ public class SaleMonitor extends BroadcastReceiver {
 
     public static void scheduleNextStart(Context context) {
         SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (!p.getBoolean("sale_monitor_enabled", true)) { stopMonitoring(context); return; }
         if (p.getBoolean("sale_monitor_active", false)) {
-            schedule(context, CHECK, System.currentTimeMillis() + FIVE_MINUTES);
+            if (isWithinMonitoringWindow(Calendar.getInstance())) schedule(context, CHECK, System.currentTimeMillis() + FIVE_MINUTES);
+            else { p.edit().putBoolean("sale_monitor_active", false).remove("sale_monitor_ids").putBoolean("sale_monitor_baseline_done", false).apply(); scheduleNextStart(context); }
             return;
         }
         Calendar now = Calendar.getInstance();
@@ -81,6 +87,24 @@ public class SaleMonitor extends BroadcastReceiver {
         }
     }
 
+    public static void stopMonitoring(Context context) {
+        SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        p.edit().putBoolean("sale_monitor_active", false).remove("sale_monitor_ids").putBoolean("sale_monitor_baseline_done", false).apply();
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (am != null) for (String action : new String[]{START, CHECK}) {
+            Intent i = new Intent(context, SaleMonitor.class); i.setAction(action);
+            PendingIntent pi = PendingIntent.getBroadcast(context, ALARM_ID, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            am.cancel(pi);
+        }
+    }
+
+    private static boolean isWithinMonitoringWindow(Calendar now) {
+        int day = now.get(Calendar.DAY_OF_WEEK), hour = now.get(Calendar.HOUR_OF_DAY);
+        if (day == Calendar.THURSDAY) return hour >= 19;
+        if (day == Calendar.FRIDAY || day == Calendar.SATURDAY) return true;
+        return day == Calendar.SUNDAY && hour < 10;
+    }
+
     private static void schedule(Context context, String action, long when) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
@@ -88,7 +112,8 @@ public class SaleMonitor extends BroadcastReceiver {
         i.setAction(action);
         PendingIntent pi = PendingIntent.getBroadcast(context, ALARM_ID, i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
         else am.setExact(AlarmManager.RTC_WAKEUP, when, pi);
     }
 
@@ -199,26 +224,45 @@ public class SaleMonitor extends BroadcastReceiver {
             if (parent != null) name = parent.optString("week", "");
         }
         if (name.isEmpty()) name = "מכירה חדשה";
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean("notify_enabled", true)) return;
         Intent open = new Intent(context, MainActivity.class);
         open.putExtra("sale_id", id);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         PendingIntent content = PendingIntent.getActivity(context, 9000 + Math.max(id, 0), open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        boolean soundEnabled = prefs.getBoolean("notify_sound", true);
+        boolean vibrateEnabled = prefs.getBoolean("notify_vibrate", true);
+        String channelId = CHANNEL + (soundEnabled ? "_s1" : "_s0") + (vibrateEnabled ? "_v1" : "_v0");
+        createChannel(context, channelId, soundEnabled, vibrateEnabled);
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? new Notification.Builder(context, CHANNEL) : new Notification.Builder(context);
-        Notification notification = builder.setSmallIcon(android.R.drawable.ic_dialog_info)
+                ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
+        int defaults = 0;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            if (soundEnabled) defaults |= Notification.DEFAULT_SOUND;
+            if (vibrateEnabled) defaults |= Notification.DEFAULT_VIBRATE;
+        }
+        Notification notification = builder.setDefaults(defaults).setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("נפתחה מכירה במשנת יוסף")
                 .setContentText(name)
                 .setStyle(new Notification.BigTextStyle().bigText("נפתחה מכירה חדשה: " + name + ". לחצי כדי לפתוח אותה."))
                 .setContentIntent(content).setAutoCancel(true).setWhen(System.currentTimeMillis()).build();
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm != null) nm.notify(9000 + Math.max(id, 0), notification);
+        if (nm != null && (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)) nm.notify(9000 + Math.max(id, 0), notification);
     }
 
-    public static void ensureNotificationChannel(Context context) {
+    public static void ensureNotificationChannel(Context context) { createChannel(context, CHANNEL + "_s1_v1", true, true); }
+
+    private static void createChannel(Context context, String id, boolean sound, boolean vibrate) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm != null) nm.createNotificationChannel(new NotificationChannel(CHANNEL, "מכירות חדשות", NotificationManager.IMPORTANCE_HIGH));
+            if (nm != null) {
+                NotificationChannel channel = new NotificationChannel(id, "מכירות חדשות", NotificationManager.IMPORTANCE_HIGH);
+                channel.setSound(sound ? android.provider.Settings.System.DEFAULT_NOTIFICATION_URI : null, null);
+                channel.enableVibration(vibrate);
+                if (vibrate) channel.setVibrationPattern(new long[]{0, 250, 150, 250});
+                nm.createNotificationChannel(channel);
+            }
         }
     }
 
