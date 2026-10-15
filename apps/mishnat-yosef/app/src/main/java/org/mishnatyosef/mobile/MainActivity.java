@@ -802,6 +802,11 @@ public class MainActivity extends Activity {
             card.addView(details, new LinearLayout.LayoutParams(0, -2, 1));
             details.addView(text(name, 14, true));
             details.addView(text("מחיר: " + (price.isEmpty() ? "—" : price + " ₪") + (unit.isEmpty() ? "" : " · " + unit), 13, true));
+            Button info = button("פרטי מוצר");
+            info.setTextSize(11); info.setMinHeight(dp(36));
+            details.addView(info);
+            final JSONObject selectedProduct = p;
+            info.setOnClickListener(v -> showFeatureProductDetails(selectedProduct));
             if (max > 0) details.addView(text("מגבלה להזמנה: עד " + max, 12, false));
             if (!canOrder) details.addView(text(disabled ? "לא ניתן להזמין מוצר זה" : "אזל מהמלאי", 12, true));
             else if (!maxText.isEmpty() && max == 0) details.addView(text("ללא מגבלת כמות אישית", 12, false));
@@ -836,6 +841,38 @@ public class MainActivity extends Activity {
         }
         Button save = button("שמירת המוצרים בהזמנה"); root.addView(save);
         save.setOnClickListener(v -> saveFeatureOrderItems());
+    }
+
+    private void showFeatureProductDetails(JSONObject item) {
+        JSONObject product = item.optJSONObject("product");
+        if (product == null) product = item;
+        String name = firstOrderString(product, "name", "full_name", "title");
+        if (name.isEmpty()) name = firstOrderString(item, "name", "full_name", "title");
+        StringBuilder details = new StringBuilder();
+        appendProductDetail(details, "שם הפריט", name);
+        appendProductDetail(details, "מחיר", firstOrderString(item, "price", "unit_price", "price_list"));
+        appendProductDetail(details, "יחידת מידה", firstOrderString(item, "item_unit", "unit"));
+        appendProductDetail(details, "סוג אריזה", firstOrderString(item, "item_type", "package_type"));
+        appendProductDetail(details, "כמות באריזה", firstOrderString(item, "units"));
+        appendProductDetail(details, "משקל משוער", item.optBoolean("approx", false) ? "כן" : "לא");
+        appendProductDetail(details, "מקסימום ללקוח", firstOrderString(item, "max_per_man"));
+        appendProductDetail(details, "זמינות", item.optBoolean("disable", false) ? "לא זמין להזמנה" : firstOrderString(item, "available"));
+        appendProductDetail(details, "הכשר", firstOrderString(product, "hechsher"));
+        JSONObject metadata = product.optJSONObject("metadata");
+        if (metadata != null) {
+            appendProductDetail(details, "רכיבים", firstOrderString(metadata, "ingredients"));
+            appendProductDetail(details, "אלרגנים", firstOrderString(metadata, "allergens"));
+            appendProductDetail(details, "הוראות אחסון", firstOrderString(metadata, "storage_instructions"));
+        }
+        new AlertDialog.Builder(this).setTitle(name.isEmpty() ? "פרטי מוצר" : name)
+                .setMessage(details.length() == 0 ? "אין פרטים נוספים זמינים מהמכירה הזו." : details.toString())
+                .setPositiveButton("סגירה", null).show();
+    }
+
+    private void appendProductDetail(StringBuilder out, String label, String value) {
+        if (value == null || value.trim().isEmpty() || "null".equalsIgnoreCase(value)) return;
+        if (out.length() > 0) out.append("\n");
+        out.append(label).append(": ").append(value);
     }
 
     private void saveFeatureOrderItems() {
