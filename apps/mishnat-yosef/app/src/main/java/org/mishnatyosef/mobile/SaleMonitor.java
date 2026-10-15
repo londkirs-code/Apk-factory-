@@ -45,11 +45,11 @@ public class SaleMonitor extends BroadcastReceiver {
         }
         if (START.equals(action)) {
             SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            if (!p.getBoolean("sale_monitor_enabled", true) || !isWithinMonitoringWindow(Calendar.getInstance())) { scheduleNextStart(context); return; }
+            if (!p.getBoolean("sale_monitor_enabled", true) || !isWithinMonitoringWindow(context, Calendar.getInstance())) { scheduleNextStart(context); return; }
             p.edit().putBoolean("sale_monitor_active", true).remove("sale_monitor_ids").putBoolean("sale_monitor_baseline_done", false).apply();
             runCheckAsync(context, true);
         } else if (CHECK.equals(action)) {
-            if (!isWithinMonitoringWindow(Calendar.getInstance())) { stopMonitoring(context); scheduleNextStart(context); return; }
+            if (!isWithinMonitoringWindow(context, Calendar.getInstance())) { stopMonitoring(context); scheduleNextStart(context); return; }
             runCheckAsync(context, false);
         }
     }
@@ -66,25 +66,23 @@ public class SaleMonitor extends BroadcastReceiver {
         SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (!p.getBoolean("sale_monitor_enabled", true)) { stopMonitoring(context); return; }
         if (p.getBoolean("sale_monitor_active", false)) {
-            if (isWithinMonitoringWindow(Calendar.getInstance())) schedule(context, CHECK, System.currentTimeMillis() + FIVE_MINUTES);
+            if (isWithinMonitoringWindow(context, Calendar.getInstance())) schedule(context, CHECK, System.currentTimeMillis() + FIVE_MINUTES);
             else { p.edit().putBoolean("sale_monitor_active", false).remove("sale_monitor_ids").putBoolean("sale_monitor_baseline_done", false).apply(); scheduleNextStart(context); }
             return;
         }
         Calendar now = Calendar.getInstance();
         Calendar next = (Calendar) now.clone();
-        int day = next.get(Calendar.DAY_OF_WEEK);
-        int days = (Calendar.THURSDAY - day + 7) % 7;
+        int startDay = p.getInt("monitor_start_day", Calendar.THURSDAY);
+        int[] startTime = parseTime(p.getString("monitor_start_time", "19:00"), 19, 0);
+        int days = (startDay - now.get(Calendar.DAY_OF_WEEK) + 7) % 7;
         next.add(Calendar.DAY_OF_YEAR, days);
-        next.set(Calendar.HOUR_OF_DAY, 19);
-        next.set(Calendar.MINUTE, 0);
+        next.set(Calendar.HOUR_OF_DAY, startTime[0]);
+        next.set(Calendar.MINUTE, startTime[1]);
         next.set(Calendar.SECOND, 0);
         next.set(Calendar.MILLISECOND, 0);
         if (!next.after(now)) next.add(Calendar.DAY_OF_YEAR, 7);
-        if (day == Calendar.THURSDAY && now.get(Calendar.HOUR_OF_DAY) >= 19) {
-            schedule(context, START, System.currentTimeMillis() + 1000L);
-        } else {
-            schedule(context, START, next.getTimeInMillis());
-        }
+        if (isWithinMonitoringWindow(context, now)) schedule(context, START, System.currentTimeMillis() + 1000L);
+        else schedule(context, START, next.getTimeInMillis());
     }
 
     public static void stopMonitoring(Context context) {
@@ -98,11 +96,27 @@ public class SaleMonitor extends BroadcastReceiver {
         }
     }
 
-    private static boolean isWithinMonitoringWindow(Calendar now) {
-        int day = now.get(Calendar.DAY_OF_WEEK), hour = now.get(Calendar.HOUR_OF_DAY);
-        if (day == Calendar.THURSDAY) return hour >= 19;
-        if (day == Calendar.FRIDAY || day == Calendar.SATURDAY) return true;
-        return day == Calendar.SUNDAY && hour < 10;
+    private static int[] parseTime(String value, int defaultHour, int defaultMinute) {
+        try { String[] parts = value.split(":"); return new int[]{Integer.parseInt(parts[0]), Integer.parseInt(parts[1])}; }
+        catch (Exception e) { return new int[]{defaultHour, defaultMinute}; }
+    }
+
+    private static boolean isWithinMonitoringWindow(Context context, Calendar now) {
+        SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int startDay = p.getInt("monitor_start_day", Calendar.THURSDAY);
+        int endDay = p.getInt("monitor_end_day", Calendar.SUNDAY);
+        int[] st = parseTime(p.getString("monitor_start_time", "19:00"), 19, 0);
+        int[] et = parseTime(p.getString("monitor_end_time", "10:00"), 10, 0);
+        Calendar start = (Calendar) now.clone();
+        int back = (now.get(Calendar.DAY_OF_WEEK) - startDay + 7) % 7;
+        start.add(Calendar.DAY_OF_YEAR, -back);
+        start.set(Calendar.HOUR_OF_DAY, st[0]); start.set(Calendar.MINUTE, st[1]); start.set(Calendar.SECOND, 0); start.set(Calendar.MILLISECOND, 0);
+        int forward = (endDay - startDay + 7) % 7;
+        Calendar end = (Calendar) start.clone();
+        end.add(Calendar.DAY_OF_YEAR, forward);
+        end.set(Calendar.HOUR_OF_DAY, et[0]); end.set(Calendar.MINUTE, et[1]); end.set(Calendar.SECOND, 0); end.set(Calendar.MILLISECOND, 0);
+        if (!end.after(start)) end.add(Calendar.DAY_OF_YEAR, 7);
+        return !now.before(start) && now.before(end);
     }
 
     private static void schedule(Context context, String action, long when) {
