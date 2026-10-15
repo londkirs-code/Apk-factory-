@@ -1,6 +1,13 @@
 package org.mishnatyosef.mobile;
 
 import android.app.Activity;
+import android.app.AlarmManager;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.provider.Settings;
+import android.net.Uri;
+import android.content.Intent;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -53,6 +60,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(230, 94, 20));
         getWindow().setNavigationBarColor(Color.rgb(191, 70, 12));
         SaleMonitor.ensureNotificationChannel(this);
+        requestMonitoringPermissions(false);
         if (hasToken()) {
             SaleMonitor.scheduleNextStart(this);
             if (getIntent() != null && getIntent().hasExtra("sale_id")) {
@@ -181,6 +189,11 @@ public class MainActivity extends Activity {
         statusView.setText("טוען את המכירות הפתוחות…");
         TextView hint = text("בחרי פעולה מהתפריט הקבוע בתחתית המסך.", 15, false);
         root.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        Button notificationSettings = button("הגדרות התראות ומעקב");
+        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(-1, -2);
+        settingsLp.topMargin = dp(8);
+        root.addView(notificationSettings, settingsLp);
+        notificationSettings.setOnClickListener(v -> showNotificationSettings());
         Button refresh = button("רענון מכירות פתוחות");
         LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(-1, -2); refreshLp.topMargin = dp(8); refreshLp.bottomMargin = dp(12); root.addView(refresh, refreshLp);
         refresh.setOnClickListener(v -> loadOpenSales());
@@ -194,6 +207,57 @@ public class MainActivity extends Activity {
             showLogin();
         });
         loadOpenSales();
+    }
+
+    private void requestMonitoringPermissions(boolean forceExactAlarmSettings) {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4101);
+        }
+        if (Build.VERSION.SDK_INT >= 31) {
+            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null && !am.canScheduleExactAlarms()
+                    && (forceExactAlarmSettings || !prefs.getBoolean("exact_alarm_settings_prompted", false))) {
+                prefs.edit().putBoolean("exact_alarm_settings_prompted", true).apply();
+                try { startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getPackageName()))); }
+                catch (Exception ignored) { }
+            }
+        }
+    }
+
+    private void showNotificationSettings() {
+        beginScreen("הגדרות התראות ומעקב");
+        TextView intro = text("המעקב מתבצע מיום חמישי בשעה 19:00 ועד יום ראשון בשעה 10:00. בזמן הזה האפליקציה בודקת מכירות פתוחות כל 5 דקות.", 15, false);
+        root.addView(intro, new LinearLayout.LayoutParams(-1, -2));
+        addSettingToggle("התראות על מכירה חדשה", "notify_enabled", true, "אם מכבים, המעקב ממשיך אך לא תוצג התראה.");
+        addSettingToggle("צליל בהתראה", "notify_sound", true, "הפעלת צליל בהתראה על מכירה חדשה.");
+        addSettingToggle("רטט בהתראה", "notify_vibrate", true, "הפעלת רטט בהתראה על מכירה חדשה.");
+        addSettingToggle("מעקב אוטומטי שבועי", "sale_monitor_enabled", true, "כשמכבים, המעקב השבועי לא יתחיל אוטומטית.");
+        Button permissions = button("בקשת הרשאות התראות ושעון מעורר");
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.topMargin = dp(10); root.addView(permissions, p);
+        permissions.setOnClickListener(v -> requestMonitoringPermissions(true));
+        Button done = button("שמירה וחזרה");
+        LinearLayout.LayoutParams d = new LinearLayout.LayoutParams(-1, -2); d.topMargin = dp(8); root.addView(done, d);
+        done.setOnClickListener(v -> showDashboard());
+    }
+
+    private void addSettingToggle(String label, String key, boolean defaultValue, String description) {
+        Button toggle = button("");
+        Runnable update = () -> {
+            boolean enabled = prefs.getBoolean(key, defaultValue);
+            toggle.setText(label + ": " + (enabled ? "פעיל" : "כבוי"));
+            toggle.setBackgroundTintList(android.content.res.ColorStateList.valueOf(enabled ? Color.rgb(230, 94, 20) : Color.rgb(145, 145, 145)));
+        };
+        update.run();
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.topMargin = dp(10); root.addView(toggle, p);
+        root.addView(text(description, 12, false), new LinearLayout.LayoutParams(-1, -2));
+        toggle.setOnClickListener(v -> {
+            boolean next = !prefs.getBoolean(key, defaultValue);
+            prefs.edit().putBoolean(key, next).apply();
+            if (key.equals("sale_monitor_enabled")) {
+                if (next) SaleMonitor.scheduleNextStart(this); else SaleMonitor.stopMonitoring(this);
+            }
+            update.run();
+        });
     }
 
     private boolean hasToken() {
