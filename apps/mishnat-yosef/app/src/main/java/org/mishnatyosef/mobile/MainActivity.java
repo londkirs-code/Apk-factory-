@@ -212,10 +212,14 @@ public class MainActivity extends Activity {
                     return;
                 }
                 if (r.code < 200 || r.code >= 300) throw new Exception("טעינת המכירות נכשלה (" + r.code + ").");
-                JSONObject obj = new JSONObject(r.body);
-                JSONArray sales = obj.optJSONArray("data");
-                if (sales == null && r.body.trim().startsWith("[")) sales = new JSONArray(r.body);
-                if (sales == null) sales = new JSONArray();
+                JSONArray sales;
+                if (r.body.trim().startsWith("[")) {
+                    sales = new JSONArray(r.body);
+                } else {
+                    JSONObject obj = new JSONObject(r.body);
+                    sales = obj.optJSONArray("data");
+                    if (sales == null) sales = new JSONArray();
+                }
                 StringBuilder out = new StringBuilder("מכירות פתוחות: ").append(sales.length()).append("\n\n");
                 for (int i = 0; i < sales.length(); i++) {
                     JSONObject sale = sales.optJSONObject(i);
