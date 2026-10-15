@@ -1,0 +1,14 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'org.mishnatyosef.mobile'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'org.mishnatyosef.mobile'
+        minSdk 23
+        targetSdk 28
+        versionCode 1
+        versionName '1.0'
+    }
+}
