@@ -872,11 +872,11 @@ public class MainActivity extends Activity {
         root.addView(topActions);
         back.setOnClickListener(v -> showOpenSales());
         saleInfo.setOnClickListener(v -> showSaleDetails(featureSale));
-        summary.setOnClickListener(v -> showOrderSummary());
+        summary.setOnClickListener(v -> loadServerOrderSummary());
 
         TextView totals = text("הזמנה #" + featureOrderId, 14, true);
         root.addView(totals);
-        updateOrderTotals(totals);
+        totals.setText("הזמנה #" + featureOrderId + " · הכמויות והסכום הסופיים מוצגים מסיכום השרת");
         Button saveTop = button("שמירת כל השינויים בהזמנה");
         root.addView(saveTop);
         saveTop.setOnClickListener(v -> saveFeatureOrderItems());
@@ -956,21 +956,19 @@ public class MainActivity extends Activity {
             minus.setEnabled(canOrder); plus.setEnabled(canOrder);
             minus.setOnClickListener(v -> {
                 int n = Math.max(0, featureQuantities.getOrDefault(id, 0) - 1);
-                featureQuantities.put(id, n); qty.setText(String.valueOf(n)); updateOrderTotals(totals);
+                if (n == featureQuantities.getOrDefault(id, 0)) return;
+                featureQuantities.put(id, n); qty.setText(String.valueOf(n));
+                minus.setEnabled(false); plus.setEnabled(false);
+                saveSingleFeatureProduct(p, n);
             });
             plus.setOnClickListener(v -> {
                 int n = featureQuantities.getOrDefault(id, 0) + 1;
                 if (initialMax > 0 && n > initialMax) { Toast.makeText(this, "מותר להזמין עד " + initialMax + " יחידות", Toast.LENGTH_SHORT).show(); return; }
                 if (stock >= 0 && n > stock) { Toast.makeText(this, "נותרו במלאי " + (long) stock + " יחידות בלבד", Toast.LENGTH_SHORT).show(); return; }
-                featureQuantities.put(id, n); qty.setText(String.valueOf(n)); updateOrderTotals(totals);
+                featureQuantities.put(id, n); qty.setText(String.valueOf(n));
+                minus.setEnabled(false); plus.setEnabled(false);
+                saveSingleFeatureProduct(p, n);
             });
-
-            Button orderOne = button("הזמן פריט");
-            orderOne.setTextSize(12); orderOne.setMinHeight(dp(38));
-            orderOne.setPadding(dp(4), 0, dp(4), 0);
-            card.addView(orderOne, new LinearLayout.LayoutParams(-1, dp(40)));
-            orderOne.setEnabled(canOrder);
-            orderOne.setOnClickListener(v -> saveSingleFeatureProduct(p));
 
             Button info = button("פרטים");
             info.setTextSize(11); info.setMinHeight(dp(32));
@@ -1002,102 +1000,94 @@ public class MainActivity extends Activity {
         saveBottom.setOnClickListener(v -> saveFeatureOrderItems());
     }
 
-    private void saveSingleFeatureProduct(JSONObject p) {
-        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_LONG).show(); return; }
-        final int id = featureProductId(p);
-        final int amount = featureQuantities.getOrDefault(id, 0);
+    private void saveSingleFeatureProduct(JSONObject p, int amount) {
+        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_SHORT).show(); return; }
         final int originalAmount = p.optInt("amount", 0);
         final int itemSalesId = p.optInt("item_salesID", p.optInt("item_sales_id", -1));
         final int max = p.optInt("max_per_man", 0);
-        if (amount <= 0) { Toast.makeText(this, "בחרי כמות גדולה מאפס", Toast.LENGTH_SHORT).show(); return; }
-        if (max > 0 && amount > max) { Toast.makeText(this, "הכמות חורגת מהמגבלה", Toast.LENGTH_SHORT).show(); return; }
-        if (p.optBoolean("disable", false) || numericAvailable(p) == 0) {
-            Toast.makeText(this, "המוצר אינו זמין כרגע", Toast.LENGTH_SHORT).show(); return;
+        if (amount < 0) return;
+        if (max > 0 && amount > max) { Toast.makeText(this, "הכמות חורגת מהמגבלה", Toast.LENGTH_SHORT).show(); loadFeatureProducts(featureSale); return; }
+        if (amount > 0 && (p.optBoolean("disable", false) || numericAvailable(p) == 0)) {
+            Toast.makeText(this, "המוצר אינו זמין כרגע", Toast.LENGTH_SHORT).show(); loadFeatureProducts(featureSale); return;
         }
-        statusView.setText("שומר את הפריט בהזמנה…");
+        statusView.setText(amount == 0 ? "מסיר את הפריט מההזמנה…" : "מעדכן כמות בהזמנה…");
         executor.execute(() -> {
             try {
                 String token = prefs.getString("token", "");
-                JSONObject item = new JSONObject(p.toString());
-                item.put("amount", amount);
-                if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
-                String endpoint = originalAmount > 0 ? "/api/update_item/" : "/api/add_item/";
-                HttpResult result = request("POST", endpoint + featureOrderId, token, item);
+                HttpResult result;
+                if (amount == 0) {
+                    if (originalAmount <= 0) {
+                        runOnUiThread(() -> loadServerOrderSummary());
+                        return;
+                    }
+                    if (itemSalesId <= 0) throw new Exception("חסר מזהה פריט להסרה מההזמנה.");
+                    result = request("POST", "/api/remove_item/" + featureOrderId + "/" + itemSalesId, token, null);
+                } else {
+                    JSONObject item = new JSONObject(p.toString());
+                    item.put("amount", amount);
+                    if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
+                    String endpoint = originalAmount > 0 ? "/api/update_item/" : "/api/add_item/";
+                    result = request("POST", endpoint + featureOrderId, token, item);
+                }
                 if (result.code < 200 || result.code >= 300)
-                    throw new Exception("שמירת הפריט נכשלה (" + result.code + "): " + result.body);
+                    throw new Exception("עדכון ההזמנה נכשל (" + result.code + "): " + result.body);
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "הפריט נשמר בהזמנה", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "ההזמנה עודכנה", Toast.LENGTH_SHORT).show();
                     try { JSONObject knownOrder = new JSONObject(); knownOrder.put("id", featureOrderId); featureSale.put("order", knownOrder); } catch (Exception ignored) { }
                     loadFeatureProducts(featureSale);
                 });
             } catch (Exception e) {
-                String message = e.getMessage() == null ? "שמירת הפריט נכשלה" : e.getMessage();
-                runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
+                String message = e.getMessage() == null ? "עדכון ההזמנה נכשל" : e.getMessage();
+                runOnUiThread(() -> {
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                    loadFeatureProducts(featureSale);
+                });
             }
         });
     }
 
-    private void showOrderSummary() {
-        StringBuilder out = new StringBuilder();
-        double total = 0;
-        int productCount = 0, units = 0;
-        for (int i = 0; i < featureProducts.length(); i++) {
-            JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
-            int qty = featureQuantities.getOrDefault(featureProductId(p), 0);
-            if (qty <= 0) continue;
-            String name = firstOrderString(p, "name", "full_name", "title");
-            JSONObject product = p.optJSONObject("product");
-            if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "full_name", "title");
-            if (name.isEmpty()) name = "מוצר #" + featureProductId(p);
-            double unitPrice = productUnitPrice(p);
-            out.append(name).append(" × ").append(qty)
-                    .append(" · ").append(String.format(java.util.Locale.US, "%.2f ₪ ליחידה", unitPrice))
-                    .append(" · ").append(String.format(java.util.Locale.US, "%.2f ₪", unitPrice * qty)).append("\n");
-            total += unitPrice * qty;
-            units += qty;
-            productCount++;
-        }
-        if (out.length() == 0) out.append("עדיין לא נבחרו פריטים להזמנה.");
-        else out.append("\nמספר סוגי פריטים: ").append(productCount)
-                .append("\nסה״כ יחידות: ").append(units)
-                .append("\nעלות כוללת משוערת: ").append(String.format(java.util.Locale.US, "%.2f ₪", total));
-        new AlertDialog.Builder(this).setTitle("סיכום ההזמנה")
-                .setMessage(out.toString())
-                .setPositiveButton("חזרה למוצרים", null)
-                .setNeutralButton("שמירת ההזמנה", (d, w) -> saveFeatureOrderItems())
-                .show();
-    }
-
-    private void showFeatureProductDetails(JSONObject item) {
-        JSONObject product = item.optJSONObject("product");
-        if (product == null) product = item;
-        String name = firstOrderString(product, "name", "full_name", "title");
-        if (name.isEmpty()) name = firstOrderString(item, "name", "full_name", "title");
-        StringBuilder details = new StringBuilder();
-        appendProductDetail(details, "שם הפריט", name);
-        appendProductDetail(details, "מחיר", firstOrderString(item, "price", "unit_price", "price_list"));
-        appendProductDetail(details, "יחידת מידה", firstOrderString(item, "item_unit", "unit"));
-        appendProductDetail(details, "סוג אריזה", firstOrderString(item, "item_type", "package_type"));
-        appendProductDetail(details, "כמות באריזה", firstOrderString(item, "units"));
-        appendProductDetail(details, "משקל משוער", item.optBoolean("approx", false) ? "כן" : "לא");
-        appendProductDetail(details, "מקסימום ללקוח", firstOrderString(item, "max_per_man"));
-        appendProductDetail(details, "זמינות", item.optBoolean("disable", false) ? "לא זמין להזמנה" : firstOrderString(item, "available"));
-        appendProductDetail(details, "הכשר", firstOrderString(product, "hechsher"));
-        JSONObject metadata = product.optJSONObject("metadata");
-        if (metadata != null) {
-            appendProductDetail(details, "רכיבים", firstOrderString(metadata, "ingredients"));
-            appendProductDetail(details, "אלרגנים", firstOrderString(metadata, "allergens"));
-            appendProductDetail(details, "הוראות אחסון", firstOrderString(metadata, "storage_instructions"));
-        }
-        new AlertDialog.Builder(this).setTitle(name.isEmpty() ? "פרטי מוצר" : name)
-                .setMessage(details.length() == 0 ? "אין פרטים נוספים זמינים מהמכירה הזו." : details.toString())
-                .setPositiveButton("סגירה", null).show();
-    }
-
-    private void appendProductDetail(StringBuilder out, String label, String value) {
-        if (value == null || value.trim().isEmpty() || "null".equalsIgnoreCase(value)) return;
-        if (out.length() > 0) out.append("\n");
-        out.append(label).append(": ").append(value);
+    private void loadServerOrderSummary() {
+        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_SHORT).show(); return; }
+        statusView.setText("טוען סיכום הזמנה מהשרת…");
+        executor.execute(() -> {
+            try {
+                HttpResult r = request("GET", "/api/orders/" + featureOrderId, prefs.getString("token", ""), null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת סיכום ההזמנה נכשלה (" + r.code + ").");
+                JSONObject response = new JSONObject(r.body);
+                JSONObject order = response.optJSONObject("order");
+                if (order == null) order = response.optJSONObject("data");
+                if (order == null) order = response;
+                JSONArray items = orderItemsFrom(order);
+                String total = firstOrderString(order, "total_list", "total", "total_price", "totalPrice", "grand_total", "grandTotal", "sum", "amount_due");
+                String status = firstOrderString(order, "status", "order_status");
+                StringBuilder out = new StringBuilder();
+                if (!status.isEmpty()) out.append("סטטוס: ").append(status).append("\\n");
+                out.append("פריטים בהזמנה לפי השרת: ").append(items.length()).append("\\n\\n");
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject item = items.optJSONObject(i); if (item == null) continue;
+                    JSONObject product = orderProductFrom(item);
+                    String name = firstOrderString(product, "name", "full_name", "item_name", "title");
+                    if (name.isEmpty()) name = firstOrderString(item, "name", "item_name", "title");
+                    if (name.isEmpty()) name = "פריט " + (i + 1);
+                    String qty = firstOrderString(item, "amount", "quantity", "qty", "count");
+                    if (qty.isEmpty()) qty = firstOrderString(product, "amount", "quantity", "qty", "count");
+                    String price = firstOrderString(item, "total_price", "totalPrice", "total_list", "totalList", "subtotal", "sum", "price", "unit_price");
+                    if (price.isEmpty()) price = firstOrderString(product, "total_price", "totalPrice", "price", "unit_price");
+                    out.append(name).append(" × ").append(qty.isEmpty() ? "—" : qty);
+                    if (!price.isEmpty()) out.append(" · ").append(price).append(price.matches(".*[₪$€].*") ? "" : " ₪");
+                    out.append("\\n");
+                }
+                if (items.length() == 0) out.append("השרת לא החזיר פריטים להזמנה זו.\\n");
+                out.append("\\nעלות כוללת לפי השרת: ").append(total.isEmpty() ? "השרת לא החזיר סכום כולל" : total + (total.matches(".*[₪$€].*") ? "" : " ₪"));
+                final String message = out.toString();
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("סיכום הזמנה מהשרת")
+                        .setMessage(message).setPositiveButton("סגירה", null)
+                        .setNeutralButton("רענון הזמנה", (d, w) -> loadFeatureProducts(featureSale)).show());
+            } catch (Exception e) {
+                String message = e.getMessage() == null ? "טעינת סיכום ההזמנה נכשלה." : e.getMessage();
+                runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
+            }
+        });
     }
 
     private void saveFeatureOrderItems() {
