@@ -4,7 +4,8 @@ import android.app.*;
 import android.content.*;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.BitmapFactory;\nimport java.io.File;
+import android.graphics.BitmapFactory;
+import java.io.File;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
@@ -125,7 +126,8 @@ public class NotificationReceiver extends BroadcastReceiver {
     static String channelId(JSONObject p) {
         String cfg=p.optString("soundUri","") + "|" + p.optBoolean("sound",true) + "|" + p.optBoolean("vibrate",true) + "|" + p.optInt("priority",0) + "|" + p.optString("ledColor","#00FFFF");
         return "notify_" + Integer.toHexString(cfg.hashCode());
-    }\n    static void addButton(Context c,Notification.Builder b,String label,int req) {
+    }
+    static void addButton(Context c,Notification.Builder b,String label,int req) {
         if(label==null||label.trim().isEmpty())return;
         Intent i=new Intent(c,NotificationReceiver.class);i.setAction(ACTION_BUTTON);i.putExtra("label",label);
         PendingIntent pi=PendingIntent.getBroadcast(c,req,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
