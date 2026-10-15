@@ -50,8 +50,8 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        getWindow().setStatusBarColor(Color.rgb(24, 12, 43));
-        getWindow().setNavigationBarColor(Color.rgb(15, 8, 29));
+        getWindow().setStatusBarColor(Color.rgb(230, 94, 20));
+        getWindow().setNavigationBarColor(Color.rgb(191, 70, 12));
         if (hasToken()) showDashboard(); else showLogin();
     }
 
@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
         TextView v = new TextView(this);
         v.setText(value);
         v.setTextSize(size);
-        v.setTextColor(Color.rgb(245, 238, 255));
+        v.setTextColor(Color.rgb(34, 49, 46));
         v.setGravity(Gravity.RIGHT);
         if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         v.setPadding(dp(4), dp(8), dp(4), dp(8));
@@ -76,8 +76,7 @@ public class MainActivity extends Activity {
         b.setAllCaps(false);
         b.setTextColor(Color.WHITE);
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(Color.rgb(151, 71, 255));
-        bg.setStroke(dp(1), Color.rgb(207, 153, 255));
+        bg.setColor(Color.rgb(239, 108, 0));
         bg.setCornerRadius(dp(18));
         b.setBackground(bg);
         b.setPadding(dp(16), dp(8), dp(16), dp(8));
@@ -88,13 +87,13 @@ public class MainActivity extends Activity {
     private void beginScreen(String heading) {
         LinearLayout screen = new LinearLayout(this);
         screen.setOrientation(LinearLayout.VERTICAL);
-        screen.setBackgroundColor(Color.rgb(16, 9, 30));
+        screen.setBackgroundColor(Color.rgb(255, 249, 244));
         screen.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(22), dp(28), dp(22), dp(18));
-        root.setBackgroundColor(Color.rgb(16, 9, 30));
+        root.setBackgroundColor(Color.rgb(255, 249, 244));
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -102,7 +101,7 @@ public class MainActivity extends Activity {
         screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView title = text("משנת יוסף", 28, true);
-        title.setTextColor(Color.rgb(213, 164, 255));
+        title.setTextColor(Color.rgb(230, 94, 20));
         title.setGravity(Gravity.CENTER);
         root.addView(title, new LinearLayout.LayoutParams(-1, -2));
         TextView sub = text(heading, 16, false);
@@ -116,7 +115,7 @@ public class MainActivity extends Activity {
             LinearLayout nav = new LinearLayout(this);
             nav.setOrientation(LinearLayout.HORIZONTAL);
             nav.setGravity(Gravity.CENTER);
-            nav.setBackgroundColor(Color.rgb(27, 16, 47));
+            nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
             String[] labels = {"היסטוריה", "זיכויים", "הזמנות פתוחות"};
             int[] icons = {android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
@@ -129,7 +128,7 @@ public class MainActivity extends Activity {
                 item.setPadding(dp(2), dp(5), dp(2), dp(5));
                 ImageView icon = new ImageView(this);
                 icon.setImageResource(icons[i]);
-                icon.setColorFilter(Color.rgb(196, 126, 255));
+                icon.setColorFilter(Color.rgb(230, 94, 20));
                 LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(24), dp(24));
                 item.addView(icon, ip);
                 TextView label = text(labels[i], 11, true);
@@ -619,7 +618,7 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
         bg.setColor(Color.WHITE);
         bg.setCornerRadius(dp(12));
-        bg.setStroke(dp(1), Color.rgb(57, 36, 79));
+        bg.setStroke(dp(1), Color.rgb(238, 220, 205));
         card.setBackground(bg);
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, -2);
         cardParams.bottomMargin = dp(8);
@@ -627,7 +626,7 @@ public class MainActivity extends Activity {
 
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setBackgroundColor(Color.rgb(35, 21, 55));
+        image.setBackgroundColor(Color.rgb(250, 239, 229));
         LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(dp(76), dp(76));
         imageParams.setMargins(dp(4), 0, dp(10), 0);
         card.addView(image, imageParams);
@@ -643,7 +642,7 @@ public class MainActivity extends Activity {
         qtyView.setPadding(0, dp(2), 0, dp(2));
         details.addView(qtyView);
         TextView priceView = text("מחיר: " + price, 13, true);
-        priceView.setTextColor(Color.rgb(111, 48, 190));
+        priceView.setTextColor(Color.rgb(191, 70, 12));
         priceView.setPadding(0, dp(2), 0, dp(2));
         details.addView(priceView);
 
