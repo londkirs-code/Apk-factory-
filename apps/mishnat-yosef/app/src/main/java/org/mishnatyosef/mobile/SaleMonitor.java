@@ -33,7 +33,7 @@ public class SaleMonitor extends BroadcastReceiver {
     private static final String CHECK = "org.mishnatyosef.mobile.CHECK_OPEN_SALES";
     private static final String CHANNEL = "new_open_sales";
     private static final int ALARM_ID = 8217;
-    private static final long FIVE_MINUTES = 5L * 60L * 1000L;
+    private static long checkIntervalMs(Context context) { return Math.max(1, context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("monitor_interval_minutes", 5)) * 60L * 1000L; }
 
     @Override public void onReceive(Context context, Intent intent) {
         String action = intent == null ? "" : intent.getAction();
@@ -66,7 +66,7 @@ public class SaleMonitor extends BroadcastReceiver {
         SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (!p.getBoolean("sale_monitor_enabled", true)) { stopMonitoring(context); return; }
         if (p.getBoolean("sale_monitor_active", false)) {
-            if (isWithinMonitoringWindow(context, Calendar.getInstance())) schedule(context, CHECK, System.currentTimeMillis() + FIVE_MINUTES);
+            if (isWithinMonitoringWindow(context, Calendar.getInstance())) schedule(context, CHECK, System.currentTimeMillis() + checkIntervalMs(context));
             else { p.edit().putBoolean("sale_monitor_active", false).remove("sale_monitor_ids").putBoolean("sale_monitor_baseline_done", false).apply(); scheduleNextStart(context); }
             return;
         }
@@ -142,7 +142,7 @@ public class SaleMonitor extends BroadcastReceiver {
         try {
             JSONArray sales = fetchSales(context, token);
             if (sales == null) {
-                schedule(context, CHECK, System.currentTimeMillis() + FIVE_MINUTES);
+                schedule(context, CHECK, System.currentTimeMillis() + checkIntervalMs(context));
                 return;
             }
             Set<String> current = new HashSet<>();
@@ -170,7 +170,7 @@ public class SaleMonitor extends BroadcastReceiver {
         } catch (Exception ignored) {
             // Temporary network errors do not cancel monitoring.
         }
-        schedule(context, CHECK, System.currentTimeMillis() + FIVE_MINUTES);
+        schedule(context, CHECK, System.currentTimeMillis() + checkIntervalMs(context));
     }
 
     private JSONArray fetchSales(Context context, String token) throws Exception {
