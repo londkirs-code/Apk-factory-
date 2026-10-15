@@ -132,7 +132,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("התראות פעילות").setMessage(out.length()==0?"אין התראות פעילות":out.toString()).setPositiveButton("סגירה",null).show();
     }
     void openChannelSettings() {
-        if(Build.VERSION.SDK_INT>=26){Intent i=new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());i.putExtra(Settings.EXTRA_CHANNEL_ID,NotificationReceiver.CHANNEL);startActivity(i);}
+        if(Build.VERSION.SDK_INT>=26){Intent i=new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());startActivity(i);}
         else {Intent i=new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()));startActivity(i);}
     }
     void requestExactAlarmPermission() {
