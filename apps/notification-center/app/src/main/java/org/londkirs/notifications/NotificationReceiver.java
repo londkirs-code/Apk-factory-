@@ -3,7 +3,8 @@ package org.londkirs.notifications;
 import android.app.*;
 import android.content.*;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;\nimport android.graphics.BitmapFactory;\nimport java.io.File;
+import android.graphics.Color;
+import android.graphics.BitmapFactory;\nimport java.io.File;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
@@ -107,16 +108,24 @@ public class NotificationReceiver extends BroadcastReceiver {
          .setWhen(System.currentTimeMillis()).setShowWhen(true);
         if(Build.VERSION.SDK_INT<26){ if(!p.optBoolean("sound",true))b.setSound(null); else if(!p.optString("soundUri","").isEmpty())try{b.setSound(Uri.parse(p.optString("soundUri")));}catch(Exception ignored){} }
         if(!p.optBoolean("vibrate",true))b.setVibrate(new long[]{0});
-        if(p.optBoolean("progress",false))b.setProgress(100,p.optInt("progressValue",0),false);\n        String image=p.optString("imagePath","");\n        try { File img=new File(image); if(!image.isEmpty() && img.isFile()) { android.graphics.Bitmap bitmap=BitmapFactory.decodeFile(img.getAbsolutePath()); if(bitmap!=null)b.setLargeIcon(bitmap).setStyle(new Notification.BigPictureStyle().bigPicture(bitmap).setSummaryText(p.optString("text",""))); } } catch(Exception ignored){}\n        if(!p.optString("group","").isEmpty()) b.setGroup(p.optString("group"));\n        try { b.setWhen(p.optLong("timestamp",System.currentTimeMillis())); } catch(Exception ignored){}
+        if(p.optBoolean("progress",false))b.setProgress(100,p.optInt("progressValue",0),false);
+        String image=p.optString("imagePath","");
+        try { File img=new File(image); if(!image.isEmpty() && img.isFile()) { android.graphics.Bitmap bitmap=BitmapFactory.decodeFile(img.getAbsolutePath()); if(bitmap!=null)b.setLargeIcon(bitmap).setStyle(new Notification.BigPictureStyle().bigPicture(bitmap).setSummaryText(p.optString("text",""))); } } catch(Exception ignored){}
+        if(!p.optString("group","").isEmpty()) b.setGroup(p.optString("group"));
+        try { b.setWhen(p.optLong("timestamp",System.currentTimeMillis())); } catch(Exception ignored){}
         Intent open=new Intent(c,MainActivity.class);open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content=PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         b.setContentIntent(content);
         addButton(c,b,p.optString("action1",""),id*10+1);
-        addButton(c,b,p.optString("action2",""),id*10+2);\n        addButton(c,b,p.optString("action3",""),id*10+3);
+        addButton(c,b,p.optString("action2",""),id*10+2);
+        addButton(c,b,p.optString("action3",""),id*10+3);
         if(Build.VERSION.SDK_INT>=21) b.setCategory(Notification.CATEGORY_REMINDER);
         try{nm.notify(id,b.build());}catch(SecurityException ignored){}
     }
-    static String channelId(JSONObject p) {\n        String cfg=p.optString("soundUri","") + "|" + p.optBoolean("sound",true) + "|" + p.optBoolean("vibrate",true) + "|" + p.optInt("priority",0) + "|" + p.optString("ledColor","#00FFFF");\n        return "notify_" + Integer.toHexString(cfg.hashCode());\n    }\n    static void addButton(Context c,Notification.Builder b,String label,int req) {
+    static String channelId(JSONObject p) {
+        String cfg=p.optString("soundUri","") + "|" + p.optBoolean("sound",true) + "|" + p.optBoolean("vibrate",true) + "|" + p.optInt("priority",0) + "|" + p.optString("ledColor","#00FFFF");
+        return "notify_" + Integer.toHexString(cfg.hashCode());
+    }\n    static void addButton(Context c,Notification.Builder b,String label,int req) {
         if(label==null||label.trim().isEmpty())return;
         Intent i=new Intent(c,NotificationReceiver.class);i.setAction(ACTION_BUTTON);i.putExtra("label",label);
         PendingIntent pi=PendingIntent.getBroadcast(c,req,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
