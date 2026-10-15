@@ -33,6 +33,27 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Prepare persistent signing key
+        env:
+          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$APK_SIGNING_KEY_BASE64" ]]; then
+            mkdir -p "$HOME/.android"
+            echo "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$HOME/.android/apk-factory-release.jks"
+            {
+              echo "APK_SIGNING_STORE_FILE=$HOME/.android/apk-factory-release.jks"
+              echo "APK_SIGNING_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+              echo "APK_SIGNING_KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
+              echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "Persistent APK signing key configured."
+          else
+            echo "::warning::APK signing secrets are not configured. Debug APKs may not update installs from earlier CI runs because GitHub-hosted runners do not preserve debug signing keys."
+          fi
       - name: Build selected app or all apps
         shell: bash
         env:
@@ -50,10 +71,26 @@ jobs:
           if [[ ${#APPS[@]} -eq 0 ]]; then echo "No Android apps found under apps/"; exit 1; fi
           for app in "${APPS[@]}"; do
             echo "::group::Building $app"
-            (cd "apps/$app" && gradle --no-daemon assembleDebug)
+            BUILD_FILE="apps/$app/app/build.gradle"
+            # Keep applicationId unchanged and monotonically increase versionCode.
+            CURRENT_CODE=$(sed -nE "s/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p" "$BUILD_FILE" | head -n1)
+            if [[ -z "$CURRENT_CODE" ]]; then echo "Missing numeric versionCode in $BUILD_FILE"; exit 1; fi
+            NEXT_CODE=$((CURRENT_CODE + 1))
+            sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT_CODE/" "$BUILD_FILE"
+            if [[ -n "${APK_SIGNING_STORE_FILE:-}" ]]; then
+              export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_FILE="$APK_SIGNING_STORE_FILE"
+              export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_PASSWORD="$APK_SIGNING_STORE_PASSWORD"
+              export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
+              export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_PASSWORD="$APK_SIGNING_KEY_PASSWORD"
+              (cd "apps/$app" && gradle --no-daemon assembleRelease)
+              APK_PATH="apps/$app/app/build/outputs/apk/release/"*.apk
+            else
+              (cd "apps/$app" && gradle --no-daemon assembleDebug)
+              APK_PATH="apps/$app/app/build/outputs/apk/debug/"*.apk
+            fi
             mkdir -p "downloads/$app"
-            cp "apps/$app/app/build/outputs/apk/debug/"*.apk "downloads/$app/app-debug.apk"
-            printf 'APK for %s, built from commit %s.\n' "$app" "$GITHUB_SHA" > "downloads/$app/README.md"
+            cp $APK_PATH "downloads/$app/app-debug.apk"
+            printf 'APK for %s, versionCode %s, built from commit %s.\n' "$app" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
             echo "::endgroup::"
           done
       - name: Upload APKs as artifact
@@ -63,12 +100,12 @@ jobs:
           path: downloads/**/*.apk
           if-no-files-found: error
           retention-days: 30
-      - name: Commit APKs to repository
+      - name: Commit APKs and version updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads/
+          git add apps/ downloads/
           if ! git diff --cached --quiet; then
-            git commit -m "Build: update Android APK downloads"
+            git commit -m "Build: update APKs and version codes"
             git push
           fi
