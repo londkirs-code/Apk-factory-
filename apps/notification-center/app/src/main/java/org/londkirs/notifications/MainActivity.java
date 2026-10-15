@@ -18,7 +18,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 public class MainActivity extends Activity {
-    EditText titleInput, textInput, idInput, action1Input, action2Input, progressInput;
+    EditText titleInput, textInput, idInput, action1Input, action2Input, action3Input, progressInput, imagePathInput, groupInput, soundUriInput, ledColorInput;
     Spinner repeatSpinner, prioritySpinner;
     CheckBox soundBox, vibrateBox, ongoingBox, alertOnceBox, progressBox;
     TextView whenText, scheduledText, statusText;
@@ -46,8 +46,8 @@ public class MainActivity extends Activity {
         root.addView(label("תוכן ההתראה")); textInput=edit("מה להציג בהתראה"); root.addView(textInput);
         root.addView(label("מזהה (לעדכון או ביטול)")); idInput=edit("למשל: 100"); idInput.setText("100"); root.addView(idInput);
         root.addView(label("פעולה בכפתור 1 (אופציונלי)")); action1Input=edit("למשל: פתח"); root.addView(action1Input);
-        root.addView(label("פעולה בכפתור 2 (אופציונלי)")); action2Input=edit("למשל: בוצע"); root.addView(action2Input);
-        root.addView(label("סוג התראה"));
+        root.addView(label("פעולה בכפתור 2 (אופציונלי)")); action2Input=edit("למשל: בוצע"); root.addView(action2Input);\n        root.addView(label("פעולה בכפתור 3 (אופציונלי)")); action3Input=edit("למשל: דחה"); root.addView(action3Input);
+        root.addView(label("תמונה גדולה — נתיב מקומי (אופציונלי)")); imagePathInput=edit("/storage/emulated/0/Pictures/image.jpg"); root.addView(imagePathInput);\n        root.addView(label("קבוצת התראות (אופציונלי)")); groupInput=edit("למשל: reminders"); root.addView(groupInput);\n        root.addView(label("צליל מותאם אישית — URI (אופציונלי)")); soundUriInput=edit("content://... או file://..."); root.addView(soundUriInput);\n        root.addView(label("צבע נורית LED — למשל #00FFAA (אופציונלי)")); ledColorInput=edit("#00FFFF"); root.addView(ledColorInput);\n        root.addView(label("סוג התראה"));
         progressBox=new CheckBox(this); progressBox.setText("התראת התקדמות"); root.addView(progressBox);
         progressInput=edit("התקדמות 0–100"); progressInput.setText("50"); root.addView(progressInput);
         root.addView(label("חשיבות"));
@@ -88,7 +88,7 @@ public class MainActivity extends Activity {
         String title=titleInput.getText().toString().trim(), text=textInput.getText().toString().trim();
         if(title.isEmpty()) title="התראה"; if(text.isEmpty()) text=" ";
         JSONObject j=new JSONObject(); j.put("title",title); j.put("text",text); j.put("id",idInput.getText().toString().trim().isEmpty()?100:Integer.parseInt(idInput.getText().toString().trim()));
-        j.put("action1",action1Input.getText().toString().trim()); j.put("action2",action2Input.getText().toString().trim());
+        j.put("action1",action1Input.getText().toString().trim()); j.put("action2",action2Input.getText().toString().trim()); j.put("action3",action3Input.getText().toString().trim());\n        j.put("imagePath",imagePathInput.getText().toString().trim()); j.put("group",groupInput.getText().toString().trim()); j.put("soundUri",soundUriInput.getText().toString().trim()); j.put("ledColor",ledColorInput.getText().toString().trim());
         j.put("sound",soundBox.isChecked()); j.put("vibrate",vibrateBox.isChecked()); j.put("ongoing",ongoingBox.isChecked()); j.put("alertOnce",alertOnceBox.isChecked());
         j.put("priority",priority()); j.put("progress",progressBox.isChecked()); j.put("progressValue",Math.max(0,Math.min(100,Integer.parseInt(progressInput.getText().toString().trim().isEmpty()?"0":progressInput.getText().toString().trim()))));
         return j;
