@@ -346,7 +346,32 @@ public class MainActivity extends Activity {
             } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
         });
     }
-    private void loadFeatureTransactions() { showFeatureMessage("זיכויים", "טעינת הזיכויים עדיין בבנייה."); }
+    private void loadFeatureTransactions() {
+        beginScreen("זיכויים ותנועות בחשבון");
+        statusView.setText("טוען תנועות…");
+        executor.execute(() -> {
+            try {
+                HttpResult r=request("GET","/api/profile/transactions?page=1",prefs.getString("token",""),null);
+                if(r.code<200||r.code>=300) throw new Exception("שגיאת שרת ("+r.code+")");
+                JSONArray a=new JSONArray();
+                Object value=new org.json.JSONTokener(r.body).nextValue();
+                if(value instanceof JSONArray) a=(JSONArray)value;
+                else if(value instanceof JSONObject) a=((JSONObject)value).optJSONArray("data");
+                final JSONArray rows=a==null?new JSONArray():a;
+                runOnUiThread(() -> {
+                    beginScreen("זיכויים ותנועות בחשבון");
+                    Button back=button("חזרה לתפריט");root.addView(back);back.setOnClickListener(v->showDashboard());
+                    if(rows.length()==0) statusView.setText("לא נמצאו תנועות בחשבון.");
+                    for(int i=0;i<rows.length();i++){
+                        JSONObject o=rows.optJSONObject(i);if(o==null)continue;
+                        String title=o.optString("type",o.optString("title",o.optString("name","תנועה")));
+                        root.addView(text(title,16,true));
+                        root.addView(text("סכום: "+o.optString("amount",o.optString("total",""))+" ₪ · "+o.optString("status",o.optString("description","")),13,false));
+                    }
+                });
+            } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
+        });
+    }
     private void showFeatureMessage(String title, String message) { beginScreen(title); statusView.setText(message); Button b=button("חזרה לתפריט"); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->showDashboard()); }
     private void hideKeyboard() {
         try {
