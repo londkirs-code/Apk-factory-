@@ -14,6 +14,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -446,7 +448,9 @@ public class MainActivity extends Activity {
                     if(orders.length()==0) statusView.setText("לא נמצאו הזמנות.");
                     for(int i=0;i<orders.length();i++){
                         JSONObject o=orders.optJSONObject(i);if(o==null)continue;
-                        TextView t=text("הזמנה #"+o.optString("id"),16,true);root.addView(t);
+                        TextView t=text("הזמנה #"+o.optString("id")+"  ›",16,true);root.addView(t);
+                        final long orderId=o.optLong("id",-1);
+                        if(orderId>0)t.setOnClickListener(v->loadFeatureOrderDetails(orderId));
                         root.addView(text("סטטוס: "+o.optString("status")+" · סכום: "+o.optString("total",o.optString("amount","")),13,false));
                     }
                 });
