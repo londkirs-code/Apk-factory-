@@ -210,8 +210,11 @@ public class MainActivity extends Activity {
     }
 
     private void requestMonitoringPermissions(boolean forceExactAlarmSettings) {
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                && (forceExactAlarmSettings || !prefs.getBoolean("notification_permission_requested", false))) {
+            prefs.edit().putBoolean("notification_permission_requested", true).apply();
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4101);
+            return;
         }
         if (Build.VERSION.SDK_INT >= 31) {
             AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
@@ -222,6 +225,11 @@ public class MainActivity extends Activity {
                 catch (Exception ignored) { }
             }
         }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 4101) requestMonitoringPermissions(false);
     }
 
     private void showNotificationSettings() {
