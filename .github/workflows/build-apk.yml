@@ -20,41 +20,8 @@ permissions:
   contents: write
 
 jobs:
-  discover:
-    runs-on: ubuntu-latest
-    outputs:
-      apps: ${{ steps.list.outputs.apps }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: list
-        shell: bash
-        env:
-          REQUESTED_APP: ${{ inputs.app || 'all' }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_APP" != "all" ]]; then
-            [[ "$REQUESTED_APP" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "Invalid app id"; exit 1; }
-            [[ -f "apps/$REQUESTED_APP/app/build.gradle" ]] || { echo "App not found: $REQUESTED_APP"; exit 1; }
-            printf 'apps=["%s"]\n' "$REQUESTED_APP" >> "$GITHUB_OUTPUT"
-          else
-            python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import json
-          from pathlib import Path
-          root = Path("apps")
-          apps = sorted(p.name for p in root.iterdir() if p.is_dir() and (p / "app/build.gradle").exists()) if root.exists() else []
-          print("apps=" + json.dumps(apps))
-          PY
-          fi
-
   build:
-    needs: discover
-    if: needs.discover.outputs.apps != '[]'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        app: ${{ fromJson(needs.discover.outputs.apps) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,27 +33,42 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Build APK
-        working-directory: apps/${{ matrix.app }}
-        run: gradle --no-daemon assembleDebug
-      - name: Upload APK artifact
+      - name: Build selected app or all apps
+        shell: bash
+        env:
+          REQUESTED_APP: ${{ inputs.app || 'all' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_APP" != "all" ]]; then
+            [[ "$REQUESTED_APP" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "Invalid app id"; exit 1; }
+            [[ -f "apps/$REQUESTED_APP/app/build.gradle" ]] || { echo "App not found: $REQUESTED_APP"; exit 1; }
+            APPS=("$REQUESTED_APP")
+          else
+            mapfile -t APPS < <(find apps -mindepth 1 -maxdepth 1 -type d -print | sort | while read -r d; do [[ -f "$d/app/build.gradle" ]] && basename "$d"; done)
+          fi
+          if [[ ${#APPS[@]} -eq 0 ]]; then echo "No Android apps found under apps/"; exit 1; fi
+          for app in "${APPS[@]}"; do
+            echo "::group::Building $app"
+            (cd "apps/$app" && gradle --no-daemon assembleDebug)
+            mkdir -p "downloads/$app"
+            cp "apps/$app/app/build/outputs/apk/debug/"*.apk "downloads/$app/app-debug.apk"
+            printf 'APK for %s, built from commit %s.\n' "$app" "$GITHUB_SHA" > "downloads/$app/README.md"
+            echo "::endgroup::"
+          done
+      - name: Upload APKs as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.app }}-debug-apk
-          path: apps/${{ matrix.app }}/app/build/outputs/apk/debug/*.apk
+          name: android-apks
+          path: downloads/**/*.apk
           if-no-files-found: error
           retention-days: 30
-      - name: Stage APK for repository download
-        run: |
-          mkdir -p "downloads/${{ matrix.app }}"
-          cp "apps/${{ matrix.app }}/app/build/outputs/apk/debug/"*.apk "downloads/${{ matrix.app }}/app-debug.apk"
-          printf 'APK for %s, built from commit %s.\n' "${{ matrix.app }}" "$GITHUB_SHA" > "downloads/${{ matrix.app }}/README.md"
-      - name: Commit APK
+      - name: Commit APKs to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "downloads/${{ matrix.app }}/"
+          git add downloads/
           if ! git diff --cached --quiet; then
-            git commit -m "Build: update APK for ${{ matrix.app }}"
+            git commit -m "Build: update Android APK downloads"
             git push
           fi
