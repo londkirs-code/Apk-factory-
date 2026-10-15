@@ -117,9 +117,9 @@ public class MainActivity extends Activity {
             nav.setGravity(Gravity.CENTER);
             nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
-            String[] labels = {"היסטוריה", "זיכויים", "הזמנות פתוחות"};
-            int[] icons = {android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
-            Runnable[] actions = {this::loadFeatureOrders, this::loadFeatureTransactions, this::showOpenSales};
+            String[] labels = {"ראשי", "היסטוריה", "זיכויים", "הזמנות פתוחות"};
+            int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
+            Runnable[] actions = {this::showDashboard, this::loadFeatureOrders, this::loadFeatureTransactions, this::showOpenSales};
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 LinearLayout item = new LinearLayout(this);
@@ -759,10 +759,23 @@ public class MainActivity extends Activity {
                     back.setOnClickListener(v -> showDashboard());
                     TextView summary = text("", 15, true);
                     root.addView(summary);
+                    LinearLayout filters = new LinearLayout(this);
+                    filters.setOrientation(LinearLayout.HORIZONTAL);
+                    filters.setGravity(Gravity.CENTER);
+                    LinearLayout.LayoutParams filtersParams = new LinearLayout.LayoutParams(-1, -2);
+                    filtersParams.bottomMargin = dp(10);
+                    root.addView(filters, filtersParams);
                     Button all = button("הכול");
-                    Button credits = button("זיכויים בלבד");
-                    Button charges = button("חיובים בלבד");
-                    root.addView(all); root.addView(credits); root.addView(charges);
+                    Button credits = button("זיכויים");
+                    Button charges = button("חיובים");
+                    for (Button filter : new Button[]{all, credits, charges}) {
+                        filter.setTextSize(12);
+                        filter.setMinHeight(dp(44));
+                        filter.setPadding(dp(2), dp(2), dp(2), dp(2));
+                        LinearLayout.LayoutParams filterParams = new LinearLayout.LayoutParams(0, -2, 1);
+                        filterParams.setMargins(dp(2), 0, dp(2), 0);
+                        filters.addView(filter, filterParams);
+                    }
                     LinearLayout list = new LinearLayout(this);
                     list.setOrientation(LinearLayout.VERTICAL);
                     root.addView(list, new LinearLayout.LayoutParams(-1, -2));
@@ -783,10 +796,10 @@ public class MainActivity extends Activity {
                             if (product == null) product = new JSONObject();
                             String name = product.optString("full_name", product.optString("name", ""));
                             String note = android.text.Html.fromHtml(tx.optString("note", ""), android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim();
-                            JSONObject sale = tx.optJSONObject("sale");
-                            JSONObject original = tx.optJSONObject("original_sale");
-                            String saleName = sale == null ? "" : sale.optString("custom_name", "");
-                            String originalName = original == null ? "" : original.optString("custom_name", "");
+                            JSONObject sale = firstTransactionObject(tx, "sale", "sale_data", "saleData");
+                            JSONObject original = firstTransactionObject(tx, "original_sale", "originalSale", "original_sale_data", "originalSaleData");
+                            String saleName = transactionSaleName(tx, sale, false);
+                            String originalName = transactionSaleName(tx, original, true);
                             String kind = amount < 0 ? "💚 זיכוי" : (amount > 0 ? "🔴 חיוב" : "ללא סכום");
                             String date = tx.optString("time", "");
                             String description = name.isEmpty() ? note : name;
@@ -825,6 +838,40 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> statusView.setText(message));
             }
         });
+    }
+
+    private JSONObject firstTransactionObject(JSONObject tx, String... keys) {
+        for (String key : keys) {
+            JSONObject value = tx.optJSONObject(key);
+            if (value != null) return value;
+        }
+        return null;
+    }
+
+    private String transactionSaleName(JSONObject tx, JSONObject sale, boolean original) {
+        String[] directKeys = original
+            ? new String[]{"original_sale_name", "originalSaleName", "original_sale_custom_name", "originalSaleCustomName"}
+            : new String[]{"sale_name", "saleName", "sale_custom_name", "saleCustomName"};
+        String name = firstOrderString(tx, directKeys);
+        if (!name.isEmpty()) return name;
+        if (sale != null) {
+            name = firstOrderString(sale, "custom_name", "name", "sale_name", "title", "week", "label");
+            if (name.isEmpty()) {
+                JSONObject parent = firstTransactionObject(sale, "parent", "sale_parent");
+                if (parent != null) name = firstOrderString(parent, "week", "name", "title", "custom_name");
+            }
+            if (name.isEmpty()) {
+                JSONObject nested = firstTransactionObject(sale, "sale", "original_sale", "originalSale");
+                if (nested != null && nested != sale) name = transactionSaleName(tx, nested, original);
+            }
+            if (!name.isEmpty()) return name;
+        }
+        String id = original
+            ? firstOrderString(tx, "original_sale_id", "originalSaleId", "original_saleID")
+            : firstOrderString(tx, "sale_id", "saleId", "saleID");
+        if (id.isEmpty() && sale != null) id = firstOrderString(sale, "id", "sale_id", "saleID");
+        if (!id.isEmpty()) return "מכירה #" + id;
+        return "";
     }
 
     private void addTransactionList(java.util.Map<String, JSONObject> target, Object value) {
