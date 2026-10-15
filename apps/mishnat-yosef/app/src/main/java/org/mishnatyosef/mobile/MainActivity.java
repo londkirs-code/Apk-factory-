@@ -119,7 +119,7 @@ public class MainActivity extends Activity {
             nav.setElevation(dp(8));
             String[] labels = {"היסטוריה", "זיכויים", "הזמנות פתוחות"};
             int[] icons = {android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
-            Runnable[] actions = {this::loadFeatureOrders, this::loadFeatureTransactions, this::loadOpenSales};
+            Runnable[] actions = {this::loadFeatureOrders, this::loadFeatureTransactions, this::showOpenSales};
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 LinearLayout item = new LinearLayout(this);
@@ -237,6 +237,12 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> setBusy(false, message));
             }
         });
+    }
+
+    private void showOpenSales() {
+        beginScreen("הזמנות פתוחות");
+        statusView.setText("טוען הזמנות פתוחות…");
+        loadOpenSales();
     }
 
     private void loadOpenSales() {
