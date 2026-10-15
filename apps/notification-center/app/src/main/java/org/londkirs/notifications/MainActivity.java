@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.service.notification.StatusBarNotification;
 import android.graphics.Color;
 import android.view.*;
 import android.widget.*;
