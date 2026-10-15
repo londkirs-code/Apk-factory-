@@ -82,11 +82,16 @@ public class NotificationReceiver extends BroadcastReceiver {
     }
     static void show(Context c,JSONObject p) {
         NotificationManager nm=(NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE);
-        if(Build.VERSION.SDK_INT>=26 && nm.getNotificationChannel(CHANNEL)==null){
-            NotificationChannel ch=new NotificationChannel(CHANNEL,"התראות",NotificationManager.IMPORTANCE_DEFAULT);
+        String channelId=channelId(p);
+        if(Build.VERSION.SDK_INT>=26 && nm.getNotificationChannel(channelId)==null){
+            int imp=p.optInt("priority",0)>=2?NotificationManager.IMPORTANCE_HIGH:(p.optInt("priority",0)<0?NotificationManager.IMPORTANCE_LOW:NotificationManager.IMPORTANCE_DEFAULT);
+            NotificationChannel ch=new NotificationChannel(channelId,"התראות · "+(p.optString("group").isEmpty()?"כללי":p.optString("group")),imp);
             ch.setDescription("התראות שנוצרות במרכז ההתראות");
-            ch.enableVibration(true);ch.enableLights(true);ch.setLightColor(Color.CYAN);
-            ch.setSound(Settings.System.DEFAULT_NOTIFICATION_URI,new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build());
+            ch.enableVibration(p.optBoolean("vibrate",true));
+            try { int led=Color.parseColor(p.optString("ledColor","#00FFFF")); ch.enableLights(true); ch.setLightColor(led); } catch(Exception ignored){}
+            Uri soundUri=null;
+            try { String su=p.optString("soundUri",""); if(!su.isEmpty())soundUri=Uri.parse(su); else if(p.optBoolean("sound",true))soundUri=Settings.System.DEFAULT_NOTIFICATION_URI; } catch(Exception ignored){}
+            ch.setSound(soundUri,new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build());
             nm.createNotificationChannel(ch);
         }
         int id=p.optInt("id",100);
