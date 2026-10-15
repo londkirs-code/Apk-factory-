@@ -456,25 +456,47 @@ public class MainActivity extends Activity {
                     if(orders.length()==0) statusView.setText("לא נמצאו הזמנות.");
                     for(int i=0;i<orders.length();i++){
                         JSONObject o=orders.optJSONObject(i);if(o==null)continue;
-                        TextView t=text("הזמנה #"+o.optString("id")+"  ›",16,true);root.addView(t);
+                        JSONObject sale = o.optJSONObject("sale");
+                        if (sale == null) sale = new JSONObject();
+                        JSONObject parent = sale.optJSONObject("parent");
+                        String saleName = firstOrderString(sale, "custom_name");
+                        if (saleName.isEmpty() && parent != null) saleName = firstOrderString(parent, "week");
+                        if (saleName.isEmpty()) saleName = "מכירה " + firstOrderString(o, "saleID", "sale_id");
+                        String orderIdText = firstOrderString(o, "id");
+                        TextView t=text(saleName + "  ·  הזמנה #" + orderIdText + "  ›",16,true);root.addView(t);
                         final long orderId=o.optLong("id",-1);
                         if(orderId>0)t.setOnClickListener(v->loadFeatureOrderDetails(orderId));
-                        root.addView(text("סטטוס: "+o.optString("status")+" · סכום: "+o.optString("total",o.optString("amount","")),13,false));
+                        String status = firstOrderString(o, "status");
+                        String total = firstOrderString(o, "total_list", "total", "amount", "sum");
+                        root.addView(text((status.isEmpty() ? "" : "סטטוס: " + status + " · ") + (total.isEmpty() ? "" : "סכום: " + total + " ₪"),13,false));
                     }
                 });
             } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
         });
     }
     private JSONArray orderItemsFrom(JSONObject order) {
-        String[] keys = {"items", "order_items", "orderItems", "products", "details", "lines", "order_details", "orderDetails", "order_lines", "orderLines"};
+        if (order == null) return new JSONArray();
+        // The documented endpoint returns { "order": { "products": [...] }, "sale": {...} }.
+        JSONArray products = order.optJSONArray("products");
+        if (products != null) return products;
+        String[] keys = {"items", "order_items", "orderItems", "details", "lines", "order_details", "orderDetails", "order_lines", "orderLines"};
         for (String key : keys) { JSONArray a = order.optJSONArray(key); if (a != null) return a; }
         String[] nestedKeys = {"order", "data", "result", "order_detail", "orderDetail"};
-        for (String key : nestedKeys) { JSONObject nested = order.optJSONObject(key); if (nested != null && nested != order) { JSONArray a = orderItemsFrom(nested); if (a.length() > 0) return a; } }
+        for (String key : nestedKeys) {
+            JSONObject nested = order.optJSONObject(key);
+            if (nested != null && nested != order) {
+                JSONArray a = orderItemsFrom(nested);
+                if (a.length() > 0) return a;
+            }
+        }
         return new JSONArray();
     }
 
     private JSONObject orderProductFrom(JSONObject item) {
-        String[] keys = {"item", "product", "sale_item", "saleItem", "product_details", "productDetails"};
+        if (item == null) return new JSONObject();
+        JSONObject product = item.optJSONObject("product");
+        if (product != null) return product;
+        String[] keys = {"item", "sale_item", "saleItem", "product_details", "productDetails"};
         for (String key : keys) {
             JSONObject p = item.optJSONObject(key);
             if (p != null) return p;
@@ -493,22 +515,41 @@ public class MainActivity extends Activity {
     }
 
     private String orderImageUrl(JSONObject item, JSONObject product) {
-        String[] keys = {"image_url", "imageUrl", "featured_image", "featuredImage", "image", "photo", "picture", "thumbnail", "img", "image_path", "imagePath", "picture_url", "pictureUrl", "url"};
-        String url = firstOrderString(product, keys);
-        if (url.isEmpty()) url = firstOrderString(item, keys);
-        if (url.isEmpty()) {
-            JSONArray images = product.optJSONArray("images"); if (images == null) images = item.optJSONArray("images");
-            if (images != null && images.length() > 0) { Object first = images.opt(0); if (first instanceof JSONObject) url = firstOrderString((JSONObject) first, "url", "src", "path", "original", "large", "thumbnail"); else if (first != null) url = String.valueOf(first); }
+        final String imageBase = "https://images.mishnatyosef.org/images/items/";
+        String url = firstOrderString(product, "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl", "url");
+        if (url.isEmpty()) url = firstOrderString(item, "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl");
+        // API product images use filename + extension, not necessarily a complete URL.
+        JSONArray images = product.optJSONArray("images");
+        if (images == null) images = item.optJSONArray("images");
+        if (url.isEmpty() && images != null && images.length() > 0) {
+            JSONObject img = images.optJSONObject(0);
+            if (img != null) {
+                String filename = firstOrderString(img, "filename");
+                String extension = firstOrderString(img, "extension");
+                url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
+                if (url.isEmpty() && !filename.isEmpty()) url = imageBase + filename + (extension.isEmpty() ? ".jpg" : "." + extension);
+            } else {
+                Object first = images.opt(0);
+                if (first != null) url = String.valueOf(first);
+            }
         }
-        if (url.isEmpty()) { JSONObject image = product.optJSONObject("image"); if (image == null) image = product.optJSONObject("featured_image"); if (image == null) image = item.optJSONObject("image"); if (image != null) url = firstOrderString(image, "url", "src", "path", "original", "large", "thumbnail"); }
-        if (url.startsWith("//")) url = "https:" + url;
-        if (url.startsWith("/")) url = API + url;
+        if (url.isEmpty()) {
+            JSONObject img = product.optJSONObject("image");
+            if (img == null) img = item.optJSONObject("image");
+            if (img != null) url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
+        }
+        if (!url.isEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
+            if (url.startsWith("//")) url = "https:" + url;
+            else if (url.startsWith("/")) url = imageBase + url.substring(1);
+            else url = imageBase + url;
+        }
         return url.startsWith("http://") || url.startsWith("https://") ? url : "";
     }
 
     private String orderPrice(JSONObject item, JSONObject product, String quantity) {
-        String price = firstOrderString(item, "total_list", "totalList", "price_list", "priceList", "price", "unit_price", "unitPrice", "item_price", "itemPrice", "total_price", "totalPrice", "subtotal", "sum", "amount_price", "amountPrice");
-        if (price.isEmpty()) price = firstOrderString(product, "total_list", "totalList", "price_list", "priceList", "price", "unit_price", "unitPrice", "item_price", "itemPrice", "total_price", "totalPrice", "amount_price", "amountPrice");
+        // For /api/orders/{id}, each order.products entry contains its own price.
+        String price = firstOrderString(item, "price", "unit_price", "unitPrice", "item_price", "itemPrice", "price_list", "priceList", "total_price", "totalPrice", "total_list", "totalList", "subtotal", "sum", "amount_price", "amountPrice");
+        if (price.isEmpty()) price = firstOrderString(product, "price", "unit_price", "unitPrice", "item_price", "itemPrice", "price_list", "priceList", "total_price", "totalPrice", "total_list", "totalList");
         if (price.isEmpty()) return "—";
         if (price.matches(".*[₪$€].*")) return price;
         return price + " ₪";
@@ -586,12 +627,19 @@ public class MainActivity extends Activity {
         back.setOnClickListener(v -> loadFeatureOrders());
         try {
             JSONObject response = new JSONObject(body);
-            JSONObject order = response.optJSONObject("data");
+            JSONObject order = response.optJSONObject("order");
+            if (order == null) order = response.optJSONObject("data");
             if (order == null) order = response;
+            JSONObject sale = response.optJSONObject("sale");
+            if (sale == null) sale = order.optJSONObject("sale");
+            String saleName = firstOrderString(sale == null ? new JSONObject() : sale, "custom_name");
+            JSONObject parent = sale == null ? null : sale.optJSONObject("parent");
+            if (saleName.isEmpty() && parent != null) saleName = firstOrderString(parent, "week");
+            if (!saleName.isEmpty()) root.addView(text("שם המכירה: " + saleName, 17, true));
             TextView heading = text("פרטי ההזמנה", 18, true);
             root.addView(heading);
             String status = firstOrderString(order, "status", "order_status");
-            String total = firstOrderString(order, "total", "total_price", "totalPrice", "amount", "sum");
+            String total = firstOrderString(order, "total_list", "total", "total_price", "totalPrice", "amount", "sum");
             if (!status.isEmpty()) root.addView(text("סטטוס: " + status, 14, false));
             if (!total.isEmpty()) root.addView(text("סכום הזמנה: " + total + " ₪", 15, true));
 
