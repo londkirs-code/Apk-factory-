@@ -847,7 +847,16 @@ public class MainActivity extends Activity {
                 for (int i = 0; i < featureProducts.length(); i++) {
                     JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
                     int amount = featureQuantities.getOrDefault(featureProductId(p), 0);
-                    if (amount <= 0) continue;
+                    int originalAmount = p.optInt("amount", 0);
+                    int itemSalesId = p.optInt("item_salesID", p.optInt("item_sales_id", -1));
+                    if (amount <= 0) {
+                        if (originalAmount > 0 && itemSalesId > 0) {
+                            HttpResult removed = request("POST", "/api/remove_item/" + featureOrderId + "/" + itemSalesId, token, null);
+                            if (removed.code < 200 || removed.code >= 300)
+                                throw new Exception("הסרת מוצר מההזמנה נכשלה (" + removed.code + ").");
+                        }
+                        continue;
+                    }
                     int max = p.optInt("max_per_man", 0);
                     if (max > 0 && amount > max) throw new Exception("הכמות שבחרת חורגת מהמגבלה של " + firstOrderString(p, "name") + ".");
                     if (p.optBoolean("disable", false) || (p.has("available") && !p.isNull("available") && p.optDouble("available", 1) <= 0))
@@ -855,7 +864,8 @@ public class MainActivity extends Activity {
                     JSONObject item = new JSONObject(p.toString());
                     item.put("amount", amount);
                     if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
-                    HttpResult add = request("POST", "/api/add_item/" + featureOrderId, token, item);
+                    String endpoint = originalAmount > 0 ? "/api/update_item/" : "/api/add_item/";
+                    HttpResult add = request("POST", endpoint + featureOrderId, token, item);
                     if (add.code < 200 || add.code >= 300)
                         throw new Exception("שמירת מוצר נכשלה (" + add.code + "). " + add.body);
                 }
