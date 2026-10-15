@@ -119,7 +119,9 @@ public class MainActivity extends Activity {
             if(j.optLong("repeat")>0)s.append(" · חוזרת"); s.append("\n\n");}
         scheduledText.setText(s.length()==0?"אין התראות מתוזמנות":s.toString());
     }
-    void showActiveNotifications() {\n        StringBuilder out=new StringBuilder();\n        if(Build.VERSION.SDK_INT>=23){ StatusBarNotification[] active=((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).getActiveNotifications(); for(StatusBarNotification n:active){out.append("• ID ").append(n.getId()).append(" — ").append(n.getPackageName()).append("\\n");} }\n        new AlertDialog.Builder(this).setTitle("התראות פעילות").setMessage(out.length()==0?"אין התראות פעילות":out.toString()).setPositiveButton("סגירה",null).show();\n    }\n    void openChannelSettings() {
+    void showActiveNotifications() {
+        StringBuilder out=new StringBuilder();
+        if(Build.VERSION.SDK_INT>=23){ StatusBarNotification[] active=((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).getActiveNotifications(); for(StatusBarNotification n:active){out.append("• ID ").append(n.getId()).append(" — ").append(n.getPackageName()).append("\\n");} }\n        new AlertDialog.Builder(this).setTitle("התראות פעילות").setMessage(out.length()==0?"אין התראות פעילות":out.toString()).setPositiveButton("סגירה",null).show();\n    }\n    void openChannelSettings() {
         if(Build.VERSION.SDK_INT>=26){Intent i=new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());i.putExtra(Settings.EXTRA_CHANNEL_ID,NotificationReceiver.CHANNEL);startActivity(i);}
         else {Intent i=new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()));startActivity(i);}
     }
