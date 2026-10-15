@@ -453,6 +453,23 @@ public class MainActivity extends Activity {
             } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
         });
     }
+    private void loadFeatureOrderDetails(long id) {
+        executor.execute(() -> {
+            try {
+                HttpResult r=request("GET","/api/orders/"+id,prefs.getString("token",""),null);
+                if(r.code<200||r.code>=300)throw new Exception("שגיאת שרת ("+r.code+")");
+                String body=r.body;
+                runOnUiThread(() -> {
+                    beginScreen("פרטי הזמנה #"+id);
+                    Button back=button("חזרה להיסטוריה");root.addView(back);back.setOnClickListener(v->loadFeatureOrders());
+                    try {
+                        JSONObject o=new JSONObject(body);JSONObject d=o.optJSONObject("data");
+                        TextView detail=text((d==null?o:d).toString(2),13,false);root.addView(detail);
+                    } catch(Exception e) { statusView.setText(body); }
+                });
+            } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
+        });
+    }
     private void loadFeatureTransactions() {
         beginScreen("זיכויים ותנועות בחשבון");
         statusView.setText("טוען תנועות…");
