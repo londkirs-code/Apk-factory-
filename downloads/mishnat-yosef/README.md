@@ -1,1 +1,1 @@
-APK for mishnat-yosef, built from commit 56866458eddb15d4bee0b8a97461ab33d0c58f19.
+APK for mishnat-yosef, versionCode 2, built from commit 8f07bb0b27efe007b96c2697b0f54ba44fedc984.
