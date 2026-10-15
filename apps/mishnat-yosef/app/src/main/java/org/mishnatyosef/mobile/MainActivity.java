@@ -516,8 +516,8 @@ public class MainActivity extends Activity {
 
     private String orderImageUrl(JSONObject item, JSONObject product) {
         final String imageBase = "https://images.mishnatyosef.org/images/items/";
-        String url = firstOrderString(product, "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl", "url");
-        if (url.isEmpty()) url = firstOrderString(item, "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl");
+        String url = firstOrderString(product, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl", "url");
+        if (url.isEmpty()) url = firstOrderString(item, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl");
         // API product images use filename + extension, not necessarily a complete URL.
         JSONArray images = product.optJSONArray("images");
         if (images == null) images = item.optJSONArray("images");
@@ -527,7 +527,7 @@ public class MainActivity extends Activity {
                 String filename = firstOrderString(img, "filename");
                 String extension = firstOrderString(img, "extension");
                 url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
-                if (url.isEmpty() && !filename.isEmpty()) url = imageBase + filename + (extension.isEmpty() ? ".jpg" : "." + extension);
+                if (url.isEmpty() && !filename.isEmpty()) String cleanExtension = extension.startsWith(".") ? extension.substring(1) : extension;\n                boolean filenameHasExtension = filename.matches("(?i).*\\\\.[a-z0-9]{2,5}$");\n                url = imageBase + filename + (filenameHasExtension || cleanExtension.isEmpty() ? "" : "." + cleanExtension);
             } else {
                 Object first = images.opt(0);
                 if (first != null) url = String.valueOf(first);
@@ -557,8 +557,8 @@ public class MainActivity extends Activity {
 
     private void addOrderItemRow(JSONObject item, int index) {
         JSONObject product = orderProductFrom(item);
-        String name = firstOrderString(product, "name", "item_name", "product_name", "title", "custom_name");
-        if (name.isEmpty()) name = firstOrderString(item, "name", "item_name", "product_name", "title", "custom_name");
+        String name = firstOrderString(product, "name", "full_name", "fullName", "item_name", "product_name", "title", "custom_name");
+        if (name.isEmpty()) name = firstOrderString(item, "name", "full_name", "fullName", "item_name", "product_name", "title", "custom_name");
         if (name.isEmpty()) name = "פריט " + (index + 1);
         String quantity = firstOrderString(item, "amount", "quantity", "qty", "count");
         if (quantity.isEmpty()) quantity = firstOrderString(product, "amount", "quantity", "qty", "count");
