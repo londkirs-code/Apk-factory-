@@ -718,31 +718,127 @@ public class MainActivity extends Activity {
         });
     }
     private void loadFeatureTransactions() {
-        beginScreen("זיכויים ותנועות בחשבון");
-        statusView.setText("טוען תנועות…");
+        beginScreen("זיכויים וחיובים");
+        statusView.setText("טוען את כל התנועות…");
         executor.execute(() -> {
             try {
-                HttpResult r=request("GET","/api/profile/transactions?page=1",prefs.getString("token",""),null);
-                if(r.code<200||r.code>=300) throw new Exception("שגיאת שרת ("+r.code+")");
-                JSONArray a=new JSONArray();
-                Object value=new org.json.JSONTokener(r.body).nextValue();
-                if(value instanceof JSONArray) a=(JSONArray)value;
-                else if(value instanceof JSONObject) a=((JSONObject)value).optJSONArray("data");
-                final JSONArray rows=a==null?new JSONArray():a;
-                runOnUiThread(() -> {
-                    beginScreen("זיכויים ותנועות בחשבון");
-                    Button back=button("חזרה לתפריט");root.addView(back);back.setOnClickListener(v->showDashboard());
-                    if(rows.length()==0) statusView.setText("לא נמצאו תנועות בחשבון.");
-                    for(int i=0;i<rows.length();i++){
-                        JSONObject o=rows.optJSONObject(i);if(o==null)continue;
-                        String title=o.optString("type",o.optString("title",o.optString("name","תנועה")));
-                        root.addView(text(title,16,true));
-                        root.addView(text("סכום: "+o.optString("amount",o.optString("total",""))+" ₪ · "+o.optString("status",o.optString("description","")),13,false));
+                final String token = prefs.getString("token", "");
+                java.util.LinkedHashMap<String, JSONObject> unique = new java.util.LinkedHashMap<>();
+                String nextPath = "/api/profile/transactions?page=1";
+                int page = 1, lastPage = 1;
+                while (page <= Math.min(lastPage, 60)) {
+                    HttpResult response = request("GET", nextPath, token, null);
+                    if (response.code < 200 || response.code >= 300)
+                        throw new Exception("טעינת הזיכויים נכשלה (עמוד " + page + ", שגיאה " + response.code + ").");
+                    JSONObject payload = new JSONObject(response.body);
+                    JSONObject transactions = payload.optJSONObject("transactions");
+                    if (transactions == null) transactions = new JSONObject();
+                    if (page == 1) {
+                        addTransactionList(unique, payload.opt("open_transactions"));
+                        addTransactionList(unique, payload.opt("kupot_transactions"));
+                        addTransactionList(unique, payload.opt("kupot_open_transactions"));
                     }
+                    JSONArray data = transactions.optJSONArray("data");
+                    if (data == null) data = payload.optJSONArray("transactions");
+                    if (data != null) {
+                        for (int i = 0; i < data.length(); i++) {
+                            JSONObject tx = data.optJSONObject(i);
+                            if (tx != null) unique.putIfAbsent(tx.optString("id", "page" + page + "_" + i), tx);
+                        }
+                    }
+                    lastPage = Math.max(1, transactions.optInt("last_page", 1));
+                    page++;
+                    nextPath = "/api/profile/transactions?page=" + page;
+                }
+                java.util.ArrayList<JSONObject> rows = new java.util.ArrayList<>(unique.values());
+                rows.sort((a,b) -> b.optString("time", "").compareTo(a.optString("time", "")));
+                final java.util.ArrayList<JSONObject> finalRows = rows;
+                runOnUiThread(() -> {
+                    beginScreen("זיכויים וחיובים");
+                    Button back = button("חזרה לתפריט");
+                    root.addView(back);
+                    back.setOnClickListener(v -> showDashboard());
+                    TextView summary = text("", 15, true);
+                    root.addView(summary);
+                    Button all = button("הכול");
+                    Button credits = button("זיכויים בלבד");
+                    Button charges = button("חיובים בלבד");
+                    root.addView(all); root.addView(credits); root.addView(charges);
+                    LinearLayout list = new LinearLayout(this);
+                    list.setOrientation(LinearLayout.VERTICAL);
+                    root.addView(list, new LinearLayout.LayoutParams(-1, -2));
+                    Runnable[] render = new Runnable[1];
+                    final String[] mode = {"all"};
+                    render[0] = () -> {
+                        list.removeAllViews();
+                        double creditTotal = 0, chargeTotal = 0;
+                        int creditCount = 0, chargeCount = 0;
+                        for (JSONObject tx : finalRows) {
+                            double amount = tx.optDouble("skum", 0);
+                            boolean canceled = tx.optBoolean("canceled", false);
+                            if (!canceled && amount < 0) { creditTotal += -amount; creditCount++; }
+                            if (!canceled && amount > 0) { chargeTotal += amount; chargeCount++; }
+                            if ("credit".equals(mode[0]) && amount >= 0) continue;
+                            if ("charge".equals(mode[0]) && amount <= 0) continue;
+                            JSONObject product = tx.optJSONObject("product");
+                            if (product == null) product = new JSONObject();
+                            String name = product.optString("full_name", product.optString("name", ""));
+                            String note = android.text.Html.fromHtml(tx.optString("note", ""), android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim();
+                            JSONObject sale = tx.optJSONObject("sale");
+                            JSONObject original = tx.optJSONObject("original_sale");
+                            String saleName = sale == null ? "" : sale.optString("custom_name", "");
+                            String originalName = original == null ? "" : original.optString("custom_name", "");
+                            String kind = amount < 0 ? "💚 זיכוי" : (amount > 0 ? "🔴 חיוב" : "ללא סכום");
+                            String date = tx.optString("time", "");
+                            String description = name.isEmpty() ? note : name;
+                            if (description.isEmpty()) description = originalName.isEmpty() ? saleName : originalName;
+                            LinearLayout card = new LinearLayout(this);
+                            card.setOrientation(LinearLayout.VERTICAL);
+                            card.setPadding(dp(12), dp(8), dp(12), dp(8));
+                            card.setBackgroundColor(Color.WHITE);
+                            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+                            cp.bottomMargin = dp(8);
+                            list.addView(card, cp);
+                            TextView heading = text(kind + ": " + String.format(java.util.Locale.US, "%.2f", Math.abs(amount)) + " ₪", 16, true);
+                            heading.setTextColor(amount < 0 ? Color.rgb(20,130,70) : Color.rgb(175,45,45));
+                            card.addView(heading);
+                            if (!description.isEmpty()) card.addView(text("פריט / הערה: " + description, 14, false));
+                            if (tx.has("amount")) card.addView(text("כמות: " + tx.optString("amount"), 13, false));
+                            if (!saleName.isEmpty()) card.addView(text("מכירה: " + saleName, 13, false));
+                            if (!originalName.isEmpty()) card.addView(text("מכירה מקורית: " + originalName, 13, false));
+                            if (!date.isEmpty()) card.addView(text("תאריך: " + date, 12, false));
+                            if (canceled) card.addView(text("בוטל — לא נספר בסיכום", 12, true));
+                        }
+                        summary.setText("זיכויים: " + String.format(java.util.Locale.US, "%.2f", creditTotal) + " ₪ (" + creditCount + ")"
+                            + "\nחיובים: " + String.format(java.util.Locale.US, "%.2f", chargeTotal) + " ₪ (" + chargeCount + ")"
+                            + "\nיתרה: " + String.format(java.util.Locale.US, "%.2f", creditTotal-chargeTotal) + " ₪"
+                            + "\nסה״כ תנועות: " + finalRows.size());
+                        if (finalRows.isEmpty()) statusView.setText("לא נמצאו תנועות בחשבון.");
+                        else statusView.setText("");
+                    };
+                    all.setOnClickListener(v -> { mode[0] = "all"; render[0].run(); });
+                    credits.setOnClickListener(v -> { mode[0] = "credit"; render[0].run(); });
+                    charges.setOnClickListener(v -> { mode[0] = "charge"; render[0].run(); });
+                    render[0].run();
                 });
-            } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
+            } catch (Exception e) {
+                String message = e.getMessage() == null ? "טעינת הזיכויים נכשלה." : e.getMessage();
+                runOnUiThread(() -> statusView.setText(message));
+            }
         });
     }
+
+    private void addTransactionList(java.util.Map<String, JSONObject> target, Object value) {
+        JSONArray array = null;
+        if (value instanceof JSONArray) array = (JSONArray) value;
+        else if (value instanceof JSONObject) array = ((JSONObject) value).optJSONArray("data");
+        if (array == null) return;
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject tx = array.optJSONObject(i);
+            if (tx != null) target.putIfAbsent(tx.optString("id", "extra_" + target.size()), tx);
+        }
+    }
+
     private void showFeatureMessage(String title, String message) { beginScreen(title); statusView.setText(message); Button b=button("חזרה לתפריט"); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->showDashboard()); }
     private void hideKeyboard() {
         try {
