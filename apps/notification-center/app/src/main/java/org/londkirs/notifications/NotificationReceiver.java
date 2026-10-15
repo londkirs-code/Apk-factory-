@@ -4,7 +4,6 @@ import android.app.*;
 import android.content.*;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.BitmapFactory;
 import java.io.File;
 import android.media.AudioAttributes;
 import android.net.Uri;
