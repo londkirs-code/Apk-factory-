@@ -26,6 +26,7 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.Toast;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.ArrayAdapter;
 import java.util.Calendar;
 
@@ -232,42 +233,71 @@ public class MainActivity extends Activity {
     }
 
     private void addHomeNotificationSettings() {
-        TextView heading = text("התראה על מכירה חדשה", 20, true);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(10), dp(5), dp(10), dp(5));
+        card.setBackgroundColor(Color.rgb(255, 248, 241));
+        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+        cardLp.topMargin = dp(3); cardLp.bottomMargin = dp(3);
+        root.addView(card, cardLp);
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(top, new LinearLayout.LayoutParams(-1, -2));
+        TextView heading = text("התראה על מכירה חדשה", 15, true);
         heading.setTextColor(Color.rgb(230, 94, 20));
-        root.addView(heading, new LinearLayout.LayoutParams(-1, -2));
-        Button enabled = button("");
-        Runnable updateEnabled = () -> {
-            boolean on = prefs.getBoolean("sale_monitor_enabled", true);
-            enabled.setText("המעקב וההתראות: " + (on ? "פעיל" : "כבוי"));
-            enabled.setBackgroundTintList(android.content.res.ColorStateList.valueOf(on ? Color.rgb(230,94,20) : Color.rgb(145,145,145)));
-        };
-        updateEnabled.run();
-        root.addView(enabled, new LinearLayout.LayoutParams(-1, -2));
-        enabled.setOnClickListener(v -> {
-            boolean on = !prefs.getBoolean("sale_monitor_enabled", true);
+        top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        Switch toggle = new Switch(this);
+        toggle.setText("פעיל");
+        toggle.setTextSize(12);
+        toggle.setChecked(prefs.getBoolean("sale_monitor_enabled", true));
+        top.addView(toggle, new LinearLayout.LayoutParams(-2, dp(36)));
+        toggle.setOnCheckedChangeListener((button, on) -> {
             prefs.edit().putBoolean("sale_monitor_enabled", on).apply();
-            if (on) { requestMonitoringPermissions(false); SaleMonitor.scheduleNextStart(this); } else SaleMonitor.stopMonitoring(this);
-            updateEnabled.run();
+            if (on) { requestMonitoringPermissions(false); SaleMonitor.scheduleNextStart(this); }
+            else SaleMonitor.stopMonitoring(this);
         });
-        String[] days = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
+        String[] days = {"א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"};
         int[] calendarDays = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
-        Spinner startDay = new Spinner(this), endDay = new Spinner(this);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, days);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        startDay.setAdapter(adapter); endDay.setAdapter(adapter);
+        LinearLayout times = new LinearLayout(this);
+        times.setOrientation(LinearLayout.HORIZONTAL);
+        times.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(times, new LinearLayout.LayoutParams(-1, dp(36)));
+        times.addView(text("מ־", 12, false), new LinearLayout.LayoutParams(-2, -2));
+        Spinner startDay = new Spinner(this);
+        startDay.setAdapter(adapter);
         startDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_start_day", Calendar.THURSDAY)));
+        times.addView(startDay, new LinearLayout.LayoutParams(0, dp(34), 1));
+        EditText startTime = new EditText(this);
+        startTime.setSingleLine(true); startTime.setTextSize(13); startTime.setPadding(dp(3), 0, dp(3), 0);
+        startTime.setInputType(1); startTime.setHint("19:00");
+        startTime.setText(prefs.getString("monitor_start_time", "19:00"));
+        times.addView(startTime, new LinearLayout.LayoutParams(dp(62), dp(36)));
+        LinearLayout.LayoutParams untilLp = new LinearLayout.LayoutParams(-2, -2);
+        untilLp.leftMargin = dp(3);
+        times.addView(text("עד", 12, false), untilLp);
+        Spinner endDay = new Spinner(this);
+        endDay.setAdapter(adapter);
         endDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_end_day", Calendar.SUNDAY)));
-        root.addView(text("יום התחלה", 14, true)); root.addView(startDay, new LinearLayout.LayoutParams(-1, dp(48)));
-        EditText startTime = new EditText(this); startTime.setSingleLine(true); startTime.setHint("שעת התחלה, למשל 19:00"); startTime.setInputType(1);
-        startTime.setText(prefs.getString("monitor_start_time", "19:00")); root.addView(startTime, new LinearLayout.LayoutParams(-1, dp(52)));
-        root.addView(text("יום סיום", 14, true)); root.addView(endDay, new LinearLayout.LayoutParams(-1, dp(48)));
-        EditText endTime = new EditText(this); endTime.setSingleLine(true); endTime.setHint("שעת סיום, למשל 10:00"); endTime.setInputType(1);
-        endTime.setText(prefs.getString("monitor_end_time", "10:00")); root.addView(endTime, new LinearLayout.LayoutParams(-1, dp(52)));
-        Button save = button("שמירת הגדרות ההתראה"); root.addView(save, new LinearLayout.LayoutParams(-1, -2));
+        times.addView(endDay, new LinearLayout.LayoutParams(0, dp(34), 1));
+        EditText endTime = new EditText(this);
+        endTime.setSingleLine(true); endTime.setTextSize(13); endTime.setPadding(dp(3), 0, dp(3), 0);
+        endTime.setInputType(1); endTime.setHint("10:00");
+        endTime.setText(prefs.getString("monitor_end_time", "10:00"));
+        times.addView(endTime, new LinearLayout.LayoutParams(dp(62), dp(36)));
+        Button save = button("שמירה");
+        save.setTextSize(12); save.setMinHeight(dp(30)); save.setPadding(dp(10), 0, dp(10), 0);
+        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-2, dp(32));
+        saveLp.gravity = Gravity.END;
+        card.addView(save, saveLp);
         save.setOnClickListener(v -> {
             String st = startTime.getText().toString().trim(), et = endTime.getText().toString().trim();
             if (!validTime(st) || !validTime(et)) { Toast.makeText(this, "יש להזין שעה בפורמט 19:00", Toast.LENGTH_LONG).show(); return; }
-            prefs.edit().putInt("monitor_start_day", calendarDays[startDay.getSelectedItemPosition()]).putInt("monitor_end_day", calendarDays[endDay.getSelectedItemPosition()]).putString("monitor_start_time", st).putString("monitor_end_time", et).apply();
+            prefs.edit().putInt("monitor_start_day", calendarDays[startDay.getSelectedItemPosition()])
+                    .putInt("monitor_end_day", calendarDays[endDay.getSelectedItemPosition()])
+                    .putString("monitor_start_time", st).putString("monitor_end_time", et).apply();
             SaleMonitor.stopMonitoring(this); SaleMonitor.scheduleNextStart(this);
             Toast.makeText(this, "הגדרות ההתראה נשמרו", Toast.LENGTH_SHORT).show();
         });
