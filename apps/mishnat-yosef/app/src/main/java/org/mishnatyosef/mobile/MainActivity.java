@@ -125,6 +125,9 @@ public class MainActivity extends Activity {
         root.addView(account, new LinearLayout.LayoutParams(-1, -2));
         statusView = text("טוען את המכירות הפתוחות…", 15, false);
         root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+        addFeatureMenu("📦 היסטוריית הזמנות", this::loadFeatureOrders);
+        addFeatureMenu("💳 זיכויים ותנועות בחשבון", this::loadFeatureTransactions);
+        addFeatureMenu("🛒 הזמנה חדשה", this::loadFeatureSales);
         Button refresh = button("רענון מכירות פתוחות");
         root.addView(refresh, new LinearLayout.LayoutParams(-1, -2));
         refresh.setOnClickListener(v -> loadOpenSales());
