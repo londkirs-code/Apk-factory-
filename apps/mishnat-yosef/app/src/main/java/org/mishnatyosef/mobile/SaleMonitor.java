@@ -44,10 +44,18 @@ public class SaleMonitor extends BroadcastReceiver {
         if (START.equals(action)) {
             SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             p.edit().putBoolean("sale_monitor_active", true).remove("sale_monitor_ids").putBoolean("sale_monitor_baseline_done", false).apply();
-            check(context, true);
+            runCheckAsync(context, true);
         } else if (CHECK.equals(action)) {
-            check(context, false);
+            runCheckAsync(context, false);
         }
+    }
+
+    private void runCheckAsync(Context context, boolean firstCheck) {
+        final PendingResult pending = goAsync();
+        new Thread(() -> {
+            try { check(context.getApplicationContext(), firstCheck); }
+            finally { pending.finish(); }
+        }, "mishnat-sale-monitor").start();
     }
 
     public static void scheduleNextStart(Context context) {
