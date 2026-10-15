@@ -905,10 +905,6 @@ public class MainActivity extends Activity {
         TextView totals = text("הזמנה #" + featureOrderId, 14, true);
         root.addView(totals);
         totals.setText("הזמנה #" + featureOrderId + " · הכמויות והסכום הסופיים מוצגים מסיכום השרת");
-        Button saveTop = button("שמירת כל השינויים בהזמנה");
-        root.addView(saveTop);
-        saveTop.setOnClickListener(v -> saveFeatureOrderItems());
-
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
         root.addView(grid, new LinearLayout.LayoutParams(-1, -2));
@@ -1023,9 +1019,6 @@ public class MainActivity extends Activity {
             View spacer = new View(this);
             row.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
         }
-        Button saveBottom = button("שמירת כל השינויים בהזמנה");
-        root.addView(saveBottom);
-        saveBottom.setOnClickListener(v -> saveFeatureOrderItems());
     }
 
     private void saveSingleFeatureProduct(JSONObject p, int amount) {
