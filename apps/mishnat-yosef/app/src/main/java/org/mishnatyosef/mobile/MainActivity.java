@@ -1027,6 +1027,7 @@ public class MainActivity extends Activity {
                     throw new Exception("שמירת הפריט נכשלה (" + result.code + "): " + result.body);
                 runOnUiThread(() -> {
                     Toast.makeText(this, "הפריט נשמר בהזמנה", Toast.LENGTH_SHORT).show();
+                    try { JSONObject knownOrder = new JSONObject(); knownOrder.put("id", featureOrderId); featureSale.put("order", knownOrder); } catch (Exception ignored) { }
                     loadFeatureProducts(featureSale);
                 });
             } catch (Exception e) {
