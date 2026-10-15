@@ -28,7 +28,10 @@ public class FloatAccessibilityService extends AccessibilityService {
     private float downX, downY;
     private int startX, startY;
 
-    @Override public void onAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {}
+    @Override public void onAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {
+        // Retry after returning from system settings if overlay permission was just granted.
+        if (bubble == null) showBubble();
+    }
     @Override public void onInterrupt() {}
 
     @Override protected void onServiceConnected() {
