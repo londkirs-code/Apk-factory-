@@ -527,7 +527,11 @@ public class MainActivity extends Activity {
                 String filename = firstOrderString(img, "filename");
                 String extension = firstOrderString(img, "extension");
                 url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
-                if (url.isEmpty() && !filename.isEmpty()) {\n                    String cleanExtension = extension.startsWith(".") ? extension.substring(1) : extension;\n                    boolean filenameHasExtension = filename.matches("(?i).*\\\\.[a-z0-9]{2,5}$");\n                    url = imageBase + filename + (filenameHasExtension || cleanExtension.isEmpty() ? "" : "." + cleanExtension);\n                }
+                if (url.isEmpty() && !filename.isEmpty()) {
+                    String cleanExtension = extension.startsWith(".") ? extension.substring(1) : extension;
+                    boolean filenameHasExtension = filename.matches("(?i).*\\\\.[a-z0-9]{2,5}$");
+                    url = imageBase + filename + (filenameHasExtension || cleanExtension.isEmpty() ? "" : "." + cleanExtension);
+                }
             } else {
                 Object first = images.opt(0);
                 if (first != null) url = String.valueOf(first);
