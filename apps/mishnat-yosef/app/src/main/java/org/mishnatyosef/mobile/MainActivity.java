@@ -321,7 +321,31 @@ public class MainActivity extends Activity {
 
     private void addFeatureMenu(String label, Runnable action) { Button b=button(label); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->action.run()); }
     private void loadFeatureSales() { showFeatureMessage("הזמנה חדשה", "ממשק ההזמנה עדיין בבנייה."); }
-    private void loadFeatureOrders() { showFeatureMessage("היסטוריית הזמנות", "טעינת היסטוריית ההזמנות עדיין בבנייה."); }
+    private void loadFeatureOrders() {
+        beginScreen("היסטוריית הזמנות");
+        statusView.setText("טוען הזמנות…");
+        executor.execute(() -> {
+            try {
+                HttpResult r=request("GET","/api/orders",prefs.getString("token",""),null);
+                if(r.code<200||r.code>=300) throw new Exception("שגיאת שרת ("+r.code+")");
+                JSONArray a=new JSONArray();
+                Object value=new org.json.JSONTokener(r.body).nextValue();
+                if(value instanceof JSONArray) a=(JSONArray)value;
+                else if(value instanceof JSONObject) a=((JSONObject)value).optJSONArray("data");
+                final JSONArray orders=a==null?new JSONArray():a;
+                runOnUiThread(() -> {
+                    beginScreen("היסטוריית הזמנות");
+                    Button back=button("חזרה לתפריט");root.addView(back);back.setOnClickListener(v->showDashboard());
+                    if(orders.length()==0) statusView.setText("לא נמצאו הזמנות.");
+                    for(int i=0;i<orders.length();i++){
+                        JSONObject o=orders.optJSONObject(i);if(o==null)continue;
+                        TextView t=text("הזמנה #"+o.optString("id"),16,true);root.addView(t);
+                        root.addView(text("סטטוס: "+o.optString("status")+" · סכום: "+o.optString("total",o.optString("amount","")),13,false));
+                    }
+                });
+            } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
+        });
+    }
     private void loadFeatureTransactions() { showFeatureMessage("זיכויים", "טעינת הזיכויים עדיין בבנייה."); }
     private void showFeatureMessage(String title, String message) { beginScreen(title); statusView.setText(message); Button b=button("חזרה לתפריט"); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->showDashboard()); }
     private void hideKeyboard() {
