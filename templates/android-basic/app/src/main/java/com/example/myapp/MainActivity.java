@@ -48,7 +48,8 @@ public class MainActivity extends Activity {
         eyebrow.setLetterSpacing(0.08f);
         page.addView(eyebrow);
 
-        TextView title = text("My App", 32, ink, true);
+        String appTitle = getApplicationInfo().loadLabel(getPackageManager()).toString();
+        TextView title = text(appTitle, 32, ink, true);
         LinearLayout.LayoutParams titleLp = params(-1, -2);
         titleLp.topMargin = dp(8);
         page.addView(title, titleLp);
