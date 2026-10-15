@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+// Build verification checkpoint: keep this source in the APK build trigger.
 public class MainActivity extends Activity {
     private static final String API = "https://v2.mishnatyosef.org";
     private static final String PREFS = "mishnat_auth";
