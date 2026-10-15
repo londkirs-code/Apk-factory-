@@ -779,7 +779,7 @@ public class MainActivity extends Activity {
                             JSONObject p = all.optJSONObject(i);
                             if (p == null) continue;
                             int itemId = featureProductId(p);
-                            p.put("amount", savedAmounts.containsKey(itemId) ? savedAmounts.get(itemId) : 0);
+                            p.put("amount", savedAmounts.containsKey(itemId) ? savedAmounts.get(itemId) : Math.max(0, p.optInt("amount", 0)));
                         }
                     }
                 } catch (Exception ignored) { }
