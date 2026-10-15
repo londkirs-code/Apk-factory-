@@ -1,1 +1,1 @@
-APK for example-app, built from commit 9075c787d0449afe63cbf90bf60410332202be8e.
+APK for example-app, built from commit 8e4f01cddf6c04dd1175dac410dd6b1bb54d2633.
