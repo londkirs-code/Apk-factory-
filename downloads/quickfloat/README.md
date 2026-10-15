@@ -1,1 +1,1 @@
-APK for quickfloat, built from commit a1ece08f39c2be7bc9829777175019d17f76dad3.
+APK for quickfloat, built from commit 964c41d408b0760222eeb5b9cbcdb7faaaf7a749.
