@@ -3,7 +3,7 @@
 תשתית ליצירת אפליקציות Android באמצעות GitHub Actions, בלי Android Studio או Android SDK במחשב המקומי.
 
 ## מה כלול?
-- template: פרויקט Android מינימלי שאפשר להרחיב.
+- פרויקט Android בסיסי בשורש המאגר.
 - .github/workflows/build-apk.yml: בנייה אוטומטית בענן.
 - downloads: תיקייה לשמירת ה־APK האחרון במאגר.
 
