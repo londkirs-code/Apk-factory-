@@ -25,6 +25,9 @@ import android.widget.TextView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.Toast;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import java.util.Calendar;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -189,12 +192,8 @@ public class MainActivity extends Activity {
         statusView.setText("טוען את המכירות הפתוחות…");
         TextView hint = text("בחרי פעולה מהתפריט הקבוע בתחתית המסך.", 15, false);
         root.addView(hint, new LinearLayout.LayoutParams(-1, -2));
-        Button notificationSettings = button("הגדרות התראות ומעקב");
-        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(-1, -2);
-        settingsLp.topMargin = dp(8);
-        root.addView(notificationSettings, settingsLp);
-        notificationSettings.setOnClickListener(v -> showNotificationSettings());
-        Button refresh = button("רענון מכירות פתוחות");
+        addHomeNotificationSettings();
+                Button refresh = button("רענון מכירות פתוחות");
         LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(-1, -2); refreshLp.topMargin = dp(8); refreshLp.bottomMargin = dp(12); root.addView(refresh, refreshLp);
         refresh.setOnClickListener(v -> loadOpenSales());
         Button logout = button("התנתקות");
@@ -232,41 +231,50 @@ public class MainActivity extends Activity {
         if (requestCode == 4101) requestMonitoringPermissions(false);
     }
 
-    private void showNotificationSettings() {
-        beginScreen("הגדרות התראות ומעקב");
-        TextView intro = text("המעקב מתבצע מיום חמישי בשעה 19:00 ועד יום ראשון בשעה 10:00. בזמן הזה האפליקציה בודקת מכירות פתוחות כל 5 דקות.", 15, false);
-        root.addView(intro, new LinearLayout.LayoutParams(-1, -2));
-        addSettingToggle("התראות על מכירה חדשה", "notify_enabled", true, "אם מכבים, המעקב ממשיך אך לא תוצג התראה.");
-        addSettingToggle("צליל בהתראה", "notify_sound", true, "הפעלת צליל בהתראה על מכירה חדשה.");
-        addSettingToggle("רטט בהתראה", "notify_vibrate", true, "הפעלת רטט בהתראה על מכירה חדשה.");
-        addSettingToggle("מעקב אוטומטי שבועי", "sale_monitor_enabled", true, "כשמכבים, המעקב השבועי לא יתחיל אוטומטית.");
-        Button permissions = button("בקשת הרשאות התראות ושעון מעורר");
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.topMargin = dp(10); root.addView(permissions, p);
-        permissions.setOnClickListener(v -> requestMonitoringPermissions(true));
-        Button done = button("שמירה וחזרה");
-        LinearLayout.LayoutParams d = new LinearLayout.LayoutParams(-1, -2); d.topMargin = dp(8); root.addView(done, d);
-        done.setOnClickListener(v -> showDashboard());
-    }
-
-    private void addSettingToggle(String label, String key, boolean defaultValue, String description) {
-        Button toggle = button("");
-        Runnable update = () -> {
-            boolean enabled = prefs.getBoolean(key, defaultValue);
-            toggle.setText(label + ": " + (enabled ? "פעיל" : "כבוי"));
-            toggle.setBackgroundTintList(android.content.res.ColorStateList.valueOf(enabled ? Color.rgb(230, 94, 20) : Color.rgb(145, 145, 145)));
+    private void addHomeNotificationSettings() {
+        TextView heading = text("התראה על מכירה חדשה", 20, true);
+        heading.setTextColor(Color.rgb(230, 94, 20));
+        root.addView(heading, new LinearLayout.LayoutParams(-1, -2));
+        Button enabled = button("");
+        Runnable updateEnabled = () -> {
+            boolean on = prefs.getBoolean("sale_monitor_enabled", true);
+            enabled.setText("המעקב וההתראות: " + (on ? "פעיל" : "כבוי"));
+            enabled.setBackgroundTintList(android.content.res.ColorStateList.valueOf(on ? Color.rgb(230,94,20) : Color.rgb(145,145,145)));
         };
-        update.run();
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.topMargin = dp(10); root.addView(toggle, p);
-        root.addView(text(description, 12, false), new LinearLayout.LayoutParams(-1, -2));
-        toggle.setOnClickListener(v -> {
-            boolean next = !prefs.getBoolean(key, defaultValue);
-            prefs.edit().putBoolean(key, next).apply();
-            if (key.equals("sale_monitor_enabled")) {
-                if (next) SaleMonitor.scheduleNextStart(this); else SaleMonitor.stopMonitoring(this);
-            }
-            update.run();
+        updateEnabled.run();
+        root.addView(enabled, new LinearLayout.LayoutParams(-1, -2));
+        enabled.setOnClickListener(v -> {
+            boolean on = !prefs.getBoolean("sale_monitor_enabled", true);
+            prefs.edit().putBoolean("sale_monitor_enabled", on).apply();
+            if (on) { requestMonitoringPermissions(false); SaleMonitor.scheduleNextStart(this); } else SaleMonitor.stopMonitoring(this);
+            updateEnabled.run();
+        });
+        String[] days = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
+        int[] calendarDays = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
+        Spinner startDay = new Spinner(this), endDay = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, days);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        startDay.setAdapter(adapter); endDay.setAdapter(adapter);
+        startDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_start_day", Calendar.THURSDAY)));
+        endDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_end_day", Calendar.SUNDAY)));
+        root.addView(text("יום התחלה", 14, true)); root.addView(startDay, new LinearLayout.LayoutParams(-1, dp(48)));
+        EditText startTime = new EditText(this); startTime.setSingleLine(true); startTime.setHint("שעת התחלה, למשל 19:00"); startTime.setInputType(1);
+        startTime.setText(prefs.getString("monitor_start_time", "19:00")); root.addView(startTime, new LinearLayout.LayoutParams(-1, dp(52)));
+        root.addView(text("יום סיום", 14, true)); root.addView(endDay, new LinearLayout.LayoutParams(-1, dp(48)));
+        EditText endTime = new EditText(this); endTime.setSingleLine(true); endTime.setHint("שעת סיום, למשל 10:00"); endTime.setInputType(1);
+        endTime.setText(prefs.getString("monitor_end_time", "10:00")); root.addView(endTime, new LinearLayout.LayoutParams(-1, dp(52)));
+        Button save = button("שמירת הגדרות ההתראה"); root.addView(save, new LinearLayout.LayoutParams(-1, -2));
+        save.setOnClickListener(v -> {
+            String st = startTime.getText().toString().trim(), et = endTime.getText().toString().trim();
+            if (!validTime(st) || !validTime(et)) { Toast.makeText(this, "יש להזין שעה בפורמט 19:00", Toast.LENGTH_LONG).show(); return; }
+            prefs.edit().putInt("monitor_start_day", calendarDays[startDay.getSelectedItemPosition()]).putInt("monitor_end_day", calendarDays[endDay.getSelectedItemPosition()]).putString("monitor_start_time", st).putString("monitor_end_time", et).apply();
+            SaleMonitor.stopMonitoring(this); SaleMonitor.scheduleNextStart(this);
+            Toast.makeText(this, "הגדרות ההתראה נשמרו", Toast.LENGTH_SHORT).show();
         });
     }
+
+    private int indexOf(int[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 0; }
+    private boolean validTime(String value) { if (value == null || !value.matches("[0-2][0-9]:[0-5][0-9]")) return false; return Integer.parseInt(value.substring(0, 2)) < 24; }
 
     private boolean hasToken() {
         return !prefs.getString("token", "").isEmpty();
