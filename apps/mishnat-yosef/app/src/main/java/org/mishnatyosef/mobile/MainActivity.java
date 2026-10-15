@@ -3,6 +3,7 @@ package org.mishnatyosef.mobile;
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.TimePickerDialog;
+import android.app.AlertDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -236,82 +237,138 @@ public class MainActivity extends Activity {
     private void addHomeNotificationSettings() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(10), dp(5), dp(10), dp(5));
+        card.setPadding(dp(10), dp(7), dp(10), dp(7));
         card.setBackgroundColor(Color.rgb(255, 248, 241));
         LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
         cardLp.topMargin = dp(3); cardLp.bottomMargin = dp(3);
         root.addView(card, cardLp);
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        card.addView(top, new LinearLayout.LayoutParams(-1, -2));
-        TextView heading = text("התראה על מכירה חדשה", 15, true);
-        heading.setTextColor(Color.rgb(230, 94, 20));
-        top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView status = text(notificationStatusText(), 13, false);
+        status.setPadding(dp(4), dp(3), dp(4), dp(5));
+        card.addView(status, new LinearLayout.LayoutParams(-1, -2));
+
+        Button settings = button("הגדרות התראה");
+        settings.setTextSize(12);
+        settings.setMinHeight(dp(34));
+        settings.setPadding(dp(12), 0, dp(12), 0);
+        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(-2, dp(36));
+        settingsLp.gravity = Gravity.END;
+        card.addView(settings, settingsLp);
+        settings.setOnClickListener(v -> showNotificationSettingsDialog(status));
+    }
+
+    private String notificationStatusText() {
+        boolean enabled = prefs.getBoolean("sale_monitor_enabled", true);
+        int[] days = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
+        String[] names = {"יום א׳", "יום ב׳", "יום ג׳", "יום ד׳", "יום ה׳", "יום ו׳", "יום ש׳"};
+        int start = prefs.getInt("monitor_start_day", Calendar.THURSDAY);
+        int end = prefs.getInt("monitor_end_day", Calendar.SUNDAY);
+        String startName = names[indexOf(days, start)];
+        String endName = names[indexOf(days, end)];
+        String startTime = prefs.getString("monitor_start_time", "19:00");
+        String endTime = prefs.getString("monitor_end_time", "10:00");
+        int interval = prefs.getInt("monitor_interval_minutes", 5);
+        if (!enabled) return "ההתראה כבויה. ניתן להפעיל דרך ההגדרות.";
+        return "ההתראה פועלת מ" + startName + " " + startTime + " עד " + endName + " " + endTime
+                + " · בדיקה כל " + interval + " דקות";
+    }
+
+    private void showNotificationSettingsDialog(TextView homeStatus) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(18), dp(8), dp(18), dp(4));
+        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
         Switch toggle = new Switch(this);
-        toggle.setText("");
-        toggle.setTextSize(12);
+        toggle.setText("התראה על מכירה חדשה");
+        toggle.setTextSize(15);
         toggle.setChecked(prefs.getBoolean("sale_monitor_enabled", true));
-        top.addView(toggle, new LinearLayout.LayoutParams(-2, dp(36)));
-        toggle.setOnCheckedChangeListener((button, on) -> {
-            prefs.edit().putBoolean("sale_monitor_enabled", on).apply();
-            if (on) { requestMonitoringPermissions(false); SaleMonitor.scheduleNextStart(this); }
-            else SaleMonitor.stopMonitoring(this);
-        });
+        panel.addView(toggle, new LinearLayout.LayoutParams(-1, dp(44)));
+
         String[] days = {"א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"};
         int[] calendarDays = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, days);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        LinearLayout times = new LinearLayout(this);
-        times.setOrientation(LinearLayout.HORIZONTAL);
-        times.setGravity(Gravity.CENTER_VERTICAL);
-        card.addView(times, new LinearLayout.LayoutParams(-1, dp(36)));
-        times.addView(text("מ־", 12, false), new LinearLayout.LayoutParams(-2, -2));
+        ArrayAdapter<String> dayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, days);
+        dayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        LinearLayout startRow = new LinearLayout(this);
+        startRow.setGravity(Gravity.CENTER_VERTICAL);
+        startRow.addView(text("מתחילה ביום", 13, false), new LinearLayout.LayoutParams(dp(95), -2));
         Spinner startDay = new Spinner(this);
-        startDay.setAdapter(adapter);
+        startDay.setAdapter(dayAdapter);
         startDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_start_day", Calendar.THURSDAY)));
-        times.addView(startDay, new LinearLayout.LayoutParams(0, dp(34), 1));
-        TextView startTime = text(prefs.getString("monitor_start_time", "19:00"), 13, true);
-        startTime.setGravity(Gravity.CENTER);
-        startTime.setPadding(dp(3), 0, dp(3), 0);
-        startTime.setBackground(timePickerBackground());
-        times.addView(startTime, new LinearLayout.LayoutParams(dp(62), dp(36)));
-        startTime.setOnClickListener(v -> {
-            String[] parts = startTime.getText().toString().split(":");
-            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
-            new TimePickerDialog(this, (picker, h, m) -> startTime.setText(String.format(java.util.Locale.US, "%02d:%02d", h, m)), hour, minute, true).show();
-        });
-        LinearLayout.LayoutParams untilLp = new LinearLayout.LayoutParams(-2, -2);
-        untilLp.leftMargin = dp(3);
-        times.addView(text("עד", 12, false), untilLp);
+        startRow.addView(startDay, new LinearLayout.LayoutParams(0, dp(42), 1));
+        TextView startTime = dialogTimeField(prefs.getString("monitor_start_time", "19:00"));
+        startRow.addView(startTime, new LinearLayout.LayoutParams(dp(76), dp(42)));
+        panel.addView(startRow, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        LinearLayout endRow = new LinearLayout(this);
+        endRow.setGravity(Gravity.CENTER_VERTICAL);
+        endRow.addView(text("מסתיימת ביום", 13, false), new LinearLayout.LayoutParams(dp(95), -2));
         Spinner endDay = new Spinner(this);
-        endDay.setAdapter(adapter);
+        endDay.setAdapter(dayAdapter);
         endDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_end_day", Calendar.SUNDAY)));
-        times.addView(endDay, new LinearLayout.LayoutParams(0, dp(34), 1));
-        TextView endTime = text(prefs.getString("monitor_end_time", "10:00"), 13, true);
-        endTime.setGravity(Gravity.CENTER);
-        endTime.setPadding(dp(3), 0, dp(3), 0);
-        endTime.setBackground(timePickerBackground());
-        times.addView(endTime, new LinearLayout.LayoutParams(dp(62), dp(36)));
-        endTime.setOnClickListener(v -> {
-            String[] parts = endTime.getText().toString().split(":");
-            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
-            new TimePickerDialog(this, (picker, h, m) -> endTime.setText(String.format(java.util.Locale.US, "%02d:%02d", h, m)), hour, minute, true).show();
-        });
-        Button save = button("שמירה");
-        save.setTextSize(12); save.setMinHeight(dp(30)); save.setPadding(dp(10), 0, dp(10), 0);
-        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-2, dp(32));
-        saveLp.gravity = Gravity.END;
-        card.addView(save, saveLp);
-        save.setOnClickListener(v -> {
+        endRow.addView(endDay, new LinearLayout.LayoutParams(0, dp(42), 1));
+        TextView endTime = dialogTimeField(prefs.getString("monitor_end_time", "10:00"));
+        endRow.addView(endTime, new LinearLayout.LayoutParams(dp(76), dp(42)));
+        panel.addView(endRow, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        LinearLayout intervalRow = new LinearLayout(this);
+        intervalRow.setGravity(Gravity.CENTER_VERTICAL);
+        intervalRow.addView(text("בדיקה כל כמה דקות?", 13, false), new LinearLayout.LayoutParams(0, -2, 1));
+        Integer[] intervals = {1, 2, 3, 5, 10, 15, 20, 30, 60};
+        String[] intervalLabels = {"1", "2", "3", "5", "10", "15", "20", "30", "60"};
+        ArrayAdapter<String> intervalAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, intervalLabels);
+        intervalAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        Spinner intervalSpinner = new Spinner(this);
+        intervalSpinner.setAdapter(intervalAdapter);
+        intervalSpinner.setSelection(indexOf(intervals, prefs.getInt("monitor_interval_minutes", 5)));
+        intervalRow.addView(intervalSpinner, new LinearLayout.LayoutParams(dp(90), dp(42)));
+        intervalRow.addView(text("דקות", 13, false));
+        panel.addView(intervalRow, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("הגדרות התראה")
+                .setView(panel)
+                .setNegativeButton("ביטול", null)
+                .setPositiveButton("שמירה", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String st = startTime.getText().toString().trim(), et = endTime.getText().toString().trim();
-            if (!validTime(st) || !validTime(et)) { Toast.makeText(this, "יש להזין שעה בפורמט 19:00", Toast.LENGTH_LONG).show(); return; }
-            prefs.edit().putInt("monitor_start_day", calendarDays[startDay.getSelectedItemPosition()])
+            if (!validTime(st) || !validTime(et)) {
+                Toast.makeText(this, "יש לבחור שעה תקינה", Toast.LENGTH_LONG).show();
+                return;
+            }
+            int interval = intervals[intervalSpinner.getSelectedItemPosition()];
+            prefs.edit().putBoolean("sale_monitor_enabled", toggle.isChecked())
+                    .putInt("monitor_start_day", calendarDays[startDay.getSelectedItemPosition()])
                     .putInt("monitor_end_day", calendarDays[endDay.getSelectedItemPosition()])
-                    .putString("monitor_start_time", st).putString("monitor_end_time", et).apply();
-            SaleMonitor.stopMonitoring(this); SaleMonitor.scheduleNextStart(this);
+                    .putString("monitor_start_time", st).putString("monitor_end_time", et)
+                    .putInt("monitor_interval_minutes", interval).apply();
+            if (toggle.isChecked()) {
+                requestMonitoringPermissions(false);
+                SaleMonitor.stopMonitoring(this);
+                SaleMonitor.scheduleNextStart(this);
+            } else {
+                SaleMonitor.stopMonitoring(this);
+            }
+            homeStatus.setText(notificationStatusText());
             Toast.makeText(this, "הגדרות ההתראה נשמרו", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        }));
+        dialog.show();
+    }
+
+    private TextView dialogTimeField(String initialTime) {
+        TextView time = text(initialTime, 14, true);
+        time.setGravity(Gravity.CENTER);
+        time.setPadding(dp(3), 0, dp(3), 0);
+        time.setBackground(timePickerBackground());
+        time.setOnClickListener(v -> {
+            String[] parts = time.getText().toString().split(":");
+            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
+            new TimePickerDialog(this, (picker, h, m) -> time.setText(String.format(java.util.Locale.US, "%02d:%02d", h, m)), hour, minute, true).show();
         });
+        return time;
     }
 
     private android.graphics.drawable.GradientDrawable timePickerBackground() {
@@ -323,6 +380,7 @@ public class MainActivity extends Activity {
     }
 
     private int indexOf(int[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 0; }
+    private int indexOf(Integer[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 3; }
     private boolean validTime(String value) { if (value == null || !value.matches("[0-2][0-9]:[0-5][0-9]")) return false; return Integer.parseInt(value.substring(0, 2)) < 24; }
 
     private boolean hasToken() {
