@@ -1039,26 +1039,31 @@ public class MainActivity extends Activity {
     private void showOrderSummary() {
         StringBuilder out = new StringBuilder();
         double total = 0;
-        int count = 0;
+        int productCount = 0, units = 0;
         for (int i = 0; i < featureProducts.length(); i++) {
             JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
             int qty = featureQuantities.getOrDefault(featureProductId(p), 0);
             if (qty <= 0) continue;
             String name = firstOrderString(p, "name", "full_name", "title");
             JSONObject product = p.optJSONObject("product");
-            if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "title");
-            double price = p.optDouble("price", product == null ? 0 : product.optDouble("price", 0));
-            out.append(name.isEmpty() ? "מוצר" : name).append(" × ").append(qty)
-                    .append(" · ").append(String.format(java.util.Locale.US, "%.2f ₪", price * qty)).append("\n");
-            total += price * qty; count += qty;
+            if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "full_name", "title");
+            if (name.isEmpty()) name = "מוצר #" + featureProductId(p);
+            double unitPrice = productUnitPrice(p);
+            out.append(name).append(" × ").append(qty)
+                    .append(" · ").append(String.format(java.util.Locale.US, "%.2f ₪ ליחידה", unitPrice))
+                    .append(" · ").append(String.format(java.util.Locale.US, "%.2f ₪", unitPrice * qty)).append("\n");
+            total += unitPrice * qty;
+            units += qty;
+            productCount++;
         }
         if (out.length() == 0) out.append("עדיין לא נבחרו פריטים להזמנה.");
-        else out.append("\nסה״כ יחידות: ").append(count).append("\nסה״כ משוער: ")
-                .append(String.format(java.util.Locale.US, "%.2f ₪", total));
+        else out.append("\nמספר סוגי פריטים: ").append(productCount)
+                .append("\nסה״כ יחידות: ").append(units)
+                .append("\nעלות כוללת משוערת: ").append(String.format(java.util.Locale.US, "%.2f ₪", total));
         new AlertDialog.Builder(this).setTitle("סיכום ההזמנה")
                 .setMessage(out.toString())
                 .setPositiveButton("חזרה למוצרים", null)
-                .setNeutralButton("הזמנת הפריטים", (d, w) -> saveFeatureOrderItems())
+                .setNeutralButton("שמירת ההזמנה", (d, w) -> saveFeatureOrderItems())
                 .show();
     }
 
