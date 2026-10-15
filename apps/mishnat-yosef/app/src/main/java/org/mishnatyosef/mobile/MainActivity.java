@@ -702,6 +702,32 @@ public class MainActivity extends Activity {
         throw new Exception("השרת אישר פתיחת הזמנה אך לא החזיר מזהה. בדקי בהיסטוריית ההזמנות לפני ניסיון חוזר.");
     }
 
+    private void appendProductDetail(StringBuilder out, String label, String value) {
+        if (value == null || value.trim().isEmpty() || "null".equalsIgnoreCase(value.trim())) return;
+        if (out.length() > 0) out.append("\\n");
+        out.append(label).append(": ").append(value.trim());
+    }
+
+    private void showFeatureProductDetails(JSONObject p) {
+        if (p == null) return;
+        StringBuilder out = new StringBuilder();
+        appendProductDetail(out, "שם מוצר", firstOrderString(p, "name", "custom_name", "title"));
+        appendProductDetail(out, "מחיר", firstOrderString(p, "price", "unit_price", "price_list"));
+        appendProductDetail(out, "כמות בהזמנה", String.valueOf(Math.max(0, p.optInt("amount", 0))));
+        appendProductDetail(out, "זמינות", firstOrderString(p, "available"));
+        appendProductDetail(out, "יחידה", firstOrderString(p, "item_unit", "units", "unit"));
+        appendProductDetail(out, "פרטים", firstOrderString(p, "description", "details", "approx"));
+        JSONObject product = p.optJSONObject("product");
+        if (product != null) {
+            appendProductDetail(out, "תיאור מוצר", firstOrderString(product, "description", "details", "name"));
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(firstOrderString(p, "name", "custom_name", "title").isEmpty() ? "פרטי מוצר" : firstOrderString(p, "name", "custom_name", "title"))
+                .setMessage(out.length() == 0 ? "אין פרטים נוספים זמינים." : out.toString())
+                .setPositiveButton("סגירה", null)
+                .show();
+    }
+
     private void showSaleDetails(JSONObject sale) {
         StringBuilder out = new StringBuilder();
         appendProductDetail(out, "מזהה מכירה", firstOrderString(sale, "id"));
