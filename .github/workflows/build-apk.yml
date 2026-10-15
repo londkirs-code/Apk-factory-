@@ -49,6 +49,8 @@ jobs:
           mkdir -p "$HOME/.android"
           echo "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$HOME/.android/apk-factory-release.jks"
           test -s "$HOME/.android/apk-factory-release.jks"
+          # Normalize accidental whitespace in the alias secret before Gradle uses it.
+          APK_SIGNING_KEY_ALIAS="$(printf "%s" "$APK_SIGNING_KEY_ALIAS" | tr -d "[:space:]")"
           {
             echo "APK_SIGNING_STORE_FILE=$HOME/.android/apk-factory-release.jks"
             echo "APK_SIGNING_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
