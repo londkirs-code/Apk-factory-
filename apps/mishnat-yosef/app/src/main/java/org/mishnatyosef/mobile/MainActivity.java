@@ -12,6 +12,7 @@ import android.content.SharedPreferences;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.RadioButton;
@@ -462,21 +463,155 @@ public class MainActivity extends Activity {
             } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
         });
     }
+    private JSONArray orderItemsFrom(JSONObject order) {
+        String[] keys = {"items", "order_items", "orderItems", "products", "details", "lines", "order_details", "orderDetails"};
+        for (String key : keys) {
+            JSONArray a = order.optJSONArray(key);
+            if (a != null) return a;
+        }
+        JSONObject nested = order.optJSONObject("order");
+        if (nested != null && nested != order) {
+            JSONArray a = orderItemsFrom(nested);
+            if (a.length() > 0) return a;
+        }
+        return new JSONArray();
+    }
+
+    private JSONObject orderProductFrom(JSONObject item) {
+        String[] keys = {"item", "product", "sale_item", "saleItem", "product_details", "productDetails"};
+        for (String key : keys) {
+            JSONObject p = item.optJSONObject(key);
+            if (p != null) return p;
+        }
+        return item;
+    }
+
+    private String firstOrderString(JSONObject obj, String... keys) {
+        for (String key : keys) {
+            Object value = obj.opt(key);
+            if (value == null || value == JSONObject.NULL) continue;
+            String s = String.valueOf(value).trim();
+            if (!s.isEmpty() && !"null".equalsIgnoreCase(s)) return s;
+        }
+        return "";
+    }
+
+    private String orderImageUrl(JSONObject item, JSONObject product) {
+        String url = firstOrderString(product, "image_url", "imageUrl", "image", "photo", "picture", "thumbnail", "img", "image_path");
+        if (url.isEmpty()) url = firstOrderString(item, "image_url", "imageUrl", "image", "photo", "picture", "thumbnail", "img", "image_path");
+        if (url.startsWith("//")) url = "https:" + url;
+        if (url.startsWith("/")) url = API + url;
+        return url.startsWith("http://") || url.startsWith("https://") ? url : "";
+    }
+
+    private void addOrderItemRow(JSONObject item, int index) {
+        JSONObject product = orderProductFrom(item);
+        String name = firstOrderString(product, "name", "item_name", "product_name", "title", "custom_name");
+        if (name.isEmpty()) name = firstOrderString(item, "name", "item_name", "product_name", "title", "custom_name");
+        if (name.isEmpty()) name = "פריט " + (index + 1);
+        String quantity = firstOrderString(item, "amount", "quantity", "qty", "count");
+        if (quantity.isEmpty()) quantity = firstOrderString(product, "amount", "quantity", "qty", "count");
+        if (quantity.isEmpty()) quantity = "—";
+        String price = firstOrderString(item, "price", "unit_price", "unitPrice", "item_price", "total_price", "totalPrice", "subtotal", "sum");
+        if (price.isEmpty()) price = firstOrderString(product, "price", "unit_price", "unitPrice", "item_price", "total_price", "totalPrice");
+        if (price.isEmpty()) price = "—";
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(10), dp(8), dp(10), dp(8));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Color.WHITE);
+        bg.setCornerRadius(dp(12));
+        bg.setStroke(dp(1), Color.rgb(238, 220, 205));
+        card.setBackground(bg);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, -2);
+        cardParams.bottomMargin = dp(8);
+        root.addView(card, cardParams);
+
+        ImageView image = new ImageView(this);
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setBackgroundColor(Color.rgb(250, 239, 229));
+        LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(dp(76), dp(76));
+        imageParams.setMargins(dp(4), 0, dp(10), 0);
+        card.addView(image, imageParams);
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(details, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView productName = text(name, 15, true);
+        productName.setPadding(0, dp(2), 0, dp(5));
+        details.addView(productName);
+        TextView qtyView = text("כמות: " + quantity, 13, false);
+        qtyView.setPadding(0, dp(2), 0, dp(2));
+        details.addView(qtyView);
+        TextView priceView = text("מחיר: " + price + " ₪", 13, true);
+        priceView.setTextColor(Color.rgb(191, 70, 12));
+        priceView.setPadding(0, dp(2), 0, dp(2));
+        details.addView(priceView);
+
+        String imageUrl = orderImageUrl(item, product);
+        if (!imageUrl.isEmpty()) {
+            final String requestedUrl = imageUrl;
+            executor.execute(() -> {
+                try {
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new URL(requestedUrl).openConnection();
+                    c.setConnectTimeout(8000);
+                    c.setReadTimeout(8000);
+                    c.setInstanceFollowRedirects(true);
+                    c.connect();
+                    InputStream stream = c.getInputStream();
+                    android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(stream);
+                    stream.close();
+                    c.disconnect();
+                    if (bitmap != null) runOnUiThread(() -> image.setImageBitmap(bitmap));
+                } catch (Exception ignored) { }
+            });
+        }
+    }
+
+    private void renderFeatureOrderDetails(long id, String body) {
+        beginScreen("פרטי הזמנה #" + id);
+        Button back = button("חזרה להיסטוריה");
+        root.addView(back);
+        back.setOnClickListener(v -> loadFeatureOrders());
+        try {
+            JSONObject response = new JSONObject(body);
+            JSONObject order = response.optJSONObject("data");
+            if (order == null) order = response;
+            TextView heading = text("פרטי ההזמנה", 18, true);
+            root.addView(heading);
+            String status = firstOrderString(order, "status", "order_status");
+            String total = firstOrderString(order, "total", "total_price", "totalPrice", "amount", "sum");
+            if (!status.isEmpty()) root.addView(text("סטטוס: " + status, 14, false));
+            if (!total.isEmpty()) root.addView(text("סכום הזמנה: " + total + " ₪", 15, true));
+
+            JSONArray items = orderItemsFrom(order);
+            if (items.length() == 0) {
+                root.addView(text("לא נמצאו פריטים בהזמנה בתשובת השרת.", 14, false));
+                return;
+            }
+            root.addView(text("פריטים בהזמנה", 17, true));
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item != null) addOrderItemRow(item, i);
+            }
+        } catch (Exception e) {
+            statusView.setText("לא ניתן להציג את פרטי ההזמנה.");
+        }
+    }
+
     private void loadFeatureOrderDetails(long id) {
         executor.execute(() -> {
             try {
-                HttpResult r=request("GET","/api/orders/"+id,prefs.getString("token",""),null);
-                if(r.code<200||r.code>=300)throw new Exception("שגיאת שרת ("+r.code+")");
-                String body=r.body;
-                runOnUiThread(() -> {
-                    beginScreen("פרטי הזמנה #"+id);
-                    Button back=button("חזרה להיסטוריה");root.addView(back);back.setOnClickListener(v->loadFeatureOrders());
-                    try {
-                        JSONObject o=new JSONObject(body);JSONObject d=o.optJSONObject("data");
-                        TextView detail=text((d==null?o:d).toString(2),13,false);root.addView(detail);
-                    } catch(Exception e) { statusView.setText(body); }
-                });
-            } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
+                HttpResult r = request("GET", "/api/orders/" + id, prefs.getString("token", ""), null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("שגיאת שרת (" + r.code + ")");
+                String body = r.body;
+                runOnUiThread(() -> renderFeatureOrderDetails(id, body));
+            } catch (Exception e) {
+                runOnUiThread(() -> statusView.setText(e.getMessage()));
+            }
         });
     }
     private void loadFeatureTransactions() {
