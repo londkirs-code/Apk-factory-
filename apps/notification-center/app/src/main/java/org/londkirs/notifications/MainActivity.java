@@ -67,7 +67,7 @@ public class MainActivity extends Activity {
         root.addView(button("הגדרות ערוץ ההתראות (צליל/חשיבות/נורית)",v->openChannelSettings()));
         statusText=label(""); statusText.setTextColor(Color.rgb(0,105,105)); root.addView(statusText);
         root.addView(label("התראות מתוזמנות")); scheduledText=label(""); root.addView(scheduledText);
-        root.addView(button("רענון הרשימה",v->refreshSchedules()));
+        root.addView(button("רענון הרשימה",v->refreshSchedules()));\n        root.addView(button("הצגת התראות פעילות במכשיר",v->showActiveNotifications()));
         root.addView(button("הרשאות התראות מדויקות",v->requestExactAlarmPermission()));
     }
 
@@ -112,14 +112,14 @@ public class MainActivity extends Activity {
             NotificationReceiver.writeSchedules(this,keep); NotificationReceiver.cancelDisplayed(this,id); statusText.setText("בוטלו "+removed+" תזמונים וההתראה הפעילה לפי המזהה."); refreshSchedules();
         }catch(Exception e){statusText.setText("מזהה לא תקין.");}
     }
-    void cancelAll() { JSONArray all=NotificationReceiver.readSchedules(this); for(int n=0;n<all.length();n++) NotificationReceiver.cancel(this,all.optJSONObject(n)); NotificationReceiver.writeSchedules(this,new JSONArray()); statusText.setText("כל התזמונים בוטלו."); refreshSchedules(); }
+    void cancelAll() { JSONArray all=NotificationReceiver.readSchedules(this); for(int n=0;n<all.length();n++) NotificationReceiver.cancel(this,all.optJSONObject(n)); NotificationReceiver.writeSchedules(this,new JSONArray()); ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).cancelAll(); statusText.setText("כל התזמונים וההתראות הפעילות בוטלו."); refreshSchedules(); }
     void refreshSchedules() {
         if(scheduledText==null)return; JSONArray all=NotificationReceiver.readSchedules(this); StringBuilder s=new StringBuilder();
         for(int n=0;n<all.length();n++){JSONObject j=all.optJSONObject(n); if(j==null)continue; s.append("• ").append(j.optString("title")).append(" (ID ").append(j.optInt("id")).append(")\n").append(DateFormat.getDateTimeInstance().format(new Date(j.optLong("at"))));
             if(j.optLong("repeat")>0)s.append(" · חוזרת"); s.append("\n\n");}
         scheduledText.setText(s.length()==0?"אין התראות מתוזמנות":s.toString());
     }
-    void openChannelSettings() {
+    void showActiveNotifications() {\n        StringBuilder out=new StringBuilder();\n        if(Build.VERSION.SDK_INT>=23){ StatusBarNotification[] active=((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).getActiveNotifications(); for(StatusBarNotification n:active){out.append("• ID ").append(n.getId()).append(" — ").append(n.getPackageName()).append("\\n");} }\n        new AlertDialog.Builder(this).setTitle("התראות פעילות").setMessage(out.length()==0?"אין התראות פעילות":out.toString()).setPositiveButton("סגירה",null).show();\n    }\n    void openChannelSettings() {
         if(Build.VERSION.SDK_INT>=26){Intent i=new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());i.putExtra(Settings.EXTRA_CHANNEL_ID,NotificationReceiver.CHANNEL);startActivity(i);}
         else {Intent i=new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()));startActivity(i);}
     }
