@@ -117,7 +117,7 @@ public class MainActivity extends Activity {
             nav.setGravity(Gravity.CENTER);
             nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
-            String[] labels = {"ראשי", "היסטוריה", "זיכויים", "הזמנות פתוחות"};
+            String[] labels = {"הזמנות פתוחות", "זיכויים", "היסטוריה", "ראשי"};
             int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
             Runnable[] actions = {this::showDashboard, this::loadFeatureOrders, this::loadFeatureTransactions, this::showOpenSales};
             for (int i = 0; i < labels.length; i++) {
@@ -387,7 +387,7 @@ public class MainActivity extends Activity {
                 final JSONArray rows=a==null?new JSONArray():a;
                 runOnUiThread(() -> {
                     beginScreen("בחירת מכירה להזמנה");
-                    Button back=button("חזרה לתפריט");root.addView(back);back.setOnClickListener(v->showDashboard());
+
                     if(rows.length()==0)statusView.setText("לא נמצאו מכירות פתוחות.");
                     for(int i=0;i<rows.length();i++){JSONObject sale=rows.optJSONObject(i);if(sale==null)continue;
                         String name=sale.optString("custom_name",sale.optString("name","מכירה"));
@@ -494,7 +494,7 @@ public class MainActivity extends Activity {
                 final JSONArray orders=a==null?new JSONArray():a;
                 runOnUiThread(() -> {
                     beginScreen("היסטוריית הזמנות");
-                    Button back=button("חזרה לתפריט");root.addView(back);back.setOnClickListener(v->showDashboard());
+
                     if(orders.length()==0) statusView.setText("לא נמצאו הזמנות.");
                     for(int i=0;i<orders.length();i++){
                         JSONObject o=orders.optJSONObject(i);if(o==null)continue;
@@ -754,9 +754,6 @@ public class MainActivity extends Activity {
                 final java.util.ArrayList<JSONObject> finalRows = rows;
                 runOnUiThread(() -> {
                     beginScreen("זיכויים וחיובים");
-                    Button back = button("חזרה לתפריט");
-                    root.addView(back);
-                    back.setOnClickListener(v -> showDashboard());
                     TextView summary = text("", 15, true);
                     root.addView(summary);
                     LinearLayout filters = new LinearLayout(this);
@@ -885,7 +882,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showFeatureMessage(String title, String message) { beginScreen(title); statusView.setText(message); Button b=button("חזרה לתפריט"); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->showDashboard()); }
+    private void showFeatureMessage(String title, String message) { beginScreen(title); statusView.setText(message); }
     private void hideKeyboard() {
         try {
             InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
