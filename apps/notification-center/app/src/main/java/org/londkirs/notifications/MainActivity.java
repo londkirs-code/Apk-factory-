@@ -46,8 +46,13 @@ public class MainActivity extends Activity {
         root.addView(label("תוכן ההתראה")); textInput=edit("מה להציג בהתראה"); root.addView(textInput);
         root.addView(label("מזהה (לעדכון או ביטול)")); idInput=edit("למשל: 100"); idInput.setText("100"); root.addView(idInput);
         root.addView(label("פעולה בכפתור 1 (אופציונלי)")); action1Input=edit("למשל: פתח"); root.addView(action1Input);
-        root.addView(label("פעולה בכפתור 2 (אופציונלי)")); action2Input=edit("למשל: בוצע"); root.addView(action2Input);\n        root.addView(label("פעולה בכפתור 3 (אופציונלי)")); action3Input=edit("למשל: דחה"); root.addView(action3Input);
-        root.addView(label("תמונה גדולה — נתיב מקומי (אופציונלי)")); imagePathInput=edit("/storage/emulated/0/Pictures/image.jpg"); root.addView(imagePathInput);\n        root.addView(label("קבוצת התראות (אופציונלי)")); groupInput=edit("למשל: reminders"); root.addView(groupInput);\n        root.addView(label("צליל מותאם אישית — URI (אופציונלי)")); soundUriInput=edit("content://... או file://..."); root.addView(soundUriInput);\n        root.addView(label("צבע נורית LED — למשל #00FFAA (אופציונלי)")); ledColorInput=edit("#00FFFF"); root.addView(ledColorInput);\n        root.addView(label("סוג התראה"));
+        root.addView(label("פעולה בכפתור 2 (אופציונלי)")); action2Input=edit("למשל: בוצע"); root.addView(action2Input);
+        root.addView(label("פעולה בכפתור 3 (אופציונלי)")); action3Input=edit("למשל: דחה"); root.addView(action3Input);
+        root.addView(label("תמונה גדולה — נתיב מקומי (אופציונלי)")); imagePathInput=edit("/storage/emulated/0/Pictures/image.jpg"); root.addView(imagePathInput);
+        root.addView(label("קבוצת התראות (אופציונלי)")); groupInput=edit("למשל: reminders"); root.addView(groupInput);
+        root.addView(label("צליל מותאם אישית — URI (אופציונלי)")); soundUriInput=edit("content://... או file://..."); root.addView(soundUriInput);
+        root.addView(label("צבע נורית LED — למשל #00FFAA (אופציונלי)")); ledColorInput=edit("#00FFFF"); root.addView(ledColorInput);
+        root.addView(label("סוג התראה"));
         progressBox=new CheckBox(this); progressBox.setText("התראת התקדמות"); root.addView(progressBox);
         progressInput=edit("התקדמות 0–100"); progressInput.setText("50"); root.addView(progressInput);
         root.addView(label("חשיבות"));
@@ -67,7 +72,8 @@ public class MainActivity extends Activity {
         root.addView(button("הגדרות ערוץ ההתראות (צליל/חשיבות/נורית)",v->openChannelSettings()));
         statusText=label(""); statusText.setTextColor(Color.rgb(0,105,105)); root.addView(statusText);
         root.addView(label("התראות מתוזמנות")); scheduledText=label(""); root.addView(scheduledText);
-        root.addView(button("רענון הרשימה",v->refreshSchedules()));\n        root.addView(button("הצגת התראות פעילות במכשיר",v->showActiveNotifications()));
+        root.addView(button("רענון הרשימה",v->refreshSchedules()));
+        root.addView(button("הצגת התראות פעילות במכשיר",v->showActiveNotifications()));
         root.addView(button("הרשאות התראות מדויקות",v->requestExactAlarmPermission()));
     }
 
@@ -88,7 +94,8 @@ public class MainActivity extends Activity {
         String title=titleInput.getText().toString().trim(), text=textInput.getText().toString().trim();
         if(title.isEmpty()) title="התראה"; if(text.isEmpty()) text=" ";
         JSONObject j=new JSONObject(); j.put("title",title); j.put("text",text); j.put("id",idInput.getText().toString().trim().isEmpty()?100:Integer.parseInt(idInput.getText().toString().trim()));
-        j.put("action1",action1Input.getText().toString().trim()); j.put("action2",action2Input.getText().toString().trim()); j.put("action3",action3Input.getText().toString().trim());\n        j.put("imagePath",imagePathInput.getText().toString().trim()); j.put("group",groupInput.getText().toString().trim()); j.put("soundUri",soundUriInput.getText().toString().trim()); j.put("ledColor",ledColorInput.getText().toString().trim());
+        j.put("action1",action1Input.getText().toString().trim()); j.put("action2",action2Input.getText().toString().trim()); j.put("action3",action3Input.getText().toString().trim());
+        j.put("imagePath",imagePathInput.getText().toString().trim()); j.put("group",groupInput.getText().toString().trim()); j.put("soundUri",soundUriInput.getText().toString().trim()); j.put("ledColor",ledColorInput.getText().toString().trim());
         j.put("sound",soundBox.isChecked()); j.put("vibrate",vibrateBox.isChecked()); j.put("ongoing",ongoingBox.isChecked()); j.put("alertOnce",alertOnceBox.isChecked());
         j.put("priority",priority()); j.put("progress",progressBox.isChecked()); j.put("progressValue",Math.max(0,Math.min(100,Integer.parseInt(progressInput.getText().toString().trim().isEmpty()?"0":progressInput.getText().toString().trim()))));
         return j;
@@ -121,7 +128,10 @@ public class MainActivity extends Activity {
     }
     void showActiveNotifications() {
         StringBuilder out=new StringBuilder();
-        if(Build.VERSION.SDK_INT>=23){ StatusBarNotification[] active=((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).getActiveNotifications(); for(StatusBarNotification n:active){out.append("• ID ").append(n.getId()).append(" — ").append(n.getPackageName()).append("\\n");} }\n        new AlertDialog.Builder(this).setTitle("התראות פעילות").setMessage(out.length()==0?"אין התראות פעילות":out.toString()).setPositiveButton("סגירה",null).show();\n    }\n    void openChannelSettings() {
+        if(Build.VERSION.SDK_INT>=23){ StatusBarNotification[] active=((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).getActiveNotifications(); for(StatusBarNotification n:active){out.append("• ID ").append(n.getId()).append(" — ").append(n.getPackageName()).append("\n");} }
+        new AlertDialog.Builder(this).setTitle("התראות פעילות").setMessage(out.length()==0?"אין התראות פעילות":out.toString()).setPositiveButton("סגירה",null).show();
+    }
+    void openChannelSettings() {
         if(Build.VERSION.SDK_INT>=26){Intent i=new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());i.putExtra(Settings.EXTRA_CHANNEL_ID,NotificationReceiver.CHANNEL);startActivity(i);}
         else {Intent i=new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()));startActivity(i);}
     }
