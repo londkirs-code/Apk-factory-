@@ -170,7 +170,12 @@ public class SaleMonitor extends BroadcastReceiver {
         c.setRequestProperty("Referer", "https://mishnatyosef.org/");
         c.setRequestProperty("User-Agent", "Mozilla/5.0");
         if (token != null && !token.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token);
-        if (method.equals("POST")) c.setDoOutput(true);
+        if (method.equals("POST")) {
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            byte[] payload = "{\"remember\":1}".getBytes(StandardCharsets.UTF_8);
+            try (java.io.OutputStream os = c.getOutputStream()) { os.write(payload); }
+        }
         int code = c.getResponseCode();
         InputStream stream = code >= 400 ? c.getErrorStream() : c.getInputStream();
         StringBuilder response = new StringBuilder();
