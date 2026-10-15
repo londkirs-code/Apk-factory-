@@ -49,8 +49,8 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        getWindow().setStatusBarColor(Color.rgb(0, 105, 92));
-        getWindow().setNavigationBarColor(Color.rgb(0, 77, 64));
+        getWindow().setStatusBarColor(Color.rgb(230, 94, 20));
+        getWindow().setNavigationBarColor(Color.rgb(191, 70, 12));
         if (hasToken()) showDashboard(); else showLogin();
     }
 
@@ -74,7 +74,12 @@ public class MainActivity extends Activity {
         b.setText(label);
         b.setAllCaps(false);
         b.setTextColor(Color.WHITE);
-        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(0, 121, 107)));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Color.rgb(239, 108, 0));
+        bg.setCornerRadius(dp(18));
+        b.setBackground(bg);
+        b.setPadding(dp(16), dp(8), dp(16), dp(8));
+        b.setMinHeight(dp(52));
         return b;
     }
 
@@ -82,14 +87,14 @@ public class MainActivity extends Activity {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(22), dp(28), dp(22), dp(18));
-        root.setBackgroundColor(Color.rgb(247, 250, 249));
+        root.setBackgroundColor(Color.rgb(255, 249, 244));
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.addView(root);
         setContentView(scroll);
         TextView title = text("משנת יוסף", 28, true);
-        title.setTextColor(Color.rgb(0, 105, 92));
+        title.setTextColor(Color.rgb(230, 94, 20));
         title.setGravity(Gravity.CENTER);
         root.addView(title, new LinearLayout.LayoutParams(-1, -2));
         TextView sub = text(heading, 16, false);
