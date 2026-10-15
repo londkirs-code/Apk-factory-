@@ -320,7 +320,63 @@ public class MainActivity extends Activity {
     }
 
     private void addFeatureMenu(String label, Runnable action) { Button b=button(label); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->action.run()); }
-    private void loadFeatureSales() { showFeatureMessage("הזמנה חדשה", "ממשק ההזמנה עדיין בבנייה."); }
+    private JSONArray featureProducts=new JSONArray();
+    private JSONObject featureSale=null;
+    private final java.util.Map<Integer,Integer> featureQuantities=new java.util.LinkedHashMap<>();
+    private void loadFeatureSales() {
+        beginScreen("בחירת מכירה להזמנה");
+        statusView.setText("טוען מכירות פתוחות…");
+        executor.execute(() -> {
+            try {
+                HttpResult r=request("GET","/api/profile/open_sales",prefs.getString("token",""),null);
+                if(r.code<200||r.code>=300) throw new Exception("שגיאת שרת ("+r.code+")");
+                JSONArray a=new JSONArray();Object value=new org.json.JSONTokener(r.body).nextValue();
+                if(value instanceof JSONArray)a=(JSONArray)value;else if(value instanceof JSONObject)a=((JSONObject)value).optJSONArray("data");
+                final JSONArray rows=a==null?new JSONArray():a;
+                runOnUiThread(() -> {
+                    beginScreen("בחירת מכירה להזמנה");
+                    Button back=button("חזרה לתפריט");root.addView(back);back.setOnClickListener(v->showDashboard());
+                    if(rows.length()==0)statusView.setText("לא נמצאו מכירות פתוחות.");
+                    for(int i=0;i<rows.length();i++){JSONObject sale=rows.optJSONObject(i);if(sale==null)continue;
+                        String name=sale.optString("custom_name",sale.optString("name","מכירה"));
+                        JSONObject parent=sale.optJSONObject("parent");if(name.isEmpty()&&parent!=null)name=parent.optString("week","מכירה");
+                        final JSONObject selected=sale;Button b=button(name);root.addView(b);b.setOnClickListener(v->loadFeatureProducts(selected));
+                    }
+                });
+            } catch(Exception e){runOnUiThread(()->statusView.setText(e.getMessage()));}
+        });
+    }
+    private int featureProductId(JSONObject p){return p.optInt("item_salesID",p.optInt("id",p.optInt("itemID",-1)));}
+    private void loadFeatureProducts(JSONObject sale) {
+        featureSale=sale;int saleId=sale.optInt("id",-1);
+        executor.execute(() -> {
+            try {
+                JSONArray all=new JSONArray();
+                for(int page=1;page<=100;page++){
+                    HttpResult r=request("GET","/api/get_items_for_sale/"+saleId+"/null?page="+page+"&limit=50",prefs.getString("token",""),null);
+                    if(r.code<200||r.code>=300)throw new Exception("שגיאת שרת ("+r.code+")");
+                    JSONArray a=new JSONArray();Object val=new org.json.JSONTokener(r.body).nextValue();
+                    if(val instanceof JSONArray)a=(JSONArray)val;else if(val instanceof JSONObject)a=((JSONObject)val).optJSONArray("data");
+                    if(a==null)a=new JSONArray();for(int i=0;i<a.length();i++)all.put(a.get(i));if(a.length()<50)break;
+                }
+                featureProducts=all;featureQuantities.clear();for(int i=0;i<all.length();i++){JSONObject p=all.optJSONObject(i);if(p!=null)featureQuantities.put(featureProductId(p),0);}
+                runOnUiThread(this::renderFeatureProducts);
+            }catch(Exception e){runOnUiThread(()->statusView.setText(e.getMessage()));}
+        });
+    }
+    private void renderFeatureProducts() {
+        String title=featureSale==null?"מוצרים":featureSale.optString("custom_name",featureSale.optString("name","מוצרים"));
+        beginScreen(title);Button back=button("חזרה למכירות");root.addView(back);back.setOnClickListener(v->loadFeatureSales());
+        for(int i=0;i<featureProducts.length();i++){
+            JSONObject p=featureProducts.optJSONObject(i);if(p==null)continue;int id=featureProductId(p);
+            LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);root.addView(row);
+            row.addView(text(p.optString("name","מוצר")+" · "+p.optString("price","")+" ₪",14,true),new LinearLayout.LayoutParams(0,-2,1));
+            TextView qty=text("0",16,true);row.addView(qty);Button minus=button("−"),plus=button("+");row.addView(minus);row.addView(plus);
+            minus.setOnClickListener(v->{int n=Math.max(0,featureQuantities.getOrDefault(id,0)-1);featureQuantities.put(id,n);qty.setText(""+n);});
+            plus.setOnClickListener(v->{int n=featureQuantities.getOrDefault(id,0)+1;int max=p.optInt("max_per_man",0);if(max>0&&n>max){Toast.makeText(this,"הגעת למגבלת הכמות",Toast.LENGTH_SHORT).show();return;}featureQuantities.put(id,n);qty.setText(""+n);});
+        }
+        Button next=button("המשך לאמצעי תשלום");root.addView(next);next.setOnClickListener(v->loadFeatureCards());
+    }
     private void loadFeatureOrders() {
         beginScreen("היסטוריית הזמנות");
         statusView.setText("טוען הזמנות…");
