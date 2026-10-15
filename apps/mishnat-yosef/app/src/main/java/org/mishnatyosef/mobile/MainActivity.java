@@ -119,7 +119,7 @@ public class MainActivity extends Activity {
             nav.setElevation(dp(8));
             String[] labels = {"הזמנות פתוחות", "זיכויים", "היסטוריה", "ראשי"};
             int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
-            Runnable[] actions = {this::showDashboard, this::loadFeatureOrders, this::loadFeatureTransactions, this::showOpenSales};
+            Runnable[] actions = {this::showOpenSales, this::loadFeatureTransactions, this::loadFeatureOrders, this::showDashboard};
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 LinearLayout item = new LinearLayout(this);
