@@ -33,16 +33,44 @@ public class MainActivity extends Activity {
         refreshSchedules();
     }
 
+    final int ink = Color.rgb(25, 38, 61);
+    final int muted = Color.rgb(98, 112, 135);
+    final int blue = Color.rgb(24, 112, 255);
+    final int pale = Color.rgb(239, 245, 255);
+    final int line = Color.rgb(222, 230, 241);
     int dp(int n) { return (int)(n * getResources().getDisplayMetrics().density + .5f); }
-    TextView label(String s) { TextView v=new TextView(this); v.setText(s); v.setTextSize(15); v.setPadding(0,dp(8),0,dp(3)); return v; }
-    EditText edit(String hint) { EditText e=new EditText(this); e.setSingleLine(true); e.setHint(hint); e.setTextSize(16); return e; }
-    Button button(String text, View.OnClickListener l) { Button b=new Button(this); b.setText(text); b.setOnClickListener(l); return b; }
+    android.graphics.drawable.GradientDrawable shape(int color, int radius, int stroke) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(color); d.setCornerRadius(dp(radius));
+        if (stroke != Color.TRANSPARENT) d.setStroke(dp(1), stroke);
+        return d;
+    }
+    TextView label(String s) {
+        TextView v=new TextView(this); v.setText(s); v.setTextSize(14);
+        v.setTextColor(ink); v.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        v.setPadding(0,dp(12),0,dp(5)); return v;
+    }
+    EditText edit(String hint) {
+        EditText e=new EditText(this); e.setSingleLine(true); e.setHint(hint); e.setTextSize(15);
+        e.setTextColor(ink); e.setHintTextColor(Color.rgb(150,160,176)); e.setPadding(dp(14),dp(10),dp(14),dp(10));
+        e.setBackground(shape(Color.WHITE,14,line)); return e;
+    }
+    Button button(String text, View.OnClickListener l) {
+        Button b=new Button(this); b.setText(text); b.setAllCaps(false); b.setTextSize(14);
+        b.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        b.setTextColor(blue); b.setBackground(shape(pale,16,Color.TRANSPARENT));
+        b.setPadding(dp(12),dp(7),dp(12),dp(7)); b.setMinHeight(dp(48)); b.setElevation(0);
+        b.setOnClickListener(l);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.topMargin=dp(7); lp.bottomMargin=dp(3);
+        b.setLayoutParams(lp); return b;
+    }
     void buildUi() {
         ScrollView scroll=new ScrollView(this);
-        LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(dp(18),dp(14),dp(18),dp(28)); root.setBackgroundColor(Color.rgb(247,249,250));
+        LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(dp(20),dp(18),dp(20),dp(32)); root.setBackgroundColor(Color.rgb(247,249,253));
         scroll.addView(root); setContentView(scroll);
-        TextView head=label("מרכז התראות"); head.setTextSize(26); head.setTextColor(Color.rgb(0,105,105)); head.setPadding(0,0,0,dp(8)); root.addView(head);
-        TextView desc=label("יצירה, תזמון וניהול התראות מקומיות"); desc.setTextColor(Color.DKGRAY); root.addView(desc);
+        TextView eyebrow=label("SMART TOOLS"); eyebrow.setTextSize(11); eyebrow.setTextColor(blue); eyebrow.setLetterSpacing(.12f); eyebrow.setPadding(0,0,0,dp(4)); root.addView(eyebrow);
+        TextView head=label("מרכז התראות"); head.setTextSize(30); head.setTextColor(ink); head.setTypeface(android.graphics.Typeface.create("sans-serif",android.graphics.Typeface.BOLD)); head.setPadding(0,0,0,dp(3)); root.addView(head);
+        TextView desc=label("יצירה, תזמון וניהול התראות מקומיות"); desc.setTextSize(14); desc.setTextColor(muted); desc.setPadding(0,0,0,dp(14)); root.addView(desc);
         root.addView(label("כותרת")); titleInput=edit("למשל: תזכורת"); root.addView(titleInput);
         root.addView(label("תוכן ההתראה")); textInput=edit("מה להציג בהתראה"); root.addView(textInput);
         root.addView(label("מזהה (לעדכון או ביטול)")); idInput=edit("למשל: 100"); idInput.setText("100"); root.addView(idInput);
@@ -54,25 +82,25 @@ public class MainActivity extends Activity {
         root.addView(label("צליל מותאם אישית — URI (אופציונלי)")); soundUriInput=edit("content://... או file://..."); root.addView(soundUriInput);
         root.addView(label("צבע נורית LED — למשל #00FFAA (אופציונלי)")); ledColorInput=edit("#00FFFF"); root.addView(ledColorInput);
         root.addView(label("סוג התראה"));
-        progressBox=new CheckBox(this); progressBox.setText("התראת התקדמות"); root.addView(progressBox);
+        progressBox=new CheckBox(this); progressBox.setText("התראת התקדמות"); progressBox.setTextColor(ink); if(Build.VERSION.SDK_INT>=21) progressBox.setButtonTintList(android.content.res.ColorStateList.valueOf(blue)); root.addView(progressBox);
         progressInput=edit("התקדמות 0–100"); progressInput.setText("50"); root.addView(progressInput);
         root.addView(label("חשיבות"));
-        prioritySpinner=new Spinner(this); prioritySpinner.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"רגילה","נמוכה","גבוהה","דחופה"})); root.addView(prioritySpinner);
+        prioritySpinner=new Spinner(this); prioritySpinner.setBackground(shape(Color.WHITE,14,line)); prioritySpinner.setPadding(dp(8),dp(4),dp(8),dp(4)); prioritySpinner.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"רגילה","נמוכה","גבוהה","דחופה"})); root.addView(prioritySpinner);
         root.addView(label("חזרה"));
-        repeatSpinner=new Spinner(this); repeatSpinner.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"ללא חזרה","כל דקה","כל 5 דקות","כל שעה","כל יום","כל שבוע"})); root.addView(repeatSpinner);
-        whenText=label(""); root.addView(whenText); updateWhenText();
+        repeatSpinner=new Spinner(this); repeatSpinner.setBackground(shape(Color.WHITE,14,line)); repeatSpinner.setPadding(dp(8),dp(4),dp(8),dp(4)); repeatSpinner.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"ללא חזרה","כל דקה","כל 5 דקות","כל שעה","כל יום","כל שבוע"})); root.addView(repeatSpinner);
+        whenText=label(""); whenText.setBackground(shape(Color.WHITE,14,line)); whenText.setPadding(dp(14),dp(12),dp(14),dp(12)); root.addView(whenText); updateWhenText();
         root.addView(button("בחירת תאריך ושעה",v->chooseDateTime()));
-        soundBox=new CheckBox(this); soundBox.setText("השמעת צליל"); soundBox.setChecked(true); root.addView(soundBox);
-        vibrateBox=new CheckBox(this); vibrateBox.setText("רטט"); vibrateBox.setChecked(true); root.addView(vibrateBox);
-        ongoingBox=new CheckBox(this); ongoingBox.setText("התראה מתמשכת (לא ניתנת להחלקה)"); root.addView(ongoingBox);
-        alertOnceBox=new CheckBox(this); alertOnceBox.setText("התרעה פעם אחת בלבד בעדכון"); root.addView(alertOnceBox);
+        soundBox=new CheckBox(this); soundBox.setText("השמעת צליל"); soundBox.setChecked(true); soundBox.setTextColor(ink); if(Build.VERSION.SDK_INT>=21) soundBox.setButtonTintList(android.content.res.ColorStateList.valueOf(blue)); root.addView(soundBox);
+        vibrateBox=new CheckBox(this); vibrateBox.setText("רטט"); vibrateBox.setChecked(true); vibrateBox.setTextColor(ink); if(Build.VERSION.SDK_INT>=21) vibrateBox.setButtonTintList(android.content.res.ColorStateList.valueOf(blue)); root.addView(vibrateBox);
+        ongoingBox=new CheckBox(this); ongoingBox.setText("התראה מתמשכת (לא ניתנת להחלקה)"); ongoingBox.setTextColor(ink); if(Build.VERSION.SDK_INT>=21) ongoingBox.setButtonTintList(android.content.res.ColorStateList.valueOf(blue)); root.addView(ongoingBox);
+        alertOnceBox=new CheckBox(this); alertOnceBox.setText("התרעה פעם אחת בלבד בעדכון"); alertOnceBox.setTextColor(ink); if(Build.VERSION.SDK_INT>=21) alertOnceBox.setButtonTintList(android.content.res.ColorStateList.valueOf(blue)); root.addView(alertOnceBox);
         root.addView(button("שלח התראה עכשיו",v->sendNow()));
         root.addView(button("תזמן התראה",v->schedule()));
         root.addView(button("ביטול התראה לפי מזהה",v->cancelById()));
         root.addView(button("ביטול כל ההתראות המתוזמנות",v->cancelAll()));
         root.addView(button("הגדרות ערוץ ההתראות (צליל/חשיבות/נורית)",v->openChannelSettings()));
-        statusText=label(""); statusText.setTextColor(Color.rgb(0,105,105)); root.addView(statusText);
-        root.addView(label("התראות מתוזמנות")); scheduledText=label(""); root.addView(scheduledText);
+        statusText=label(""); statusText.setTextColor(blue); statusText.setBackground(shape(Color.WHITE,14,line)); statusText.setPadding(dp(14),dp(10),dp(14),dp(10)); root.addView(statusText);
+        TextView scheduleHeading=label("התראות מתוזמנות"); scheduleHeading.setTextSize(20); scheduleHeading.setTypeface(android.graphics.Typeface.DEFAULT_BOLD); root.addView(scheduleHeading); scheduledText=label(""); scheduledText.setTextColor(muted); scheduledText.setBackground(shape(Color.WHITE,18,line)); scheduledText.setPadding(dp(14),dp(12),dp(14),dp(12)); root.addView(scheduledText);
         root.addView(button("רענון הרשימה",v->refreshSchedules()));
         root.addView(button("הצגת התראות פעילות במכשיר",v->showActiveNotifications()));
         root.addView(button("הרשאות התראות מדויקות",v->requestExactAlarmPermission()));
