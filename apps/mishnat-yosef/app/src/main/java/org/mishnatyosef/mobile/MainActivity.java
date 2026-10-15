@@ -755,6 +755,34 @@ public class MainActivity extends Activity {
                     for (int i = 0; i < a.length(); i++) all.put(a.get(i));
                     if (a.length() < 50) break;
                 }
+                // Read the saved order from the server and use its quantities as the source of truth.
+                try {
+                    HttpResult orderResponse = request("GET", "/api/orders/" + orderId, token, null);
+                    if (orderResponse.code >= 200 && orderResponse.code < 300) {
+                        JSONObject response = new JSONObject(orderResponse.body);
+                        JSONObject order = response.optJSONObject("order");
+                        if (order == null) order = response.optJSONObject("data");
+                        if (order == null) order = response;
+                        JSONArray savedItems = orderItemsFrom(order);
+                        java.util.HashMap<Integer, Integer> savedAmounts = new java.util.HashMap<>();
+                        for (int i = 0; i < savedItems.length(); i++) {
+                            JSONObject saved = savedItems.optJSONObject(i);
+                            if (saved == null) continue;
+                            JSONObject savedProduct = orderProductFrom(saved);
+                            int itemId = saved.optInt("item_salesID", saved.optInt("item_sales_id", -1));
+                            if (itemId <= 0) itemId = savedProduct.optInt("item_salesID", savedProduct.optInt("item_sales_id", -1));
+                            if (itemId <= 0) itemId = saved.optInt("itemID", savedProduct.optInt("itemID", -1));
+                            int amount = saved.optInt("amount", saved.optInt("quantity", saved.optInt("qty", 0)));
+                            if (itemId > 0) savedAmounts.put(itemId, Math.max(0, amount));
+                        }
+                        for (int i = 0; i < all.length(); i++) {
+                            JSONObject p = all.optJSONObject(i);
+                            if (p == null) continue;
+                            int itemId = featureProductId(p);
+                            p.put("amount", savedAmounts.containsKey(itemId) ? savedAmounts.get(itemId) : 0);
+                        }
+                    }
+                } catch (Exception ignored) { }
                 featureOrderId = orderId;
                 featureProducts = all;
                 featureQuantities.clear();
