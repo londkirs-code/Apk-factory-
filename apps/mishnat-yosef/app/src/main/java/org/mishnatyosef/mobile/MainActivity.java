@@ -95,6 +95,8 @@ public class MainActivity extends Activity {
         sub.setGravity(Gravity.CENTER);
         sub.setPadding(0, 0, 0, dp(24));
         root.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+        statusView = text("", 14, false);
+        root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
     }
 
     private void showLogin() {
@@ -116,8 +118,6 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
         bp.topMargin = dp(18);
         root.addView(loginButton, bp);
-        statusView = text("", 14, false);
-        root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
         loginButton.setOnClickListener(v -> login());
     }
 
@@ -125,8 +125,7 @@ public class MainActivity extends Activity {
         beginScreen("מחובר לחשבון שלך");
         TextView account = text("חשבון: " + prefs.getString("email", ""), 14, false);
         root.addView(account, new LinearLayout.LayoutParams(-1, -2));
-        statusView = text("טוען את המכירות הפתוחות…", 15, false);
-        root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+        statusView.setText("טוען את המכירות הפתוחות…");
         addFeatureMenu("📦 היסטוריית הזמנות", this::loadFeatureOrders);
         addFeatureMenu("💳 זיכויים ותנועות בחשבון", this::loadFeatureTransactions);
         addFeatureMenu("🛒 הזמנה חדשה", this::loadFeatureSales);
