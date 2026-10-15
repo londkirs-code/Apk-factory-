@@ -123,6 +123,7 @@ jobs:
           BUILT_APPS: ${{ steps.build_apps.outputs.apps }}
           ACTOR: ${{ github.actor }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: ${{ github.ref_name }}
         with:
           script: |
             const apps = (process.env.BUILT_APPS || "").trim().split(/\r?\n/).filter(Boolean);
@@ -131,7 +132,7 @@ jobs:
               return;
             }
             const links = apps.map(app =>
-              `- **${app}**: https://github.com/${context.repo.owner}/${context.repo.repo}/raw/refs/heads/${context.payload.repository.default_branch}/downloads/${app}/app.apk`
+              `- **${app}**: https://github.com/${context.repo.owner}/${context.repo.repo}/raw/refs/heads/${process.env.BRANCH}/downloads/${app}/app.apk`
             );
             const body = [
               `✅ @${process.env.ACTOR} APK Factory finished building successfully.`,
