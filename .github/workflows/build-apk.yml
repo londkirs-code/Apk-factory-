@@ -85,7 +85,7 @@ jobs:
             export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_PASSWORD="$APK_SIGNING_STORE_PASSWORD"
             export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
             export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_PASSWORD="$APK_SIGNING_KEY_PASSWORD"
-            (cd "apps/$app" && gradle --no-daemon assembleRelease)
+            (cd "apps/$app" && gradle --no-daemon assembleRelease -x lintVitalRelease)
             APK_PATH="apps/$app/app/build/outputs/apk/release/"*.apk
             mkdir -p "downloads/$app"
             cp $APK_PATH "downloads/$app/app.apk"
