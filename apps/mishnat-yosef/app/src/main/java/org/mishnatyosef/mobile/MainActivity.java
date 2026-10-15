@@ -2,6 +2,7 @@ package org.mishnatyosef.mobile;
 
 import android.app.Activity;
 import android.app.AlarmManager;
+import android.app.TimePickerDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -248,7 +249,7 @@ public class MainActivity extends Activity {
         heading.setTextColor(Color.rgb(230, 94, 20));
         top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
         Switch toggle = new Switch(this);
-        toggle.setText("פעיל");
+        toggle.setText("");
         toggle.setTextSize(12);
         toggle.setChecked(prefs.getBoolean("sale_monitor_enabled", true));
         top.addView(toggle, new LinearLayout.LayoutParams(-2, dp(36)));
@@ -270,11 +271,16 @@ public class MainActivity extends Activity {
         startDay.setAdapter(adapter);
         startDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_start_day", Calendar.THURSDAY)));
         times.addView(startDay, new LinearLayout.LayoutParams(0, dp(34), 1));
-        EditText startTime = new EditText(this);
-        startTime.setSingleLine(true); startTime.setTextSize(13); startTime.setPadding(dp(3), 0, dp(3), 0);
-        startTime.setInputType(1); startTime.setHint("19:00");
-        startTime.setText(prefs.getString("monitor_start_time", "19:00"));
+        TextView startTime = text(prefs.getString("monitor_start_time", "19:00"), 13, true);
+        startTime.setGravity(Gravity.CENTER);
+        startTime.setPadding(dp(3), 0, dp(3), 0);
+        startTime.setBackground(timePickerBackground());
         times.addView(startTime, new LinearLayout.LayoutParams(dp(62), dp(36)));
+        startTime.setOnClickListener(v -> {
+            String[] parts = startTime.getText().toString().split(":");
+            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
+            new TimePickerDialog(this, (picker, h, m) -> startTime.setText(String.format(java.util.Locale.US, "%02d:%02d", h, m)), hour, minute, true).show();
+        });
         LinearLayout.LayoutParams untilLp = new LinearLayout.LayoutParams(-2, -2);
         untilLp.leftMargin = dp(3);
         times.addView(text("עד", 12, false), untilLp);
@@ -282,11 +288,16 @@ public class MainActivity extends Activity {
         endDay.setAdapter(adapter);
         endDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_end_day", Calendar.SUNDAY)));
         times.addView(endDay, new LinearLayout.LayoutParams(0, dp(34), 1));
-        EditText endTime = new EditText(this);
-        endTime.setSingleLine(true); endTime.setTextSize(13); endTime.setPadding(dp(3), 0, dp(3), 0);
-        endTime.setInputType(1); endTime.setHint("10:00");
-        endTime.setText(prefs.getString("monitor_end_time", "10:00"));
+        TextView endTime = text(prefs.getString("monitor_end_time", "10:00"), 13, true);
+        endTime.setGravity(Gravity.CENTER);
+        endTime.setPadding(dp(3), 0, dp(3), 0);
+        endTime.setBackground(timePickerBackground());
         times.addView(endTime, new LinearLayout.LayoutParams(dp(62), dp(36)));
+        endTime.setOnClickListener(v -> {
+            String[] parts = endTime.getText().toString().split(":");
+            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
+            new TimePickerDialog(this, (picker, h, m) -> endTime.setText(String.format(java.util.Locale.US, "%02d:%02d", h, m)), hour, minute, true).show();
+        });
         Button save = button("שמירה");
         save.setTextSize(12); save.setMinHeight(dp(30)); save.setPadding(dp(10), 0, dp(10), 0);
         LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-2, dp(32));
@@ -301,6 +312,14 @@ public class MainActivity extends Activity {
             SaleMonitor.stopMonitoring(this); SaleMonitor.scheduleNextStart(this);
             Toast.makeText(this, "הגדרות ההתראה נשמרו", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private android.graphics.drawable.GradientDrawable timePickerBackground() {
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Color.WHITE);
+        bg.setCornerRadius(dp(6));
+        bg.setStroke(dp(1), Color.rgb(230, 94, 20));
+        return bg;
     }
 
     private int indexOf(int[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 0; }
