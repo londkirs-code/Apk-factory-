@@ -319,6 +319,11 @@ public class MainActivity extends Activity {
         return new HttpResult(code, response.toString());
     }
 
+    private void addFeatureMenu(String label, Runnable action) { Button b=button(label); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->action.run()); }
+    private void loadFeatureSales() { showFeatureMessage("הזמנה חדשה", "ממשק ההזמנה עדיין בבנייה."); }
+    private void loadFeatureOrders() { showFeatureMessage("היסטוריית הזמנות", "טעינת היסטוריית ההזמנות עדיין בבנייה."); }
+    private void loadFeatureTransactions() { showFeatureMessage("זיכויים", "טעינת הזיכויים עדיין בבנייה."); }
+    private void showFeatureMessage(String title, String message) { beginScreen(title); statusView.setText(message); Button b=button("חזרה לתפריט"); root.addView(b,new LinearLayout.LayoutParams(-1,-2)); b.setOnClickListener(v->showDashboard()); }
     private void hideKeyboard() {
         try {
             InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
