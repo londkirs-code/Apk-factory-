@@ -85,6 +85,11 @@ public class MainActivity extends Activity {
     }
 
     private void beginScreen(String heading) {
+        LinearLayout screen = new LinearLayout(this);
+        screen.setOrientation(LinearLayout.VERTICAL);
+        screen.setBackgroundColor(Color.rgb(255, 249, 244));
+        screen.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(22), dp(28), dp(22), dp(18));
@@ -92,8 +97,9 @@ public class MainActivity extends Activity {
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.addView(root);
-        setContentView(scroll);
+        scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
+        screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+
         TextView title = text("משנת יוסף", 28, true);
         title.setTextColor(Color.rgb(230, 94, 20));
         title.setGravity(Gravity.CENTER);
@@ -104,6 +110,37 @@ public class MainActivity extends Activity {
         root.addView(sub, new LinearLayout.LayoutParams(-1, -2));
         statusView = text("", 14, false);
         root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+
+        if (hasToken()) {
+            LinearLayout nav = new LinearLayout(this);
+            nav.setOrientation(LinearLayout.HORIZONTAL);
+            nav.setGravity(Gravity.CENTER);
+            nav.setBackgroundColor(Color.WHITE);
+            nav.setElevation(dp(8));
+            String[] labels = {"היסטוריה", "זיכויים", "הזמנות פתוחות"};
+            int[] icons = {android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
+            Runnable[] actions = {this::loadFeatureOrders, this::loadFeatureTransactions, this::loadOpenSales};
+            for (int i = 0; i < labels.length; i++) {
+                final int index = i;
+                LinearLayout item = new LinearLayout(this);
+                item.setOrientation(LinearLayout.VERTICAL);
+                item.setGravity(Gravity.CENTER);
+                item.setPadding(dp(2), dp(5), dp(2), dp(5));
+                ImageView icon = new ImageView(this);
+                icon.setImageResource(icons[i]);
+                icon.setColorFilter(Color.rgb(230, 94, 20));
+                LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(24), dp(24));
+                item.addView(icon, ip);
+                TextView label = text(labels[i], 11, true);
+                label.setGravity(Gravity.CENTER);
+                label.setPadding(0, dp(2), 0, 0);
+                item.addView(label, new LinearLayout.LayoutParams(-1, -2));
+                item.setOnClickListener(v -> actions[index].run());
+                nav.addView(item, new LinearLayout.LayoutParams(0, dp(60), 1));
+            }
+            screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(60)));
+        }
+        setContentView(screen);
     }
 
     private void showLogin() {
@@ -134,9 +171,8 @@ public class MainActivity extends Activity {
         TextView account = text("חשבון: " + prefs.getString("email", ""), 14, false);
         root.addView(account, new LinearLayout.LayoutParams(-1, -2));
         statusView.setText("טוען את המכירות הפתוחות…");
-        addFeatureMenu("📦 היסטוריית הזמנות", this::loadFeatureOrders);
-        addFeatureMenu("💳 זיכויים ותנועות בחשבון", this::loadFeatureTransactions);
-        addFeatureMenu("🛒 הזמנה חדשה", this::loadFeatureSales);
+        TextView hint = text("בחרי פעולה מהתפריט הקבוע בתחתית המסך.", 15, false);
+        root.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         Button refresh = button("רענון מכירות פתוחות");
         LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(-1, -2); refreshLp.topMargin = dp(8); refreshLp.bottomMargin = dp(12); root.addView(refresh, refreshLp);
         refresh.setOnClickListener(v -> loadOpenSales());
