@@ -139,9 +139,9 @@ public class MainActivity extends Activity {
             nav.setGravity(Gravity.CENTER);
             nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
-            String[] labels = {"הזמנות פתוחות", "זיכויים", "היסטוריה", "ראשי"};
-            int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_agenda};
-            Runnable[] actions = {this::showOpenSales, this::loadFeatureTransactions, this::loadFeatureOrders, this::showDashboard};
+            String[] labels = {"ראשי", "מכירות פתוחות", "זיכויים", "היסטוריה"};
+            int[] icons = {android.R.drawable.ic_menu_agenda, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details};
+            Runnable[] actions = {this::showDashboard, this::showOpenSales, this::loadFeatureTransactions, this::loadFeatureOrders};
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 LinearLayout item = new LinearLayout(this);
@@ -535,11 +535,20 @@ public class MainActivity extends Activity {
                         card.addView(text(name, 17, true));
                         if (!dates.isEmpty()) card.addView(text(dates, 12, false));
                         card.addView(text(hasOrder ? "קיימת הזמנה — לחצי להמשך" : "עדיין לא נפתחה הזמנה — לחצי כדי להתחיל", 13, true));
+                        LinearLayout actions = new LinearLayout(this);
+                        actions.setOrientation(LinearLayout.HORIZONTAL);
+                        actions.setGravity(Gravity.CENTER_VERTICAL);
                         Button enter = button(hasOrder ? "כניסה להזמנה  ›" : "פתיחת הזמנה  ›");
-                        card.addView(enter, new LinearLayout.LayoutParams(-1, -2));
+                        Button info = button("פרטי מכירה");
+                        info.setTextSize(12); info.setMinHeight(dp(42)); enter.setMinHeight(dp(42));
+                        actions.addView(enter, new LinearLayout.LayoutParams(0, -2, 1));
+                        LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(-2, -2); infoLp.leftMargin = dp(6);
+                        actions.addView(info, infoLp);
+                        card.addView(actions);
                         final JSONObject selected = sale;
                         enter.setOnClickListener(v -> loadFeatureProducts(selected));
                         card.setOnClickListener(v -> loadFeatureProducts(selected));
+                        info.setOnClickListener(v -> showSaleDetails(selected));
                     }
                 });
             } catch (Exception e) {
@@ -693,6 +702,34 @@ public class MainActivity extends Activity {
         throw new Exception("השרת אישר פתיחת הזמנה אך לא החזיר מזהה. בדקי בהיסטוריית ההזמנות לפני ניסיון חוזר.");
     }
 
+    private void showSaleDetails(JSONObject sale) {
+        StringBuilder out = new StringBuilder();
+        appendProductDetail(out, "מזהה מכירה", firstOrderString(sale, "id"));
+        appendProductDetail(out, "שם מכירה", firstOrderString(sale, "custom_name", "name", "title"));
+        appendProductDetail(out, "תחילת מכירה", firstOrderString(sale, "begin", "start", "start_at"));
+        appendProductDetail(out, "סיום מכירה", firstOrderString(sale, "end", "finish", "end_at"));
+        JSONObject parent = sale.optJSONObject("parent");
+        if (parent != null) {
+            appendProductDetail(out, "שבוע", firstOrderString(parent, "week", "name", "title"));
+            appendProductDetail(out, "פרטי שבוע", firstOrderString(parent, "name", "title", "description"));
+        }
+        JSONObject order = sale.optJSONObject("order");
+        appendProductDetail(out, "מצב הזמנה", extractOrderId(order) > 0 ? "הזמנה קיימת #" + extractOrderId(order) : "טרם נפתחה הזמנה");
+        try {
+            java.util.Iterator<String> keys = sale.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                if ("parent".equals(key) || "order".equals(key) || "id".equals(key) || "begin".equals(key) || "end".equals(key)) continue;
+                Object value = sale.opt(key);
+                if (value instanceof String || value instanceof Number || value instanceof Boolean)
+                    appendProductDetail(out, key, String.valueOf(value));
+            }
+        } catch (Exception ignored) { }
+        new AlertDialog.Builder(this).setTitle("פרטי המכירה").setMessage(out.length() == 0 ? "אין פרטים נוספים זמינים." : out.toString())
+                .setPositiveButton("סגירה", null)
+                .setNegativeButton("כניסה להזמנה", (d, w) -> loadFeatureProducts(sale)).show();
+    }
+
     private void loadFeatureProducts(JSONObject sale) {
         featureSale = sale;
         beginScreen("פתיחת הזמנה");
@@ -767,14 +804,56 @@ public class MainActivity extends Activity {
         return url.startsWith("http") ? url : "";
     }
 
+    private double numericAvailable(JSONObject p) {
+        if (!p.has("available") || p.isNull("available")) return -1;
+        Object value = p.opt("available");
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        if (value instanceof String) {
+            try { return Double.parseDouble(((String) value).trim()); } catch (Exception ignored) { return -1; }
+        }
+        // Some API versions return a boolean/object here; it is not a stock count.
+        return -1;
+    }
+
+    private Button quantityButton(String label) {
+        Button b = new Button(this);
+        b.setText(label); b.setTextSize(18); b.setAllCaps(false);
+        b.setTextColor(Color.rgb(230, 94, 20));
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(0, 0, 0, 0);
+        b.setMinHeight(0); b.setMinimumHeight(0);
+        b.setMinWidth(0); b.setMinimumWidth(0);
+        android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+        shape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        shape.setColor(Color.rgb(255, 239, 224));
+        shape.setStroke(dp(1), Color.rgb(230, 94, 20));
+        b.setBackground(shape);
+        b.setLayoutParams(new LinearLayout.LayoutParams(dp(34), dp(34)));
+        return b;
+    }
+
     private void renderFeatureProducts() {
         String title = featureSale == null ? "מוצרים להזמנה" : firstOrderString(featureSale, "custom_name", "name");
         if (title.isEmpty() && featureSale != null && featureSale.optJSONObject("parent") != null)
             title = firstOrderString(featureSale.optJSONObject("parent"), "week", "name");
         beginScreen(title.isEmpty() ? "מוצרים להזמנה" : title);
-        Button back = button("חזרה למכירות הפתוחות"); root.addView(back);
+        LinearLayout topActions = new LinearLayout(this);
+        topActions.setOrientation(LinearLayout.HORIZONTAL);
+        topActions.setGravity(Gravity.CENTER);
+        Button back = button("מכירות פתוחות"); back.setTextSize(12); back.setMinHeight(dp(42));
+        Button saleInfo = button("פרטי מכירה"); saleInfo.setTextSize(12); saleInfo.setMinHeight(dp(42));
+        Button summary = button("סיכום הזמנה"); summary.setTextSize(12); summary.setMinHeight(dp(42));
+        topActions.addView(back, new LinearLayout.LayoutParams(0, -2, 1));
+        topActions.addView(saleInfo, new LinearLayout.LayoutParams(0, -2, 1));
+        topActions.addView(summary, new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(topActions);
         back.setOnClickListener(v -> showOpenSales());
+        saleInfo.setOnClickListener(v -> showSaleDetails(featureSale));
+        summary.setOnClickListener(v -> showOrderSummary());
         root.addView(text("הזמנה #" + featureOrderId + " · " + featureProducts.length() + " מוצרים", 14, true));
+        Button saveTop = button("הזמנת הפריטים שבחרתי");
+        root.addView(saveTop);
+        saveTop.setOnClickListener(v -> saveFeatureOrderItems());
         for (int i = 0; i < featureProducts.length(); i++) {
             JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
             int id = featureProductId(p);
@@ -785,43 +864,49 @@ public class MainActivity extends Activity {
             String price = firstOrderString(p, "price", "unit_price");
             if (price.isEmpty() && product != null) price = firstOrderString(product, "price", "unit_price");
             String unit = firstOrderString(p, "item_unit", "unit", "item_type");
-            String maxText = firstOrderString(p, "max_per_man");
             int max = p.optInt("max_per_man", 0);
             boolean disabled = p.optBoolean("disable", false);
-            boolean noStock = p.has("available") && !p.isNull("available") && p.optDouble("available", 1) <= 0;
+            double stock = numericAvailable(p);
+            boolean noStock = stock == 0;
             boolean canOrder = !disabled && !noStock;
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.HORIZONTAL); card.setGravity(Gravity.CENTER_VERTICAL);
-            card.setPadding(dp(9), dp(8), dp(9), dp(8)); card.setBackgroundColor(Color.WHITE);
+            card.setPadding(dp(8), dp(8), dp(8), dp(8)); card.setBackgroundColor(Color.WHITE);
             LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.bottomMargin = dp(8); root.addView(card, cp);
             ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
             image.setBackgroundColor(Color.rgb(250, 239, 229));
-            card.addView(image, new LinearLayout.LayoutParams(dp(86), dp(86)));
+            card.addView(image, new LinearLayout.LayoutParams(dp(76), dp(76)));
             LinearLayout details = new LinearLayout(this); details.setOrientation(LinearLayout.VERTICAL);
-            details.setPadding(dp(10), 0, dp(6), 0);
+            details.setPadding(dp(8), 0, dp(4), 0);
             card.addView(details, new LinearLayout.LayoutParams(0, -2, 1));
             details.addView(text(name, 14, true));
             details.addView(text("מחיר: " + (price.isEmpty() ? "—" : price + " ₪") + (unit.isEmpty() ? "" : " · " + unit), 13, true));
-            Button info = button("פרטי מוצר");
-            info.setTextSize(11); info.setMinHeight(dp(36));
+            Button info = button("פרטי מוצר"); info.setTextSize(11); info.setMinHeight(dp(34));
             details.addView(info);
             final JSONObject selectedProduct = p;
             info.setOnClickListener(v -> showFeatureProductDetails(selectedProduct));
             if (max > 0) details.addView(text("מגבלה להזמנה: עד " + max, 12, false));
             if (!canOrder) details.addView(text(disabled ? "לא ניתן להזמין מוצר זה" : "אזל מהמלאי", 12, true));
-            else if (!maxText.isEmpty() && max == 0) details.addView(text("ללא מגבלת כמות אישית", 12, false));
-            LinearLayout controls = new LinearLayout(this); controls.setGravity(Gravity.CENTER_VERTICAL);
-            Button minus = button("−"), plus = button("+");
+            LinearLayout controls = new LinearLayout(this);
+            controls.setGravity(Gravity.CENTER);
+            controls.setOrientation(LinearLayout.HORIZONTAL);
+            controls.setPadding(0, dp(4), 0, 0);
+            Button minus = quantityButton("−"), plus = quantityButton("+");
             TextView qty = text(String.valueOf(featureQuantities.getOrDefault(id, 0)), 15, true);
-            controls.addView(minus); controls.addView(qty); controls.addView(plus); details.addView(controls);
+            qty.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(dp(38), dp(34));
+            controls.addView(minus); controls.addView(qty, qlp); controls.addView(plus);
+            details.addView(controls);
             int initialMax = max;
             minus.setEnabled(canOrder); plus.setEnabled(canOrder);
-            minus.setOnClickListener(v -> { int n = Math.max(0, featureQuantities.getOrDefault(id, 0) - 1); featureQuantities.put(id, n); qty.setText(String.valueOf(n)); });
+            minus.setOnClickListener(v -> {
+                int n = Math.max(0, featureQuantities.getOrDefault(id, 0) - 1);
+                featureQuantities.put(id, n); qty.setText(String.valueOf(n));
+            });
             plus.setOnClickListener(v -> {
                 int n = featureQuantities.getOrDefault(id, 0) + 1;
                 if (initialMax > 0 && n > initialMax) { Toast.makeText(this, "מותר להזמין עד " + initialMax + " יחידות מהמוצר הזה", Toast.LENGTH_SHORT).show(); return; }
-                double available = p.optDouble("available", -1);
-                if (available >= 0 && n > available) { Toast.makeText(this, "אין מספיק מלאי למספר היחידות שבחרת", Toast.LENGTH_SHORT).show(); return; }
+                if (stock >= 0 && n > stock) { Toast.makeText(this, "נותרו במלאי " + (long) stock + " יחידות בלבד", Toast.LENGTH_SHORT).show(); return; }
                 featureQuantities.put(id, n); qty.setText(String.valueOf(n));
             });
             String imageUrl = featureImageUrl(p);
@@ -839,8 +924,34 @@ public class MainActivity extends Activity {
                 });
             }
         }
-        Button save = button("שמירת המוצרים בהזמנה"); root.addView(save);
+        Button save = button("הזמנת הפריטים שבחרתי"); root.addView(save);
         save.setOnClickListener(v -> saveFeatureOrderItems());
+    }
+
+    private void showOrderSummary() {
+        StringBuilder out = new StringBuilder();
+        double total = 0;
+        int count = 0;
+        for (int i = 0; i < featureProducts.length(); i++) {
+            JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
+            int qty = featureQuantities.getOrDefault(featureProductId(p), 0);
+            if (qty <= 0) continue;
+            String name = firstOrderString(p, "name", "full_name", "title");
+            JSONObject product = p.optJSONObject("product");
+            if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "title");
+            double price = p.optDouble("price", product == null ? 0 : product.optDouble("price", 0));
+            out.append(name.isEmpty() ? "מוצר" : name).append(" × ").append(qty)
+                    .append(" · ").append(String.format(java.util.Locale.US, "%.2f ₪", price * qty)).append("\n");
+            total += price * qty; count += qty;
+        }
+        if (out.length() == 0) out.append("עדיין לא נבחרו פריטים להזמנה.");
+        else out.append("\nסה״כ יחידות: ").append(count).append("\nסה״כ משוער: ")
+                .append(String.format(java.util.Locale.US, "%.2f ₪", total));
+        new AlertDialog.Builder(this).setTitle("סיכום ההזמנה")
+                .setMessage(out.toString())
+                .setPositiveButton("חזרה למוצרים", null)
+                .setNeutralButton("הזמנת הפריטים", (d, w) -> saveFeatureOrderItems())
+                .show();
     }
 
     private void showFeatureProductDetails(JSONObject item) {
