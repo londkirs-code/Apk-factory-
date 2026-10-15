@@ -52,7 +52,15 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         getWindow().setStatusBarColor(Color.rgb(230, 94, 20));
         getWindow().setNavigationBarColor(Color.rgb(191, 70, 12));
-        if (hasToken()) showDashboard(); else showLogin();
+        SaleMonitor.ensureNotificationChannel(this);
+        if (hasToken()) {
+            SaleMonitor.scheduleNextStart(this);
+            if (getIntent() != null && getIntent().hasExtra("sale_id")) {
+                openSaleFromNotification(getIntent().getIntExtra("sale_id", -1));
+            } else {
+                showDashboard();
+            }
+        } else showLogin();
     }
 
     private int dp(float n) {
@@ -230,6 +238,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     busy = false;
                     loginButton = null;
+                    SaleMonitor.scheduleNextStart(this);
                     showDashboard();
                 });
             } catch (Exception e) {
@@ -243,6 +252,46 @@ public class MainActivity extends Activity {
         beginScreen("הזמנות פתוחות");
         statusView.setText("טוען הזמנות פתוחות…");
         loadOpenSales();
+    }
+
+    private void openSaleFromNotification(int saleId) {
+        if (saleId < 0) { showOpenSales(); return; }
+        beginScreen("פתיחת המכירה החדשה…");
+        statusView.setText("טוען את המכירה מההתראה…");
+        executor.execute(() -> {
+            try {
+                String token = prefs.getString("token", "");
+                HttpResult r = request("GET", "/api/profile/open_sales", token, null);
+                if (r.code == 401) {
+                    String refreshed = refreshToken(token);
+                    if (!refreshed.isEmpty()) r = request("GET", "/api/profile/open_sales", refreshed, null);
+                }
+                if (r.code < 200 || r.code >= 300) throw new Exception("לא ניתן לטעון את המכירה. פתחי את המכירות הפתוחות ורענני.");
+                JSONArray sales;
+                if (r.body.trim().startsWith("[")) sales = new JSONArray(r.body);
+                else sales = new JSONObject(r.body).optJSONArray("data");
+                JSONObject found = null;
+                if (sales != null) {
+                    for (int i = 0; i < sales.length(); i++) {
+                        JSONObject sale = sales.optJSONObject(i);
+                        if (sale != null && sale.optInt("id", -1) == saleId) { found = sale; break; }
+                    }
+                }
+                final JSONObject selected = found;
+                runOnUiThread(() -> {
+                    if (selected != null) loadFeatureProducts(selected);
+                    else {
+                        showOpenSales();
+                        Toast.makeText(this, "המכירה כבר לא פתוחה. מציג את המכירות העדכניות.", Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    showOpenSales();
+                    Toast.makeText(this, e.getMessage() == null ? "טעינת המכירה נכשלה." : e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
 
     private void loadOpenSales() {
