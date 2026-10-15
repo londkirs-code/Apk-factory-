@@ -377,6 +377,57 @@ public class MainActivity extends Activity {
         }
         Button next=button("המשך לאמצעי תשלום");root.addView(next);next.setOnClickListener(v->loadFeatureCards());
     }
+    private JSONArray featureCards=new JSONArray();
+    private void loadFeatureCards() {
+        executor.execute(() -> {
+            try {
+                HttpResult r=request("GET","/api/payment_methods/cards",prefs.getString("token",""),null);
+                if(r.code<200||r.code>=300)throw new Exception("שגיאת שרת ("+r.code+")");
+                Object value=new org.json.JSONTokener(r.body).nextValue();JSONArray a=new JSONArray();
+                if(value instanceof JSONArray)a=(JSONArray)value;else if(value instanceof JSONObject)a=((JSONObject)value).optJSONArray("data");
+                featureCards=a==null?new JSONArray():a;
+                runOnUiThread(this::renderFeatureCards);
+            }catch(Exception e){runOnUiThread(()->statusView.setText(e.getMessage()));}
+        });
+    }
+    private void renderFeatureCards() {
+        beginScreen("בחירת אמצעי תשלום");RadioGroup group=new RadioGroup(this);group.setOrientation(RadioGroup.VERTICAL);root.addView(group);
+        for(int i=0;i<featureCards.length();i++){JSONObject card=featureCards.optJSONObject(i);if(card==null)continue;
+            int id=card.optInt("id",card.optInt("card_id",-1));if(id<0)continue;
+            RadioButton rb=new RadioButton(this);rb.setText(card.optString("brand","כרטיס")+" •••• "+card.optString("last4",card.optString("last_four","")));
+            rb.setTag(id);group.addView(rb);if(card.optBoolean("default",false)||card.optBoolean("is_default",false))rb.setChecked(true);
+        }
+        Button create=button("אישור ויצירת הזמנה");root.addView(create);create.setOnClickListener(v->{
+            RadioButton selected=group.findViewById(group.getCheckedRadioButtonId());
+            if(selected==null){statusView.setText("בחר אמצעי תשלום.");return;}
+            int count=0;for(Integer q:featureQuantities.values())count+=q;
+            if(count==0){statusView.setText("בחר לפחות מוצר אחד.");return;}
+            int cardId=(Integer)selected.getTag();
+            new android.app.AlertDialog.Builder(this).setTitle("אישור הזמנה")
+                .setMessage("ליצור הזמנה עם "+count+" יחידות?")
+                .setNegativeButton("ביטול",null).setPositiveButton("יצירה",(d,w)->createFeatureOrder(cardId)).show();
+        });
+    }
+    private void createFeatureOrder(int cardId) {
+        executor.execute(() -> {
+            try {
+                int saleId=featureSale.optInt("id",-1);JSONObject body=new JSONObject();body.put("card_id",cardId);
+                HttpResult r=request("POST","/api/create_order/"+saleId,prefs.getString("token",""),body);
+                if(r.code<200||r.code>=300)throw new Exception("יצירת ההזמנה נכשלה ("+r.code+").");
+                JSONObject response=new JSONObject(r.body);JSONObject data=response.optJSONObject("data");if(data!=null)response=data;
+                long orderId=response.optLong("id",response.optLong("order_id",-1));
+                if(orderId<0)throw new Exception("לא התקבל מזהה הזמנה. בדוק את היסטוריית ההזמנות לפני ניסיון חוזר.");
+                for(int i=0;i<featureProducts.length();i++){
+                    JSONObject p=featureProducts.optJSONObject(i);if(p==null)continue;
+                    int amount=featureQuantities.getOrDefault(featureProductId(p),0);if(amount<=0)continue;
+                    JSONObject item=new JSONObject(p.toString());item.put("amount",amount);item.put("selected_subitems",new JSONArray());
+                    HttpResult add=request("POST","/api/add_item/"+orderId,prefs.getString("token",""),item);
+                    if(add.code<200||add.code>=300)throw new Exception("ההזמנה נוצרה אך הוספת אחד המוצרים נכשלה ("+add.code+"). פתח את ההיסטוריה לבדיקה.");
+                }
+                runOnUiThread(()->{beginScreen("ההזמנה נוצרה");statusView.setText("מספר הזמנה: "+orderId);Button b=button("היסטוריית הזמנות");root.addView(b);b.setOnClickListener(v->loadFeatureOrders());});
+            }catch(Exception e){runOnUiThread(()->statusView.setText(e.getMessage()));}
+        });
+    }
     private void loadFeatureOrders() {
         beginScreen("היסטוריית הזמנות");
         statusView.setText("טוען הזמנות…");
