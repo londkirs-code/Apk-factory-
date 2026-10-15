@@ -832,17 +832,40 @@ public class MainActivity extends Activity {
         return b;
     }
 
+    private double productUnitPrice(JSONObject p) {
+        JSONObject product = p.optJSONObject("product");
+        String raw = firstOrderString(p, "price", "unit_price", "unitPrice", "price_list");
+        if (raw.isEmpty() && product != null) raw = firstOrderString(product, "price", "unit_price", "unitPrice", "price_list");
+        try {
+            String normalized = raw.replace(",", "").replaceAll("[^0-9.\\-]", "");
+            return normalized.isEmpty() ? 0 : Double.parseDouble(normalized);
+        } catch (Exception ignored) { return 0; }
+    }
+
+    private void updateOrderTotals(TextView target) {
+        int productCount = 0, units = 0;
+        double total = 0;
+        for (int i = 0; i < featureProducts.length(); i++) {
+            JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
+            int qty = featureQuantities.getOrDefault(featureProductId(p), 0);
+            if (qty > 0) { productCount++; units += qty; total += productUnitPrice(p) * qty; }
+        }
+        target.setText("בהזמנה: " + productCount + " סוגי פריטים · " + units + " יחידות · סה״כ משוער " +
+                String.format(java.util.Locale.US, "%.2f ₪", total));
+    }
+
     private void renderFeatureProducts() {
         String title = featureSale == null ? "מוצרים להזמנה" : firstOrderString(featureSale, "custom_name", "name");
         if (title.isEmpty() && featureSale != null && featureSale.optJSONObject("parent") != null)
             title = firstOrderString(featureSale.optJSONObject("parent"), "week", "name");
         beginScreen(title.isEmpty() ? "מוצרים להזמנה" : title);
+
         LinearLayout topActions = new LinearLayout(this);
         topActions.setOrientation(LinearLayout.HORIZONTAL);
         topActions.setGravity(Gravity.CENTER);
-        Button back = button("מכירות פתוחות"); back.setTextSize(12); back.setMinHeight(dp(42));
-        Button saleInfo = button("פרטי מכירה"); saleInfo.setTextSize(12); saleInfo.setMinHeight(dp(42));
-        Button summary = button("סיכום הזמנה"); summary.setTextSize(12); summary.setMinHeight(dp(42));
+        Button back = button("מכירות"); back.setTextSize(11); back.setMinHeight(dp(40));
+        Button saleInfo = button("פרטי מכירה"); saleInfo.setTextSize(11); saleInfo.setMinHeight(dp(40));
+        Button summary = button("סיכום הזמנה"); summary.setTextSize(11); summary.setMinHeight(dp(40));
         topActions.addView(back, new LinearLayout.LayoutParams(0, -2, 1));
         topActions.addView(saleInfo, new LinearLayout.LayoutParams(0, -2, 1));
         topActions.addView(summary, new LinearLayout.LayoutParams(0, -2, 1));
@@ -850,65 +873,111 @@ public class MainActivity extends Activity {
         back.setOnClickListener(v -> showOpenSales());
         saleInfo.setOnClickListener(v -> showSaleDetails(featureSale));
         summary.setOnClickListener(v -> showOrderSummary());
-        root.addView(text("הזמנה #" + featureOrderId + " · " + featureProducts.length() + " מוצרים", 14, true));
-        Button saveTop = button("הזמנת הפריטים שבחרתי");
+
+        TextView totals = text("הזמנה #" + featureOrderId, 14, true);
+        root.addView(totals);
+        updateOrderTotals(totals);
+        Button saveTop = button("שמירת כל השינויים בהזמנה");
         root.addView(saveTop);
         saveTop.setOnClickListener(v -> saveFeatureOrderItems());
+
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        root.addView(grid, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = null;
         for (int i = 0; i < featureProducts.length(); i++) {
             JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
+            if (i % 2 == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.TOP);
+                LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
+                rowLp.bottomMargin = dp(8);
+                grid.addView(row, rowLp);
+            }
             int id = featureProductId(p);
             String name = firstOrderString(p, "name", "full_name", "title");
             JSONObject product = p.optJSONObject("product");
             if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "full_name", "title");
             if (name.isEmpty()) name = "מוצר #" + id;
-            String price = firstOrderString(p, "price", "unit_price");
-            if (price.isEmpty() && product != null) price = firstOrderString(product, "price", "unit_price");
+            String priceText = firstOrderString(p, "price", "unit_price", "price_list");
+            if (priceText.isEmpty() && product != null) priceText = firstOrderString(product, "price", "unit_price");
             String unit = firstOrderString(p, "item_unit", "unit", "item_type");
             int max = p.optInt("max_per_man", 0);
             boolean disabled = p.optBoolean("disable", false);
             double stock = numericAvailable(p);
-            boolean noStock = stock == 0;
-            boolean canOrder = !disabled && !noStock;
+            boolean canOrder = !disabled && stock != 0;
+
             LinearLayout card = new LinearLayout(this);
-            card.setOrientation(LinearLayout.HORIZONTAL); card.setGravity(Gravity.CENTER_VERTICAL);
-            card.setPadding(dp(8), dp(8), dp(8), dp(8)); card.setBackgroundColor(Color.WHITE);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.bottomMargin = dp(8); root.addView(card, cp);
-            ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setGravity(Gravity.CENTER_HORIZONTAL);
+            card.setPadding(dp(7), dp(7), dp(7), dp(7));
+            android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+            cardBg.setColor(Color.WHITE); cardBg.setCornerRadius(dp(12));
+            cardBg.setStroke(dp(1), Color.rgb(238, 220, 205));
+            card.setBackground(cardBg);
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+            cp.setMargins(dp(3), 0, dp(3), 0);
+            row.addView(card, cp);
+
+            ImageView image = new ImageView(this);
+            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
             image.setBackgroundColor(Color.rgb(250, 239, 229));
-            card.addView(image, new LinearLayout.LayoutParams(dp(76), dp(76)));
-            LinearLayout details = new LinearLayout(this); details.setOrientation(LinearLayout.VERTICAL);
-            details.setPadding(dp(8), 0, dp(4), 0);
-            card.addView(details, new LinearLayout.LayoutParams(0, -2, 1));
-            details.addView(text(name, 14, true));
-            details.addView(text("מחיר: " + (price.isEmpty() ? "—" : price + " ₪") + (unit.isEmpty() ? "" : " · " + unit), 13, true));
-            Button info = button("פרטי מוצר"); info.setTextSize(11); info.setMinHeight(dp(34));
-            details.addView(info);
-            final JSONObject selectedProduct = p;
-            info.setOnClickListener(v -> showFeatureProductDetails(selectedProduct));
-            if (max > 0) details.addView(text("מגבלה להזמנה: עד " + max, 12, false));
-            if (!canOrder) details.addView(text(disabled ? "לא ניתן להזמין מוצר זה" : "אזל מהמלאי", 12, true));
+            card.addView(image, new LinearLayout.LayoutParams(-1, dp(105)));
+            TextView productName = text(name, 13, true);
+            productName.setGravity(Gravity.CENTER);
+            productName.setMaxLines(3);
+            productName.setMinLines(2);
+            card.addView(productName, new LinearLayout.LayoutParams(-1, -2));
+            TextView price = text("מחיר: " + (priceText.isEmpty() ? "—" : priceText + " ₪") +
+                    (unit.isEmpty() ? "" : " · " + unit), 12, true);
+            price.setGravity(Gravity.CENTER);
+            card.addView(price, new LinearLayout.LayoutParams(-1, -2));
+            if (max > 0) {
+                TextView limit = text("מקס׳ " + max, 11, false); limit.setGravity(Gravity.CENTER);
+                card.addView(limit);
+            }
+            if (!canOrder) {
+                TextView unavailable = text(disabled ? "לא זמין" : "אזל מהמלאי", 11, true);
+                unavailable.setGravity(Gravity.CENTER); card.addView(unavailable);
+            }
+
             LinearLayout controls = new LinearLayout(this);
             controls.setGravity(Gravity.CENTER);
             controls.setOrientation(LinearLayout.HORIZONTAL);
-            controls.setPadding(0, dp(4), 0, 0);
             Button minus = quantityButton("−"), plus = quantityButton("+");
             TextView qty = text(String.valueOf(featureQuantities.getOrDefault(id, 0)), 15, true);
             qty.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(dp(38), dp(34));
-            controls.addView(minus); controls.addView(qty, qlp); controls.addView(plus);
-            details.addView(controls);
+            controls.addView(minus);
+            controls.addView(qty, new LinearLayout.LayoutParams(dp(30), dp(34)));
+            controls.addView(plus);
+            card.addView(controls);
             int initialMax = max;
             minus.setEnabled(canOrder); plus.setEnabled(canOrder);
             minus.setOnClickListener(v -> {
                 int n = Math.max(0, featureQuantities.getOrDefault(id, 0) - 1);
-                featureQuantities.put(id, n); qty.setText(String.valueOf(n));
+                featureQuantities.put(id, n); qty.setText(String.valueOf(n)); updateOrderTotals(totals);
             });
             plus.setOnClickListener(v -> {
                 int n = featureQuantities.getOrDefault(id, 0) + 1;
-                if (initialMax > 0 && n > initialMax) { Toast.makeText(this, "מותר להזמין עד " + initialMax + " יחידות מהמוצר הזה", Toast.LENGTH_SHORT).show(); return; }
+                if (initialMax > 0 && n > initialMax) { Toast.makeText(this, "מותר להזמין עד " + initialMax + " יחידות", Toast.LENGTH_SHORT).show(); return; }
                 if (stock >= 0 && n > stock) { Toast.makeText(this, "נותרו במלאי " + (long) stock + " יחידות בלבד", Toast.LENGTH_SHORT).show(); return; }
-                featureQuantities.put(id, n); qty.setText(String.valueOf(n));
+                featureQuantities.put(id, n); qty.setText(String.valueOf(n)); updateOrderTotals(totals);
             });
+
+            Button orderOne = button("הזמן פריט");
+            orderOne.setTextSize(12); orderOne.setMinHeight(dp(38));
+            orderOne.setPadding(dp(4), 0, dp(4), 0);
+            card.addView(orderOne, new LinearLayout.LayoutParams(-1, dp(40)));
+            orderOne.setEnabled(canOrder);
+            orderOne.setOnClickListener(v -> saveSingleFeatureProduct(p));
+
+            Button info = button("פרטים");
+            info.setTextSize(11); info.setMinHeight(dp(32));
+            info.setPadding(dp(3), 0, dp(3), 0);
+            card.addView(info, new LinearLayout.LayoutParams(-1, dp(34)));
+            info.setOnClickListener(v -> showFeatureProductDetails(p));
+
             String imageUrl = featureImageUrl(p);
             if (!imageUrl.isEmpty()) {
                 final String requestedUrl = imageUrl;
@@ -924,8 +993,47 @@ public class MainActivity extends Activity {
                 });
             }
         }
-        Button save = button("הזמנת הפריטים שבחרתי"); root.addView(save);
-        save.setOnClickListener(v -> saveFeatureOrderItems());
+        if (featureProducts.length() % 2 == 1 && row != null) {
+            View spacer = new View(this);
+            row.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+        }
+        Button saveBottom = button("שמירת כל השינויים בהזמנה");
+        root.addView(saveBottom);
+        saveBottom.setOnClickListener(v -> saveFeatureOrderItems());
+    }
+
+    private void saveSingleFeatureProduct(JSONObject p) {
+        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_LONG).show(); return; }
+        final int id = featureProductId(p);
+        final int amount = featureQuantities.getOrDefault(id, 0);
+        final int originalAmount = p.optInt("amount", 0);
+        final int itemSalesId = p.optInt("item_salesID", p.optInt("item_sales_id", -1));
+        final int max = p.optInt("max_per_man", 0);
+        if (amount <= 0) { Toast.makeText(this, "בחרי כמות גדולה מאפס", Toast.LENGTH_SHORT).show(); return; }
+        if (max > 0 && amount > max) { Toast.makeText(this, "הכמות חורגת מהמגבלה", Toast.LENGTH_SHORT).show(); return; }
+        if (p.optBoolean("disable", false) || numericAvailable(p) == 0) {
+            Toast.makeText(this, "המוצר אינו זמין כרגע", Toast.LENGTH_SHORT).show(); return;
+        }
+        statusView.setText("שומר את הפריט בהזמנה…");
+        executor.execute(() -> {
+            try {
+                String token = prefs.getString("token", "");
+                JSONObject item = new JSONObject(p.toString());
+                item.put("amount", amount);
+                if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
+                String endpoint = originalAmount > 0 ? "/api/update_item/" : "/api/add_item/";
+                HttpResult result = request("POST", endpoint + featureOrderId, token, item);
+                if (result.code < 200 || result.code >= 300)
+                    throw new Exception("שמירת הפריט נכשלה (" + result.code + "): " + result.body);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "הפריט נשמר בהזמנה", Toast.LENGTH_SHORT).show();
+                    loadFeatureProducts(featureSale);
+                });
+            } catch (Exception e) {
+                String message = e.getMessage() == null ? "שמירת הפריט נכשלה" : e.getMessage();
+                runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
+            }
+        });
     }
 
     private void showOrderSummary() {
