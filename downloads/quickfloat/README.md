@@ -1,1 +1,1 @@
-APK for quickfloat, versionCode 27, built from commit df44677a3314d383c316be36ad259cd9be8929b1.
+APK for quickfloat, versionCode 28, built from commit c9c1152840185ec19888fff91bffb25fa0c210d3.
