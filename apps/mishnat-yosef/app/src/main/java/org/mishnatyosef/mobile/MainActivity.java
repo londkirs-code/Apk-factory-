@@ -1116,7 +1116,7 @@ public class MainActivity extends Activity {
                         JSONObject p = a.optJSONObject(i);
                         if (p == null) continue;
                         int id = featureProductId(p);
-                        int amount = saved.containsKey(id) ? saved.get(id) : Math.max(0, p.optInt("amount", 0));
+                        int amount = saved.containsKey(id) ? saved.get(id) : 0;
                         rows.add(makeRow(p, amount));
                     }
                     final boolean first = page == 1;
@@ -1379,10 +1379,6 @@ public class MainActivity extends Activity {
         int cur = featureQuantities.getOrDefault(r.id, 0);
         int n = Math.max(0, cur + delta);
         if (n == cur) return;
-        if (delta > 0) {
-            if (r.max > 0 && n > r.max) { Toast.makeText(this, "מותר להזמין עד " + r.max + " יחידות", Toast.LENGTH_SHORT).show(); return; }
-            if (r.stock >= 0 && n > r.stock) { Toast.makeText(this, "נותרו במלאי " + (long) r.stock + " יחידות בלבד", Toast.LENGTH_SHORT).show(); return; }
-        }
         featureQuantities.put(r.id, n);
         h.qty.setText(String.valueOf(n));
         updateOrderInfo();
