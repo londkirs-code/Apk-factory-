@@ -7,51 +7,89 @@ import android.app.AlertDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.net.Uri;
 import android.content.Intent;
 import android.os.Bundle;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.util.LruCache;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.Toast;
 import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.ArrayAdapter;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 // Build verification checkpoint: keep this source in the APK build trigger.
 public class MainActivity extends Activity {
     private static final String API = "https://v2.mishnatyosef.org";
     private static final String PREFS = "mishnat_auth";
+    private static final String IMAGE_BASE = "https://images.mishnatyosef.org/images/items/";
     private static final long REFRESH_MARGIN_MS = 300000L;
+    private static final int PAGE_SIZE = 50;
+    private static final long SAVE_DEBOUNCE_MS = 500L;
+    private static final long SEARCH_DEBOUNCE_MS = 250L;
 
+    // API calls (login, lists, summaries). Images and order edits have their own threads,
+    // so 400+ image downloads can never block an API call or a quantity update.
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    // Order edits run strictly in order on a single thread.
+    private final ExecutorService saveExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService imageExecutor = Executors.newFixedThreadPool(3);
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    // Incremented on every new screen; async results of an old screen are dropped.
+    private final AtomicInteger screenGen = new AtomicInteger();
+
+    // Static: survives Activity re-creation (rotation). Sized as 1/8 of the app heap, in bytes.
+    private static final LruCache<String, Bitmap> imageCache =
+            new LruCache<String, Bitmap>((int) Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8)) {
+                @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
+            };
+    private final Set<String> failedImages = Collections.synchronizedSet(new HashSet<String>());
+
     private SharedPreferences prefs;
     private LinearLayout root;
     private EditText emailField;
@@ -77,6 +115,41 @@ public class MainActivity extends Activity {
         } else showLogin();
     }
 
+    // Needs android:launchMode="singleTop" (or singleTask) on the activity in the manifest.
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (hasToken() && intent != null && intent.hasExtra("sale_id")) {
+            openSaleFromNotification(intent.getIntExtra("sale_id", -1));
+        }
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        flushPendingSaves();
+    }
+
+    @Override protected void onDestroy() {
+        super.onDestroy();
+        uiHandler.removeCallbacksAndMessages(null);
+        executor.shutdownNow();
+        imageExecutor.shutdownNow();
+        saveExecutor.shutdown(); // let queued order edits finish
+    }
+
+    private boolean alive() { return !isFinishing() && !isDestroyed(); }
+
+    private boolean isStale(int gen) { return screenGen.get() != gen; }
+
+    private String msg(Exception e, String fallback) {
+        return e.getMessage() == null ? fallback : e.getMessage();
+    }
+
+    private String shorten(String s) {
+        if (s == null) return "";
+        return s.length() > 160 ? s.substring(0, 160) + "…" : s;
+    }
+
     private int dp(float n) {
         return (int) (n * getResources().getDisplayMetrics().density + 0.5f);
     }
@@ -89,6 +162,12 @@ public class MainActivity extends Activity {
         v.setGravity(Gravity.RIGHT);
         if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         v.setPadding(dp(4), dp(8), dp(4), dp(8));
+        return v;
+    }
+
+    private TextView compactText(String value, float size, boolean bold) {
+        TextView v = text(value, size, bold);
+        v.setPadding(dp(4), dp(2), dp(4), dp(2));
         return v;
     }
 
@@ -106,7 +185,16 @@ public class MainActivity extends Activity {
         return b;
     }
 
-    private void beginScreen(String heading) {
+    private void beginScreen(String heading) { beginScreen(heading, false); }
+
+    // fixedList=true: no outer ScrollView, the caller adds its own ListView that fills the screen.
+    private void beginScreen(String heading, boolean fixedList) {
+        screenGen.incrementAndGet();
+        if (searchRunnable != null) { uiHandler.removeCallbacks(searchRunnable); searchRunnable = null; }
+        productList = null;
+        productAdapter = null;
+        orderInfoView = null;
+
         LinearLayout screen = new LinearLayout(this);
         screen.setOrientation(LinearLayout.VERTICAL);
         screen.setBackgroundColor(Color.rgb(255, 249, 244));
@@ -114,24 +202,36 @@ public class MainActivity extends Activity {
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(22), dp(28), dp(22), dp(18));
         root.setBackgroundColor(Color.rgb(255, 249, 244));
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
-        screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        TextView title = text("משנת יוסף", 28, true);
-        title.setTextColor(Color.rgb(230, 94, 20));
-        title.setGravity(Gravity.CENTER);
-        root.addView(title, new LinearLayout.LayoutParams(-1, -2));
-        TextView sub = text(heading, 16, false);
-        sub.setGravity(Gravity.CENTER);
-        sub.setPadding(0, 0, 0, dp(24));
-        root.addView(sub, new LinearLayout.LayoutParams(-1, -2));
-        statusView = text("", 14, false);
-        root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+        if (fixedList) {
+            root.setPadding(dp(10), dp(10), dp(10), dp(4));
+            screen.addView(root, new LinearLayout.LayoutParams(-1, 0, 1));
+            TextView title = compactText("משנת יוסף · " + heading, 16, true);
+            title.setTextColor(Color.rgb(230, 94, 20));
+            title.setGravity(Gravity.CENTER);
+            root.addView(title, new LinearLayout.LayoutParams(-1, -2));
+            statusView = compactText("", 12, false);
+            root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+        } else {
+            root.setPadding(dp(22), dp(28), dp(22), dp(18));
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
+            screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+
+            TextView title = text("משנת יוסף", 28, true);
+            title.setTextColor(Color.rgb(230, 94, 20));
+            title.setGravity(Gravity.CENTER);
+            root.addView(title, new LinearLayout.LayoutParams(-1, -2));
+            TextView sub = text(heading, 16, false);
+            sub.setGravity(Gravity.CENTER);
+            sub.setPadding(0, 0, 0, dp(24));
+            root.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+            statusView = text("", 14, false);
+            root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+        }
 
         if (hasToken()) {
             LinearLayout nav = new LinearLayout(this);
@@ -196,8 +296,11 @@ public class MainActivity extends Activity {
         TextView hint = text("בחרי פעולה מהתפריט הקבוע בתחתית המסך.", 15, false);
         root.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         addHomeNotificationSettings();
-                Button refresh = button("רענון מכירות פתוחות");
-        LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(-1, -2); refreshLp.topMargin = dp(8); refreshLp.bottomMargin = dp(12); root.addView(refresh, refreshLp);
+        Button refresh = button("רענון מכירות פתוחות");
+        LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(-1, -2);
+        refreshLp.topMargin = dp(8);
+        refreshLp.bottomMargin = dp(12);
+        root.addView(refresh, refreshLp);
         refresh.setOnClickListener(v -> loadOpenSales());
         Button logout = button("התנתקות");
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -205,7 +308,12 @@ public class MainActivity extends Activity {
         lp.bottomMargin = dp(12);
         root.addView(logout, lp);
         logout.setOnClickListener(v -> {
+            SaleMonitor.stopMonitoring(this);
             prefs.edit().remove("token").remove("expires_at").apply();
+            allRows.clear();
+            shownRows.clear();
+            featureQuantities.clear();
+            confirmedAmounts.clear();
             showLogin();
         });
         loadOpenSales();
@@ -429,7 +537,7 @@ public class MainActivity extends Activity {
                     showDashboard();
                 });
             } catch (Exception e) {
-                String message = e.getMessage() == null ? "ההתחברות נכשלה." : e.getMessage();
+                String message = msg(e, "ההתחברות נכשלה.");
                 runOnUiThread(() -> setBusy(false, message));
             }
         });
@@ -444,28 +552,21 @@ public class MainActivity extends Activity {
     private void openSaleFromNotification(int saleId) {
         if (saleId < 0) { showOpenSales(); return; }
         beginScreen("פתיחת המכירה החדשה…");
+        final int gen = screenGen.get();
         statusView.setText("טוען את המכירה מההתראה…");
         executor.execute(() -> {
             try {
-                String token = prefs.getString("token", "");
-                HttpResult r = request("GET", "/api/profile/open_sales", token, null);
-                if (r.code == 401) {
-                    String refreshed = refreshToken(token);
-                    if (!refreshed.isEmpty()) r = request("GET", "/api/profile/open_sales", refreshed, null);
-                }
+                HttpResult r = authRequest("GET", "/api/profile/open_sales", null);
                 if (r.code < 200 || r.code >= 300) throw new Exception("לא ניתן לטעון את המכירה. פתחי את המכירות הפתוחות ורענני.");
-                JSONArray sales;
-                if (r.body.trim().startsWith("[")) sales = new JSONArray(r.body);
-                else sales = new JSONObject(r.body).optJSONArray("data");
+                JSONArray sales = extractArray(r.body, "data");
                 JSONObject found = null;
-                if (sales != null) {
-                    for (int i = 0; i < sales.length(); i++) {
-                        JSONObject sale = sales.optJSONObject(i);
-                        if (sale != null && sale.optInt("id", -1) == saleId) { found = sale; break; }
-                    }
+                for (int i = 0; i < sales.length(); i++) {
+                    JSONObject sale = sales.optJSONObject(i);
+                    if (sale != null && sale.optInt("id", -1) == saleId) { found = sale; break; }
                 }
                 final JSONObject selected = found;
                 runOnUiThread(() -> {
+                    if (isStale(gen)) return;
                     if (selected != null) loadFeatureProducts(selected);
                     else {
                         showOpenSales();
@@ -473,42 +574,35 @@ public class MainActivity extends Activity {
                     }
                 });
             } catch (Exception e) {
+                String message = msg(e, "טעינת המכירה נכשלה.");
                 runOnUiThread(() -> {
+                    if (isStale(gen)) return;
                     showOpenSales();
-                    Toast.makeText(this, e.getMessage() == null ? "טעינת המכירה נכשלה." : e.getMessage(), Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 });
             }
         });
     }
 
     private void loadOpenSales() {
-        if (busy) return;
-        setBusy(true, "טוען מכירות פתוחות…");
+        final int gen = screenGen.get();
+        if (statusView != null) statusView.setText("טוען מכירות פתוחות…");
         executor.execute(() -> {
             try {
-                String token = prefs.getString("token", "");
-                long expiry = prefs.getLong("expires_at", 0L);
-                if (!token.isEmpty() && expiry > 0 && System.currentTimeMillis() > expiry - REFRESH_MARGIN_MS) {
-                    String refreshed = refreshToken(token);
-                    if (!refreshed.isEmpty()) token = refreshed;
-                }
-                HttpResult r = request("GET", "/api/profile/open_sales", token, null);
-                if (r.code == 401) {
-                    String refreshed = refreshToken(token);
-                    if (!refreshed.isEmpty()) { token = refreshed; r = request("GET", "/api/profile/open_sales", token, null); }
-                }
+                HttpResult r = authRequest("GET", "/api/profile/open_sales", null);
                 if (r.code == 401) {
                     prefs.edit().remove("token").remove("expires_at").apply();
-                    runOnUiThread(() -> { busy = false; showLogin(); Toast.makeText(this, "נדרשת התחברות מחדש", Toast.LENGTH_LONG).show(); });
+                    runOnUiThread(() -> {
+                        SaleMonitor.stopMonitoring(this);
+                        showLogin();
+                        Toast.makeText(this, "נדרשת התחברות מחדש", Toast.LENGTH_LONG).show();
+                    });
                     return;
                 }
                 if (r.code < 200 || r.code >= 300) throw new Exception("טעינת המכירות נכשלה (" + r.code + ").");
-                JSONArray sales;
-                if (r.body.trim().startsWith("[")) sales = new JSONArray(r.body);
-                else { JSONObject obj = new JSONObject(r.body); sales = obj.optJSONArray("data"); if (sales == null) sales = new JSONArray(); }
-                final JSONArray rows = sales;
+                final JSONArray rows = extractArray(r.body, "data");
                 runOnUiThread(() -> {
-                    busy = false;
+                    if (isStale(gen)) return; // the user already moved to another screen
                     beginScreen("הזמנות פתוחות");
                     statusView.setText("נמצאו " + rows.length() + " מכירות פתוחות. לחצי על מכירה כדי להיכנס ולהזמין.");
                     if (rows.length() == 0) { root.addView(text("אין כרגע מכירות פתוחות.", 15, false)); return; }
@@ -552,13 +646,18 @@ public class MainActivity extends Activity {
                     }
                 });
             } catch (Exception e) {
-                String message = e.getMessage() == null ? "אירעה שגיאה בטעינה." : e.getMessage();
-                runOnUiThread(() -> { busy = false; if (statusView != null) statusView.setText(message); });
+                String message = msg(e, "אירעה שגיאה בטעינה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
             }
         });
     }
 
-    private String refreshToken(String token) {
+    // ---------------------------------------------------------------- auth / network
+
+    private synchronized String refreshToken(String token) {
+        // Another thread may have refreshed already - reuse its token instead of refreshing twice.
+        String current = prefs.getString("token", "");
+        if (!current.isEmpty() && !current.equals(token)) return current;
         try {
             JSONObject payload = new JSONObject();
             payload.put("remember", 1);
@@ -574,6 +673,27 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) { }
         return "";
+    }
+
+    private String freshToken() {
+        String token = prefs.getString("token", "");
+        long expiry = prefs.getLong("expires_at", 0L);
+        if (!token.isEmpty() && expiry > 0 && System.currentTimeMillis() > expiry - REFRESH_MARGIN_MS) {
+            String refreshed = refreshToken(token);
+            if (!refreshed.isEmpty()) token = refreshed;
+        }
+        return token;
+    }
+
+    // Request with the saved token: refreshes it when close to expiry, and retries once on 401.
+    private HttpResult authRequest(String method, String path, JSONObject body) throws Exception {
+        String token = freshToken();
+        HttpResult r = request(method, path, token, body);
+        if (r.code == 401) {
+            String refreshed = refreshToken(token);
+            if (!refreshed.isEmpty()) r = request(method, path, refreshed, body);
+        }
+        return r;
     }
 
     private String pickToken(JSONObject data) {
@@ -603,40 +723,203 @@ public class MainActivity extends Activity {
 
     private HttpResult request(String method, String path, String token, JSONObject body) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(API + path).openConnection();
-        c.setRequestMethod(method);
-        c.setConnectTimeout(20000);
-        c.setReadTimeout(30000);
-        c.setRequestProperty("Accept", "application/json, text/plain, */*");
-        c.setRequestProperty("Origin", "https://mishnatyosef.org");
-        c.setRequestProperty("Referer", "https://mishnatyosef.org/");
-        c.setRequestProperty("User-Agent", "Mozilla/5.0");
-        if (token != null && !token.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token);
-        if (body != null) {
-            c.setDoOutput(true);
-            c.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-            byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
-            try (OutputStream os = c.getOutputStream()) { os.write(bytes); }
-        }
-        int code = c.getResponseCode();
-        InputStream stream = code >= 400 ? c.getErrorStream() : c.getInputStream();
-        StringBuilder response = new StringBuilder();
-        if (stream != null) {
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = br.readLine()) != null) response.append(line);
+        try {
+            c.setRequestMethod(method);
+            c.setConnectTimeout(20000);
+            c.setReadTimeout(30000);
+            c.setRequestProperty("Accept", "application/json, text/plain, */*");
+            c.setRequestProperty("Origin", "https://mishnatyosef.org");
+            c.setRequestProperty("Referer", "https://mishnatyosef.org/");
+            c.setRequestProperty("User-Agent", "Mozilla/5.0");
+            if (token != null && !token.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token);
+            if (body != null) {
+                c.setDoOutput(true);
+                c.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                try (OutputStream os = c.getOutputStream()) { os.write(bytes); }
             }
+            int code = c.getResponseCode();
+            InputStream stream = code >= 400 ? c.getErrorStream() : c.getInputStream();
+            StringBuilder response = new StringBuilder();
+            if (stream != null) {
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) response.append(line);
+                }
+            }
+            return new HttpResult(code, response.toString());
+        } finally {
+            c.disconnect();
         }
-        c.disconnect();
-        return new HttpResult(code, response.toString());
     }
 
-    private void addFeatureMenu(String label, Runnable action) { Button b=button(label); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(12); root.addView(b,lp); b.setOnClickListener(v->action.run()); }
-    private JSONArray featureProducts = new JSONArray();
+    // Accepts either a bare JSON array, or an object holding the array under one of the given keys.
+    private JSONArray extractArray(String body, String... keys) throws Exception {
+        Object val = new org.json.JSONTokener(body).nextValue();
+        if (val instanceof JSONArray) return (JSONArray) val;
+        if (val instanceof JSONObject) {
+            JSONObject o = (JSONObject) val;
+            for (String k : keys) {
+                JSONArray a = o.optJSONArray(k);
+                if (a != null) return a;
+            }
+        }
+        return new JSONArray();
+    }
+
+    // ---------------------------------------------------------------- images
+
+    // Loads a product image into the view: memory cache -> background download -> decode downsampled.
+    // The view's tag holds the URL it should show, so recycled views never get a stale image,
+    // and queued downloads for views that were already re-bound are skipped.
+    private void loadImage(final ImageView view, final String url, final int targetPx) {
+        view.setTag(url);
+        if (url == null || url.isEmpty()) { view.setImageDrawable(null); return; }
+        Bitmap cached = imageCache.get(url);
+        if (cached != null) { view.setImageBitmap(cached); return; }
+        view.setImageDrawable(null);
+        if (failedImages.contains(url) || imageExecutor.isShutdown()) return;
+        try {
+            imageExecutor.execute(() -> {
+                if (!url.equals(view.getTag())) return;
+                Bitmap b = downloadBitmap(url, targetPx);
+                if (b == null) { failedImages.add(url); return; }
+                imageCache.put(url, b);
+                runOnUiThread(() -> { if (alive() && url.equals(view.getTag())) view.setImageBitmap(b); });
+            });
+        } catch (RejectedExecutionException ignored) { }
+    }
+
+    private Bitmap downloadBitmap(String url, int targetPx) {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(10000);
+            c.setInstanceFollowRedirects(true);
+            if (c.getResponseCode() != 200) return null;
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n, total = 0;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+                total += n;
+                if (total > 6 * 1024 * 1024) return null;
+            }
+            byte[] data = out.toByteArray();
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(data, 0, data.length, o);
+            int sample = 1;
+            while (o.outWidth / (sample * 2) >= targetPx && o.outHeight / (sample * 2) >= targetPx) sample *= 2;
+            o.inJustDecodeBounds = false;
+            o.inSampleSize = sample;
+            return BitmapFactory.decodeByteArray(data, 0, data.length, o);
+        } catch (Throwable t) {
+            return null;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private String imageFromFile(JSONObject img) {
+        String url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
+        if (!url.isEmpty()) return url;
+        String filename = img.optString("filename", "");
+        if (filename.isEmpty()) return "";
+        String ext = img.optString("extension", "");
+        if (ext.startsWith(".")) ext = ext.substring(1);
+        boolean hasExt = filename.matches("(?i).*\\.[a-z0-9]{2,5}$");
+        return IMAGE_BASE + filename + (hasExt || ext.isEmpty() ? "" : "." + ext);
+    }
+
+    private String firstImageFrom(JSONObject obj) {
+        JSONArray images = obj.optJSONArray("images");
+        if (images == null || images.length() == 0) return "";
+        JSONObject img = images.optJSONObject(0);
+        if (img != null) return imageFromFile(img);
+        Object first = images.opt(0);
+        return first == null || first == JSONObject.NULL ? "" : String.valueOf(first);
+    }
+
+    private String normalizeImageUrl(String url) {
+        if (url == null || url.isEmpty()) return "";
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            url = url.startsWith("//") ? "https:" + url : IMAGE_BASE + url.replaceFirst("^/+", "");
+        }
+        return url.startsWith("http") ? url : "";
+    }
+
+    private String featureImageUrl(JSONObject p) {
+        String url = firstOrderString(p, "featured_image", "image_url", "imageUrl", "picture_url");
+        if (url.isEmpty()) url = firstImageFrom(p);
+        if (url.isEmpty()) {
+            JSONObject product = p.optJSONObject("product");
+            if (product != null) {
+                url = firstOrderString(product, "featured_image", "image_url", "imageUrl");
+                if (url.isEmpty()) url = firstImageFrom(product);
+            }
+        }
+        return normalizeImageUrl(url);
+    }
+
+    private String orderImageUrl(JSONObject item, JSONObject product) {
+        String url = firstOrderString(product, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl", "url");
+        if (url.isEmpty()) url = firstOrderString(item, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl");
+        if (url.isEmpty()) url = firstImageFrom(product);
+        if (url.isEmpty()) url = firstImageFrom(item);
+        if (url.isEmpty()) {
+            JSONObject img = product.optJSONObject("image");
+            if (img == null) img = item.optJSONObject("image");
+            if (img != null) url = imageFromFile(img);
+        }
+        return normalizeImageUrl(url);
+    }
+
+    // ---------------------------------------------------------------- open order (products screen)
+
+    private static class ProductRow {
+        final JSONObject json;
+        final int id, itemSalesId, max, initialAmount;
+        final String name, priceText, unit, imageUrl, searchKey;
+        final boolean disabled;
+        final double stock;
+
+        ProductRow(JSONObject json, int id, int itemSalesId, String name, String priceText, String unit, int max,
+                   boolean disabled, double stock, String imageUrl, String searchKey, int initialAmount) {
+            this.json = json; this.id = id; this.itemSalesId = itemSalesId; this.name = name;
+            this.priceText = priceText; this.unit = unit; this.max = max; this.disabled = disabled;
+            this.stock = stock; this.imageUrl = imageUrl; this.searchKey = searchKey; this.initialAmount = initialAmount;
+        }
+
+        boolean canOrder() { return !disabled && stock != 0; }
+    }
+
+    private static class CardHolder {
+        LinearLayout card;
+        ImageView image;
+        TextView name, price, limit, unavailable, qty;
+        Button minus, plus, info;
+        ProductRow bound;
+    }
+
+    private static class RowHolder { CardHolder a, b; }
+
     private JSONObject featureSale = null;
     private long featureOrderId = -1;
-    private final java.util.Map<Integer,Integer> featureQuantities = new java.util.LinkedHashMap<>();
-
-    private void loadFeatureSales() { showOpenSales(); }
+    private final ArrayList<ProductRow> allRows = new ArrayList<>();
+    private final ArrayList<ProductRow> shownRows = new ArrayList<>();
+    // Current quantity per product (what the user sees) and last quantity confirmed by the server.
+    private final ConcurrentHashMap<Integer, Integer> featureQuantities = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, Integer> confirmedAmounts = new ConcurrentHashMap<>();
+    private final HashMap<Integer, Runnable> pendingSaves = new HashMap<>(); // UI thread only
+    private int inFlightSaves = 0; // UI thread only
+    private String productQuery = "";
+    private ListView productList;
+    private ProductAdapter productAdapter;
+    private TextView orderInfoView;
+    private Runnable searchRunnable;
 
     private int featureProductId(JSONObject p) { return p.optInt("item_salesID", p.optInt("id", p.optInt("itemID", -1))); }
 
@@ -658,10 +941,7 @@ public class MainActivity extends Activity {
         HttpResult cardsResponse = request("GET", "/api/payment_methods/cards", token, null);
         if (cardsResponse.code < 200 || cardsResponse.code >= 300)
             throw new Exception("לא ניתן לטעון את אמצעי התשלום השמורים (" + cardsResponse.code + ").");
-        Object cardValue = new org.json.JSONTokener(cardsResponse.body).nextValue();
-        JSONArray cards = cardValue instanceof JSONArray ? (JSONArray) cardValue :
-                (cardValue instanceof JSONObject ? ((JSONObject) cardValue).optJSONArray("data") : null);
-        if (cards == null) cards = new JSONArray();
+        JSONArray cards = extractArray(cardsResponse.body, "data");
         int cardId = -1;
         for (int i = 0; i < cards.length(); i++) {
             JSONObject c = cards.optJSONObject(i);
@@ -679,7 +959,7 @@ public class MainActivity extends Activity {
         if (saleId <= 0) throw new Exception("מזהה המכירה חסר.");
         HttpResult created = request("POST", "/api/create_order/" + saleId, token, body);
         if (created.code < 200 || created.code >= 300)
-            throw new Exception("פתיחת ההזמנה נכשלה (" + created.code + "): " + created.body);
+            throw new Exception("פתיחת ההזמנה נכשלה (" + created.code + "): " + shorten(created.body));
         try {
             long id = extractOrderId(new JSONObject(created.body));
             if (id > 0) return id;
@@ -688,10 +968,8 @@ public class MainActivity extends Activity {
         // Some server versions only return success; resolve the new order by sale id.
         HttpResult ordersResponse = request("GET", "/api/orders", token, null);
         if (ordersResponse.code >= 200 && ordersResponse.code < 300) {
-            Object val = new org.json.JSONTokener(ordersResponse.body).nextValue();
-            JSONArray orders = val instanceof JSONArray ? (JSONArray) val :
-                    (val instanceof JSONObject ? ((JSONObject) val).optJSONArray("data") : null);
-            if (orders != null) for (int i = 0; i < orders.length(); i++) {
+            JSONArray orders = extractArray(ordersResponse.body, "data");
+            for (int i = 0; i < orders.length(); i++) {
                 JSONObject o = orders.optJSONObject(i); if (o == null) continue;
                 int sid = o.optInt("saleID", o.optInt("sale_id", -2));
                 JSONObject osale = o.optJSONObject("sale");
@@ -704,16 +982,16 @@ public class MainActivity extends Activity {
 
     private void appendProductDetail(StringBuilder out, String label, String value) {
         if (value == null || value.trim().isEmpty() || "null".equalsIgnoreCase(value.trim())) return;
-        if (out.length() > 0) out.append("\\n");
+        if (out.length() > 0) out.append("\n");
         out.append(label).append(": ").append(value.trim());
     }
 
     private void showFeatureProductDetails(JSONObject p) {
-        if (p == null) return;
+        if (p == null || !alive()) return;
         StringBuilder out = new StringBuilder();
         appendProductDetail(out, "שם מוצר", firstOrderString(p, "name", "custom_name", "title"));
         appendProductDetail(out, "מחיר", firstOrderString(p, "price", "unit_price", "price_list"));
-        appendProductDetail(out, "כמות בהזמנה", String.valueOf(Math.max(0, p.optInt("amount", 0))));
+        appendProductDetail(out, "כמות בהזמנה", String.valueOf(featureQuantities.getOrDefault(featureProductId(p), 0)));
         appendProductDetail(out, "זמינות", firstOrderString(p, "available"));
         appendProductDetail(out, "יחידה", firstOrderString(p, "item_unit", "units", "unit"));
         appendProductDetail(out, "פרטים", firstOrderString(p, "description", "details", "approx"));
@@ -721,14 +999,16 @@ public class MainActivity extends Activity {
         if (product != null) {
             appendProductDetail(out, "תיאור מוצר", firstOrderString(product, "description", "details", "name"));
         }
+        String title = firstOrderString(p, "name", "custom_name", "title");
         new AlertDialog.Builder(this)
-                .setTitle(firstOrderString(p, "name", "custom_name", "title").isEmpty() ? "פרטי מוצר" : firstOrderString(p, "name", "custom_name", "title"))
+                .setTitle(title.isEmpty() ? "פרטי מוצר" : title)
                 .setMessage(out.length() == 0 ? "אין פרטים נוספים זמינים." : out.toString())
                 .setPositiveButton("סגירה", null)
                 .show();
     }
 
     private void showSaleDetails(JSONObject sale) {
+        if (sale == null || !alive()) return;
         StringBuilder out = new StringBuilder();
         appendProductDetail(out, "מזהה מכירה", firstOrderString(sale, "id"));
         appendProductDetail(out, "שם מכירה", firstOrderString(sale, "custom_name", "name", "title"));
@@ -756,108 +1036,6 @@ public class MainActivity extends Activity {
                 .setNegativeButton("כניסה להזמנה", (d, w) -> loadFeatureProducts(sale)).show();
     }
 
-    private void loadFeatureProducts(JSONObject sale) {
-        featureSale = sale;
-        beginScreen("פתיחת הזמנה");
-        statusView.setText("פותח הזמנה וטוען מוצרים…");
-        executor.execute(() -> {
-            try {
-                String token = prefs.getString("token", "");
-                long orderId = findOrCreateOrder(sale, token);
-                JSONArray all = new JSONArray();
-                for (int page = 1; page <= 100; page++) {
-                    HttpResult r = request("GET", "/api/get_items_for_sale/" + orderId + "/null?page=" + page + "&limit=50", token, null);
-                    if (r.code < 200 || r.code >= 300)
-                        throw new Exception("טעינת המוצרים נכשלה (" + r.code + ").");
-                    Object val = new org.json.JSONTokener(r.body).nextValue();
-                    JSONArray a = val instanceof JSONArray ? (JSONArray) val :
-                            (val instanceof JSONObject ? ((JSONObject) val).optJSONArray("data") : null);
-                    if (a == null && val instanceof JSONObject) {
-                        JSONObject payload = (JSONObject) val;
-                        a = payload.optJSONArray("items");
-                        if (a == null) a = payload.optJSONArray("products");
-                    }
-                    if (a == null) a = new JSONArray();
-                    for (int i = 0; i < a.length(); i++) all.put(a.get(i));
-                    if (a.length() < 50) break;
-                }
-                // Read the saved order from the server and use its quantities as the source of truth.
-                try {
-                    HttpResult orderResponse = request("GET", "/api/orders/" + orderId, token, null);
-                    if (orderResponse.code >= 200 && orderResponse.code < 300) {
-                        JSONObject response = new JSONObject(orderResponse.body);
-                        JSONObject order = response.optJSONObject("order");
-                        if (order == null) order = response.optJSONObject("data");
-                        if (order == null) order = response;
-                        JSONArray savedItems = orderItemsFrom(order);
-                        java.util.HashMap<Integer, Integer> savedAmounts = new java.util.HashMap<>();
-                        for (int i = 0; i < savedItems.length(); i++) {
-                            JSONObject saved = savedItems.optJSONObject(i);
-                            if (saved == null) continue;
-                            JSONObject savedProduct = orderProductFrom(saved);
-                            int itemId = saved.optInt("item_salesID", saved.optInt("item_sales_id", -1));
-                            if (itemId <= 0) itemId = savedProduct.optInt("item_salesID", savedProduct.optInt("item_sales_id", -1));
-                            if (itemId <= 0) itemId = saved.optInt("itemID", savedProduct.optInt("itemID", -1));
-                            int amount = saved.optInt("amount", saved.optInt("quantity", saved.optInt("qty", 0)));
-                            if (itemId > 0) savedAmounts.put(itemId, Math.max(0, amount));
-                        }
-                        for (int i = 0; i < all.length(); i++) {
-                            JSONObject p = all.optJSONObject(i);
-                            if (p == null) continue;
-                            int itemId = featureProductId(p);
-                            p.put("amount", savedAmounts.containsKey(itemId) ? savedAmounts.get(itemId) : Math.max(0, p.optInt("amount", 0)));
-                        }
-                    }
-                } catch (Exception ignored) { }
-                featureOrderId = orderId;
-                featureProducts = all;
-                featureQuantities.clear();
-                for (int i = 0; i < all.length(); i++) {
-                    JSONObject p = all.optJSONObject(i);
-                    if (p != null) featureQuantities.put(featureProductId(p), Math.max(0, p.optInt("amount", 0)));
-                }
-                runOnUiThread(this::renderFeatureProducts);
-            } catch (Exception e) {
-                String message = e.getMessage() == null ? "פתיחת ההזמנה נכשלה." : e.getMessage();
-                runOnUiThread(() -> { if (statusView != null) statusView.setText(message); });
-            }
-        });
-    }
-
-    private String featureImageUrl(JSONObject p) {
-        String base = "https://images.mishnatyosef.org/images/items/";
-        String url = firstOrderString(p, "featured_image", "image_url", "imageUrl", "picture_url");
-        JSONArray images = p.optJSONArray("images");
-        if (url.isEmpty() && images != null && images.length() > 0) {
-            JSONObject img = images.optJSONObject(0);
-            if (img != null) {
-                url = firstOrderString(img, "url", "src", "path");
-                String filename = img.optString("filename", "");
-                String ext = img.optString("extension", "");
-                if (url.isEmpty() && !filename.isEmpty()) url = base + filename + (filename.matches("(?i).*\\\\.[a-z0-9]{2,5}$") || ext.isEmpty() ? "" : "." + ext.replaceFirst("^\\\\.", ""));
-            } else if (images.opt(0) != null) url = String.valueOf(images.opt(0));
-        }
-        if (url.isEmpty()) {
-            JSONObject product = p.optJSONObject("product");
-            if (product != null) {
-                url = firstOrderString(product, "featured_image", "image_url", "imageUrl");
-                JSONArray nested = product.optJSONArray("images");
-                if (url.isEmpty() && nested != null && nested.length() > 0) {
-                    JSONObject img = nested.optJSONObject(0);
-                    if (img != null) {
-                        url = firstOrderString(img, "url", "src", "path");
-                        if (url.isEmpty()) {
-                            String fn = img.optString("filename", ""), ex = img.optString("extension", "");
-                            if (!fn.isEmpty()) url = base + fn + (fn.matches("(?i).*\\\\.[a-z0-9]{2,5}$") || ex.isEmpty() ? "" : "." + ex.replaceFirst("^\\\\.", ""));
-                        }
-                    }
-                }
-            }
-        }
-        if (!url.isEmpty() && !url.startsWith("http")) url = url.startsWith("//") ? "https:" + url : base + url.replaceFirst("^/+", "");
-        return url.startsWith("http") ? url : "";
-    }
-
     private double numericAvailable(JSONObject p) {
         if (!p.has("available") || p.isNull("available")) return -1;
         Object value = p.opt("available");
@@ -867,6 +1045,133 @@ public class MainActivity extends Activity {
         }
         // Some API versions return a boolean/object here; it is not a stock count.
         return -1;
+    }
+
+    // Everything that needs JSON parsing / regex is computed once here (background thread),
+    // so binding a row while scrolling is just setText + setVisibility.
+    private ProductRow makeRow(JSONObject p, int amount) {
+        int id = featureProductId(p);
+        JSONObject product = p.optJSONObject("product");
+        String name = firstOrderString(p, "name", "full_name", "title");
+        if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "full_name", "title");
+        if (name.isEmpty()) name = "מוצר #" + id;
+        String priceText = firstOrderString(p, "price", "unit_price", "price_list");
+        if (priceText.isEmpty() && product != null) priceText = firstOrderString(product, "price", "unit_price");
+        String unit = firstOrderString(p, "item_unit", "unit", "item_type");
+        return new ProductRow(p, id, p.optInt("item_salesID", p.optInt("item_sales_id", -1)), name, priceText, unit,
+                p.optInt("max_per_man", 0), p.optBoolean("disable", false), numericAvailable(p),
+                featureImageUrl(p), name.toLowerCase(java.util.Locale.ROOT), amount);
+    }
+
+    private HashMap<Integer, Integer> loadSavedAmounts(long orderId) {
+        HashMap<Integer, Integer> saved = new HashMap<>();
+        try {
+            HttpResult orderResponse = authRequest("GET", "/api/orders/" + orderId, null);
+            if (orderResponse.code >= 200 && orderResponse.code < 300) {
+                JSONObject response = new JSONObject(orderResponse.body);
+                JSONObject order = response.optJSONObject("order");
+                if (order == null) order = response.optJSONObject("data");
+                if (order == null) order = response;
+                JSONArray savedItems = orderItemsFrom(order);
+                for (int i = 0; i < savedItems.length(); i++) {
+                    JSONObject item = savedItems.optJSONObject(i);
+                    if (item == null) continue;
+                    JSONObject savedProduct = orderProductFrom(item);
+                    int itemId = item.optInt("item_salesID", item.optInt("item_sales_id", -1));
+                    if (itemId <= 0) itemId = savedProduct.optInt("item_salesID", savedProduct.optInt("item_sales_id", -1));
+                    if (itemId <= 0) itemId = item.optInt("itemID", savedProduct.optInt("itemID", -1));
+                    int amount = item.optInt("amount", item.optInt("quantity", item.optInt("qty", 0)));
+                    if (itemId > 0) saved.put(itemId, Math.max(0, amount));
+                }
+            }
+        } catch (Exception ignored) { }
+        return saved;
+    }
+
+    // Opens (or creates) the order and loads the products page by page.
+    // The first page is shown immediately; the remaining pages are appended while the user already scrolls.
+    private void loadFeatureProducts(final JSONObject sale) {
+        featureSale = sale;
+        failedImages.clear();
+        beginScreen("פתיחת הזמנה");
+        final int gen = screenGen.get();
+        statusView.setText("פותח הזמנה וטוען מוצרים…");
+        final int[] liveGen = {gen};                       // UI thread only
+        final AtomicBoolean cancelled = new AtomicBoolean(false);
+        executor.execute(() -> {
+            try {
+                final long orderId = findOrCreateOrder(sale, freshToken());
+                // Remember the order on the sale so a refresh never tries to create a second order.
+                try { JSONObject known = new JSONObject(); known.put("id", orderId); sale.put("order", known); } catch (Exception ignored) { }
+                HashMap<Integer, Integer> saved = loadSavedAmounts(orderId);
+
+                for (int page = 1; page <= 100; page++) {
+                    if (cancelled.get()) return;
+                    HttpResult r = authRequest("GET", "/api/get_items_for_sale/" + orderId + "/null?page=" + page + "&limit=" + PAGE_SIZE, null);
+                    if (r.code < 200 || r.code >= 300)
+                        throw new Exception("טעינת המוצרים נכשלה (" + r.code + ").");
+                    JSONArray a = extractArray(r.body, "data", "items", "products");
+                    final ArrayList<ProductRow> rows = new ArrayList<>();
+                    for (int i = 0; i < a.length(); i++) {
+                        JSONObject p = a.optJSONObject(i);
+                        if (p == null) continue;
+                        int id = featureProductId(p);
+                        int amount = saved.containsKey(id) ? saved.get(id) : Math.max(0, p.optInt("amount", 0));
+                        rows.add(makeRow(p, amount));
+                    }
+                    final boolean first = page == 1;
+                    final boolean last = a.length() < PAGE_SIZE || page == 100;
+                    runOnUiThread(() -> {
+                        if (screenGen.get() != liveGen[0]) { cancelled.set(true); return; } // user left the screen
+                        if (first) {
+                            featureOrderId = orderId;
+                            allRows.clear();
+                            featureQuantities.clear();
+                            confirmedAmounts.clear();
+                            productQuery = "";
+                            renderFeatureProducts();
+                            liveGen[0] = screenGen.get();
+                        }
+                        appendRows(rows);
+                        if (statusView != null)
+                            statusView.setText(last ? (allRows.isEmpty() ? "אין מוצרים במכירה זו." : "נטענו " + allRows.size() + " מוצרים")
+                                    : "נטענו " + allRows.size() + " מוצרים, טוען עוד…");
+                    });
+                    if (last) break;
+                }
+            } catch (Exception e) {
+                String message = msg(e, "פתיחת ההזמנה נכשלה.");
+                runOnUiThread(() -> {
+                    if (screenGen.get() != liveGen[0]) return;
+                    if (statusView != null) statusView.setText(message);
+                });
+            }
+        });
+    }
+
+    private void appendRows(ArrayList<ProductRow> rows) {
+        for (ProductRow r : rows) {
+            allRows.add(r);
+            featureQuantities.put(r.id, r.initialAmount);
+            confirmedAmounts.put(r.id, r.initialAmount);
+        }
+        applyFilter();
+        updateOrderInfo();
+    }
+
+    private void applyFilter() {
+        shownRows.clear();
+        String q = productQuery.trim().toLowerCase(java.util.Locale.ROOT);
+        for (ProductRow r : allRows) if (q.isEmpty() || r.searchKey.contains(q)) shownRows.add(r);
+        if (productAdapter != null) productAdapter.notifyDataSetChanged();
+    }
+
+    private void updateOrderInfo() {
+        if (orderInfoView == null) return;
+        int types = 0, units = 0;
+        for (int q : featureQuantities.values()) if (q > 0) { types++; units += q; }
+        orderInfoView.setText("הזמנה #" + featureOrderId + " · " + types + " סוגי פריטים · " + units
+                + " יחידות · הסכום הסופי בסיכום ההזמנה");
     }
 
     private Button quantityButton(String label) {
@@ -886,33 +1191,11 @@ public class MainActivity extends Activity {
         return b;
     }
 
-    private double productUnitPrice(JSONObject p) {
-        JSONObject product = p.optJSONObject("product");
-        String raw = firstOrderString(p, "price", "unit_price", "unitPrice", "price_list");
-        if (raw.isEmpty() && product != null) raw = firstOrderString(product, "price", "unit_price", "unitPrice", "price_list");
-        try {
-            String normalized = raw.replace(",", "").replaceAll("[^0-9.\\-]", "");
-            return normalized.isEmpty() ? 0 : Double.parseDouble(normalized);
-        } catch (Exception ignored) { return 0; }
-    }
-
-    private void updateOrderTotals(TextView target) {
-        int productCount = 0, units = 0;
-        double total = 0;
-        for (int i = 0; i < featureProducts.length(); i++) {
-            JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
-            int qty = featureQuantities.getOrDefault(featureProductId(p), 0);
-            if (qty > 0) { productCount++; units += qty; total += productUnitPrice(p) * qty; }
-        }
-        target.setText("בהזמנה: " + productCount + " סוגי פריטים · " + units + " יחידות · סה״כ משוער " +
-                String.format(java.util.Locale.US, "%.2f ₪", total));
-    }
-
     private void renderFeatureProducts() {
         String title = featureSale == null ? "מוצרים להזמנה" : firstOrderString(featureSale, "custom_name", "name");
         if (title.isEmpty() && featureSale != null && featureSale.optJSONObject("parent") != null)
             title = firstOrderString(featureSale.optJSONObject("parent"), "week", "name");
-        beginScreen(title.isEmpty() ? "מוצרים להזמנה" : title);
+        beginScreen(title.isEmpty() ? "מוצרים להזמנה" : title, true);
 
         LinearLayout topActions = new LinearLayout(this);
         topActions.setOrientation(LinearLayout.HORIZONTAL);
@@ -928,177 +1211,267 @@ public class MainActivity extends Activity {
         saleInfo.setOnClickListener(v -> showSaleDetails(featureSale));
         summary.setOnClickListener(v -> loadServerOrderSummary());
 
-        TextView totals = text("הזמנה #" + featureOrderId, 14, true);
-        root.addView(totals);
-        totals.setText("הזמנה #" + featureOrderId + " · הכמויות והסכום הסופיים מוצגים מסיכום השרת");
-        LinearLayout grid = new LinearLayout(this);
-        grid.setOrientation(LinearLayout.VERTICAL);
-        root.addView(grid, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout row = null;
-        for (int i = 0; i < featureProducts.length(); i++) {
-            JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
-            if (i % 2 == 0) {
-                row = new LinearLayout(this);
+        EditText search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("חיפוש מוצר…");
+        search.setTextSize(14);
+        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                final String q = s.toString();
+                if (searchRunnable != null) uiHandler.removeCallbacks(searchRunnable);
+                searchRunnable = () -> {
+                    productQuery = q;
+                    applyFilter();
+                    if (productList != null) productList.setSelection(0);
+                };
+                uiHandler.postDelayed(searchRunnable, SEARCH_DEBOUNCE_MS);
+            }
+        });
+        root.addView(search, new LinearLayout.LayoutParams(-1, dp(44)));
+
+        orderInfoView = compactText("", 12, true);
+        root.addView(orderInfoView, new LinearLayout.LayoutParams(-1, -2));
+
+        productList = new ListView(this);
+        productList.setDivider(null);
+        productList.setDividerHeight(0);
+        productList.setSelector(android.R.color.transparent);
+        productList.setScrollingCacheEnabled(false);
+        productList.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        productAdapter = new ProductAdapter();
+        productList.setAdapter(productAdapter);
+        root.addView(productList, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        applyFilter();
+        updateOrderInfo();
+    }
+
+    // Two products per list row. Only the rows on screen exist as views (about 8-10 in total),
+    // and they are re-used while scrolling, no matter how many products the sale has.
+    private class ProductAdapter extends BaseAdapter {
+        @Override public int getCount() { return (shownRows.size() + 1) / 2; }
+        @Override public Object getItem(int position) { return null; }
+        @Override public long getItemId(int position) { return position; }
+
+        @Override public View getView(int position, View convertView, ViewGroup parent) {
+            RowHolder h;
+            if (convertView == null) {
+                h = new RowHolder();
+                LinearLayout row = new LinearLayout(MainActivity.this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setGravity(Gravity.TOP);
-                LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
-                rowLp.bottomMargin = dp(8);
-                grid.addView(row, rowLp);
+                row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                row.setPadding(0, 0, 0, dp(8));
+                h.a = buildCard();
+                h.b = buildCard();
+                LinearLayout.LayoutParams lpA = new LinearLayout.LayoutParams(0, -2, 1);
+                lpA.setMargins(dp(3), 0, dp(3), 0);
+                LinearLayout.LayoutParams lpB = new LinearLayout.LayoutParams(0, -2, 1);
+                lpB.setMargins(dp(3), 0, dp(3), 0);
+                row.addView(h.a.card, lpA);
+                row.addView(h.b.card, lpB);
+                row.setTag(h);
+                convertView = row;
+            } else {
+                h = (RowHolder) convertView.getTag();
             }
-            int id = featureProductId(p);
-            String name = firstOrderString(p, "name", "full_name", "title");
-            JSONObject product = p.optJSONObject("product");
-            if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "full_name", "title");
-            if (name.isEmpty()) name = "מוצר #" + id;
-            String priceText = firstOrderString(p, "price", "unit_price", "price_list");
-            if (priceText.isEmpty() && product != null) priceText = firstOrderString(product, "price", "unit_price");
-            String unit = firstOrderString(p, "item_unit", "unit", "item_type");
-            int max = p.optInt("max_per_man", 0);
-            boolean disabled = p.optBoolean("disable", false);
-            double stock = numericAvailable(p);
-            boolean canOrder = !disabled && stock != 0;
-
-            LinearLayout card = new LinearLayout(this);
-            card.setOrientation(LinearLayout.VERTICAL);
-            card.setGravity(Gravity.CENTER_HORIZONTAL);
-            card.setPadding(dp(7), dp(7), dp(7), dp(7));
-            android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
-            cardBg.setColor(Color.WHITE); cardBg.setCornerRadius(dp(12));
-            cardBg.setStroke(dp(1), Color.rgb(238, 220, 205));
-            card.setBackground(cardBg);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-            cp.setMargins(dp(3), 0, dp(3), 0);
-            row.addView(card, cp);
-
-            ImageView image = new ImageView(this);
-            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            image.setBackgroundColor(Color.rgb(250, 239, 229));
-            card.addView(image, new LinearLayout.LayoutParams(-1, dp(105)));
-            TextView productName = text(name, 13, true);
-            productName.setGravity(Gravity.CENTER);
-            productName.setMaxLines(3);
-            productName.setMinLines(2);
-            card.addView(productName, new LinearLayout.LayoutParams(-1, -2));
-            TextView price = text("מחיר: " + (priceText.isEmpty() ? "—" : priceText + " ₪") +
-                    (unit.isEmpty() ? "" : " · " + unit), 12, true);
-            price.setGravity(Gravity.CENTER);
-            card.addView(price, new LinearLayout.LayoutParams(-1, -2));
-            if (max > 0) {
-                TextView limit = text("מקס׳ " + max, 11, false); limit.setGravity(Gravity.CENTER);
-                card.addView(limit);
+            int i = position * 2;
+            if (i < shownRows.size()) bindCard(h.a, shownRows.get(i));
+            int j = i + 1;
+            if (j < shownRows.size()) {
+                h.b.card.setVisibility(View.VISIBLE);
+                bindCard(h.b, shownRows.get(j));
+            } else {
+                h.b.card.setVisibility(View.INVISIBLE);
+                h.b.bound = null;
             }
-            if (!canOrder) {
-                TextView unavailable = text(disabled ? "לא זמין" : "אזל מהמלאי", 11, true);
-                unavailable.setGravity(Gravity.CENTER); card.addView(unavailable);
-            }
-
-            LinearLayout controls = new LinearLayout(this);
-            controls.setGravity(Gravity.CENTER);
-            controls.setOrientation(LinearLayout.HORIZONTAL);
-            Button minus = quantityButton("−"), plus = quantityButton("+");
-            TextView qty = text(String.valueOf(featureQuantities.getOrDefault(id, 0)), 15, true);
-            qty.setGravity(Gravity.CENTER);
-            controls.addView(minus);
-            controls.addView(qty, new LinearLayout.LayoutParams(dp(30), dp(34)));
-            controls.addView(plus);
-            card.addView(controls);
-            int initialMax = max;
-            minus.setEnabled(canOrder); plus.setEnabled(canOrder);
-            minus.setOnClickListener(v -> {
-                int n = Math.max(0, featureQuantities.getOrDefault(id, 0) - 1);
-                if (n == featureQuantities.getOrDefault(id, 0)) return;
-                featureQuantities.put(id, n); qty.setText(String.valueOf(n));
-                minus.setEnabled(false); plus.setEnabled(false);
-                saveSingleFeatureProduct(p, n);
-            });
-            plus.setOnClickListener(v -> {
-                int n = featureQuantities.getOrDefault(id, 0) + 1;
-                if (initialMax > 0 && n > initialMax) { Toast.makeText(this, "מותר להזמין עד " + initialMax + " יחידות", Toast.LENGTH_SHORT).show(); return; }
-                if (stock >= 0 && n > stock) { Toast.makeText(this, "נותרו במלאי " + (long) stock + " יחידות בלבד", Toast.LENGTH_SHORT).show(); return; }
-                featureQuantities.put(id, n); qty.setText(String.valueOf(n));
-                minus.setEnabled(false); plus.setEnabled(false);
-                saveSingleFeatureProduct(p, n);
-            });
-
-            Button info = button("פרטים");
-            info.setTextSize(11); info.setMinHeight(dp(32));
-            info.setPadding(dp(3), 0, dp(3), 0);
-            card.addView(info, new LinearLayout.LayoutParams(-1, dp(34)));
-            info.setOnClickListener(v -> showFeatureProductDetails(p));
-
-            String imageUrl = featureImageUrl(p);
-            if (!imageUrl.isEmpty()) {
-                final String requestedUrl = imageUrl;
-                executor.execute(() -> {
-                    try {
-                        HttpURLConnection c = (HttpURLConnection) new URL(requestedUrl).openConnection();
-                        c.setConnectTimeout(8000); c.setReadTimeout(8000); c.connect();
-                        InputStream in = c.getInputStream();
-                        android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(in);
-                        in.close(); c.disconnect();
-                        if (bitmap != null) runOnUiThread(() -> image.setImageBitmap(bitmap));
-                    } catch (Exception ignored) { }
-                });
-            }
-        }
-        if (featureProducts.length() % 2 == 1 && row != null) {
-            View spacer = new View(this);
-            row.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+            return convertView;
         }
     }
 
-    private void saveSingleFeatureProduct(JSONObject p, int amount) {
-        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_SHORT).show(); return; }
-        final int originalAmount = p.optInt("amount", 0);
-        final int itemSalesId = p.optInt("item_salesID", p.optInt("item_sales_id", -1));
-        final int max = p.optInt("max_per_man", 0);
-        if (amount < 0) return;
-        if (max > 0 && amount > max) { Toast.makeText(this, "הכמות חורגת מהמגבלה", Toast.LENGTH_SHORT).show(); loadFeatureProducts(featureSale); return; }
-        if (amount > 0 && (p.optBoolean("disable", false) || numericAvailable(p) == 0)) {
-            Toast.makeText(this, "המוצר אינו זמין כרגע", Toast.LENGTH_SHORT).show(); loadFeatureProducts(featureSale); return;
+    private CardHolder buildCard() {
+        final CardHolder h = new CardHolder();
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(dp(7), dp(7), dp(7), dp(7));
+        android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+        cardBg.setColor(Color.WHITE); cardBg.setCornerRadius(dp(12));
+        cardBg.setStroke(dp(1), Color.rgb(238, 220, 205));
+        card.setBackground(cardBg);
+        h.card = card;
+
+        h.image = new ImageView(this);
+        h.image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        h.image.setBackgroundColor(Color.rgb(250, 239, 229));
+        card.addView(h.image, new LinearLayout.LayoutParams(-1, dp(105)));
+
+        h.name = text("", 13, true);
+        h.name.setGravity(Gravity.CENTER);
+        h.name.setMaxLines(3);
+        h.name.setMinLines(2);
+        h.name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        card.addView(h.name, new LinearLayout.LayoutParams(-1, -2));
+
+        h.price = text("", 12, true);
+        h.price.setGravity(Gravity.CENTER);
+        card.addView(h.price, new LinearLayout.LayoutParams(-1, -2));
+
+        h.limit = text("", 11, false);
+        h.limit.setGravity(Gravity.CENTER);
+        h.limit.setVisibility(View.GONE);
+        card.addView(h.limit);
+
+        h.unavailable = text("", 11, true);
+        h.unavailable.setGravity(Gravity.CENTER);
+        h.unavailable.setVisibility(View.GONE);
+        card.addView(h.unavailable);
+
+        LinearLayout controls = new LinearLayout(this);
+        controls.setGravity(Gravity.CENTER);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        h.minus = quantityButton("−");
+        h.plus = quantityButton("+");
+        h.qty = text("0", 15, true);
+        h.qty.setGravity(Gravity.CENTER);
+        controls.addView(h.minus);
+        controls.addView(h.qty, new LinearLayout.LayoutParams(dp(30), dp(34)));
+        controls.addView(h.plus);
+        card.addView(controls);
+
+        h.info = button("פרטים");
+        h.info.setTextSize(11); h.info.setMinHeight(dp(32));
+        h.info.setPadding(dp(3), 0, dp(3), 0);
+        card.addView(h.info, new LinearLayout.LayoutParams(-1, dp(34)));
+
+        h.minus.setOnClickListener(v -> { if (h.bound != null) changeQuantity(h, -1); });
+        h.plus.setOnClickListener(v -> { if (h.bound != null) changeQuantity(h, 1); });
+        h.info.setOnClickListener(v -> { if (h.bound != null) showFeatureProductDetails(h.bound.json); });
+        return h;
+    }
+
+    private void bindCard(CardHolder h, ProductRow r) {
+        h.bound = r;
+        h.name.setText(r.name);
+        h.price.setText("מחיר: " + (r.priceText.isEmpty() ? "—" : r.priceText + " ₪") + (r.unit.isEmpty() ? "" : " · " + r.unit));
+        if (r.max > 0) {
+            h.limit.setText("מקס׳ " + r.max);
+            h.limit.setVisibility(View.VISIBLE);
+        } else h.limit.setVisibility(View.GONE);
+        boolean can = r.canOrder();
+        if (!can) {
+            h.unavailable.setText(r.disabled ? "לא זמין" : "אזל מהמלאי");
+            h.unavailable.setVisibility(View.VISIBLE);
+        } else h.unavailable.setVisibility(View.GONE);
+        h.qty.setText(String.valueOf(featureQuantities.getOrDefault(r.id, 0)));
+        h.minus.setEnabled(can);
+        h.plus.setEnabled(can);
+        loadImage(h.image, r.imageUrl, dp(150));
+    }
+
+    // +/- only updates the screen instantly; the server call is debounced and sent in the background.
+    // No reload of the order and no re-render of the list.
+    private void changeQuantity(CardHolder h, int delta) {
+        ProductRow r = h.bound;
+        int cur = featureQuantities.getOrDefault(r.id, 0);
+        int n = Math.max(0, cur + delta);
+        if (n == cur) return;
+        if (delta > 0) {
+            if (r.max > 0 && n > r.max) { Toast.makeText(this, "מותר להזמין עד " + r.max + " יחידות", Toast.LENGTH_SHORT).show(); return; }
+            if (r.stock >= 0 && n > r.stock) { Toast.makeText(this, "נותרו במלאי " + (long) r.stock + " יחידות בלבד", Toast.LENGTH_SHORT).show(); return; }
         }
-        statusView.setText(amount == 0 ? "מסיר את הפריט מההזמנה…" : "מעדכן כמות בהזמנה…");
-        executor.execute(() -> {
+        featureQuantities.put(r.id, n);
+        h.qty.setText(String.valueOf(n));
+        updateOrderInfo();
+        scheduleSave(r);
+    }
+
+    private void scheduleSave(final ProductRow r) {
+        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_SHORT).show(); return; }
+        final long orderId = featureOrderId;
+        Runnable old = pendingSaves.remove(r.id);
+        if (old != null) uiHandler.removeCallbacks(old);
+        Runnable task = () -> {
+            pendingSaves.remove(r.id);
+            inFlightSaves++;
             try {
-                String token = prefs.getString("token", "");
+                saveExecutor.execute(() -> persistQuantity(orderId, r));
+            } catch (RejectedExecutionException e) {
+                inFlightSaves--;
+            }
+            updateSaveStatus(false);
+        };
+        pendingSaves.put(r.id, task);
+        uiHandler.postDelayed(task, SAVE_DEBOUNCE_MS);
+        updateSaveStatus(false);
+    }
+
+    // Sends everything that is still waiting for the debounce right now (leaving the app / opening the summary).
+    private void flushPendingSaves() {
+        for (Runnable task : new ArrayList<>(pendingSaves.values())) {
+            uiHandler.removeCallbacks(task);
+            task.run();
+        }
+    }
+
+    // Runs on saveExecutor: always sends the latest quantity of the product, in order.
+    private void persistQuantity(final long orderId, final ProductRow r) {
+        final int desired = featureQuantities.getOrDefault(r.id, 0);
+        final int confirmed = confirmedAmounts.getOrDefault(r.id, 0);
+        String error = null;
+        if (desired != confirmed) {
+            try {
                 HttpResult result;
-                if (amount == 0) {
-                    if (originalAmount <= 0) {
-                        runOnUiThread(() -> loadServerOrderSummary());
-                        return;
-                    }
-                    if (itemSalesId <= 0) throw new Exception("חסר מזהה פריט להסרה מההזמנה.");
-                    result = request("POST", "/api/remove_item/" + featureOrderId + "/" + itemSalesId, token, null);
+                if (desired == 0) {
+                    if (r.itemSalesId <= 0) throw new Exception("חסר מזהה פריט להסרה מההזמנה.");
+                    result = authRequest("POST", "/api/remove_item/" + orderId + "/" + r.itemSalesId, null);
                 } else {
-                    JSONObject item = new JSONObject(p.toString());
-                    item.put("amount", amount);
+                    JSONObject item = new JSONObject(r.json.toString());
+                    item.put("amount", desired);
                     if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
-                    String endpoint = originalAmount > 0 ? "/api/update_item/" : "/api/add_item/";
-                    result = request("POST", endpoint + featureOrderId, token, item);
+                    result = authRequest("POST", (confirmed > 0 ? "/api/update_item/" : "/api/add_item/") + orderId, item);
                 }
                 if (result.code < 200 || result.code >= 300)
-                    throw new Exception("עדכון ההזמנה נכשל (" + result.code + "): " + result.body);
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "ההזמנה עודכנה", Toast.LENGTH_SHORT).show();
-                    try { JSONObject knownOrder = new JSONObject(); knownOrder.put("id", featureOrderId); featureSale.put("order", knownOrder); } catch (Exception ignored) { }
-                    loadFeatureProducts(featureSale);
-                });
+                    throw new Exception("עדכון ההזמנה נכשל (" + result.code + "): " + shorten(result.body));
+                confirmedAmounts.put(r.id, desired);
             } catch (Exception e) {
-                String message = e.getMessage() == null ? "עדכון ההזמנה נכשל" : e.getMessage();
-                runOnUiThread(() -> {
-                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-                    loadFeatureProducts(featureSale);
-                });
+                error = msg(e, "עדכון ההזמנה נכשל");
             }
+        }
+        final String err = error;
+        runOnUiThread(() -> {
+            inFlightSaves = Math.max(0, inFlightSaves - 1);
+            if (err != null) {
+                // Roll the screen back to what the server really has (unless the user already changed it again).
+                if (featureQuantities.getOrDefault(r.id, 0) == desired && !pendingSaves.containsKey(r.id))
+                    featureQuantities.put(r.id, confirmedAmounts.getOrDefault(r.id, 0));
+                if (productAdapter != null) productAdapter.notifyDataSetChanged();
+                updateOrderInfo();
+                Toast.makeText(this, err, Toast.LENGTH_LONG).show();
+            }
+            updateSaveStatus(err != null);
         });
+    }
+
+    private void updateSaveStatus(boolean hadError) {
+        if (statusView == null || productList == null) return; // not on the products screen
+        if (!pendingSaves.isEmpty() || inFlightSaves > 0) statusView.setText("שומר שינויים…");
+        else statusView.setText(hadError ? "" : "השינויים נשמרו ✓");
     }
 
     private void loadServerOrderSummary() {
         if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_SHORT).show(); return; }
+        flushPendingSaves();
         statusView.setText("טוען סיכום הזמנה מהשרת…");
-        executor.execute(() -> {
+        final long orderId = featureOrderId;
+        final int gen = screenGen.get();
+        // Runs on saveExecutor so it is guaranteed to come after every queued quantity update.
+        saveExecutor.execute(() -> {
             try {
-                HttpResult r = request("GET", "/api/orders/" + featureOrderId, prefs.getString("token", ""), null);
+                HttpResult r = authRequest("GET", "/api/orders/" + orderId, null);
                 if (r.code < 200 || r.code >= 300) throw new Exception("טעינת סיכום ההזמנה נכשלה (" + r.code + ").");
                 JSONObject response = new JSONObject(r.body);
                 JSONObject order = response.optJSONObject("order");
@@ -1108,8 +1481,8 @@ public class MainActivity extends Activity {
                 String total = firstOrderString(order, "total_list", "total", "total_price", "totalPrice", "grand_total", "grandTotal", "sum", "amount_due");
                 String status = firstOrderString(order, "status", "order_status");
                 StringBuilder out = new StringBuilder();
-                if (!status.isEmpty()) out.append("סטטוס: ").append(status).append("\\n");
-                out.append("פריטים בהזמנה לפי השרת: ").append(items.length()).append("\\n\\n");
+                if (!status.isEmpty()) out.append("סטטוס: ").append(status).append("\n");
+                out.append("פריטים בהזמנה לפי השרת: ").append(items.length()).append("\n\n");
                 for (int i = 0; i < items.length(); i++) {
                     JSONObject item = items.optJSONObject(i); if (item == null) continue;
                     JSONObject product = orderProductFrom(item);
@@ -1122,88 +1495,46 @@ public class MainActivity extends Activity {
                     if (price.isEmpty()) price = firstOrderString(product, "total_price", "totalPrice", "price", "unit_price");
                     out.append(name).append(" × ").append(qty.isEmpty() ? "—" : qty);
                     if (!price.isEmpty()) out.append(" · ").append(price).append(price.matches(".*[₪$€].*") ? "" : " ₪");
-                    out.append("\\n");
+                    out.append("\n");
                 }
-                if (items.length() == 0) out.append("השרת לא החזיר פריטים להזמנה זו.\\n");
-                out.append("\\nעלות כוללת לפי השרת: ").append(total.isEmpty() ? "השרת לא החזיר סכום כולל" : total + (total.matches(".*[₪$€].*") ? "" : " ₪"));
+                if (items.length() == 0) out.append("השרת לא החזיר פריטים להזמנה זו.\n");
+                out.append("\nעלות כוללת לפי השרת: ").append(total.isEmpty() ? "השרת לא החזיר סכום כולל" : total + (total.matches(".*[₪$€].*") ? "" : " ₪"));
                 final String message = out.toString();
-                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("סיכום הזמנה מהשרת")
-                        .setMessage(message).setPositiveButton("סגירה", null)
-                        .setNeutralButton("רענון הזמנה", (d, w) -> loadFeatureProducts(featureSale)).show());
-            } catch (Exception e) {
-                String message = e.getMessage() == null ? "טעינת סיכום ההזמנה נכשלה." : e.getMessage();
-                runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
-            }
-        });
-    }
-
-    private void saveFeatureOrderItems() {
-        if (featureOrderId <= 0) { statusView.setText("לא נמצא מזהה הזמנה."); return; }
-        statusView.setText("שומר את פרטי ההזמנה…");
-        executor.execute(() -> {
-            try {
-                String token = prefs.getString("token", "");
-                for (int i = 0; i < featureProducts.length(); i++) {
-                    JSONObject p = featureProducts.optJSONObject(i); if (p == null) continue;
-                    int amount = featureQuantities.getOrDefault(featureProductId(p), 0);
-                    int originalAmount = p.optInt("amount", 0);
-                    int itemSalesId = p.optInt("item_salesID", p.optInt("item_sales_id", -1));
-                    if (amount <= 0) {
-                        if (originalAmount > 0 && itemSalesId > 0) {
-                            HttpResult removed = request("POST", "/api/remove_item/" + featureOrderId + "/" + itemSalesId, token, null);
-                            if (removed.code < 200 || removed.code >= 300)
-                                throw new Exception("הסרת מוצר מההזמנה נכשלה (" + removed.code + ").");
-                        }
-                        continue;
-                    }
-                    int max = p.optInt("max_per_man", 0);
-                    if (max > 0 && amount > max) throw new Exception("הכמות שבחרת חורגת מהמגבלה של " + firstOrderString(p, "name") + ".");
-                    if (p.optBoolean("disable", false) || (p.has("available") && !p.isNull("available") && p.optDouble("available", 1) <= 0))
-                        throw new Exception("נבחר מוצר שאינו זמין להזמנה. רענני את המכירה.");
-                    JSONObject item = new JSONObject(p.toString());
-                    item.put("amount", amount);
-                    if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
-                    String endpoint = originalAmount > 0 ? "/api/update_item/" : "/api/add_item/";
-                    HttpResult add = request("POST", endpoint + featureOrderId, token, item);
-                    if (add.code < 200 || add.code >= 300)
-                        throw new Exception("שמירת מוצר נכשלה (" + add.code + "). " + add.body);
-                }
                 runOnUiThread(() -> {
-                    beginScreen("ההזמנה עודכנה");
-                    statusView.setText("המוצרים נשלחו להזמנה #" + featureOrderId + ". ניתן לפתוח את ההזמנה שוב ולבדוק את הפרטים.");
-                    Button details = button("פרטי ההזמנה"); root.addView(details); details.setOnClickListener(v -> loadFeatureOrderDetails(featureOrderId));
-                    Button open = button("חזרה למכירות פתוחות"); root.addView(open); open.setOnClickListener(v -> showOpenSales());
+                    if (!isStale(gen) && statusView != null) statusView.setText("");
+                    if (!alive()) return;
+                    new AlertDialog.Builder(this).setTitle("סיכום הזמנה מהשרת")
+                            .setMessage(message).setPositiveButton("סגירה", null)
+                            .setNeutralButton("רענון הזמנה", (d, w) -> loadFeatureProducts(featureSale)).show();
                 });
             } catch (Exception e) {
-                String message = e.getMessage() == null ? "שמירת ההזמנה נכשלה." : e.getMessage();
-                runOnUiThread(() -> { if (statusView != null) statusView.setText(message); });
+                String message = msg(e, "טעינת סיכום ההזמנה נכשלה.");
+                runOnUiThread(() -> {
+                    if (!isStale(gen) && statusView != null) statusView.setText("");
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                });
             }
         });
     }
 
-    private JSONArray featureCards = new JSONArray();
-    private void loadFeatureCards() { Toast.makeText(this, "אמצעי התשלום נבחר אוטומטית מהכרטיס השמור כברירת מחדל.", Toast.LENGTH_SHORT).show(); }
-    private void renderFeatureCards() { }
-    private void createFeatureOrder(int cardId) { }
+    // ---------------------------------------------------------------- order history / details
 
     private void loadFeatureOrders() {
         beginScreen("היסטוריית הזמנות");
+        final int gen = screenGen.get();
         statusView.setText("טוען הזמנות…");
         executor.execute(() -> {
             try {
-                HttpResult r=request("GET","/api/orders",prefs.getString("token",""),null);
-                if(r.code<200||r.code>=300) throw new Exception("שגיאת שרת ("+r.code+")");
-                JSONArray a=new JSONArray();
-                Object value=new org.json.JSONTokener(r.body).nextValue();
-                if(value instanceof JSONArray) a=(JSONArray)value;
-                else if(value instanceof JSONObject) a=((JSONObject)value).optJSONArray("data");
-                final JSONArray orders=a==null?new JSONArray():a;
+                HttpResult r = authRequest("GET", "/api/orders", null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("שגיאת שרת (" + r.code + ")");
+                final JSONArray orders = extractArray(r.body, "data");
                 runOnUiThread(() -> {
+                    if (isStale(gen)) return;
                     beginScreen("היסטוריית הזמנות");
 
-                    if(orders.length()==0) statusView.setText("לא נמצאו הזמנות.");
-                    for(int i=0;i<orders.length();i++){
-                        JSONObject o=orders.optJSONObject(i);if(o==null)continue;
+                    if (orders.length() == 0) statusView.setText("לא נמצאו הזמנות.");
+                    for (int i = 0; i < orders.length(); i++) {
+                        JSONObject o = orders.optJSONObject(i); if (o == null) continue;
                         JSONObject sale = o.optJSONObject("sale");
                         if (sale == null) sale = new JSONObject();
                         JSONObject parent = sale.optJSONObject("parent");
@@ -1211,17 +1542,22 @@ public class MainActivity extends Activity {
                         if (saleName.isEmpty() && parent != null) saleName = firstOrderString(parent, "week");
                         if (saleName.isEmpty()) saleName = "מכירה " + firstOrderString(o, "saleID", "sale_id");
                         String orderIdText = firstOrderString(o, "id");
-                        TextView t=text(saleName + "  ·  הזמנה #" + orderIdText + "  ›",16,true);root.addView(t);
-                        final long orderId=o.optLong("id",-1);
-                        if(orderId>0)t.setOnClickListener(v->loadFeatureOrderDetails(orderId));
+                        TextView t = text(saleName + "  ·  הזמנה #" + orderIdText + "  ›", 16, true);
+                        root.addView(t);
+                        final long orderId = o.optLong("id", -1);
+                        if (orderId > 0) t.setOnClickListener(v -> loadFeatureOrderDetails(orderId));
                         String status = firstOrderString(o, "status");
                         String total = firstOrderString(o, "total_list", "total", "amount", "sum");
-                        root.addView(text((status.isEmpty() ? "" : "סטטוס: " + status + " · ") + (total.isEmpty() ? "" : "סכום: " + total + " ₪"),13,false));
+                        root.addView(text((status.isEmpty() ? "" : "סטטוס: " + status + " · ") + (total.isEmpty() ? "" : "סכום: " + total + " ₪"), 13, false));
                     }
                 });
-            } catch(Exception e) { runOnUiThread(() -> statusView.setText(e.getMessage())); }
+            } catch (Exception e) {
+                String message = msg(e, "טעינת ההזמנות נכשלה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
+            }
         });
     }
+
     private JSONArray orderItemsFrom(JSONObject order) {
         if (order == null) return new JSONArray();
         // The documented endpoint returns { "order": { "products": [...] }, "sale": {...} }.
@@ -1260,42 +1596,6 @@ public class MainActivity extends Activity {
             if (!s.isEmpty() && !"null".equalsIgnoreCase(s)) return s;
         }
         return "";
-    }
-
-    private String orderImageUrl(JSONObject item, JSONObject product) {
-        final String imageBase = "https://images.mishnatyosef.org/images/items/";
-        String url = firstOrderString(product, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl", "url");
-        if (url.isEmpty()) url = firstOrderString(item, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl");
-        // API product images use filename + extension, not necessarily a complete URL.
-        JSONArray images = product.optJSONArray("images");
-        if (images == null) images = item.optJSONArray("images");
-        if (url.isEmpty() && images != null && images.length() > 0) {
-            JSONObject img = images.optJSONObject(0);
-            if (img != null) {
-                String filename = firstOrderString(img, "filename");
-                String extension = firstOrderString(img, "extension");
-                url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
-                if (url.isEmpty() && !filename.isEmpty()) {
-                    String cleanExtension = extension.startsWith(".") ? extension.substring(1) : extension;
-                    boolean filenameHasExtension = filename.matches("(?i).*\\\\.[a-z0-9]{2,5}$");
-                    url = imageBase + filename + (filenameHasExtension || cleanExtension.isEmpty() ? "" : "." + cleanExtension);
-                }
-            } else {
-                Object first = images.opt(0);
-                if (first != null) url = String.valueOf(first);
-            }
-        }
-        if (url.isEmpty()) {
-            JSONObject img = product.optJSONObject("image");
-            if (img == null) img = item.optJSONObject("image");
-            if (img != null) url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
-        }
-        if (!url.isEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
-            if (url.startsWith("//")) url = "https:" + url;
-            else if (url.startsWith("/")) url = imageBase + url.substring(1);
-            else url = imageBase + url;
-        }
-        return url.startsWith("http://") || url.startsWith("https://") ? url : "";
     }
 
     private String orderPrice(JSONObject item, JSONObject product, String quantity) {
@@ -1352,24 +1652,7 @@ public class MainActivity extends Activity {
         priceView.setPadding(0, dp(2), 0, dp(2));
         details.addView(priceView);
 
-        String imageUrl = orderImageUrl(item, product);
-        if (!imageUrl.isEmpty()) {
-            final String requestedUrl = imageUrl;
-            executor.execute(() -> {
-                try {
-                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new URL(requestedUrl).openConnection();
-                    c.setConnectTimeout(8000);
-                    c.setReadTimeout(8000);
-                    c.setInstanceFollowRedirects(true);
-                    c.connect();
-                    InputStream stream = c.getInputStream();
-                    android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(stream);
-                    stream.close();
-                    c.disconnect();
-                    if (bitmap != null) runOnUiThread(() -> image.setImageBitmap(bitmap));
-                } catch (Exception ignored) { }
-            });
-        }
+        loadImage(image, orderImageUrl(item, product), dp(80));
     }
 
     private void renderFeatureOrderDetails(long id, String body) {
@@ -1411,28 +1694,33 @@ public class MainActivity extends Activity {
     }
 
     private void loadFeatureOrderDetails(long id) {
+        final int gen = screenGen.get();
         executor.execute(() -> {
             try {
-                HttpResult r = request("GET", "/api/orders/" + id, prefs.getString("token", ""), null);
+                HttpResult r = authRequest("GET", "/api/orders/" + id, null);
                 if (r.code < 200 || r.code >= 300) throw new Exception("שגיאת שרת (" + r.code + ")");
                 String body = r.body;
-                runOnUiThread(() -> renderFeatureOrderDetails(id, body));
+                runOnUiThread(() -> { if (!isStale(gen)) renderFeatureOrderDetails(id, body); });
             } catch (Exception e) {
-                runOnUiThread(() -> statusView.setText(e.getMessage()));
+                String message = msg(e, "טעינת ההזמנה נכשלה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
             }
         });
     }
+
+    // ---------------------------------------------------------------- credits / charges
+
     private void loadFeatureTransactions() {
         beginScreen("זיכויים וחיובים");
+        final int gen = screenGen.get();
         statusView.setText("טוען את כל התנועות…");
         executor.execute(() -> {
             try {
-                final String token = prefs.getString("token", "");
                 java.util.LinkedHashMap<String, JSONObject> unique = new java.util.LinkedHashMap<>();
-                String nextPath = "/api/profile/transactions?page=1";
                 int page = 1, lastPage = 1;
                 while (page <= Math.min(lastPage, 60)) {
-                    HttpResult response = request("GET", nextPath, token, null);
+                    if (isStale(gen)) return; // user left the screen - stop downloading pages
+                    HttpResult response = authRequest("GET", "/api/profile/transactions?page=" + page, null);
                     if (response.code < 200 || response.code >= 300)
                         throw new Exception("טעינת הזיכויים נכשלה (עמוד " + page + ", שגיאה " + response.code + ").");
                     JSONObject payload = new JSONObject(response.body);
@@ -1453,12 +1741,12 @@ public class MainActivity extends Activity {
                     }
                     lastPage = Math.max(1, transactions.optInt("last_page", 1));
                     page++;
-                    nextPath = "/api/profile/transactions?page=" + page;
                 }
                 java.util.ArrayList<JSONObject> rows = new java.util.ArrayList<>(unique.values());
-                rows.sort((a,b) -> b.optString("time", "").compareTo(a.optString("time", "")));
+                rows.sort((a, b) -> b.optString("time", "").compareTo(a.optString("time", "")));
                 final java.util.ArrayList<JSONObject> finalRows = rows;
                 runOnUiThread(() -> {
+                    if (isStale(gen)) return;
                     beginScreen("זיכויים וחיובים");
                     TextView summary = text("", 15, true);
                     root.addView(summary);
@@ -1515,7 +1803,7 @@ public class MainActivity extends Activity {
                             cp.bottomMargin = dp(8);
                             list.addView(card, cp);
                             TextView heading = text(kind + ": " + String.format(java.util.Locale.US, "%.2f", Math.abs(amount)) + " ₪", 16, true);
-                            heading.setTextColor(amount < 0 ? Color.rgb(20,130,70) : Color.rgb(175,45,45));
+                            heading.setTextColor(amount < 0 ? Color.rgb(20, 130, 70) : Color.rgb(175, 45, 45));
                             card.addView(heading);
                             if (!description.isEmpty()) card.addView(text("פריט / הערה: " + description, 14, false));
                             if (tx.has("amount")) card.addView(text("כמות: " + tx.optString("amount"), 13, false));
@@ -1525,9 +1813,9 @@ public class MainActivity extends Activity {
                             if (canceled) card.addView(text("בוטל — לא נספר בסיכום", 12, true));
                         }
                         summary.setText("זיכויים: " + String.format(java.util.Locale.US, "%.2f", creditTotal) + " ₪ (" + creditCount + ")"
-                            + "\nחיובים: " + String.format(java.util.Locale.US, "%.2f", chargeTotal) + " ₪ (" + chargeCount + ")"
-                            + "\nיתרה: " + String.format(java.util.Locale.US, "%.2f", creditTotal-chargeTotal) + " ₪"
-                            + "\nסה״כ תנועות: " + finalRows.size());
+                                + "\nחיובים: " + String.format(java.util.Locale.US, "%.2f", chargeTotal) + " ₪ (" + chargeCount + ")"
+                                + "\nיתרה: " + String.format(java.util.Locale.US, "%.2f", creditTotal - chargeTotal) + " ₪"
+                                + "\nסה״כ תנועות: " + finalRows.size());
                         if (finalRows.isEmpty()) statusView.setText("לא נמצאו תנועות בחשבון.");
                         else statusView.setText("");
                     };
@@ -1537,8 +1825,8 @@ public class MainActivity extends Activity {
                     render[0].run();
                 });
             } catch (Exception e) {
-                String message = e.getMessage() == null ? "טעינת הזיכויים נכשלה." : e.getMessage();
-                runOnUiThread(() -> statusView.setText(message));
+                String message = msg(e, "טעינת הזיכויים נכשלה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
             }
         });
     }
@@ -1553,8 +1841,8 @@ public class MainActivity extends Activity {
 
     private String transactionSaleName(JSONObject tx, JSONObject sale, boolean original) {
         String[] directKeys = original
-            ? new String[]{"original_sale_name", "originalSaleName", "original_sale_custom_name", "originalSaleCustomName"}
-            : new String[]{"sale_name", "saleName", "sale_custom_name", "saleCustomName"};
+                ? new String[]{"original_sale_name", "originalSaleName", "original_sale_custom_name", "originalSaleCustomName"}
+                : new String[]{"sale_name", "saleName", "sale_custom_name", "saleCustomName"};
         String name = firstOrderString(tx, directKeys);
         if (!name.isEmpty()) return name;
         if (sale != null) {
@@ -1570,8 +1858,8 @@ public class MainActivity extends Activity {
             if (!name.isEmpty()) return name;
         }
         String id = original
-            ? firstOrderString(tx, "original_sale_id", "originalSaleId", "original_saleID")
-            : firstOrderString(tx, "sale_id", "saleId", "saleID");
+                ? firstOrderString(tx, "original_sale_id", "originalSaleId", "original_saleID")
+                : firstOrderString(tx, "sale_id", "saleId", "saleID");
         if (id.isEmpty() && sale != null) id = firstOrderString(sale, "id", "sale_id", "saleID");
         if (!id.isEmpty()) return "מכירה #" + id;
         return "";
@@ -1588,7 +1876,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showFeatureMessage(String title, String message) { beginScreen(title); statusView.setText(message); }
     private void hideKeyboard() {
         try {
             InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -1597,14 +1884,10 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
-    @Override protected void onDestroy() {
-        super.onDestroy();
-        executor.shutdownNow();
-    }
-
     private static class HttpResult {
         final int code;
         final String body;
         HttpResult(int code, String body) { this.code = code; this.body = body; }
     }
 }
+
