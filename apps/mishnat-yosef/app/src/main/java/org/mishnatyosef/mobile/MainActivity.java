@@ -893,7 +893,8 @@ public class MainActivity extends Activity {
             this.stock = stock; this.imageUrl = imageUrl; this.searchKey = searchKey; this.initialAmount = initialAmount;
         }
 
-        boolean canOrder() { return !disabled && stock != 0; }
+        // Inventory counts are informational only: quantity controls must not stop at stock limits.
+        boolean canOrder() { return !disabled; }
     }
 
     private static class CardHolder {
