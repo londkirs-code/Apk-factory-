@@ -64,28 +64,14 @@ jobs:
             echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
           echo "Persistent APK signing key configured."
-      - name: Prepare Mishnat Yosef launcher icon from the logo emblem
+      - name: Verify Mishnat Yosef launcher icon is present
         shell: bash
         run: |
           set -euo pipefail
           ICON_DIR="apps/mishnat-yosef/app/src/main/res/drawable"
-          if [[ -d "$ICON_DIR" ]]; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq python3-pil
-            curl --fail --location --silent --show-error 'https://www.dropbox.com/scl/fi/qga20akp9bnw0yjdajd0n/IMG_20261017_215554_512.jpg?rlkey=v3kpatcjvly8mf2japlqw7ge3&raw=1' -o /tmp/mishnat-yosef-new-icon.jpg
-            python3 - <<'PY'
-          from PIL import Image
-          src = Image.open('/tmp/mishnat-yosef-new-icon.jpg').convert('RGBA')
-          # Use the newly uploaded Dropbox icon; center-crop only if it is not square.
-          side = min(src.width, src.height)
-          left = (src.width - side) // 2
-          top = (src.height - side) // 2
-          icon = src.crop((left, top, left + side, top + side)).resize((512, 512), Image.Resampling.LANCZOS)
-          icon.save('apps/mishnat-yosef/app/src/main/res/drawable/ic_launcher.png', optimize=True)
-          PY
-            rm -f "$ICON_DIR/ic_launcher.xml"
-            echo 'Prepared square emblem-only launcher icon.'
-          fi
+          test -s "$ICON_DIR/ic_launcher.png"
+          rm -f "$ICON_DIR/ic_launcher.xml"
+          echo 'Using the launcher icon committed in the repository; no private Dropbox URL is fetched during builds.'
       - name: Build selected app or all apps
         id: build_apps
         shell: bash
