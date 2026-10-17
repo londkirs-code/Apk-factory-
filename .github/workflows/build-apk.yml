@@ -121,6 +121,25 @@ jobs:
             if [[ -z "$CURRENT_CODE" ]]; then echo "Missing numeric versionCode in $BUILD_FILE"; exit 1; fi
             NEXT_CODE=$((CURRENT_CODE + 1))
             sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT_CODE/" "$BUILD_FILE"
+
+            # Bump Mishnat Yosef's visible version on every APK build:
+            # 1.2 -> 1.201 -> 1.202 -> ... . Other apps are unchanged.
+            if [[ "$app" == "mishnat-yosef" ]]; then
+              CURRENT_NAME=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+['\\"]([^'\\"]+)['\\\"].*$/\\1/p" "$BUILD_FILE" | head -n1)
+              if [[ "$CURRENT_NAME" == "1.2" ]]; then
+                NEXT_NAME="1.201"
+              elif [[ "$CURRENT_NAME" =~ ^([0-9]+)\\.([0-9]{3,})$ ]]; then
+                NAME_MAJOR="${BASH_REMATCH[1]}"
+                NAME_MINOR="${BASH_REMATCH[2]}"
+                NEXT_MINOR=$((10#$NAME_MINOR + 1))
+                NEXT_NAME="${NAME_MAJOR}.${NEXT_MINOR}"
+              else
+                echo "::error::Unsupported Mishnat Yosef versionName format: $CURRENT_NAME"
+                exit 1
+              fi
+              sed -i -E "0,/versionName[[:space:]]+['\\"][^'\\"]+['\\"]/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
+              echo "Mishnat Yosef versionName: $CURRENT_NAME -> $NEXT_NAME"
+            fi
             export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_FILE="$APK_SIGNING_STORE_FILE"
             export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_PASSWORD="$APK_SIGNING_STORE_PASSWORD"
             export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
@@ -129,7 +148,8 @@ jobs:
             APK_PATH="apps/$app/app/build/outputs/apk/release/"*.apk
             mkdir -p "downloads/$app"
             cp $APK_PATH "downloads/$app/app.apk"
-            printf 'APK for %s, versionCode %s, built from commit %s.\n' "$app" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
+            VERSION_NAME=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+['\\"]([^'\\"]+)['\\\"].*$/\\1/p" "$BUILD_FILE" | head -n1)
+            printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
             echo "::endgroup::"
           done
           {
