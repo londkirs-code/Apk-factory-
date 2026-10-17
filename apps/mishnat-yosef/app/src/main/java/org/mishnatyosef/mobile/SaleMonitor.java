@@ -22,7 +22,10 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -33,6 +36,9 @@ public class SaleMonitor extends BroadcastReceiver {
     private static final String CHECK = "org.mishnatyosef.mobile.CHECK_OPEN_SALES";
     private static final String CHANNEL = "new_open_sales";
     private static final int ALARM_ID = 8217;
+    private static final String CLOSING = "org.mishnatyosef.mobile.CLOSING_REMINDER";
+    private static final String CLOSING_CHANNEL = "closing_sales";
+    private static final int CLOSING_BASE = 20000;
     private static long checkIntervalMs(Context context) { return Math.max(1, context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("monitor_interval_minutes", 5)) * 60L * 1000L; }
 
     @Override public void onReceive(Context context, Intent intent) {
@@ -41,6 +47,11 @@ public class SaleMonitor extends BroadcastReceiver {
             SharedPreferences p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             if (p.getBoolean("sale_monitor_active", false)) schedule(context, CHECK, System.currentTimeMillis() + 60000L);
             else scheduleNextStart(context);
+            scheduleClosingFromStore(context);
+            return;
+        }
+        if (CLOSING.equals(action)) {
+            notifyClosing(context, intent);
             return;
         }
         if (START.equals(action)) {
@@ -145,6 +156,7 @@ public class SaleMonitor extends BroadcastReceiver {
                 schedule(context, CHECK, System.currentTimeMillis() + checkIntervalMs(context));
                 return;
             }
+            try { scheduleClosingReminders(context, sales); } catch (Exception ignored) { }
             Set<String> current = new HashSet<>();
             JSONObject newSale = null;
             Set<String> previous = parseIds(p.getString("sale_monitor_ids", ""));
@@ -265,6 +277,195 @@ public class SaleMonitor extends BroadcastReceiver {
         if (nm != null && (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)) nm.notify(9000 + Math.max(id, 0), notification);
     }
 
+
+    // ======================================================================== closing reminders
+
+    private static SharedPreferences prefs(Context context) { return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
+
+    /** Server times are local "yyyy-MM-dd HH:mm:ss" strings. Returns epoch millis, or 0 when unknown. */
+    public static long parseSaleTime(String raw) {
+        if (raw == null) return 0L;
+        String v = raw.replace('T', ' ').trim();
+        String[] patterns = {"yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd"};
+        int[] lengths = {19, 16, 10};
+        for (int i = 0; i < patterns.length; i++) {
+            if (v.length() < lengths[i]) continue;
+            try {
+                Date d = new SimpleDateFormat(patterns[i], Locale.US).parse(v.substring(0, lengths[i]));
+                if (d != null) return d.getTime();
+            } catch (Exception ignored) { }
+        }
+        return 0L;
+    }
+
+    public static JSONArray closingStore(Context context) {
+        try { return new JSONArray(prefs(context).getString("closing_sales", "[]")); }
+        catch (Exception e) { return new JSONArray(); }
+    }
+
+    private static String saleDisplayName(JSONObject sale) {
+        String name = sale.optString("custom_name", "");
+        if (name.isEmpty() || "null".equals(name)) name = "";
+        if (name.isEmpty()) {
+            JSONObject parent = sale.optJSONObject("parent");
+            if (parent != null) name = parent.optString("week", "");
+            if ("null".equals(name)) name = "";
+        }
+        if (name.isEmpty()) { name = sale.optString("name", ""); if ("null".equals(name)) name = ""; }
+        return name.isEmpty() ? "מכירה" : name;
+    }
+
+    /** Saves the open sales (id, name, closing time) and schedules one reminder before each closing. */
+    public static void scheduleClosingReminders(Context context, JSONArray sales) {
+        cancelClosingAlarms(context);
+        JSONArray store = new JSONArray();
+        if (sales != null) {
+            for (int i = 0; i < sales.length(); i++) {
+                JSONObject sale = sales.optJSONObject(i);
+                if (sale == null) continue;
+                int id = sale.optInt("id", -1);
+                long end = parseSaleTime(sale.optString("end", ""));
+                if (id <= 0 || end <= 0) continue;
+                try {
+                    JSONObject e = new JSONObject();
+                    e.put("id", id);
+                    e.put("end", end);
+                    e.put("name", saleDisplayName(sale));
+                    JSONObject order = sale.optJSONObject("order");
+                    e.put("has_order", order != null && order.optLong("id", order.optLong("order_id", -1)) > 0);
+                    store.put(e);
+                } catch (Exception ignored) { }
+            }
+        }
+        prefs(context).edit().putString("closing_sales", store.toString()).apply();
+        scheduleClosingFromStore(context);
+    }
+
+    /** Re-creates the alarms from the stored sales (after a settings change or a reboot). */
+    public static void scheduleClosingFromStore(Context context) {
+        cancelClosingAlarms(context);
+        SharedPreferences p = prefs(context);
+        if (!p.getBoolean("closing_reminder_enabled", false)) return;
+        long before = Math.max(1, p.getInt("closing_reminder_minutes", 120)) * 60000L;
+        long now = System.currentTimeMillis();
+        JSONArray store = closingStore(context);
+        for (int i = 0; i < store.length(); i++) {
+            JSONObject e = store.optJSONObject(i);
+            if (e == null) continue;
+            long when = e.optLong("end", 0L) - before;
+            if (when <= now + 3000L) continue;
+            setAlarm(context, closingIntent(context, e), when);
+        }
+    }
+
+    private static PendingIntent closingIntent(Context context, JSONObject e) {
+        Intent i = new Intent(context, SaleMonitor.class);
+        i.setAction(CLOSING);
+        i.putExtra("sale_id", e.optInt("id", -1));
+        i.putExtra("name", e.optString("name", ""));
+        i.putExtra("end", e.optLong("end", 0L));
+        i.putExtra("has_order", e.optBoolean("has_order", false));
+        return PendingIntent.getBroadcast(context, CLOSING_BASE + Math.abs(e.optInt("id", 0) % 50000), i,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private static void cancelClosingAlarms(Context context) {
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) return;
+        JSONArray store = closingStore(context);
+        for (int i = 0; i < store.length(); i++) {
+            JSONObject e = store.optJSONObject(i);
+            if (e != null) am.cancel(closingIntent(context, e));
+        }
+    }
+
+    private static void setAlarm(Context context, PendingIntent pi, long when) {
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
+        else am.setExact(AlarmManager.RTC_WAKEUP, when, pi);
+    }
+
+    private static String durationText(long ms) {
+        long minutes = Math.max(0, ms / 60000L);
+        long days = minutes / 1440L, hours = (minutes % 1440L) / 60L, mins = minutes % 60L;
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) sb.append(days == 1 ? "יום" : days + " ימים");
+        if (hours > 0) { if (sb.length() > 0) sb.append(" ו-"); sb.append(hours == 1 ? "שעה" : hours + " שעות"); }
+        if (mins > 0 && days == 0) { if (sb.length() > 0) sb.append(" ו-"); sb.append(mins + " דקות"); }
+        return sb.length() == 0 ? "פחות מדקה" : sb.toString();
+    }
+
+    private void notifyClosing(Context context, Intent intent) {
+        if (!prefs(context).getBoolean("closing_reminder_enabled", false)) return;
+        long end = intent.getLongExtra("end", 0L);
+        if (end <= System.currentTimeMillis()) return;
+        String name = intent.getStringExtra("name");
+        postClosingNotification(context, intent.getIntExtra("sale_id", -1), name == null || name.isEmpty() ? "מכירה" : name,
+                end, intent.getBooleanExtra("has_order", false));
+    }
+
+    private static void postClosingNotification(Context context, int id, String name, long end, boolean hasOrder) {
+        SharedPreferences prefs = prefs(context);
+        boolean soundEnabled = prefs.getBoolean("notify_sound", true);
+        boolean vibrateEnabled = prefs.getBoolean("notify_vibrate", true);
+        String channelId = CLOSING_CHANNEL + (soundEnabled ? "_s1" : "_s0") + (vibrateEnabled ? "_v1" : "_v0");
+        createChannelNamed(context, channelId, "תזכורת סגירת מכירה", soundEnabled, vibrateEnabled);
+        long left = Math.max(0L, end - System.currentTimeMillis());
+        String at = new SimpleDateFormat("HH:mm", Locale.US).format(new Date(end));
+        String text = name + " · נסגרת בעוד " + durationText(left) + " (בשעה " + at + ")";
+        String big = "המכירה \"" + name + "\" נסגרת בעוד " + durationText(left) + ", בשעה " + at + ". "
+                + (hasOrder ? "כדאי לעבור על ההזמנה לפני הסגירה." : "עדיין לא נפתחה הזמנה במכירה הזו.");
+        Intent open = new Intent(context, MainActivity.class);
+        open.putExtra("sale_id", id);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        PendingIntent content = PendingIntent.getActivity(context, 9500 + Math.max(id, 0), open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
+        int defaults = 0;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            if (soundEnabled) defaults |= Notification.DEFAULT_SOUND;
+            if (vibrateEnabled) defaults |= Notification.DEFAULT_VIBRATE;
+        }
+        Notification notification = builder.setDefaults(defaults).setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setContentTitle("המכירה נסגרת בקרוב")
+                .setContentText(text)
+                .setStyle(new Notification.BigTextStyle().bigText(big))
+                .setContentIntent(content).setAutoCancel(true).setWhen(System.currentTimeMillis()).build();
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null && (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED))
+            nm.notify(19000 + Math.max(id, 0), notification);
+    }
+
+    /** Sends a sample notification so the user can hear / see the current settings. */
+    public static void sendTest(Context context, boolean closing) {
+        if (closing) {
+            postClosingNotification(context, 0, "מכירה לדוגמה", System.currentTimeMillis() + 2L * 3600L * 1000L, false);
+            return;
+        }
+        try {
+            JSONObject sale = new JSONObject();
+            sale.put("id", -1);
+            sale.put("custom_name", "מכירה לדוגמה");
+            new SaleMonitor().notifySale(context, sale);
+        } catch (Exception ignored) { }
+    }
+
+    private static void createChannelNamed(Context context, String id, String title, boolean sound, boolean vibrate) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                NotificationChannel channel = new NotificationChannel(id, title, NotificationManager.IMPORTANCE_HIGH);
+                channel.setSound(sound ? android.provider.Settings.System.DEFAULT_NOTIFICATION_URI : null, null);
+                channel.enableVibration(vibrate);
+                if (vibrate) channel.setVibrationPattern(new long[]{0, 250, 150, 250});
+                nm.createNotificationChannel(channel);
+            }
+        }
+    }
+
     public static void ensureNotificationChannel(Context context) { createChannel(context, CHANNEL + "_s1_v1", true, true); }
 
     private static void createChannel(Context context, String id, boolean sound, boolean vibrate) {
@@ -298,3 +499,4 @@ public class SaleMonitor extends BroadcastReceiver {
         HttpResult(int code, String body) { this.code = code; this.body = body; }
     }
 }
+
