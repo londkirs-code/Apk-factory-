@@ -125,7 +125,7 @@ jobs:
             # Bump Mishnat Yosef's visible version on every APK build:
             # 1.2 -> 1.201 -> 1.202 -> ... . Other apps are unchanged.
             if [[ "$app" == "mishnat-yosef" ]]; then
-              CURRENT_NAME=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+['\\"]([^'\\"]+)['\\\"].*$/\\1/p" "$BUILD_FILE" | head -n1)
+              CURRENT_NAME=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'.*$/\1/p" "$BUILD_FILE" | head -n1)
               if [[ "$CURRENT_NAME" == "1.2" ]]; then
                 NEXT_NAME="1.201"
               elif [[ "$CURRENT_NAME" =~ ^([0-9]+)\.([0-9]{3,})$ ]]; then
@@ -137,7 +137,7 @@ jobs:
                 echo "::error::Unsupported Mishnat Yosef versionName format: $CURRENT_NAME"
                 exit 1
               fi
-              sed -i -E "0,/versionName[[:space:]]+['\\"][^'\\"]+['\\"]/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
+              sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
               echo "Mishnat Yosef versionName: $CURRENT_NAME -> $NEXT_NAME"
             fi
             export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_FILE="$APK_SIGNING_STORE_FILE"
@@ -148,7 +148,7 @@ jobs:
             APK_PATH="apps/$app/app/build/outputs/apk/release/"*.apk
             mkdir -p "downloads/$app"
             cp $APK_PATH "downloads/$app/app.apk"
-            VERSION_NAME=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+['\\"]([^'\\"]+)['\\\"].*$/\\1/p" "$BUILD_FILE" | head -n1)
+            VERSION_NAME=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'.*$/\1/p" "$BUILD_FILE" | head -n1)
             printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
             echo "::endgroup::"
           done
