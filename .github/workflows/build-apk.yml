@@ -72,15 +72,16 @@ jobs:
           if [[ -d "$ICON_DIR" ]]; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq python3-pil
-            curl --fail --location --silent --show-error 'https://sherut-il.com/wp-content/uploads/2023/11/%D7%9E%D7%A9%D7%A0%D7%AA-%D7%99%D7%95%D7%A1%D7%A3-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%9C%D7%A7%D7%95%D7%97%D7%95%D7%AA-%D7%9C%D7%95%D7%92%D7%95-768x317.png' -o /tmp/mishnat-yosef-logo.png
+            curl --fail --location --silent --show-error 'https://www.dropbox.com/scl/fi/qga20akp9bnw0yjdajd0n/IMG_20261017_215554_512.jpg?rlkey=v3kpatcjvly8mf2japlqw7ge3&raw=1' -o /tmp/mishnat-yosef-new-icon.jpg
             python3 - <<'PY'
           from PIL import Image
-          src = Image.open('/tmp/mishnat-yosef-logo.png').convert('RGBA')
-          # The logo is a horizontal banner: crop the left-hand square emblem only,
-          # excluding the Hebrew wordmark to its right.
-          side = min(src.height, src.width)
-          emblem = src.crop((0, 0, side, side)).resize((512, 512), Image.Resampling.LANCZOS)
-          emblem.save('apps/mishnat-yosef/app/src/main/res/drawable/ic_launcher.png', optimize=True)
+          src = Image.open('/tmp/mishnat-yosef-new-icon.jpg').convert('RGBA')
+          # Use the newly uploaded Dropbox icon; center-crop only if it is not square.
+          side = min(src.width, src.height)
+          left = (src.width - side) // 2
+          top = (src.height - side) // 2
+          icon = src.crop((left, top, left + side, top + side)).resize((512, 512), Image.Resampling.LANCZOS)
+          icon.save('apps/mishnat-yosef/app/src/main/res/drawable/ic_launcher.png', optimize=True)
           PY
             rm -f "$ICON_DIR/ic_launcher.xml"
             echo 'Prepared square emblem-only launcher icon.'
