@@ -64,14 +64,39 @@ jobs:
             echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
           echo "Persistent APK signing key configured."
-      - name: Verify Mishnat Yosef launcher icon is present
+      - name: Update Mishnat Yosef launcher icon from public Dropbox folder
         shell: bash
         run: |
           set -euo pipefail
           ICON_DIR="apps/mishnat-yosef/app/src/main/res/drawable"
-          test -s "$ICON_DIR/ic_launcher.png"
+          ZIP_FILE="$RUNNER_TEMP/mishnat-yosef-dropbox.zip"
+          python3 -m pip install --quiet Pillow
+          curl --fail --location --silent --show-error \
+            "https://www.dropbox.com/scl/fo/rlmu5y694scuiay6340ss/AFQpDACLIS_9DRr_MTxbQ_k?rlkey=qky6haq351wfkxr9z2nekrih7&dl=1" \
+            --output "$ZIP_FILE"
+          python3 - "$ZIP_FILE" "$ICON_DIR/ic_launcher.png" <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          from PIL import Image
+          archive, output = sys.argv[1], Path(sys.argv[2])
+          target = "IMG_20261017_215554_512.jpg"
+          with zipfile.ZipFile(archive) as z:
+              matches = [n for n in z.namelist() if n.rstrip("/").split("/")[-1] == target]
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected exactly one {target} in the public Dropbox folder; found {len(matches)}")
+              with z.open(matches[0]) as src:
+                  image = Image.open(src).convert("RGB")
+                  image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+                  canvas = Image.new("RGB", (512, 512), "white")
+                  canvas.paste(image, ((512-image.width)//2, (512-image.height)//2))
+                  canvas.save(output, format="PNG", optimize=True)
+          with Image.open(output) as check:
+              if check.format != "PNG" or check.size != (512, 512):
+                  raise SystemExit("Launcher icon validation failed")
+          print(f"Installed and validated new launcher icon: {output}")
+          PY
           rm -f "$ICON_DIR/ic_launcher.xml"
-          echo 'Using the launcher icon committed in the repository; no private Dropbox URL is fetched during builds.'
+          test -s "$ICON_DIR/ic_launcher.png"
       - name: Build selected app or all apps
         id: build_apps
         shell: bash
