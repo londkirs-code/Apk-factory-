@@ -666,9 +666,9 @@ public class MainActivity extends Activity {
             nav.setOrientation(LinearLayout.HORIZONTAL);
             nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
-            String[] icons = {"🛒", "💚", "🧾", "👤"};
-            String[] labels = {"מכירות", "זיכויים", "היסטוריה", "חשבון"};
-            Runnable[] actions = {this::showOpenSales, this::loadFeatureTransactions, this::loadFeatureOrders, this::showAccount};
+            String[] icons = {"🛒", "🧾", "💚", "👤"};
+            String[] labels = {"הזמנות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
+            Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 boolean active = i == tab;
@@ -997,7 +997,8 @@ public class MainActivity extends Activity {
             }
         }
         if (r.code < 400 && r.newToken != null && !r.newToken.isEmpty() && !r.newToken.equals(prefs.getString("token", ""))) {
-            saveToken(r.newToken, new JSONObject());        }
+            saveToken(r.newToken, new JSONObject());
+        }
         return r;
     }
 
@@ -1306,7 +1307,13 @@ public class MainActivity extends Activity {
 
     // ======================================================================== sales list
 
-    private void showOpenSales() {
+    private boolean autoEnterSingle = true;
+
+    /** From the tab / startup: if there is exactly one open sale, go straight into it. */
+    private void showOpenSales() { showOpenSales(true); }
+
+    private void showOpenSales(boolean autoEnter) {
+        autoEnterSingle = autoEnter;
         beginScreen("מכירות פתוחות", 0, null);
         loadOpenSales();
     }
@@ -1328,11 +1335,16 @@ public class MainActivity extends Activity {
 
     private void renderSales(JSONArray rows) {
         setStatus("");
+        if (autoEnterSingle && rows.length() == 1 && rows.optJSONObject(0) != null) {
+            autoEnterSingle = false;
+            loadFeatureProducts(rows.optJSONObject(0));
+            return;
+        }
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.addView(muted(rows.length() == 0 ? "אין כרגע מכירות פתוחות" : rows.length() + " מכירות פתוחות", 14), new LinearLayout.LayoutParams(0, -2, 1));
         TextView refresh = smallChip("↻ רענון", TONAL);
-        refresh.setOnClickListener(v -> showOpenSales());
+        refresh.setOnClickListener(v -> showOpenSales(false));
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
         for (int i = 0; i < rows.length(); i++) {
@@ -1439,7 +1451,7 @@ public class MainActivity extends Activity {
     }
 
     private void openSaleFromNotification(int saleId) {
-        if (saleId < 0) { showOpenSales(); return; }
+        if (saleId < 0) { showOpenSales(false); return; }
         beginScreen("פתיחת המכירה החדשה…", 0, null);
         setStatus("טוען את המכירה מההתראה…");
         final int t = screenToken;
@@ -1457,14 +1469,14 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (selected != null) loadFeatureProducts(selected);
                     else {
-                        showOpenSales();
+                        showOpenSales(false);
                         toast("המכירה כבר לא פתוחה. מציג את המכירות העדכניות.", true);
                     }
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     if (e instanceof AuthException) { showLogin(); return; }
-                    showOpenSales();
+                    showOpenSales(false);
                     toast(errText(e, "טעינת המכירה נכשלה."), true);
                 });
             }
@@ -1632,7 +1644,7 @@ public class MainActivity extends Activity {
     private void loadFeatureProducts(JSONObject sale) {
         featureSale = sale;
         String title = saleTitle(sale);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, this::showOpenSales);
+        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
         setStatus("פותח הזמנה וטוען מוצרים…");
         final int t = screenToken;
         executor.execute(() -> {
@@ -1699,7 +1711,7 @@ public class MainActivity extends Activity {
 
     private void renderFeatureProducts() {
         String title = saleTitle(featureSale);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, this::showOpenSales);
+        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
         screenKind = 1;
 
         // search + quick actions
@@ -1996,7 +2008,8 @@ public class MainActivity extends Activity {
                     toast(err, true);
                 }
                 refresh.run();
-                if (err == null && onSuccess != null) onSuccess.run();                if (login) showLogin();
+                if (err == null && onSuccess != null) onSuccess.run();
+                if (login) showLogin();
             });
         });
     }
@@ -2389,7 +2402,7 @@ public class MainActivity extends Activity {
     // ======================================================================== order history
 
     private void loadFeatureOrders() {
-        beginScreen("היסטוריית הזמנות", 2, null);
+        beginScreen("היסטוריית הזמנות", 1, null);
         EditText search = field("חיפוש לפי שם מוצר…", InputType.TYPE_CLASS_TEXT);
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setOnEditorActionListener((v, actionId, event) -> {
@@ -2473,7 +2486,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadFeatureOrderDetails(final long id) {
-        beginScreen("הזמנה #" + id, 2, this::loadFeatureOrders);
+        beginScreen("הזמנה #" + id, 1, this::loadFeatureOrders);
         setStatus("טוען את ההזמנה…");
         final int t = screenToken;
         executor.execute(() -> {
@@ -2558,7 +2571,7 @@ public class MainActivity extends Activity {
     // ======================================================================== credits / charges
 
     private void loadFeatureTransactions() {
-        beginScreen("זיכויים וחיובים", 1, null);
+        beginScreen("זיכויים וחיובים", 2, null);
         setStatus("טוען את כל התנועות…");
         final int t = screenToken;
         executor.execute(() -> {
@@ -2611,13 +2624,9 @@ public class MainActivity extends Activity {
         setStatus(rows.isEmpty() ? "לא נמצאו תנועות בחשבון." : "");
 
         LinearLayout sum = card(14);
-        double balance = creditTotal - chargeTotal;
-        TextView bal = text("יתרה: " + money2(balance), 20, true);
-        bal.setTextColor(balance >= 0 ? GREEN : RED);
-        sum.addView(bal);
-        TextView c1 = text("💚 זיכויים: " + money2(creditTotal) + " (" + creditCount + ")", 14, false);
+        TextView c1 = text("💚 סך הכל זיכויים: " + money2(creditTotal) + " (" + creditCount + ")", 16, true);
         c1.setTextColor(GREEN);
-        TextView c2 = text("🔴 חיובים: " + money2(chargeTotal) + " (" + chargeCount + ")", 14, false);
+        TextView c2 = text("🔴 סך הכל חיובים: " + money2(chargeTotal) + " (" + chargeCount + ")", 16, true);
         c2.setTextColor(RED);
         sum.addView(c1);
         sum.addView(c2);
@@ -2995,7 +3004,8 @@ public class MainActivity extends Activity {
                 int n, total = 0;
                 while ((n = in.read(buf)) > 0) {
                     total += n;
-                    if (total > 2000000) { in.close(); throw new Exception("הקובץ גדול מדי"); }                    bo.write(buf, 0, n);
+                    if (total > 2000000) { in.close(); throw new Exception("הקובץ גדול מדי"); }
+                    bo.write(buf, 0, n);
                 }
                 in.close();
                 String text = new String(bo.toByteArray(), StandardCharsets.UTF_8);
@@ -3287,7 +3297,7 @@ public class MainActivity extends Activity {
                         featureProducts.clear();
                         featureQuantities.clear();
                         toast("ההזמנה נמחקה", false);
-                        showOpenSales();
+                        showOpenSales(false);
                     } else {
                         toast("המחיקה נכשלה: " + err, true);
                     }
@@ -3579,7 +3589,7 @@ public class MainActivity extends Activity {
             if (g[3] > 0) bits.append(bits.length() > 0 ? " | " : "").append("🔴 ").append(money2(g[1])).append(" (").append((int) g[3]).append(")");
             if (bits.length() > 0) sb.append(key).append(": ").append(bits).append("\n\n");
         }
-        sb.append("יתרה: ").append(money2(creditTotal - chargeTotal));
+        sb.append("סך הכל זיכויים: ").append(money2(creditTotal)).append("\nסך הכל חיובים: ").append(money2(chargeTotal));
         showTextDialog("📊 זיכויים וחיובים לפי מכירה", sb.toString());
     }
 
@@ -3603,7 +3613,7 @@ public class MainActivity extends Activity {
             if (canceled) sb.append(" | בוטל");
             sb.append("\n");
         }
-        sb.append("\n------------------------------\nזיכויים ").append(money2(cr)).append(" | חיובים ").append(money2(ch)).append(" | יתרה ").append(money2(cr - ch)).append("\n");
+        sb.append("\n------------------------------\nסך הכל זיכויים ").append(money2(cr)).append(" | חיובים ").append(money2(ch)).append("\n");
         return sb.toString();
     }
 }
