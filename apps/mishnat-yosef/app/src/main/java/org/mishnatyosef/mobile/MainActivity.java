@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.AlertDialog;
+import android.app.NotificationManager;
 import android.app.TimePickerDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -36,14 +37,13 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.ArrayAdapter;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -131,6 +131,7 @@ public class MainActivity extends Activity {
     // ---- order summary state
     private OrderData summary = null;
     private boolean collectMode = false;
+    private boolean summaryFromHistory = false;
     private LinearLayout summaryList, collectedBox, collectedList;
     private TextView summaryTotal, summarySub, progressView;
 
@@ -667,9 +668,9 @@ public class MainActivity extends Activity {
             nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
             String[] icons = {"🛒", "🧾", "💚", "👤"};
-            String[] labels = {"הזמנות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
+            String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
             Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
-            for (int i = 0; i < labels.length; i++) {
+            for (int i = labels.length - 1; i >= 0; i--) {
                 final int index = i;
                 boolean active = i == tab;
                 LinearLayout item = new LinearLayout(this);
@@ -820,130 +821,354 @@ public class MainActivity extends Activity {
         if (requestCode == 4101) requestMonitoringPermissions(false);
     }
 
-    private void addHomeNotificationSettings() {
-        LinearLayout card = card(14);
-        card.addView(text("התראה על מכירה חדשה", 15, true));
-        TextView status = muted(notificationStatusText(), 13);
-        status.setPadding(dp(2), dp(4), dp(2), dp(10));
-        card.addView(status, new LinearLayout.LayoutParams(-1, -2));
-        TextView settings = btn("הגדרות התראה", TONAL);
-        settings.setOnClickListener(v -> showNotificationSettingsDialog(status));
-        card.addView(settings, new LinearLayout.LayoutParams(-1, dp(44)));
-        root.addView(card, lp(-1, -2, 0, 10));
+    private static final int[] CAL_DAYS = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
+
+    private String dayName(int calDay) { return "יום " + HEB_DAYS[indexOf(CAL_DAYS, calDay)]; }
+
+    private String hoursText(int minutes) {
+        if (minutes < 60) return minutes + " דקות";
+        if (minutes % 60 == 0) return minutes == 60 ? "שעה" : (minutes / 60) + " שעות";
+        return fmtNum(minutes / 60.0) + " שעות";
+    }
+
+    private String humanDuration(long ms) {
+        long minutes = Math.max(0, ms / 60000L);
+        long days = minutes / 1440L, hours = (minutes % 1440L) / 60L, mins = minutes % 60L;
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) sb.append(days == 1 ? "יום" : days + " ימים");
+        if (hours > 0) { if (sb.length() > 0) sb.append(" ו-"); sb.append(hours == 1 ? "שעה" : hours + " שעות"); }
+        if (mins > 0 && days == 0) { if (sb.length() > 0) sb.append(" ו-"); sb.append(mins).append(" דקות"); }
+        return sb.length() == 0 ? "פחות מדקה" : sb.toString();
+    }
+
+    private String monitorSummary() {
+        if (!prefs.getBoolean("sale_monitor_enabled", true)) return "כבוי";
+        return "פועלת מ" + dayName(prefs.getInt("monitor_start_day", Calendar.THURSDAY)) + " " + prefs.getString("monitor_start_time", "19:00")
+                + " עד " + dayName(prefs.getInt("monitor_end_day", Calendar.SUNDAY)) + " " + prefs.getString("monitor_end_time", "10:00")
+                + " · בדיקה כל " + prefs.getInt("monitor_interval_minutes", 5) + " דקות";
     }
 
     private String notificationStatusText() {
-        boolean enabled = prefs.getBoolean("sale_monitor_enabled", true);
-        int[] days = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
-        String[] names = {"יום א׳", "יום ב׳", "יום ג׳", "יום ד׳", "יום ה׳", "יום ו׳", "יום ש׳"};
-        int start = prefs.getInt("monitor_start_day", Calendar.THURSDAY);
-        int end = prefs.getInt("monitor_end_day", Calendar.SUNDAY);
-        String startName = names[indexOf(days, start)];
-        String endName = names[indexOf(days, end)];
-        String startTime = prefs.getString("monitor_start_time", "19:00");
-        String endTime = prefs.getString("monitor_end_time", "10:00");
-        int interval = prefs.getInt("monitor_interval_minutes", 5);
-        if (!enabled) return "ההתראה כבויה. ניתן להפעיל דרך ההגדרות.";
-        return "פועלת מ" + startName + " " + startTime + " עד " + endName + " " + endTime
-                + " · בדיקה כל " + interval + " דקות";
+        String closing = prefs.getBoolean("closing_reminder_enabled", false)
+                ? hoursText(prefs.getInt("closing_reminder_minutes", 120)) + " לפני הסגירה" : "כבוי";
+        return "מכירה חדשה: " + monitorSummary() + "\nתזכורת סגירה: " + closing;
     }
 
-    private void showNotificationSettingsDialog(TextView homeStatus) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(18), dp(8), dp(18), dp(4));
-        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-
-        Switch toggle = new Switch(this);
-        toggle.setText("התראה על מכירה חדשה");
-        toggle.setTextSize(15);
-        toggle.setChecked(prefs.getBoolean("sale_monitor_enabled", true));
-        panel.addView(toggle, new LinearLayout.LayoutParams(-1, dp(44)));
-
-        String[] days = {"א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"};
-        int[] calendarDays = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
-        ArrayAdapter<String> dayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, days);
-        dayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        LinearLayout startRow = new LinearLayout(this);
-        startRow.setGravity(Gravity.CENTER_VERTICAL);
-        startRow.addView(text("מתחילה ביום", 13, false), new LinearLayout.LayoutParams(dp(95), -2));
-        Spinner startDay = new Spinner(this);
-        startDay.setAdapter(dayAdapter);
-        startDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_start_day", Calendar.THURSDAY)));
-        startRow.addView(startDay, new LinearLayout.LayoutParams(0, dp(42), 1));
-        TextView startTime = dialogTimeField(prefs.getString("monitor_start_time", "19:00"));
-        startRow.addView(startTime, new LinearLayout.LayoutParams(dp(76), dp(42)));
-        panel.addView(startRow, new LinearLayout.LayoutParams(-1, dp(46)));
-
-        LinearLayout endRow = new LinearLayout(this);
-        endRow.setGravity(Gravity.CENTER_VERTICAL);
-        endRow.addView(text("מסתיימת ביום", 13, false), new LinearLayout.LayoutParams(dp(95), -2));
-        Spinner endDay = new Spinner(this);
-        endDay.setAdapter(dayAdapter);
-        endDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_end_day", Calendar.SUNDAY)));
-        endRow.addView(endDay, new LinearLayout.LayoutParams(0, dp(42), 1));
-        TextView endTime = dialogTimeField(prefs.getString("monitor_end_time", "10:00"));
-        endRow.addView(endTime, new LinearLayout.LayoutParams(dp(76), dp(42)));
-        panel.addView(endRow, new LinearLayout.LayoutParams(-1, dp(46)));
-
-        LinearLayout intervalRow = new LinearLayout(this);
-        intervalRow.setGravity(Gravity.CENTER_VERTICAL);
-        intervalRow.addView(text("בדיקה כל כמה דקות?", 13, false), new LinearLayout.LayoutParams(0, -2, 1));
-        Integer[] intervals = {1, 2, 3, 5, 10, 15, 20, 30, 60};
-        String[] intervalLabels = {"1", "2", "3", "5", "10", "15", "20", "30", "60"};
-        ArrayAdapter<String> intervalAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, intervalLabels);
-        intervalAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        Spinner intervalSpinner = new Spinner(this);
-        intervalSpinner.setAdapter(intervalAdapter);
-        intervalSpinner.setSelection(indexOf(intervals, prefs.getInt("monitor_interval_minutes", 5)));
-        intervalRow.addView(intervalSpinner, new LinearLayout.LayoutParams(dp(90), dp(42)));
-        intervalRow.addView(text("דקות", 13, false));
-        panel.addView(intervalRow, new LinearLayout.LayoutParams(-1, dp(46)));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("הגדרות התראה")
-                .setView(panel)
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("שמירה", null)
-                .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String st = startTime.getText().toString().trim(), et = endTime.getText().toString().trim();
-            if (!validTime(st) || !validTime(et)) {
-                toast("יש לבחור שעה תקינה", true);
-                return;
-            }
-            int interval = intervals[intervalSpinner.getSelectedItemPosition()];
-            prefs.edit().putBoolean("sale_monitor_enabled", toggle.isChecked())
-                    .putInt("monitor_start_day", calendarDays[startDay.getSelectedItemPosition()])
-                    .putInt("monitor_end_day", calendarDays[endDay.getSelectedItemPosition()])
-                    .putString("monitor_start_time", st).putString("monitor_end_time", et)
-                    .putInt("monitor_interval_minutes", interval).apply();
-            if (toggle.isChecked()) {
-                requestMonitoringPermissions(false);
-                SaleMonitor.stopMonitoring(this);
-                SaleMonitor.scheduleNextStart(this);
-            } else {
-                SaleMonitor.stopMonitoring(this);
-            }
-            homeStatus.setText(notificationStatusText());
-            toast("הגדרות ההתראה נשמרו", false);
-            dialog.dismiss();
-        }));
-        dialog.show();
+    private void addHomeNotificationSettings() {
+        LinearLayout card = card(14);
+        card.addView(text("🔔 התראות", 15, true));
+        TextView status = muted(notificationStatusText(), 13);
+        status.setPadding(dp(2), dp(4), dp(2), dp(10));
+        card.addView(status, new LinearLayout.LayoutParams(-1, -2));
+        TextView settings = btn("⚙️ הגדרות התראות", TONAL);
+        settings.setOnClickListener(v -> showNotificationSettings());
+        card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
+        root.addView(card, lp(-1, -2, 0, 10));
     }
 
-    private TextView dialogTimeField(String initialTime) {
-        TextView time = text(initialTime, 14, true);
-        time.setGravity(Gravity.CENTER);
-        time.setPadding(dp(3), 0, dp(3), 0);
-        time.setBackground(shape(Color.WHITE, 6, ORANGE));
-        time.setOnClickListener(v -> {
-            String[] parts = time.getText().toString().split(":");
-            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
-            new TimePickerDialog(this, (picker, h, m) -> time.setText(String.format(Locale.US, "%02d:%02d", h, m)), hour, minute, true).show();
+    @Override protected void onResume() {
+        super.onResume();
+        if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
+    }
+
+    private void showNotificationSettings() {
+        beginScreen("הגדרות התראות", 3, this::showAccount);
+        screenKind = 3;
+        root.addView(permissionsCard(), lp(-1, -2, 0, 10));
+        root.addView(newSaleCard(), lp(-1, -2, 0, 10));
+        root.addView(closingCard(), lp(-1, -2, 0, 10));
+    }
+
+    private TextView sectionTitle(String title) {
+        TextView v = text(title, 16, true);
+        v.setTextColor(ORANGE_DARK);
+        return v;
+    }
+
+    private View switchRow(String title, String subtitle, boolean checked, CompoundButton.OnCheckedChangeListener listener) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(6), 0, dp(6));
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(text(title, 15, true));
+        if (subtitle != null && !subtitle.isEmpty()) texts.addView(muted(subtitle, 12));
+        row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
+        Switch sw = new Switch(this);
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        sw.setThumbTintList(new ColorStateList(states, new int[]{ORANGE, Color.rgb(190, 180, 172)}));
+        sw.setTrackTintList(new ColorStateList(states, new int[]{Color.argb(120, 230, 94, 20), Color.rgb(225, 218, 212)}));
+        sw.setChecked(checked);
+        sw.setOnCheckedChangeListener(listener);
+        row.addView(sw);
+        return row;
+    }
+
+    private TextView pickChip(String label) {
+        TextView c = smallChip(label, TONAL);
+        c.setMinHeight(dp(38));
+        c.setTextSize(13);
+        return c;
+    }
+
+    private void styleChip(TextView chip, boolean on) {
+        chip.setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
+        chip.setTextColor(on ? Color.WHITE : ORANGE_DARK);
+    }
+
+    private View permissionsCard() {
+        boolean notifOk = true, exactOk = true;
+        if (Build.VERSION.SDK_INT >= 33) notifOk = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm != null && !nm.areNotificationsEnabled()) notifOk = false;
+        if (Build.VERSION.SDK_INT >= 31) {
+            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+            exactOk = am == null || am.canScheduleExactAlarms();
+        }
+        LinearLayout card = card(14);
+        if (notifOk && exactOk) {
+            TextView ok = text("✔ ההרשאות תקינות, ההתראות יגיעו בזמן", 14, true);
+            ok.setTextColor(GREEN);
+            card.addView(ok);
+            card.setBackground(shape(GREEN_LIGHT, 14, 0));
+            return card;
+        }
+        card.setBackground(shape(RED_LIGHT, 14, 0));
+        TextView title = text("⚠️ חסרות הרשאות להתראות", 15, true);
+        title.setTextColor(RED);
+        card.addView(title);
+        if (!notifOk) card.addView(muted("• ההתראות חסומות לאפליקציה", 13));
+        if (!exactOk) card.addView(muted("• אין הרשאה להתראות בשעה מדויקת (ההתראה עלולה להתאחר)", 13));
+        final boolean fixNotifications = !notifOk;
+        TextView fix = btn("תיקון הרשאות", PRIMARY);
+        fix.setOnClickListener(v -> {
+            try {
+                if (fixNotifications) {
+                    Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                    i.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                    startActivity(i);
+                } else {
+                    requestMonitoringPermissions(true);
+                }
+            } catch (Exception e) {
+                toast("לא ניתן לפתוח את ההגדרות", true);
+            }
         });
-        return time;
+        card.addView(fix, lp(-1, dp(44), 8, 0));
+        return card;
+    }
+
+    private View windowRow(final String label, final String dayKey, int dayDefault, final String timeKey, final String timeDefault, final Runnable onChange) {
+        final int defDay = dayDefault;
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(text(label, 14, true), new LinearLayout.LayoutParams(0, -2, 1));
+        final TextView dayChip = pickChip(dayName(prefs.getInt(dayKey, defDay)));
+        final TextView timeChip = pickChip(prefs.getString(timeKey, timeDefault));
+        dayChip.setOnClickListener(v -> {
+            final String[] names = new String[7];
+            for (int i = 0; i < 7; i++) names[i] = "יום " + HEB_DAYS[i];
+            new AlertDialog.Builder(this).setTitle(label)
+                    .setSingleChoiceItems(names, indexOf(CAL_DAYS, prefs.getInt(dayKey, defDay)), (d, which) -> {
+                        prefs.edit().putInt(dayKey, CAL_DAYS[which]).apply();
+                        dayChip.setText(names[which]);
+                        d.dismiss();
+                        onChange.run();
+                    }).setNegativeButton("ביטול", null).show();
+        });
+        timeChip.setOnClickListener(v -> {
+            String[] parts = prefs.getString(timeKey, timeDefault).split(":");
+            int h = 0, m = 0;
+            try { h = Integer.parseInt(parts[0]); m = Integer.parseInt(parts[1]); } catch (Exception ignored) { }
+            new TimePickerDialog(this, (picker, hh, mm) -> {
+                String t = String.format(Locale.US, "%02d:%02d", hh, mm);
+                prefs.edit().putString(timeKey, t).apply();
+                timeChip.setText(t);
+                onChange.run();
+            }, h, m, true).show();
+        });
+        LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(-2, -2);
+        dp1.setMarginEnd(dp(6));
+        row.addView(dayChip, dp1);
+        row.addView(timeChip);
+        return row;
+    }
+
+    private void applyMonitorSettings() {
+        SaleMonitor.stopMonitoring(this);
+        if (prefs.getBoolean("sale_monitor_enabled", true)) {
+            requestMonitoringPermissions(false);            SaleMonitor.scheduleNextStart(this);
+        }
+    }
+
+    private View newSaleCard() {
+        LinearLayout card = card(14);
+        card.addView(sectionTitle("🛒 התראה על מכירה חדשה"));
+        final LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setVisibility(prefs.getBoolean("sale_monitor_enabled", true) ? View.VISIBLE : View.GONE);
+        final TextView summaryView = muted(monitorSummary(), 12);
+        final Runnable onChange = () -> { summaryView.setText(monitorSummary()); applyMonitorSettings(); };
+
+        card.addView(switchRow("הפעלה", "בדיקה אוטומטית של מכירות פתוחות בחלון הזמן שתגדירו", prefs.getBoolean("sale_monitor_enabled", true), (b, checked) -> {
+            prefs.edit().putBoolean("sale_monitor_enabled", checked).apply();
+            details.setVisibility(checked ? View.VISIBLE : View.GONE);
+            onChange.run();
+        }));
+
+        details.addView(windowRow("מתחילה", "monitor_start_day", Calendar.THURSDAY, "monitor_start_time", "19:00", onChange), lp(-1, -2, 4, 4));
+        details.addView(windowRow("מסתיימת", "monitor_end_day", Calendar.SUNDAY, "monitor_end_time", "10:00", onChange), lp(-1, -2, 4, 8));
+
+        details.addView(text("בדיקה כל כמה דקות", 14, true));
+        final int[] intervals = {1, 2, 3, 5, 10, 15, 30, 60};
+        final TextView[] chips = new TextView[intervals.length];
+        LinearLayout chipRow = new LinearLayout(this);
+        final Runnable styleIntervals = () -> {
+            int cur = prefs.getInt("monitor_interval_minutes", 5);
+            for (int i = 0; i < chips.length; i++) styleChip(chips[i], intervals[i] == cur);
+        };
+        for (int i = 0; i < intervals.length; i++) {
+            final int value = intervals[i];
+            chips[i] = pickChip(String.valueOf(value));
+            chips[i].setOnClickListener(v -> {
+                prefs.edit().putInt("monitor_interval_minutes", value).apply();
+                styleIntervals.run();
+                onChange.run();
+            });
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(48), dp(38));
+            if (i > 0) cp.setMarginStart(dp(6));
+            chipRow.addView(chips[i], cp);
+        }
+        styleIntervals.run();
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.addView(chipRow);
+        details.addView(hs, lp(-1, -2, 4, 8));
+
+        details.addView(switchRow("צליל", null, prefs.getBoolean("notify_sound", true), (b, checked) -> prefs.edit().putBoolean("notify_sound", checked).apply()));
+        details.addView(switchRow("רטט", null, prefs.getBoolean("notify_vibrate", true), (b, checked) -> prefs.edit().putBoolean("notify_vibrate", checked).apply()));
+
+        summaryView.setPadding(dp(2), dp(6), dp(2), dp(6));
+        details.addView(summaryView);
+        TextView test = btn("🔔 שליחת התראת בדיקה", TONAL);
+        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, false); });
+        details.addView(test, lp(-1, dp(44), 4, 0));
+        card.addView(details);
+        return card;
+    }
+
+    private View closingCard() {
+        LinearLayout card = card(14);
+        card.addView(sectionTitle("⏰ תזכורת לפני סגירת מכירה"));
+        final LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setVisibility(prefs.getBoolean("closing_reminder_enabled", false) ? View.VISIBLE : View.GONE);
+        final LinearLayout previewBox = new LinearLayout(this);
+        previewBox.setOrientation(LinearLayout.VERTICAL);
+
+        card.addView(switchRow("הפעלה", "התראה כמה זמן לפני שהמכירה נסגרת", prefs.getBoolean("closing_reminder_enabled", false), (b, checked) -> {
+            prefs.edit().putBoolean("closing_reminder_enabled", checked).apply();
+            details.setVisibility(checked ? View.VISIBLE : View.GONE);
+            if (checked) requestMonitoringPermissions(false);
+            SaleMonitor.scheduleClosingFromStore(this);
+            renderClosingPreview(previewBox);
+        }));
+
+        details.addView(text("כמה זמן לפני הסגירה", 14, true));
+        final int[] minutes = {Math.max(30, prefs.getInt("closing_reminder_minutes", 120))};
+        final Stepper st = stepper(42);
+        st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(120), dp(42)));
+        st.qty.setTextSize(15);
+        final int[] quick = {60, 120, 180, 360, 720, 1440};
+        final TextView[] chips = new TextView[quick.length];
+        final Runnable[] commit = new Runnable[1];
+        commit[0] = () -> {
+            prefs.edit().putInt("closing_reminder_minutes", minutes[0]).apply();
+            st.qty.setText(hoursText(minutes[0]));
+            for (int i = 0; i < chips.length; i++) styleChip(chips[i], quick[i] == minutes[0]);
+            SaleMonitor.scheduleClosingFromStore(this);
+            renderClosingPreview(previewBox);
+        };
+        st.plus.setOnClickListener(v -> { minutes[0] = Math.min(4320, minutes[0] + 30); commit[0].run(); });
+        st.minus.setOnClickListener(v -> { minutes[0] = Math.max(30, minutes[0] - 30); commit[0].run(); });
+        LinearLayout stepRow = new LinearLayout(this);
+        stepRow.setGravity(Gravity.CENTER);
+        stepRow.addView(st.view);
+        details.addView(stepRow, lp(-1, -2, 6, 8));
+
+        LinearLayout chipRow = new LinearLayout(this);
+        for (int i = 0; i < quick.length; i++) {
+            final int value = quick[i];
+            chips[i] = pickChip(hoursText(value).replace(" שעות", "ש׳").replace("שעה", "1ש׳"));
+            chips[i].setOnClickListener(v -> { minutes[0] = value; commit[0].run(); });
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(38));
+            if (i > 0) cp.setMarginStart(dp(6));
+            chipRow.addView(chips[i], cp);
+        }
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.addView(chipRow);
+        details.addView(hs, lp(-1, -2, 0, 10));
+
+        details.addView(previewBox, lp(-1, -2, 0, 8));
+        TextView test = btn("🔔 שליחת תזכורת לדוגמה", TONAL);
+        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, true); });
+        details.addView(test, lp(-1, dp(44), 4, 0));
+        card.addView(details);
+
+        commit[0].run();
+        refreshReminderSales(previewBox);
+        return card;
+    }
+
+    private void renderClosingPreview(LinearLayout box) {
+        box.removeAllViews();
+        int minutes = prefs.getInt("closing_reminder_minutes", 120);
+        long now = System.currentTimeMillis();
+        JSONArray store = SaleMonitor.closingStore(this);
+        List<JSONObject> entries = new ArrayList<>();
+        for (int i = 0; i < store.length(); i++) {
+            JSONObject e = store.optJSONObject(i);
+            if (e != null && e.optLong("end", 0L) > now) entries.add(e);
+        }
+        Collections.sort(entries, new Comparator<JSONObject>() {
+            @Override public int compare(JSONObject a, JSONObject b) { return Long.compare(a.optLong("end"), b.optLong("end")); }
+        });
+        box.addView(text("מתי תגיע ההתראה", 14, true));
+        if (entries.isEmpty()) {
+            box.addView(muted("אין כרגע מכירה פתוחה עם זמן סגירה. התזכורת תיקבע אוטומטית כשתיפתח מכירה.", 12));
+            return;
+        }
+        for (JSONObject e : entries) {
+            long end = e.optLong("end");
+            long trigger = end - minutes * 60000L;
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setPadding(dp(12), dp(8), dp(12), dp(8));
+            item.setBackground(shape(ORANGE_LIGHT, 12, 0));
+            item.addView(text(e.optString("name", "מכירה"), 14, true));
+            item.addView(muted("נסגרת: " + fmtDay(new Date(end), true), 12));
+            boolean future = trigger > now;
+            TextView when = text(future ? "🔔 ההתראה: " + fmtDay(new Date(trigger), true) + " (בעוד " + humanDuration(trigger - now) + ")"
+                    : "⏱ הזמן שנבחר כבר עבר, לא תישלח התראה למכירה זו", 13, true);
+            when.setTextColor(future ? GREEN : RED);
+            item.addView(when);
+            box.addView(item, lp(-1, -2, 6, 0));
+        }
+    }
+
+    /** Refreshes the open sales so the preview and the alarms use current closing times. */
+    private void refreshReminderSales(final LinearLayout box) {
+        final int t = screenToken;
+        executor.execute(() -> {
+            try {
+                HttpResult r = api("GET", "/api/profile/open_sales", null);
+                if (r.code >= 200 && r.code < 300) SaleMonitor.scheduleClosingReminders(getApplicationContext(), arrayFrom(r.body));
+                runOnUiThread(() -> { if (!stale(t)) renderClosingPreview(box); });
+            } catch (Exception e) {
+                runOnUiThread(() -> { if (e instanceof AuthException) showLogin(); });
+            }
+        });
     }
 
     private int indexOf(int[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 0; }
@@ -1326,6 +1551,7 @@ public class MainActivity extends Activity {
                 HttpResult r = api("GET", "/api/profile/open_sales", null);
                 if (r.code < 200 || r.code >= 300) throw new Exception("טעינת המכירות נכשלה (" + r.code + ").");
                 JSONArray rows = arrayFrom(r.body);
+                try { SaleMonitor.scheduleClosingReminders(getApplicationContext(), rows); } catch (Exception ignored) { }
                 runOnUiThread(() -> { if (!stale(t)) renderSales(rows); });
             } catch (Exception e) {
                 fail(t, e, "אירעה שגיאה בטעינה.");
@@ -1643,6 +1869,7 @@ public class MainActivity extends Activity {
 
     private void loadFeatureProducts(JSONObject sale) {
         featureSale = sale;
+        summaryFromHistory = false;
         String title = saleTitle(sale);
         beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
         setStatus("פותח הזמנה וטוען מוצרים…");
@@ -1711,7 +1938,10 @@ public class MainActivity extends Activity {
 
     private void renderFeatureProducts() {
         String title = saleTitle(featureSale);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
+        Runnable productsBack;
+        if (summaryFromHistory) productsBack = () -> showOrderSummary();
+        else productsBack = () -> showOpenSales(false);
+        beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? 1 : 0, productsBack);
         screenKind = 1;
 
         // search + quick actions
@@ -1737,12 +1967,12 @@ public class MainActivity extends Activity {
         infoBtn.setOnClickListener(v -> showSaleDetails(featureSale));
         LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(42), dp(42));
         ip.setMarginStart(dp(8));
-        toolbar.addView(infoBtn, ip);
+        if (!summaryFromHistory) toolbar.addView(infoBtn, ip);
         TextView refreshBtn = roundBtn("↻", 42, ORANGE_LIGHT, ORANGE_DARK);
         refreshBtn.setOnClickListener(v -> loadFeatureProducts(featureSale));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(42), dp(42));
         rp.setMarginStart(dp(8));
-        toolbar.addView(refreshBtn, rp);
+        if (!summaryFromHistory) toolbar.addView(refreshBtn, rp);
         TextView actionsBtn = roundBtn("⋯", 42, ORANGE_LIGHT, ORANGE_DARK);
         actionsBtn.setOnClickListener(v -> showOrderActions());
         LinearLayout.LayoutParams ap0 = new LinearLayout.LayoutParams(dp(42), dp(42));
@@ -1766,8 +1996,7 @@ public class MainActivity extends Activity {
         styleModeChips(modeChips, modeKeys);
         root.addView(modeRow, lp(-1, -2, 0, 6));
 
-        gridContainer = new LinearLayout(this);
-        gridContainer.setOrientation(LinearLayout.VERTICAL);
+        gridContainer = new LinearLayout(this);        gridContainer.setOrientation(LinearLayout.VERTICAL);
         root.addView(gridContainer, new LinearLayout.LayoutParams(-1, -2));
         rebuildGrid();
 
@@ -2129,7 +2358,8 @@ public class MainActivity extends Activity {
     private void showOrderSummary() {
         if (featureOrderId <= 0) { toast("לא נמצאה הזמנה", false); return; }
         collectMode = false;
-        beginScreen("ההזמנה שלי", 0, this::renderFeatureProducts);
+        if (summaryFromHistory) beginScreen("הזמנה #" + featureOrderId, 1, this::loadFeatureOrders);
+        else beginScreen("ההזמנה שלי", 0, this::renderFeatureProducts);
         setStatus("טוען את ההזמנה מהשרת…");
         final int t = screenToken;
         executor.execute(() -> {
@@ -2154,6 +2384,7 @@ public class MainActivity extends Activity {
         head.addView(text(summary.saleName, 17, true));
         String meta = "הזמנה #" + summary.id + (summary.when.isEmpty() ? "" : " · הוזמן: " + summary.when);
         head.addView(muted(meta, 12));
+        if (summaryFromHistory && !summary.status.isEmpty()) head.addView(muted("סטטוס: " + summary.status, 12));
         progressView = text("", 13, true);
         progressView.setTextColor(GREEN);
         head.addView(progressView);
@@ -2218,7 +2449,7 @@ public class MainActivity extends Activity {
         bar.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
         TextView more = btn("+ הוספת מוצרים", TONAL);
         more.setOnClickListener(v -> renderFeatureProducts());
-        bar.addView(more, new LinearLayout.LayoutParams(-2, dp(46)));
+        if (!featureProducts.isEmpty()) bar.addView(more, new LinearLayout.LayoutParams(-2, dp(46)));
         bottomHolder.addView(bar);
 
         rebuildSummary();
@@ -2469,7 +2700,7 @@ public class MainActivity extends Activity {
         LinearLayout card = card(12);
         card.setBackground(ripple(shape(Color.WHITE, 14, LINE), 14));
         card.setClickable(true);
-        if (orderId > 0) card.setOnClickListener(v -> loadFeatureOrderDetails(orderId));
+        if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId));
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
@@ -2485,87 +2716,54 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private void loadFeatureOrderDetails(final long id) {
+    /** A history order opens as a full order screen: edit, remove, collect mode and every action menu item. */
+    private void openHistoryOrder(final long id) {
         beginScreen("הזמנה #" + id, 1, this::loadFeatureOrders);
         setStatus("טוען את ההזמנה…");
         final int t = screenToken;
         executor.execute(() -> {
             try {
-                OrderData od = fetchOrder(id);
-                runOnUiThread(() -> { if (!stale(t)) renderOrderDetails(od); });
+                final OrderData od = fetchOrder(id);
+                List<JSONObject> products = new ArrayList<>();
+                try { products = fetchAllProducts(id, (int) od.saleId); } catch (AuthException ae) { throw ae; } catch (Exception ignored) { }
+                Set<String> favs = null;
+                try { favs = fetchFavouriteIds((int) od.saleId); } catch (AuthException ae) { throw ae; } catch (Exception ignored) { }
+                final List<JSONObject> prods = products;
+                final Set<String> favSet = favs;
+                runOnUiThread(() -> {
+                    if (stale(t)) return;
+                    JSONObject saleStub = new JSONObject();
+                    try {
+                        saleStub.put("id", od.saleId);
+                        saleStub.put("custom_name", od.saleName);
+                    } catch (Exception ignored) { }
+                    featureSale = saleStub;
+                    featureOrderId = id;
+                    featureProducts.clear();
+                    featureQuantities.clear();
+                    pending.clear();
+                    Map<String, Integer> saved = new LinkedHashMap<>();
+                    for (OrderLine l : od.lines) saved.put(l.sid, (int) Math.round(l.amount));
+                    for (JSONObject p : prods) {
+                        String sid = sidOf(p);
+                        if (sid.isEmpty()) continue;
+                        int amount = saved.containsKey(sid) ? saved.get(sid) : 0;
+                        try { p.put("amount", amount); } catch (Exception ignored) { }
+                        featureProducts.add(p);
+                        featureQuantities.put(sid, amount);
+                    }
+                    for (OrderLine l : od.lines) if (!featureQuantities.containsKey(l.sid)) featureQuantities.put(l.sid, (int) Math.round(l.amount));
+                    if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
+                    filterText = "";
+                    viewMode = "all";
+                    summaryFromHistory = true;
+                    summary = od;
+                    renderOrderSummary();
+                });
             } catch (Exception e) {
-                fail(t, e, "לא ניתן להציג את פרטי ההזמנה.");
+                fail(t, e, "טעינת ההזמנה נכשלה.");
             }
         });
-    }
-
-    private void renderOrderDetails(OrderData od) {
-        setStatus("");
-        LinearLayout head = card(14);
-        head.addView(text(od.saleName, 17, true));
-        if (!od.when.isEmpty()) head.addView(muted("הוזמן: " + od.when, 12));
-        if (!od.status.isEmpty()) head.addView(muted("סטטוס: " + od.status, 12));
-        double units = 0, local = 0;
-        for (OrderLine l : od.lines) { units += l.amount; local += l.price * l.amount; }
-        TextView total = text("סה״כ " + money(od.total >= 0 ? od.total : local), 18, true);
-        total.setTextColor(ORANGE_DARK);
-        head.addView(total, lp(-1, -2, 6, 0));
-        String sub = od.lines.size() + " פריטים · " + fmtNum(units) + " יחידות";
-        if (od.credits != 0) sub += " · זיכויים " + money(Math.abs(od.credits));
-        head.addView(muted(sub, 12));
-        root.addView(head, lp(-1, -2, 0, 10));
-
-        final OrderData data = od;
-        LinearLayout tools = new LinearLayout(this);
-        TextView shareBtn = smallChip("📤 שיתוף", TONAL);
-        shareBtn.setOnClickListener(v -> showShareMenu(orderText(data.saleName, data.id, data.when, data.lines)));
-        TextView exportBtn = smallChip("📦 ייצוא", TONAL);
-        exportBtn.setOnClickListener(v -> startExport("הזמנה " + data.id + " " + data.saleName, buildExportJson(data.saleName, data.saleId, data.id, data.lines)));
-        tools.addView(shareBtn);
-        LinearLayout.LayoutParams xl = new LinearLayout.LayoutParams(-2, -2);
-        xl.setMarginStart(dp(8));
-        tools.addView(exportBtn, xl);
-        if (featureOrderId > 0 && !featureProducts.isEmpty() && od.id != featureOrderId) {
-            TextView addBtn = smallChip("🔁 הוסף להזמנה הנוכחית", PRIMARY);
-            addBtn.setOnClickListener(v -> {
-                List<ImportEntry> entries = new ArrayList<>();
-                for (OrderLine l : data.lines) {
-                    if (l.amount <= 0) continue;
-                    ImportEntry ie = new ImportEntry();
-                    ie.pid = pidOf(l.raw);
-                    ie.name = l.name;
-                    ie.amount = Math.min(999, Math.max(1, Math.round(l.amount)));
-                    entries.add(ie);
-                }
-                startImportEntries(entries, new ArrayList<String>(), "הזמנה #" + data.id);
-            });
-            LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-2, -2);
-            al.setMarginStart(dp(8));
-            tools.addView(addBtn, al);
-        }
-        addHScroll(tools, lp(-1, -2, 0, 10));
-
-        if (od.lines.isEmpty()) {
-            root.addView(muted("לא נמצאו פריטים בהזמנה.", 14));
-            return;
-        }
-        for (OrderLine line : od.lines) {
-            LinearLayout row = (LinearLayout) rowShell(line, 76);
-            LinearLayout col = new LinearLayout(this);
-            col.setOrientation(LinearLayout.VERTICAL);
-            TextView name = text(line.name, 14, true);
-            name.setMaxLines(3);
-            name.setEllipsize(TextUtils.TruncateAt.END);
-            col.addView(name);
-            col.addView(muted("כמות: " + fmtNum(line.amount) + (line.price > 0 ? " · " + money(line.price) + " ליחידה" : ""), 12));
-            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
-            if (line.price > 0) {
-                TextView lt = text(money(line.price * line.amount), 15, true);
-                lt.setTextColor(ORANGE_DARK);
-                row.addView(lt);
-            }
-            root.addView(row, lp(-1, -2, 0, 8));
-        }
     }
 
     // ======================================================================== credits / charges
@@ -2797,8 +2995,7 @@ public class MainActivity extends Activity {
         String text;
         synchronized (apiLog) { text = apiLog.isEmpty() ? "עדיין אין רישום תקשורת." : TextUtils.join("\n", apiLog); }
         final String shown = text;
-        new AlertDialog.Builder(this).setTitle("יומן תקשורת")
-                .setMessage(shown)
+        new AlertDialog.Builder(this).setTitle("יומן תקשורת")                .setMessage(shown)
                 .setPositiveButton("סגירה", null)
                 .setNeutralButton("שיתוף", (d, w) -> shareText("יומן תקשורת משנת יוסף", shown))
                 .show();
@@ -3297,7 +3494,8 @@ public class MainActivity extends Activity {
                         featureProducts.clear();
                         featureQuantities.clear();
                         toast("ההזמנה נמחקה", false);
-                        showOpenSales(false);
+                        if (summaryFromHistory) loadFeatureOrders();
+                        else showOpenSales(false);
                     } else {
                         toast("המחיקה נכשלה: " + err, true);
                     }
