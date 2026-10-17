@@ -258,8 +258,12 @@ public class MainActivity extends Activity {
 
     private boolean stale(int token) { return token != screenToken; }
 
+    private Toast lastToast;
+
     private void toast(String message, boolean longer) {
-        Toast.makeText(this, message, longer ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
+        if (lastToast != null) lastToast.cancel();
+        lastToast = Toast.makeText(this, message, longer ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT);
+        lastToast.show();
     }
 
     private GradientDrawable shape(int fill, float radiusDp, int stroke) {
@@ -683,23 +687,26 @@ public class MainActivity extends Activity {
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
-                item.setPadding(dp(2), dp(6), dp(2), dp(6));
+                item.setPadding(dp(2), dp(5), dp(2), dp(5));
                 item.setBackground(ripple(new GradientDrawable(), 0));
                 TextView icon = new TextView(this);
                 icon.setText(icons[i]);
-                icon.setTextSize(18);
+                icon.setTextSize(21);
                 icon.setGravity(Gravity.CENTER);
-                icon.setAlpha(active ? 1f : 0.55f);
-                item.addView(icon, new LinearLayout.LayoutParams(-1, -2));
-                TextView label = text(labels[i], 11, active);
+                icon.setIncludeFontPadding(false);
+                icon.setBackground(shape(active ? ORANGE : Color.rgb(244, 235, 226), 17, active ? 0 : Color.rgb(228, 212, 198)));
+                LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(58), dp(34));
+                iconLp.gravity = Gravity.CENTER_HORIZONTAL;
+                item.addView(icon, iconLp);
+                TextView label = text(labels[i], 12, true);
                 label.setMaxLines(1);
                 label.setEllipsize(TextUtils.TruncateAt.END);
                 label.setGravity(Gravity.CENTER);
-                label.setTextColor(active ? ORANGE_DARK : MUTED);
+                label.setTextColor(active ? ORANGE_DARK : Color.rgb(84, 74, 68));
                 item.addView(label, new LinearLayout.LayoutParams(-1, -2));
                 item.setOnClickListener(v -> actions[index].run());
                 nav.addView(item, new LinearLayout.LayoutParams(0, dp(64), 1));
-                if (i == 2) nav.addView(collectNavButton(), new LinearLayout.LayoutParams(0, dp(64), 1.3f));
+                if (i == 2) nav.addView(collectNavButton(), new LinearLayout.LayoutParams(0, dp(64), 1.75f));
             }
             navView = nav;
             screen.addView(nav, new LinearLayout.LayoutParams(-1, -2));
@@ -815,6 +822,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     busy = false;
                     loginButton = null;
+                    toast("✔ התחברת בהצלחה", false);
                     SaleMonitor.scheduleNextStart(this);
                     showOpenSales();
                 });
@@ -1038,12 +1046,13 @@ public class MainActivity extends Activity {
         details.setOrientation(LinearLayout.VERTICAL);
         details.setVisibility(prefs.getBoolean("sale_monitor_enabled", true) ? View.VISIBLE : View.GONE);
         final TextView summaryView = muted(monitorSummary(), 12);
-        final Runnable onChange = () -> { summaryView.setText(monitorSummary()); applyMonitorSettings(); };
+        final Runnable onChange = () -> { summaryView.setText(monitorSummary()); applyMonitorSettings(); toast("✔ הגדרות ההתראה נשמרו", false); };
 
         card.addView(switchRow("הפעלה", "בדיקה אוטומטית של מכירות פתוחות בחלון הזמן שתגדירו", prefs.getBoolean("sale_monitor_enabled", true), (b, checked) -> {
             prefs.edit().putBoolean("sale_monitor_enabled", checked).apply();
             details.setVisibility(checked ? View.VISIBLE : View.GONE);
             onChange.run();
+            toast(checked ? "🔔 התראה על מכירה חדשה הופעלה" : "🔕 התראה על מכירה חדשה כובתה", false);
         }));
 
         details.addView(windowRow("מתחילה", "monitor_start_day", Calendar.THURSDAY, "monitor_start_time", "19:00", onChange), lp(-1, -2, 4, 4));
@@ -1081,7 +1090,7 @@ public class MainActivity extends Activity {
         summaryView.setPadding(dp(2), dp(6), dp(2), dp(6));
         details.addView(summaryView);
         TextView test = btn("🔔 שליחת התראת בדיקה", TONAL);
-        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, false); });
+        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, false); toast("🔔 נשלחה התראת בדיקה", false); });
         details.addView(test, lp(-1, dp(44), 4, 0));
         card.addView(details);
         return card;
@@ -1102,6 +1111,7 @@ public class MainActivity extends Activity {
             if (checked) requestMonitoringPermissions(false);
             SaleMonitor.scheduleClosingFromStore(this);
             renderClosingPreview(previewBox);
+            toast(checked ? "⏰ תזכורת לפני סגירה הופעלה" : "תזכורת לפני סגירה כובתה", false);
         }));
 
         details.addView(text("כמה זמן לפני הסגירה", 14, true));
@@ -1119,8 +1129,8 @@ public class MainActivity extends Activity {
             SaleMonitor.scheduleClosingFromStore(this);
             renderClosingPreview(previewBox);
         };
-        st.plus.setOnClickListener(v -> { minutes[0] = Math.min(4320, minutes[0] + 30); commit[0].run(); });
-        st.minus.setOnClickListener(v -> { minutes[0] = Math.max(30, minutes[0] - 30); commit[0].run(); });
+        st.plus.setOnClickListener(v -> { minutes[0] = Math.min(4320, minutes[0] + 30); commit[0].run(); toast("✔ תזכורת: " + hoursText(minutes[0]) + " לפני הסגירה", false); });
+        st.minus.setOnClickListener(v -> { minutes[0] = Math.max(30, minutes[0] - 30); commit[0].run(); toast("✔ תזכורת: " + hoursText(minutes[0]) + " לפני הסגירה", false); });
         LinearLayout stepRow = new LinearLayout(this);
         stepRow.setGravity(Gravity.CENTER);
         stepRow.addView(st.view);
@@ -1130,7 +1140,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < quick.length; i++) {
             final int value = quick[i];
             chips[i] = pickChip(hoursText(value).replace(" שעות", "ש׳").replace("שעה", "1ש׳"));
-            chips[i].setOnClickListener(v -> { minutes[0] = value; commit[0].run(); });
+            chips[i].setOnClickListener(v -> { minutes[0] = value; commit[0].run(); toast("✔ תזכורת: " + hoursText(minutes[0]) + " לפני הסגירה", false); });
             LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(38));
             if (i > 0) cp.setMarginStart(dp(6));
             chipRow.addView(chips[i], cp);
@@ -1142,7 +1152,7 @@ public class MainActivity extends Activity {
 
         details.addView(previewBox, lp(-1, -2, 0, 8));
         TextView test = btn("🔔 שליחת תזכורת לדוגמה", TONAL);
-        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, true); });
+        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, true); toast("🔔 נשלחה תזכורת לדוגמה", false); });
         details.addView(test, lp(-1, dp(44), 4, 0));
         card.addView(details);
 
@@ -1600,7 +1610,7 @@ public class MainActivity extends Activity {
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.addView(muted(rows.length() == 0 ? "אין כרגע מכירות פתוחות" : rows.length() + " מכירות פתוחות", 14), new LinearLayout.LayoutParams(0, -2, 1));
         TextView refresh = smallChip("↻ רענון", TONAL);
-        refresh.setOnClickListener(v -> showOpenSales(false));
+        refresh.setOnClickListener(v -> { toast("↻ מרענן את המכירות…", false); showOpenSales(false); });
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
         for (int i = 0; i < rows.length(); i++) {
@@ -1940,6 +1950,7 @@ public class MainActivity extends Activity {
                     viewMode = "all";
                     if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
                     renderFeatureProducts();
+                    toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
                 });
             } catch (Exception e) {
                 fail(t, e, "פתיחת ההזמנה נכשלה.");
@@ -2238,6 +2249,8 @@ public class MainActivity extends Activity {
         final long orderId = featureOrderId;
         pending.add(sid);
         featureQuantities.put(sid, newQty);
+        final String pname = productName(p);
+        toast("⏳ " + (newQty == 0 ? "מסיר" : (oldQty == 0 ? "מוסיף" : "מעדכן")) + ": " + pname, false);
         refresh.run();
         executor.execute(() -> {
             String error = null;
@@ -2266,6 +2279,7 @@ public class MainActivity extends Activity {
                 if (err == null) {
                     try { p.put("amount", newQty); } catch (Exception ignored) { }
                     featureQuantities.put(sid, newQty);
+                    toast(newQty == 0 ? "✔ הוסר: " + pname : (oldQty == 0 ? "✔ נוסף להזמנה: " + pname + " ×" + newQty : "✔ עודכן: " + pname + " ← " + newQty), false);
                 } else {
                     featureQuantities.put(sid, oldQty);
                     if (err.contains("אזל")) { try { p.put("available", 0); } catch (Exception ignored) { } }
@@ -2370,6 +2384,7 @@ public class MainActivity extends Activity {
         JSONObject stub = new JSONObject();
         try {
             stub.put("item_salesID", line.sid);
+            stub.put("name", line.name);
             stub.put("amount", (int) Math.round(line.amount));
         } catch (Exception ignored) { }
         return stub;
@@ -2653,8 +2668,10 @@ public class MainActivity extends Activity {
         chkLp.setMarginEnd(dp(10));
         final View.OnClickListener toggle = v -> {
             v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            boolean wasDone = collectedSet().contains(line.sid);
             toggleCollected(line.sid);
             rebuildSummary();
+            toast((wasDone ? "↩ הוחזר לרשימה: " : "✔ נאסף: ") + line.name, false);
         };
         check.setOnClickListener(toggle);
         row.setClickable(true);
@@ -3422,6 +3439,7 @@ public class MainActivity extends Activity {
         msg.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         final AlertDialog dlg = new AlertDialog.Builder(this).setTitle("מעדכן הזמנה").setView(msg).setCancelable(false).create();
         dlg.show();
+        toast("⏳ מעדכן " + plan.size() + " פריטים…", false);
         final long orderId = featureOrderId;
         executor.execute(() -> {
             final List<PlanItem> succeeded = new ArrayList<>();
@@ -3448,6 +3466,7 @@ public class MainActivity extends Activity {
                     res.append("\n\n❌ נכשלו (").append(failed.size()).append("):\n");
                     for (int i = 0; i < Math.min(8, failed.size()); i++) res.append("  - ").append(failed.get(i)).append("\n");
                 }
+                toast("✔ עודכנו " + succeeded.size() + " מתוך " + plan.size(), false);
                 showTextDialog("סיכום", res.toString());
                 refreshCurrentOrderScreen();
                 if (needLogin) showLogin();
@@ -3535,6 +3554,7 @@ public class MainActivity extends Activity {
 
     private void deleteOrder() {
         final long id = featureOrderId;
+        toast("⏳ מוחק את ההזמנה…", false);
         final int t = screenToken;
         executor.execute(() -> {
             try {
@@ -3879,39 +3899,42 @@ public class MainActivity extends Activity {
 
     private View collectNavButton() {
         FrameLayout slot = new FrameLayout(this);
-        LinearLayout circle = new LinearLayout(this);
-        circle.setOrientation(LinearLayout.VERTICAL);
-        circle.setGravity(Gravity.CENTER);
-        GradientDrawable oval = new GradientDrawable();
-        oval.setShape(GradientDrawable.OVAL);
-        oval.setColor(ORANGE);
-        oval.setStroke(dp(3), Color.WHITE);
+        LinearLayout pill = new LinearLayout(this);
+        pill.setOrientation(LinearLayout.HORIZONTAL);
+        pill.setGravity(Gravity.CENTER);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(ORANGE);
+        bg.setCornerRadius(dp(28));
+        bg.setStroke(dp(2), ORANGE_DARK);
         GradientDrawable mask = new GradientDrawable();
-        mask.setShape(GradientDrawable.OVAL);
         mask.setColor(Color.WHITE);
-        circle.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), oval, mask));
-        circle.setElevation(dp(6));
-        circle.setClickable(true);
-        circle.setFocusable(true);
+        mask.setCornerRadius(dp(28));
+        pill.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
+        pill.setElevation(dp(6));
+        pill.setClickable(true);
+        pill.setFocusable(true);
         TextView icon = new TextView(this);
         icon.setText("☑");
-        icon.setTextSize(22);
+        icon.setTextSize(24);
         icon.setTextColor(Color.WHITE);
         icon.setGravity(Gravity.CENTER);
         icon.setIncludeFontPadding(false);
         TextView label = new TextView(this);
         label.setText("איסוף");
-        label.setTextSize(11);
+        label.setTextSize(16);
         label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         label.setTextColor(Color.WHITE);
         label.setGravity(Gravity.CENTER);
         label.setIncludeFontPadding(false);
-        circle.addView(icon, new LinearLayout.LayoutParams(-2, -2));
-        circle.addView(label, new LinearLayout.LayoutParams(-2, -2));
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(dp(62), dp(62));
-        cp.gravity = Gravity.CENTER;
-        slot.addView(circle, cp);
-        circle.setOnClickListener(v -> openLatestCollect());
+        pill.addView(icon, new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-2, -2);
+        labelLp.setMarginStart(dp(6));
+        pill.addView(label, labelLp);
+        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(-1, dp(52));
+        pp.gravity = Gravity.CENTER;
+        pp.setMargins(dp(4), 0, dp(4), 0);
+        slot.addView(pill, pp);
+        pill.setOnClickListener(v -> openLatestCollect());
         return slot;
     }
 
@@ -4007,17 +4030,34 @@ public class MainActivity extends Activity {
         showMathChallenge(action, null);
     }
 
-    /** One easy operation (+ or −). Both numbers and the answer are between 10 and 100. */
+    /** One easy operation. Numbers are 10..100 (in × and ÷ one of them may be 2..9). The answer is always 10..100. */
     private String[] newMathExercise() {
         Random r = new Random();
-        if (r.nextBoolean()) {
-            int a = 10 + r.nextInt(81);                // 10..90
-            int b = 10 + r.nextInt(100 - a - 10 + 1);  // 10..(100 - a), so the sum stays <= 100
-            return new String[]{a + " + " + b, String.valueOf(a + b)};
+        switch (r.nextInt(4)) {
+            case 0: {
+                int a = 10 + r.nextInt(81);                // 10..90
+                int b = 10 + r.nextInt(100 - a - 10 + 1);  // 10..(100 - a): the sum stays <= 100
+                return new String[]{a + " + " + b, String.valueOf(a + b)};
+            }
+            case 1: {
+                int a = 20 + r.nextInt(81);                // 20..100
+                int b = 10 + r.nextInt(a - 10 - 10 + 1);   // 10..(a - 10): the answer stays >= 10
+                return new String[]{a + " − " + b, String.valueOf(a - b)};
+            }
+            case 2: {
+                int small = 2 + r.nextInt(8);              // 2..9
+                int big = 10 + r.nextInt(100 / small - 10 + 1); // 10..(100 / small): the product stays <= 100
+                return r.nextBoolean()
+                        ? new String[]{small + " × " + big, String.valueOf(small * big)}
+                        : new String[]{big + " × " + small, String.valueOf(small * big)};
+            }
+            default: {
+                int divisor = 2 + r.nextInt(8);            // 2..9
+                int result = 10 + r.nextInt(100 / divisor - 10 + 1); // 10..(100 / divisor)
+                int dividend = divisor * result;           // <= 100
+                return new String[]{dividend + " ÷ " + divisor, String.valueOf(result)};
+            }
         }
-        int a = 20 + r.nextInt(81);                    // 20..100
-        int b = 10 + r.nextInt(a - 10 - 10 + 1);       // 10..(a - 10), so the answer stays >= 10
-        return new String[]{a + " − " + b, String.valueOf(a - b)};
     }
 
     private void showMathChallenge(final Runnable onSuccess, final Runnable onCancel) {
@@ -4102,13 +4142,15 @@ public class MainActivity extends Activity {
             if (checked) {
                 prefs.edit().putBoolean("child_lock_enabled", true).apply();
                 unlockExpiry = 0L;
+                toast("🔒 נעילת ילדים הופעלה", false);
             } else {
-                showMathChallenge(() -> prefs.edit().putBoolean("child_lock_enabled", false).apply(), () -> showAccount());
+                showMathChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
             }
         }));
         card.addView(switchRow("תמונות מלאות", "טעינת התמונה המקורית במקום תמונה ממוזערת. איטי יותר, אבל לא חתוך", fullImages(), (b, checked) -> {
             prefs.edit().putBoolean("full_images", checked).apply();
             imageCache.evictAll();
+            toast(checked ? "🖼️ תמונות מלאות הופעלו" : "תמונות ממוזערות הופעלו", false);
         }));
         root.addView(card, lp(-1, -2, 0, 10));
     }
