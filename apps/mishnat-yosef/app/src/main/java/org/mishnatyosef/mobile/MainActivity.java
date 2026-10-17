@@ -34,7 +34,9 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.LruCache;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.CompoundButton;
@@ -612,6 +614,7 @@ public class MainActivity extends Activity {
 
     private void beginScreen(String heading, int tab, Runnable back) {
         screenToken++;
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         screenKind = 0;
         backAction = back;
 
@@ -689,9 +692,10 @@ public class MainActivity extends Activity {
                 label.setTextColor(active ? ORANGE_DARK : MUTED);
                 item.addView(label, new LinearLayout.LayoutParams(-1, -2));
                 item.setOnClickListener(v -> actions[index].run());
-                nav.addView(item, new LinearLayout.LayoutParams(0, dp(56), 1));
+                nav.addView(item, new LinearLayout.LayoutParams(0, dp(64), 1));
+                if (i == 2) nav.addView(collectNavButton(), new LinearLayout.LayoutParams(0, dp(64), 1.3f));
             }
-            screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(56)));
+            screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(64)));
         }
         setContentView(screen);
     }
@@ -1647,7 +1651,7 @@ public class MainActivity extends Activity {
             lines.add("    סגירה: " + fmtDay(end, true));
         }
         Date pick = pickupDate(sale);
-        lines.add("📦 יום איסוף: " + (pick == null ? "לא ידוע" : fmtDay(pick, false)));
+        lines.add("�� יום איסוף: " + (pick == null ? "לא ידוע" : fmtDay(pick, false)));
         String hours = first(order, "times");
         if (hours.isEmpty() && !first(sale, "startHour").isEmpty()) hours = first(sale, "startHour") + "-" + first(sale, "endHour");
         if (!hours.isEmpty()) lines.add("    שעה: " + hours);
@@ -2466,6 +2470,9 @@ public class MainActivity extends Activity {
 
     private void rebuildSummary() {
         if (summary == null || summaryList == null) return;
+        if (collectMode) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        final int keepScroll = scrollView == null ? 0 : scrollView.getScrollY();
         summaryList.removeAllViews();
         collectedList.removeAllViews();
         Set<String> collected = collectedSet();
@@ -2491,6 +2498,7 @@ public class MainActivity extends Activity {
         progressView.setVisibility(collectMode ? View.VISIBLE : View.GONE);
         progressView.setText(done == total && total > 0 ? "✅ כל הפריטים נאספו" : "נאספו " + done + " מתוך " + total + " פריטים");
         updateSummaryTotals();
+        if (scrollView != null && keepScroll > 0) scrollView.post(() -> scrollView.scrollTo(0, keepScroll));
     }
 
     private void updateSummaryTotals() {
@@ -2504,6 +2512,12 @@ public class MainActivity extends Activity {
         boolean server = summary.total >= 0 && pending.isEmpty();
         summaryTotal.setText("סה״כ " + money(server ? summary.total : local) + (server ? "" : " (משוער)"));
         String sub = lines + " פריטים · " + units + " יחידות";
+        if (collectMode) {
+            Set<String> col = collectedSet();
+            int doneCount = 0;
+            for (OrderLine line : summary.lines) if (lineQty(line) > 0 && col.contains(line.sid)) doneCount++;
+            sub = "✔ נאספו " + doneCount + " מתוך " + lines + " · " + units + " יחידות";
+        }
         if (summary.credits != 0) sub += " · זיכויים " + money(Math.abs(summary.credits));
         summarySub.setText(sub);
     }
@@ -2608,7 +2622,14 @@ public class MainActivity extends Activity {
         TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? Color.WHITE : GREEN_LIGHT, GREEN);
         LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(dp(46), dp(46));
         chkLp.setMarginEnd(dp(10));
-        check.setOnClickListener(v -> { toggleCollected(line.sid); rebuildSummary(); });
+        final View.OnClickListener toggle = v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            toggleCollected(line.sid);
+            rebuildSummary();
+        };
+        check.setOnClickListener(toggle);
+        row.setClickable(true);
+        row.setOnClickListener(toggle);
         row.addView(check, 0, chkLp);
 
         LinearLayout col = new LinearLayout(this);
@@ -2719,7 +2740,9 @@ public class MainActivity extends Activity {
     }
 
     /** A history order opens as a full order screen: edit, remove, collect mode and every action menu item. */
-    private void openHistoryOrder(final long id) {
+    private void openHistoryOrder(final long id) { openHistoryOrder(id, false); }
+
+    private void openHistoryOrder(final long id, final boolean collect) {
         beginScreen("הזמנה #" + id, 1, this::loadFeatureOrders);
         setStatus("טוען את ההזמנה…");
         final int t = screenToken;
@@ -2760,6 +2783,7 @@ public class MainActivity extends Activity {
                     viewMode = "all";
                     summaryFromHistory = true;
                     summary = od;
+                    collectMode = collect || !collectedSet().isEmpty();
                     renderOrderSummary();
                 });
             } catch (Exception e) {
@@ -3816,6 +3840,85 @@ public class MainActivity extends Activity {
         }
         sb.append("\n------------------------------\nסך הכל זיכויים ").append(money2(cr)).append(" | חיובים ").append(money2(ch)).append("\n");
         return sb.toString();
+    }
+
+    // ======================================================================== centre "collect" button
+
+    private View collectNavButton() {
+        FrameLayout slot = new FrameLayout(this);
+        LinearLayout circle = new LinearLayout(this);
+        circle.setOrientation(LinearLayout.VERTICAL);
+        circle.setGravity(Gravity.CENTER);
+        GradientDrawable oval = new GradientDrawable();
+        oval.setShape(GradientDrawable.OVAL);
+        oval.setColor(ORANGE);
+        oval.setStroke(dp(3), Color.WHITE);
+        GradientDrawable mask = new GradientDrawable();
+        mask.setShape(GradientDrawable.OVAL);
+        mask.setColor(Color.WHITE);
+        circle.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), oval, mask));
+        circle.setElevation(dp(6));
+        circle.setClickable(true);
+        circle.setFocusable(true);
+        TextView icon = new TextView(this);
+        icon.setText("☑");
+        icon.setTextSize(22);
+        icon.setTextColor(Color.WHITE);
+        icon.setGravity(Gravity.CENTER);
+        icon.setIncludeFontPadding(false);
+        TextView label = new TextView(this);
+        label.setText("איסוף");
+        label.setTextSize(11);
+        label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        label.setTextColor(Color.WHITE);
+        label.setGravity(Gravity.CENTER);
+        label.setIncludeFontPadding(false);
+        circle.addView(icon, new LinearLayout.LayoutParams(-2, -2));
+        circle.addView(label, new LinearLayout.LayoutParams(-2, -2));
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(dp(62), dp(62));
+        cp.gravity = Gravity.CENTER;
+        slot.addView(circle, cp);
+        circle.setOnClickListener(v -> openLatestCollect());
+        return slot;
+    }
+
+    /** Opens the newest order in the history straight in collect mode. Collected items are kept per order. */
+    private void openLatestCollect() {
+        beginScreen("איסוף הזמנה", 1, null);
+        setStatus("מחפש את ההזמנה האחרונה…");
+        final int t = screenToken;
+        executor.execute(() -> {
+            long found = -1;
+            Exception failure = null;
+            try {
+                HttpResult r = api("GET", "/api/orders?page=1", null);
+                if (r.code >= 200 && r.code < 300) {
+                    JSONArray orders = arrayFrom(r.body);
+                    String bestTime = "";
+                    for (int i = 0; i < orders.length(); i++) {
+                        JSONObject o = orders.optJSONObject(i);
+                        if (o == null) continue;
+                        long oid = o.optLong("id", -1);
+                        if (oid <= 0) continue;
+                        String time = first(o, "time");
+                        if (found < 0 || time.compareTo(bestTime) > 0 || (time.equals(bestTime) && oid > found)) { found = oid; bestTime = time; }
+                    }
+                    if (found > 0) prefs.edit().putLong("last_collect_order_id", found).apply();
+                } else {
+                    failure = new Exception(apiError(r));
+                }
+            } catch (Exception e) {
+                failure = e;
+            }
+            if (found <= 0 && !(failure instanceof AuthException)) found = prefs.getLong("last_collect_order_id", -1); // offline fallback
+            final long orderId = found;
+            final Exception err = failure;
+            if (orderId <= 0) {
+                fail(t, err != null ? err : new Exception("לא נמצאו הזמנות בהיסטוריה."), "לא ניתן לפתוח את ההזמנה האחרונה.");
+                return;
+            }
+            runOnUiThread(() -> { if (!stale(t)) openHistoryOrder(orderId, true); });
+        });
     }
 }
 
