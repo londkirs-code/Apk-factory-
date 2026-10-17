@@ -72,9 +72,7 @@ jobs:
           if [[ -d "$ICON_DIR" ]]; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq python3-pil
-            curl --fail --location --silent --show-error \\
-              'https://sherut-il.com/wp-content/uploads/2023/11/%D7%9E%D7%A9%D7%A0%D7%AA-%D7%99%D7%95%D7%A1%D7%A3-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%9C%D7%A7%D7%95%D7%97%D7%95%D7%AA-%D7%9C%D7%95%D7%92%D7%95-768x317.png' \\
-              -o /tmp/mishnat-yosef-logo.png
+            curl --fail --location --silent --show-error 'https://sherut-il.com/wp-content/uploads/2023/11/%D7%9E%D7%A9%D7%A0%D7%AA-%D7%99%D7%95%D7%A1%D7%A3-%D7%A9%D7%99%D7%A8%D7%95%D7%AA-%D7%9C%D7%A7%D7%95%D7%97%D7%95%D7%AA-%D7%9C%D7%95%D7%92%D7%95-768x317.png' -o /tmp/mishnat-yosef-logo.png
             python3 - <<'PY'
           from PIL import Image
           src = Image.open('/tmp/mishnat-yosef-logo.png').convert('RGBA')
