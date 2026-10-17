@@ -4007,21 +4007,17 @@ public class MainActivity extends Activity {
         showMathChallenge(action, null);
     }
 
+    /** One easy operation (+ or −). Both numbers and the answer are between 10 and 100. */
     private String[] newMathExercise() {
         Random r = new Random();
-        for (int tries = 0; tries < 300; tries++) {
-            int a = 0, b = 0, c = 0, res = 0;
-            String expr = "";
-            switch (r.nextInt(5)) {
-                case 0: a = 10 + r.nextInt(80); b = 5 + r.nextInt(80); res = a + b; expr = a + " + " + b; break;
-                case 1: a = 20 + r.nextInt(130); b = 5 + r.nextInt(90); res = a - b; expr = a + " − " + b; break;
-                case 2: a = 2 + r.nextInt(11); b = 2 + r.nextInt(11); res = a * b; expr = a + " × " + b; break;
-                case 3: b = 2 + r.nextInt(8); res = 10 + r.nextInt(50); a = b * res; expr = a + " ÷ " + b; break;
-                default: a = 2 + r.nextInt(9); b = 2 + r.nextInt(9); c = 1 + r.nextInt(40); res = a * b + c; expr = a + " × " + b + " + " + c; break;
-            }
-            if (res >= 10 && res <= 100) return new String[]{expr, String.valueOf(res)};
+        if (r.nextBoolean()) {
+            int a = 10 + r.nextInt(81);                // 10..90
+            int b = 10 + r.nextInt(100 - a - 10 + 1);  // 10..(100 - a), so the sum stays <= 100
+            return new String[]{a + " + " + b, String.valueOf(a + b)};
         }
-        return new String[]{"7 × 8", "56"};
+        int a = 20 + r.nextInt(81);                    // 20..100
+        int b = 10 + r.nextInt(a - 10 - 10 + 1);       // 10..(a - 10), so the answer stays >= 10
+        return new String[]{a + " − " + b, String.valueOf(a - b)};
     }
 
     private void showMathChallenge(final Runnable onSuccess, final Runnable onCancel) {
