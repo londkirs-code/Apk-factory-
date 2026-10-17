@@ -1,217 +1,108 @@
 package org.mishnatyosef.mobile;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
-import android.app.AlertDialog;
-import android.app.NotificationManager;
 import android.app.TimePickerDialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
+import android.app.AlertDialog;
+import android.Manifest;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Typeface;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
-import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.net.Uri;
+import android.content.Intent;
+import android.os.Bundle;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.text.Editable;
-import android.text.Html;
-import android.text.InputType;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.LruCache;
 import android.view.Gravity;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
+import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.CompoundButton;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.EditText;
-import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.ScrollView;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.json.JSONTokener;
-
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import android.widget.Spinner;
+import android.widget.Switch;
+import android.widget.ArrayAdapter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 // Build verification checkpoint: keep this source in the APK build trigger.
 public class MainActivity extends Activity {
     private static final String API = "https://v2.mishnatyosef.org";
-    private static final String IMG_BASE = "https://images.mishnatyosef.org/images/items/";
     private static final String PREFS = "mishnat_auth";
+    private static final String IMAGE_BASE = "https://images.mishnatyosef.org/images/items/";
     private static final long REFRESH_MARGIN_MS = 300000L;
+    private static final int PAGE_SIZE = 50;
+    private static final long SAVE_DEBOUNCE_MS = 500L;
+    private static final long SEARCH_DEBOUNCE_MS = 250L;
 
-    // ---- palette
-    private static final int ORANGE = Color.rgb(230, 94, 20);
-    private static final int ORANGE_DARK = Color.rgb(191, 70, 12);
-    private static final int ORANGE_LIGHT = Color.rgb(255, 239, 224);
-    private static final int BG = Color.rgb(255, 249, 244);
-    private static final int INK = Color.rgb(34, 49, 46);
-    private static final int MUTED = Color.rgb(120, 110, 104);
-    private static final int LINE = Color.rgb(238, 220, 205);
-    private static final int GREEN = Color.rgb(20, 130, 70);
-    private static final int GREEN_LIGHT = Color.rgb(228, 245, 234);
-    private static final int RED = Color.rgb(175, 45, 45);
-    private static final int RED_LIGHT = Color.rgb(253, 236, 234);
-
-    // ---- button styles
-    private static final int PRIMARY = 0, TONAL = 1, OUTLINE = 2, DANGER = 3, FLAT = 4;
-
-    private static final String[] HEB_DAYS = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
-
+    // API calls (login, lists, summaries). Images and order edits have their own threads,
+    // so 400+ image downloads can never block an API call or a quantity update.
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final ExecutorService imageExecutor = Executors.newFixedThreadPool(4);
-    private final Handler ui = new Handler(Looper.getMainLooper());
-    private LruCache<String, Bitmap> imageCache;
-    private SharedPreferences prefs;
+    // Order edits run strictly in order on a single thread.
+    private final ExecutorService saveExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService imageExecutor = Executors.newFixedThreadPool(3);
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    // Incremented on every new screen; async results of an old screen are dropped.
+    private final AtomicInteger screenGen = new AtomicInteger();
 
-    // ---- current screen
+    // Static: survives Activity re-creation (rotation). Sized as 1/8 of the app heap, in bytes.
+    private static final LruCache<String, Bitmap> imageCache =
+            new LruCache<String, Bitmap>((int) Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8)) {
+                @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
+            };
+    private final Set<String> failedImages = Collections.synchronizedSet(new HashSet<String>());
+
+    private SharedPreferences prefs;
     private LinearLayout root;
-    private FrameLayout bottomHolder;
-    private ScrollView scrollView;
-    private TextView statusView;
     private EditText emailField;
     private EditText passwordField;
-    private TextView loginButton;
+    private TextView statusView;
+    private Button loginButton;
     private boolean busy = false;
-    private Runnable backAction = null;
-    private int screenToken = 0;
-
-    // ---- ordering state
-    private JSONObject featureSale = null;
-    private long featureOrderId = -1;
-    private final List<JSONObject> featureProducts = new ArrayList<>();
-    private final Map<String, Integer> featureQuantities = new LinkedHashMap<>();
-    private final Set<String> pending = new HashSet<>();
-    private String filterText = "";
-    private LinearLayout gridContainer;
-    private final Map<String, Runnable> cardRefreshers = new LinkedHashMap<>();
-    private TextView barInfo, barTotal;
-
-    // ---- order summary state
-    private OrderData summary = null;
-    private boolean collectMode = false;
-    private boolean summaryFromHistory = false;
-    private LinearLayout summaryList, collectedBox, collectedList;
-    private TextView summaryTotal, summarySub, progressView;
-
-    // ---- history state
-    private int histPage = 0, histLast = 1;
-    private String histSearch = "";
-    private LinearLayout histList;
-    private TextView histMore;
-
-    // ---- favourites / screens / files
-    private final Set<String> favIds = new HashSet<>();
-    private String viewMode = "all";
-    private int screenKind = 0; // 1 = products, 2 = order summary
-    private String pendingExport = "";
-    private static final int REQ_EXPORT = 7101, REQ_IMPORT = 7102;
-    private final List<String> apiLog = Collections.synchronizedList(new ArrayList<String>());
-    private boolean refreshDead = false;
-
-    // ======================================================================== data classes
-
-    private static class HttpResult {
-        final int code;
-        final String body;
-        final String newToken;
-        HttpResult(int code, String body, String newToken) { this.code = code; this.body = body; this.newToken = newToken; }
-    }
-
-    private static class ImportEntry {
-        String pid = "";
-        String name = "";
-        String query = null;
-        double amount = 1;
-    }
-
-    private static class PlanItem {
-        JSONObject p;
-        String name = "";
-        int amount;
-        int cur;
-    }
-
-    private static class AuthException extends Exception {
-        AuthException() { super("נדרשת התחברות מחדש"); }
-    }
-
-    private static class OrderLine {
-        String sid = "";
-        String name = "";
-        double price = 0;
-        double amount = 0;
-        JSONObject raw = new JSONObject();
-    }
-
-    private static class OrderData {
-        long id;
-        String status = "";
-        String when = "";
-        String saleName = "";
-        long saleId = 0;
-        double total = -1;
-        double credits = 0;
-        final List<OrderLine> lines = new ArrayList<>();
-    }
-
-    private static class Stepper {
-        LinearLayout view;
-        TextView minus, plus, qty;
-    }
-
-    // ======================================================================== lifecycle
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
-        imageCache = new LruCache<String, Bitmap>(cacheKb) {
-            @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount() / 1024; }
-        };
-        getWindow().setStatusBarColor(ORANGE);
-        getWindow().setNavigationBarColor(Color.WHITE);
+        getWindow().setStatusBarColor(Color.rgb(230, 94, 20));
+        getWindow().setNavigationBarColor(Color.rgb(191, 70, 12));
         SaleMonitor.ensureNotificationChannel(this);
         requestMonitoringPermissions(false);
         if (hasToken()) {
@@ -219,13 +110,12 @@ public class MainActivity extends Activity {
             if (getIntent() != null && getIntent().hasExtra("sale_id")) {
                 openSaleFromNotification(getIntent().getIntExtra("sale_id", -1));
             } else {
-                showOpenSales();
+                showDashboard();
             }
-        } else {
-            showLogin();
-        }
+        } else showLogin();
     }
 
+    // Needs android:launchMode="singleTop" (or singleTask) on the activity in the manifest.
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -234,524 +124,381 @@ public class MainActivity extends Activity {
         }
     }
 
-    @Override public void onBackPressed() {
-        if (backAction != null) backAction.run();
-        else super.onBackPressed();
+    @Override protected void onPause() {
+        super.onPause();
+        flushPendingSaves();
     }
 
     @Override protected void onDestroy() {
         super.onDestroy();
+        uiHandler.removeCallbacksAndMessages(null);
         executor.shutdownNow();
         imageExecutor.shutdownNow();
+        saveExecutor.shutdown(); // let queued order edits finish
     }
 
-    // ======================================================================== small helpers
+    private boolean alive() { return !isFinishing() && !isDestroyed(); }
+
+    private boolean isStale(int gen) { return screenGen.get() != gen; }
+
+    private String msg(Exception e, String fallback) {
+        return e.getMessage() == null ? fallback : e.getMessage();
+    }
+
+    private String shorten(String s) {
+        if (s == null) return "";
+        return s.length() > 160 ? s.substring(0, 160) + "…" : s;
+    }
 
     private int dp(float n) {
         return (int) (n * getResources().getDisplayMetrics().density + 0.5f);
-    }
-
-    private boolean stale(int token) { return token != screenToken; }
-
-    private void toast(String message, boolean longer) {
-        Toast.makeText(this, message, longer ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
-    }
-
-    private GradientDrawable shape(int fill, float radiusDp, int stroke) {
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(fill);
-        g.setCornerRadius(dp(radiusDp));
-        if (stroke != 0) g.setStroke(dp(1), stroke);
-        return g;
-    }
-
-    private Drawable ripple(Drawable content, float radiusDp) {
-        GradientDrawable mask = new GradientDrawable();
-        mask.setColor(Color.WHITE);
-        mask.setCornerRadius(dp(radiusDp));
-        return new RippleDrawable(ColorStateList.valueOf(Color.argb(40, 230, 94, 20)), content, mask);
     }
 
     private TextView text(String value, float size, boolean bold) {
         TextView v = new TextView(this);
         v.setText(value);
         v.setTextSize(size);
-        v.setTextColor(INK);
-        v.setGravity(Gravity.START);
+        v.setTextColor(Color.rgb(34, 49, 46));
+        v.setGravity(Gravity.RIGHT);
         if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        v.setPadding(dp(2), dp(3), dp(2), dp(3));
+        v.setPadding(dp(4), dp(8), dp(4), dp(8));
         return v;
     }
 
-    private TextView muted(String value, float size) {
-        TextView v = text(value, size, false);
-        v.setTextColor(MUTED);
+    private TextView compactText(String value, float size, boolean bold) {
+        TextView v = text(value, size, bold);
+        v.setPadding(dp(4), dp(2), dp(4), dp(2));
         return v;
     }
 
-    private TextView btn(String label, int style) {
-        TextView b = new TextView(this);
+    private Button button(String label) {
+        Button b = new Button(this);
         b.setText(label);
-        b.setTextSize(14);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setGravity(Gravity.CENTER);
-        b.setClickable(true);
-        b.setFocusable(true);
-        b.setMinHeight(dp(44));
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Color.rgb(239, 108, 0));
+        bg.setCornerRadius(dp(18));
+        b.setBackground(bg);
         b.setPadding(dp(16), dp(8), dp(16), dp(8));
-        int fill, fg, stroke = 0;
-        switch (style) {
-            case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
-            case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
-            case OUTLINE: fill = Color.WHITE; fg = ORANGE_DARK; stroke = ORANGE; break;
-            case DANGER: fill = RED_LIGHT; fg = RED; break;
-            default: fill = Color.TRANSPARENT; fg = ORANGE_DARK; break;
-        }
-        b.setTextColor(fg);
-        b.setBackground(ripple(shape(fill, 12, stroke), 12));
+        b.setMinHeight(dp(52));
         return b;
     }
 
-    private TextView smallChip(String label, int style) {
-        TextView b = btn(label, style);
-        b.setTextSize(12);
-        b.setMinHeight(dp(32));
-        b.setPadding(dp(12), dp(4), dp(12), dp(4));
-        return b;
-    }
+    private void beginScreen(String heading) { beginScreen(heading, false); }
 
-    private TextView roundBtn(String label, int sizeDp, int fill, int fg) {
-        TextView b = new TextView(this);
-        b.setText(label);
-        b.setTextSize(18);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setTextColor(fg);
-        b.setGravity(Gravity.CENTER);
-        b.setClickable(true);
-        b.setFocusable(true);
-        GradientDrawable oval = new GradientDrawable();
-        oval.setShape(GradientDrawable.OVAL);
-        oval.setColor(fill);
-        GradientDrawable mask = new GradientDrawable();
-        mask.setShape(GradientDrawable.OVAL);
-        mask.setColor(Color.WHITE);
-        b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(50, 230, 94, 20)), oval, mask));
-        b.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
-        return b;
-    }
-
-    private void setEnabledLook(View v, boolean enabled) {
-        v.setEnabled(enabled);
-        v.setAlpha(enabled ? 1f : 0.45f);
-    }
-
-    private LinearLayout card(float paddingDp) {
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp));
-        c.setBackground(shape(Color.WHITE, 14, LINE));
-        return c;
-    }
-
-    private LinearLayout.LayoutParams lp(int w, int h, int top, int bottom) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(w, h);
-        p.topMargin = dp(top);
-        p.bottomMargin = dp(bottom);
-        return p;
-    }
-
-    private EditText field(String hint, int inputType) {
-        EditText e = new EditText(this);
-        e.setSingleLine(true);
-        e.setHint(hint);
-        e.setInputType(inputType);
-        e.setTextSize(15);
-        e.setTextColor(INK);
-        e.setHintTextColor(MUTED);
-        e.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        e.setPadding(dp(14), 0, dp(14), 0);
-        e.setBackground(shape(Color.WHITE, 12, LINE));
-        return e;
-    }
-
-    private Stepper stepper(int heightDp) {
-        Stepper s = new Stepper();
-        s.view = new LinearLayout(this);
-        s.view.setOrientation(LinearLayout.HORIZONTAL);
-        s.view.setGravity(Gravity.CENTER);
-        s.view.setBackground(shape(ORANGE_LIGHT, heightDp, 0));
-        s.plus = roundBtn("+", heightDp, ORANGE, Color.WHITE);
-        s.minus = roundBtn("−", heightDp, Color.WHITE, ORANGE_DARK);
-        s.qty = new TextView(this);
-        s.qty.setTextSize(16);
-        s.qty.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        s.qty.setTextColor(INK);
-        s.qty.setGravity(Gravity.CENTER);
-        s.view.addView(s.plus);
-        s.view.addView(s.qty, new LinearLayout.LayoutParams(dp(36), dp(heightDp)));
-        s.view.addView(s.minus);
-        return s;
-    }
-
-    private void setStatus(String message) { setStatus(message, false); }
-
-    private void setStatus(String message, boolean error) {
-        if (statusView == null) return;
-        statusView.setText(message == null ? "" : message);
-        statusView.setTextColor(error ? RED : MUTED);
-        statusView.setVisibility(message == null || message.isEmpty() ? View.GONE : View.VISIBLE);
-    }
-
-    private void hideKeyboard() {
-        try {
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            View focus = getCurrentFocus();
-            if (imm != null && focus != null) imm.hideSoftInputFromWindow(focus.getWindowToken(), 0);
-        } catch (Exception ignored) { }
-    }
-
-    // ---- json helpers
-
-    private String first(JSONObject obj, String... keys) {
-        if (obj == null) return "";
-        for (String key : keys) {
-            Object value = obj.opt(key);
-            if (value == null || value == JSONObject.NULL) continue;
-            String s;
-            if (value instanceof JSONObject) s = ((JSONObject) value).optString("name", "");
-            else if (value instanceof JSONArray) continue;
-            else s = String.valueOf(value);
-            s = s.trim();
-            if (!s.isEmpty() && !"null".equalsIgnoreCase(s)) return s;
-        }
-        return "";
-    }
-
-    private String nameOf(JSONObject obj, String key) {
-        if (obj == null) return "";
-        JSONObject v = obj.optJSONObject(key);
-        if (v == null) return "";
-        String s = v.optString("name", "").trim();
-        return "null".equalsIgnoreCase(s) ? "" : s;
-    }
-
-    private boolean truthy(Object v) {
-        if (v == null || v == JSONObject.NULL) return false;
-        if (v instanceof Boolean) return (Boolean) v;
-        if (v instanceof Number) return ((Number) v).doubleValue() != 0;
-        String s = String.valueOf(v).trim();
-        return !s.isEmpty() && !"0".equals(s) && !"false".equalsIgnoreCase(s) && !"null".equalsIgnoreCase(s);
-    }
-
-    private double parseMoney(String raw) {
-        if (raw == null || raw.isEmpty()) return 0;
-        try {
-            String normalized = raw.replace(",", ".").replaceAll("[^0-9.\\-]", "");
-            return normalized.isEmpty() ? 0 : Double.parseDouble(normalized);
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    private double num(Object v) {
-        if (v instanceof Number) return ((Number) v).doubleValue();
-        if (v instanceof String) return parseMoney((String) v);
-        return 0;
-    }
-
-    private String fmtNum(double n) {
-        String s = String.format(Locale.US, "%.2f", n);
-        if (s.contains(".")) s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
-        return s;
-    }
-
-    private String money(double n) { return "₪" + fmtNum(n); }
-
-    private String money2(double n) { return "₪" + String.format(Locale.US, "%.2f", n); }
-
-    private JSONArray arrayFrom(String body) {
-        try {
-            Object v = new JSONTokener(body).nextValue();
-            if (v instanceof JSONArray) return (JSONArray) v;
-            if (v instanceof JSONObject) {
-                JSONObject o = (JSONObject) v;
-                JSONArray a = o.optJSONArray("data");
-                if (a == null) a = o.optJSONArray("items");
-                if (a == null) a = o.optJSONArray("products");
-                if (a != null) return a;
-            }
-        } catch (Exception ignored) { }
-        return new JSONArray();
-    }
-
-    private String cleanHtml(String s) {
-        if (s == null || s.isEmpty()) return "";
-        return Html.fromHtml(s, Html.FROM_HTML_MODE_LEGACY).toString().trim();
-    }
-
-    private String apiError(HttpResult r) {
-        String body = r.body == null ? "" : r.body.trim();
-        if (body.startsWith("{")) {
-            try {
-                JSONObject j = new JSONObject(body);
-                String msg = cleanHtml(first(j, "message", "title", "error"));
-                String detail = "";
-                JSONObject errs = j.optJSONObject("errors");
-                if (errs != null) {
-                    java.util.Iterator<String> keys = errs.keys();
-                    while (keys.hasNext() && detail.isEmpty()) {
-                        Object v = errs.opt(keys.next());
-                        if (v instanceof JSONArray && ((JSONArray) v).length() > 0) detail = labelOf(((JSONArray) v).opt(0));
-                        else if (v instanceof String) detail = (String) v;
-                    }
-                }
-                if (!detail.isEmpty()) return detail;
-                if (!msg.isEmpty()) return msg;
-            } catch (Exception ignored) { }
-        }
-        return httpMessage(r.code);
-    }
-
-    private String httpMessage(int code) {
-        if (code == 401) return "נדרשת התחברות מחדש";
-        if (code == 403) return "אין הרשאה לבצע את הפעולה";
-        if (code == 404) return "הפריט לא נמצא בשרת";
-        if (code == 419 || code == 422) return "השרת לא קיבל את הנתונים";
-        if (code == 429) return "יותר מדי בקשות. נסו שוב בעוד רגע";
-        if (code >= 500) return "תקלה זמנית בשרת. נסו שוב";
-        return "שגיאה (" + code + ")";
-    }
-
-    /** Never shows raw JSON / HTML / stack text to the user. */
-    private String errText(Exception e, String fallback) {
-        if (e instanceof AuthException) return e.getMessage();
-        if (e instanceof java.net.UnknownHostException || e instanceof java.net.ConnectException) return "אין חיבור לשרת. בדקו את האינטרנט ונסו שוב.";
-        if (e instanceof java.net.SocketTimeoutException) return "השרת לא הגיב בזמן. נסו שוב.";
-        if (e instanceof java.io.IOException) return "בעיית תקשורת עם השרת. נסו שוב.";
-        if (e instanceof org.json.JSONException) return "תשובת השרת לא הייתה במבנה צפוי. נסו לרענן.";
-        String m = e.getMessage();
-        if (m == null || m.trim().isEmpty()) return fallback;
-        String t = m.trim();
-        if (t.startsWith("{") || t.startsWith("[") || t.startsWith("<") || t.contains("<html") || t.contains("org.json") || t.contains("java.")) return fallback;
-        return m;
-    }
-
-    private String labelOf(Object v) {
-        if (v == null || v == JSONObject.NULL) return "";
-        if (v instanceof JSONObject) return first((JSONObject) v, "name", "title", "label");
-        return String.valueOf(v);
-    }
-
-    // ---- dates
-
-    private Date parseDt(String raw) {
-        if (raw == null) return null;
-        String v = raw.replace("T", " ").trim();
-        String[] patterns = {"yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd"};
-        int[] lengths = {19, 16, 10};
-        for (int i = 0; i < patterns.length; i++) {
-            if (v.length() < lengths[i]) continue;
-            try {
-                return new SimpleDateFormat(patterns[i], Locale.US).parse(v.substring(0, lengths[i]));
-            } catch (Exception ignored) { }
-        }
-        return null;
-    }
-
-    private String fmtDay(Date d, boolean withTime) {
-        Calendar c = Calendar.getInstance();
-        c.setTime(d);
-        String s = "יום " + HEB_DAYS[c.get(Calendar.DAY_OF_WEEK) - 1] + " " + new SimpleDateFormat("dd/MM/yyyy", Locale.US).format(d);
-        return withTime ? s + " " + new SimpleDateFormat("HH:mm", Locale.US).format(d) : s;
-    }
-
-    private String fmtWhen(String raw) {
-        Date d = parseDt(raw);
-        return d == null ? (raw == null ? "" : raw) : new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(d);
-    }
-
-    private Date pickupDate(JSONObject sale) {
-        Date d = parseDt(first(sale, "supply_begin"));
-        if (d != null) return d;
-        try {
-            JSONObject parent = sale.optJSONObject("parent");
-            JSONObject site = sale.optJSONObject("site");
-            if (parent == null || site == null) return null;
-            int dd = (int) num(site.opt("distribution_day"));
-            int shift = (int) num(sale.opt("day_diff"));
-            Date ws = parseDt(first(parent, "week_start"));
-            if (ws == null || dd <= 0) return null;
-            Calendar c = Calendar.getInstance();
-            c.setTime(ws);
-            c.add(Calendar.DAY_OF_MONTH, dd - 1 + shift);
-            return c.getTime();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private String closingText(JSONObject sale) {
-        Date end = parseDt(first(sale, "end"));
-        if (end == null) return "";
-        long left = end.getTime() - System.currentTimeMillis();
-        if (left <= 0) return "המכירה נסגרה";
-        long minutes = left / 60000L;
-        long days = minutes / 1440L, hours = (minutes % 1440L) / 60L, mins = minutes % 60L;
-        return "נסגרת בעוד " + (days > 0 ? days + " ימים " : "") + hours + " שעות " + mins + " דקות";
-    }
-
-    private String saleTitle(JSONObject sale) {
-        if (sale == null) return "";
-        String name = first(sale, "custom_name");
-        if (name.isEmpty()) name = first(sale.optJSONObject("parent"), "week");
-        if (name.isEmpty()) name = first(sale, "name", "title", "sale_name");
-        return name;
-    }
-
-    // ======================================================================== screens: frame
-
-    private void beginScreen(String heading, int tab, Runnable back) {
-        screenToken++;
-        screenKind = 0;
-        backAction = back;
+    // fixedList=true: no outer ScrollView, the caller adds its own ListView that fills the screen.
+    private void beginScreen(String heading, boolean fixedList) {
+        screenGen.incrementAndGet();
+        if (searchRunnable != null) { uiHandler.removeCallbacks(searchRunnable); searchRunnable = null; }
+        productList = null;
+        productAdapter = null;
+        orderInfoView = null;
 
         LinearLayout screen = new LinearLayout(this);
         screen.setOrientation(LinearLayout.VERTICAL);
-        screen.setBackgroundColor(BG);
+        screen.setBackgroundColor(Color.rgb(255, 249, 244));
         screen.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(ORANGE);
-        header.setPadding(dp(8), dp(8), dp(16), dp(8));
-        header.setElevation(dp(3));
-        if (back != null) {
-            TextView arrow = text("→", 22, true);
-            arrow.setTextColor(Color.WHITE);
-            arrow.setGravity(Gravity.CENTER);
-            arrow.setPadding(dp(10), 0, dp(10), 0);
-            arrow.setOnClickListener(v -> back.run());
-            header.addView(arrow, new LinearLayout.LayoutParams(-2, dp(44)));
-        }
-        LinearLayout titles = new LinearLayout(this);
-        titles.setOrientation(LinearLayout.VERTICAL);
-        TextView app = text("משנת יוסף", 11, false);
-        app.setTextColor(Color.argb(210, 255, 255, 255));
-        TextView head = text(heading, 18, true);
-        head.setTextColor(Color.WHITE);
-        head.setMaxLines(1);
-        head.setEllipsize(TextUtils.TruncateAt.END);
-        titles.addView(app);
-        titles.addView(head);
-        header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
-        screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
-
-        scrollView = new ScrollView(this);
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(14), dp(12), dp(14), dp(16));
+        root.setBackgroundColor(Color.rgb(255, 249, 244));
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        scrollView.addView(root, new ScrollView.LayoutParams(-1, -2));
-        screen.addView(scrollView, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        statusView = muted("", 13);
-        statusView.setVisibility(View.GONE);
-        root.addView(statusView, lp(-1, -2, 0, 6));
+        if (fixedList) {
+            root.setPadding(dp(10), dp(10), dp(10), dp(4));
+            screen.addView(root, new LinearLayout.LayoutParams(-1, 0, 1));
+            TextView title = compactText("משנת יוסף · " + heading, 16, true);
+            title.setTextColor(Color.rgb(230, 94, 20));
+            title.setGravity(Gravity.CENTER);
+            root.addView(title, new LinearLayout.LayoutParams(-1, -2));
+            statusView = compactText("", 12, false);
+            root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+        } else {
+            root.setPadding(dp(22), dp(28), dp(22), dp(18));
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
+            screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        bottomHolder = new FrameLayout(this);
-        screen.addView(bottomHolder, new LinearLayout.LayoutParams(-1, -2));
+            TextView title = text("משנת יוסף", 28, true);
+            title.setTextColor(Color.rgb(230, 94, 20));
+            title.setGravity(Gravity.CENTER);
+            root.addView(title, new LinearLayout.LayoutParams(-1, -2));
+            TextView sub = text(heading, 16, false);
+            sub.setGravity(Gravity.CENTER);
+            sub.setPadding(0, 0, 0, dp(24));
+            root.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+            statusView = text("", 14, false);
+            root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
+        }
 
         if (hasToken()) {
             LinearLayout nav = new LinearLayout(this);
             nav.setOrientation(LinearLayout.HORIZONTAL);
+            nav.setGravity(Gravity.CENTER);
             nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
-            String[] icons = {"🛒", "🧾", "💚", "👤"};
-            String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
-            Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
-            for (int i = labels.length - 1; i >= 0; i--) {
+            String[] labels = {"ראשי", "מכירות פתוחות", "זיכויים", "היסטוריה"};
+            int[] icons = {android.R.drawable.ic_menu_agenda, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_recent_history, android.R.drawable.ic_menu_info_details};
+            Runnable[] actions = {this::showDashboard, this::showOpenSales, this::loadFeatureTransactions, this::loadFeatureOrders};
+            for (int i = 0; i < labels.length; i++) {
                 final int index = i;
-                boolean active = i == tab;
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
-                item.setPadding(dp(2), dp(6), dp(2), dp(6));
-                item.setBackground(ripple(new GradientDrawable(), 0));
-                TextView icon = new TextView(this);
-                icon.setText(icons[i]);
-                icon.setTextSize(18);
-                icon.setGravity(Gravity.CENTER);
-                icon.setAlpha(active ? 1f : 0.55f);
-                item.addView(icon, new LinearLayout.LayoutParams(-1, -2));
-                TextView label = text(labels[i], 11, active);
+                item.setPadding(dp(2), dp(5), dp(2), dp(5));
+                ImageView icon = new ImageView(this);
+                icon.setImageResource(icons[i]);
+                icon.setColorFilter(Color.rgb(230, 94, 20));
+                LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(24), dp(24));
+                item.addView(icon, ip);
+                TextView label = text(labels[i], 11, true);
                 label.setGravity(Gravity.CENTER);
-                label.setTextColor(active ? ORANGE_DARK : MUTED);
+                label.setPadding(0, dp(2), 0, 0);
                 item.addView(label, new LinearLayout.LayoutParams(-1, -2));
                 item.setOnClickListener(v -> actions[index].run());
-                nav.addView(item, new LinearLayout.LayoutParams(0, dp(56), 1));
+                nav.addView(item, new LinearLayout.LayoutParams(0, dp(60), 1));
             }
-            screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(56)));
+            screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(60)));
         }
         setContentView(screen);
     }
 
-    // ======================================================================== login / account
-
     private void showLogin() {
-        beginScreen("התחברות לחשבון", -1, null);
-        TextView hello = text("ברוכים הבאים", 22, true);
-        hello.setTextColor(ORANGE_DARK);
-        root.addView(hello, lp(-1, -2, 24, 2));
-        root.addView(muted("התחברו עם החשבון שלכם באתר משנת יוסף", 14), lp(-1, -2, 0, 18));
-
-        emailField = field("כתובת אימייל", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        beginScreen("התחברות לחשבון");
+        emailField = new EditText(this);
+        emailField.setSingleLine(true);
+        emailField.setHint("כתובת אימייל");
+        emailField.setInputType(33);
         emailField.setText(prefs.getString("email", ""));
-        root.addView(emailField, lp(-1, dp(52), 0, 10));
+        root.addView(emailField, new LinearLayout.LayoutParams(-1, dp(56)));
 
-        passwordField = field("סיסמה", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        passwordField.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        passwordField.setOnEditorActionListener((v, actionId, event) -> { login(); return true; });
-        root.addView(passwordField, lp(-1, dp(52), 0, 16));
+        passwordField = new EditText(this);
+        passwordField.setSingleLine(true);
+        passwordField.setHint("סיסמה");
+        passwordField.setInputType(129);
+        root.addView(passwordField, new LinearLayout.LayoutParams(-1, dp(56)));
 
-        loginButton = btn("התחברות", PRIMARY);
+        loginButton = button("התחברות");
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
+        bp.topMargin = dp(18);
+        bp.bottomMargin = dp(12);
+        root.addView(loginButton, bp);
         loginButton.setOnClickListener(v -> login());
-        root.addView(loginButton, lp(-1, dp(52), 0, 8));
     }
 
-    private void showAccount() {
-        beginScreen("חשבון והגדרות", 3, null);
-        LinearLayout acc = card(14);
-        acc.addView(muted("מחובר כ", 12));
-        acc.addView(text(prefs.getString("email", ""), 16, true));
-        acc.addView(muted(tokenStatus(), 12));
-        root.addView(acc, lp(-1, -2, 0, 10));
+    private void showDashboard() {
+        beginScreen("מחובר לחשבון שלך");
+        TextView account = text("חשבון: " + prefs.getString("email", ""), 14, false);
+        root.addView(account, new LinearLayout.LayoutParams(-1, -2));
+        statusView.setText("טוען את המכירות הפתוחות…");
+        TextView hint = text("בחרי פעולה מהתפריט הקבוע בתחתית המסך.", 15, false);
+        root.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         addHomeNotificationSettings();
-        TextView refreshTok = btn("🔁 חידוש התחברות (בלי סיסמה)", TONAL);
-        refreshTok.setOnClickListener(v -> executor.execute(() -> {
-            String cur = prefs.getString("token", "");
-            String next = refreshToken(cur);
-            runOnUiThread(() -> { toast(next.isEmpty() ? "החידוש לא הצליח. ייתכן שנדרשת התחברות מחדש" : "ההתחברות חודשה", true); showAccount(); });
-        }));
-        root.addView(refreshTok, lp(-1, dp(46), 0, 8));
-        TextView logBtn = btn("📡 יומן תקשורת (לאבחון תקלות)", TONAL);
-        logBtn.setOnClickListener(v -> showApiLog());
-        root.addView(logBtn, lp(-1, dp(46), 0, 8));
-        TextView cacheBtn = btn("🧹 ניקוי מטמון תמונות", TONAL);
-        cacheBtn.setOnClickListener(v -> { imageCache.evictAll(); toast("המטמון נוקה", false); });
-        root.addView(cacheBtn, lp(-1, dp(46), 0, 8));
-        TextView logout = btn("התנתקות", DANGER);
+        Button refresh = button("רענון מכירות פתוחות");
+        LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(-1, -2);
+        refreshLp.topMargin = dp(8);
+        refreshLp.bottomMargin = dp(12);
+        root.addView(refresh, refreshLp);
+        refresh.setOnClickListener(v -> loadOpenSales());
+        Button logout = button("התנתקות");
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = dp(8);
+        lp.bottomMargin = dp(12);
+        root.addView(logout, lp);
         logout.setOnClickListener(v -> {
+            SaleMonitor.stopMonitoring(this);
             prefs.edit().remove("token").remove("expires_at").apply();
+            allRows.clear();
+            shownRows.clear();
+            featureQuantities.clear();
+            confirmedAmounts.clear();
             showLogin();
         });
-        root.addView(logout, lp(-1, dp(48), 16, 8));
+        loadOpenSales();
+    }
+
+    private void requestMonitoringPermissions(boolean forceExactAlarmSettings) {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                && (forceExactAlarmSettings || !prefs.getBoolean("notification_permission_requested", false))) {
+            prefs.edit().putBoolean("notification_permission_requested", true).apply();
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4101);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 31) {
+            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null && !am.canScheduleExactAlarms()
+                    && (forceExactAlarmSettings || !prefs.getBoolean("exact_alarm_settings_prompted", false))) {
+                prefs.edit().putBoolean("exact_alarm_settings_prompted", true).apply();
+                try { startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getPackageName()))); }
+                catch (Exception ignored) { }
+            }
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 4101) requestMonitoringPermissions(false);
+    }
+
+    private void addHomeNotificationSettings() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(10), dp(7), dp(10), dp(7));
+        card.setBackgroundColor(Color.rgb(255, 248, 241));
+        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+        cardLp.topMargin = dp(3); cardLp.bottomMargin = dp(3);
+        root.addView(card, cardLp);
+
+        TextView status = text(notificationStatusText(), 13, false);
+        status.setPadding(dp(4), dp(3), dp(4), dp(5));
+        card.addView(status, new LinearLayout.LayoutParams(-1, -2));
+
+        Button settings = button("הגדרות התראה");
+        settings.setTextSize(12);
+        settings.setMinHeight(dp(34));
+        settings.setPadding(dp(12), 0, dp(12), 0);
+        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(-2, dp(36));
+        settingsLp.gravity = Gravity.END;
+        card.addView(settings, settingsLp);
+        settings.setOnClickListener(v -> showNotificationSettingsDialog(status));
+    }
+
+    private String notificationStatusText() {
+        boolean enabled = prefs.getBoolean("sale_monitor_enabled", true);
+        int[] days = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
+        String[] names = {"יום א׳", "יום ב׳", "יום ג׳", "יום ד׳", "יום ה׳", "יום ו׳", "יום ש׳"};
+        int start = prefs.getInt("monitor_start_day", Calendar.THURSDAY);
+        int end = prefs.getInt("monitor_end_day", Calendar.SUNDAY);
+        String startName = names[indexOf(days, start)];
+        String endName = names[indexOf(days, end)];
+        String startTime = prefs.getString("monitor_start_time", "19:00");
+        String endTime = prefs.getString("monitor_end_time", "10:00");
+        int interval = prefs.getInt("monitor_interval_minutes", 5);
+        if (!enabled) return "ההתראה כבויה. ניתן להפעיל דרך ההגדרות.";
+        return "ההתראה פועלת מ" + startName + " " + startTime + " עד " + endName + " " + endTime
+                + " · בדיקה כל " + interval + " דקות";
+    }
+
+    private void showNotificationSettingsDialog(TextView homeStatus) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(18), dp(8), dp(18), dp(4));
+        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        Switch toggle = new Switch(this);
+        toggle.setText("התראה על מכירה חדשה");
+        toggle.setTextSize(15);
+        toggle.setChecked(prefs.getBoolean("sale_monitor_enabled", true));
+        panel.addView(toggle, new LinearLayout.LayoutParams(-1, dp(44)));
+
+        String[] days = {"א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"};
+        int[] calendarDays = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
+        ArrayAdapter<String> dayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, days);
+        dayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        LinearLayout startRow = new LinearLayout(this);
+        startRow.setGravity(Gravity.CENTER_VERTICAL);
+        startRow.addView(text("מתחילה ביום", 13, false), new LinearLayout.LayoutParams(dp(95), -2));
+        Spinner startDay = new Spinner(this);
+        startDay.setAdapter(dayAdapter);
+        startDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_start_day", Calendar.THURSDAY)));
+        startRow.addView(startDay, new LinearLayout.LayoutParams(0, dp(42), 1));
+        TextView startTime = dialogTimeField(prefs.getString("monitor_start_time", "19:00"));
+        startRow.addView(startTime, new LinearLayout.LayoutParams(dp(76), dp(42)));
+        panel.addView(startRow, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        LinearLayout endRow = new LinearLayout(this);
+        endRow.setGravity(Gravity.CENTER_VERTICAL);
+        endRow.addView(text("מסתיימת ביום", 13, false), new LinearLayout.LayoutParams(dp(95), -2));
+        Spinner endDay = new Spinner(this);
+        endDay.setAdapter(dayAdapter);
+        endDay.setSelection(indexOf(calendarDays, prefs.getInt("monitor_end_day", Calendar.SUNDAY)));
+        endRow.addView(endDay, new LinearLayout.LayoutParams(0, dp(42), 1));
+        TextView endTime = dialogTimeField(prefs.getString("monitor_end_time", "10:00"));
+        endRow.addView(endTime, new LinearLayout.LayoutParams(dp(76), dp(42)));
+        panel.addView(endRow, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        LinearLayout intervalRow = new LinearLayout(this);
+        intervalRow.setGravity(Gravity.CENTER_VERTICAL);
+        intervalRow.addView(text("בדיקה כל כמה דקות?", 13, false), new LinearLayout.LayoutParams(0, -2, 1));
+        Integer[] intervals = {1, 2, 3, 5, 10, 15, 20, 30, 60};
+        String[] intervalLabels = {"1", "2", "3", "5", "10", "15", "20", "30", "60"};
+        ArrayAdapter<String> intervalAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, intervalLabels);
+        intervalAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        Spinner intervalSpinner = new Spinner(this);
+        intervalSpinner.setAdapter(intervalAdapter);
+        intervalSpinner.setSelection(indexOf(intervals, prefs.getInt("monitor_interval_minutes", 5)));
+        intervalRow.addView(intervalSpinner, new LinearLayout.LayoutParams(dp(90), dp(42)));
+        intervalRow.addView(text("דקות", 13, false));
+        panel.addView(intervalRow, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("הגדרות התראה")
+                .setView(panel)
+                .setNegativeButton("ביטול", null)
+                .setPositiveButton("שמירה", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String st = startTime.getText().toString().trim(), et = endTime.getText().toString().trim();
+            if (!validTime(st) || !validTime(et)) {
+                Toast.makeText(this, "יש לבחור שעה תקינה", Toast.LENGTH_LONG).show();
+                return;
+            }
+            int interval = intervals[intervalSpinner.getSelectedItemPosition()];
+            prefs.edit().putBoolean("sale_monitor_enabled", toggle.isChecked())
+                    .putInt("monitor_start_day", calendarDays[startDay.getSelectedItemPosition()])
+                    .putInt("monitor_end_day", calendarDays[endDay.getSelectedItemPosition()])
+                    .putString("monitor_start_time", st).putString("monitor_end_time", et)
+                    .putInt("monitor_interval_minutes", interval).apply();
+            if (toggle.isChecked()) {
+                requestMonitoringPermissions(false);
+                SaleMonitor.stopMonitoring(this);
+                SaleMonitor.scheduleNextStart(this);
+            } else {
+                SaleMonitor.stopMonitoring(this);
+            }
+            homeStatus.setText(notificationStatusText());
+            Toast.makeText(this, "הגדרות ההתראה נשמרו", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        }));
+        dialog.show();
+    }
+
+    private TextView dialogTimeField(String initialTime) {
+        TextView time = text(initialTime, 14, true);
+        time.setGravity(Gravity.CENTER);
+        time.setPadding(dp(3), 0, dp(3), 0);
+        time.setBackground(timePickerBackground());
+        time.setOnClickListener(v -> {
+            String[] parts = time.getText().toString().split(":");
+            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
+            new TimePickerDialog(this, (picker, h, m) -> time.setText(String.format(java.util.Locale.US, "%02d:%02d", h, m)), hour, minute, true).show();
+        });
+        return time;
+    }
+
+    private android.graphics.drawable.GradientDrawable timePickerBackground() {
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Color.WHITE);
+        bg.setCornerRadius(dp(6));
+        bg.setStroke(dp(1), Color.rgb(230, 94, 20));
+        return bg;
+    }
+
+    private int indexOf(int[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 0; }
+    private int indexOf(Integer[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 3; }
+    private boolean validTime(String value) { if (value == null || !value.matches("[0-2][0-9]:[0-5][0-9]")) return false; return Integer.parseInt(value.substring(0, 2)) < 24; }
+
+    private boolean hasToken() {
+        return !prefs.getString("token", "").isEmpty();
     }
 
     private void setBusy(boolean value, String message) {
         busy = value;
-        setStatus(message, false);
-        if (loginButton != null) setEnabledLook(loginButton, !value);
+        if (statusView != null) statusView.setText(message);
+        if (loginButton != null) loginButton.setEnabled(!value);
     }
 
     private void login() {
@@ -759,7 +506,7 @@ public class MainActivity extends Activity {
         String email = emailField.getText().toString().trim();
         String password = passwordField.getText().toString();
         if (email.isEmpty() || password.isEmpty()) {
-            setStatus("יש למלא אימייל וסיסמה.", true);
+            statusView.setText("יש למלא אימייל וסיסמה.");
             return;
         }
         hideKeyboard();
@@ -787,469 +534,166 @@ public class MainActivity extends Activity {
                     busy = false;
                     loginButton = null;
                     SaleMonitor.scheduleNextStart(this);
-                    showOpenSales();
+                    showDashboard();
                 });
             } catch (Exception e) {
-                String message = errText(e, "ההתחברות נכשלה.");
-                runOnUiThread(() -> { setBusy(false, ""); setStatus(message, true); });
+                String message = msg(e, "ההתחברות נכשלה.");
+                runOnUiThread(() -> setBusy(false, message));
             }
         });
     }
 
-    // ======================================================================== notification settings
-
-    private void requestMonitoringPermissions(boolean forceExactAlarmSettings) {
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                && (forceExactAlarmSettings || !prefs.getBoolean("notification_permission_requested", false))) {
-            prefs.edit().putBoolean("notification_permission_requested", true).apply();
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4101);
-            return;
-        }
-        if (Build.VERSION.SDK_INT >= 31) {
-            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
-            if (am != null && !am.canScheduleExactAlarms()
-                    && (forceExactAlarmSettings || !prefs.getBoolean("exact_alarm_settings_prompted", false))) {
-                prefs.edit().putBoolean("exact_alarm_settings_prompted", true).apply();
-                try { startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getPackageName()))); }
-                catch (Exception ignored) { }
-            }
-        }
+    private void showOpenSales() {
+        beginScreen("הזמנות פתוחות");
+        statusView.setText("טוען הזמנות פתוחות…");
+        loadOpenSales();
     }
 
-    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 4101) requestMonitoringPermissions(false);
-    }
-
-    private static final int[] CAL_DAYS = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
-
-    private String dayName(int calDay) { return "יום " + HEB_DAYS[indexOf(CAL_DAYS, calDay)]; }
-
-    private String hoursText(int minutes) {
-        if (minutes < 60) return minutes + " דקות";
-        if (minutes % 60 == 0) return minutes == 60 ? "שעה" : (minutes / 60) + " שעות";
-        return fmtNum(minutes / 60.0) + " שעות";
-    }
-
-    private String humanDuration(long ms) {
-        long minutes = Math.max(0, ms / 60000L);
-        long days = minutes / 1440L, hours = (minutes % 1440L) / 60L, mins = minutes % 60L;
-        StringBuilder sb = new StringBuilder();
-        if (days > 0) sb.append(days == 1 ? "יום" : days + " ימים");
-        if (hours > 0) { if (sb.length() > 0) sb.append(" ו-"); sb.append(hours == 1 ? "שעה" : hours + " שעות"); }
-        if (mins > 0 && days == 0) { if (sb.length() > 0) sb.append(" ו-"); sb.append(mins).append(" דקות"); }
-        return sb.length() == 0 ? "פחות מדקה" : sb.toString();
-    }
-
-    private String monitorSummary() {
-        if (!prefs.getBoolean("sale_monitor_enabled", true)) return "כבוי";
-        return "פועלת מ" + dayName(prefs.getInt("monitor_start_day", Calendar.THURSDAY)) + " " + prefs.getString("monitor_start_time", "19:00")
-                + " עד " + dayName(prefs.getInt("monitor_end_day", Calendar.SUNDAY)) + " " + prefs.getString("monitor_end_time", "10:00")
-                + " · בדיקה כל " + prefs.getInt("monitor_interval_minutes", 5) + " דקות";
-    }
-
-    private String notificationStatusText() {
-        String closing = prefs.getBoolean("closing_reminder_enabled", false)
-                ? hoursText(prefs.getInt("closing_reminder_minutes", 120)) + " לפני הסגירה" : "כבוי";
-        return "מכירה חדשה: " + monitorSummary() + "\nתזכורת סגירה: " + closing;
-    }
-
-    private void addHomeNotificationSettings() {
-        LinearLayout card = card(14);
-        card.addView(text("🔔 התראות", 15, true));
-        TextView status = muted(notificationStatusText(), 13);
-        status.setPadding(dp(2), dp(4), dp(2), dp(10));
-        card.addView(status, new LinearLayout.LayoutParams(-1, -2));
-        TextView settings = btn("⚙️ הגדרות התראות", TONAL);
-        settings.setOnClickListener(v -> showNotificationSettings());
-        card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
-        root.addView(card, lp(-1, -2, 0, 10));
-    }
-
-    @Override protected void onResume() {
-        super.onResume();
-        if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
-    }
-
-    private void showNotificationSettings() {
-        beginScreen("הגדרות התראות", 3, this::showAccount);
-        screenKind = 3;
-        root.addView(permissionsCard(), lp(-1, -2, 0, 10));
-        root.addView(newSaleCard(), lp(-1, -2, 0, 10));
-        root.addView(closingCard(), lp(-1, -2, 0, 10));
-    }
-
-    private TextView sectionTitle(String title) {
-        TextView v = text(title, 16, true);
-        v.setTextColor(ORANGE_DARK);
-        return v;
-    }
-
-    private View switchRow(String title, String subtitle, boolean checked, CompoundButton.OnCheckedChangeListener listener) {
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(6), 0, dp(6));
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(text(title, 15, true));
-        if (subtitle != null && !subtitle.isEmpty()) texts.addView(muted(subtitle, 12));
-        row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
-        Switch sw = new Switch(this);
-        int[][] states = {{android.R.attr.state_checked}, {}};
-        sw.setThumbTintList(new ColorStateList(states, new int[]{ORANGE, Color.rgb(190, 180, 172)}));
-        sw.setTrackTintList(new ColorStateList(states, new int[]{Color.argb(120, 230, 94, 20), Color.rgb(225, 218, 212)}));
-        sw.setChecked(checked);
-        sw.setOnCheckedChangeListener(listener);
-        row.addView(sw);
-        return row;
-    }
-
-    private TextView pickChip(String label) {
-        TextView c = smallChip(label, TONAL);
-        c.setMinHeight(dp(38));
-        c.setTextSize(13);
-        return c;
-    }
-
-    private void styleChip(TextView chip, boolean on) {
-        chip.setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
-        chip.setTextColor(on ? Color.WHITE : ORANGE_DARK);
-    }
-
-    private View permissionsCard() {
-        boolean notifOk = true, exactOk = true;
-        if (Build.VERSION.SDK_INT >= 33) notifOk = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
-        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (nm != null && !nm.areNotificationsEnabled()) notifOk = false;
-        if (Build.VERSION.SDK_INT >= 31) {
-            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
-            exactOk = am == null || am.canScheduleExactAlarms();
-        }
-        LinearLayout card = card(14);
-        if (notifOk && exactOk) {
-            TextView ok = text("✔ ההרשאות תקינות, ההתראות יגיעו בזמן", 14, true);
-            ok.setTextColor(GREEN);
-            card.addView(ok);
-            card.setBackground(shape(GREEN_LIGHT, 14, 0));
-            return card;
-        }
-        card.setBackground(shape(RED_LIGHT, 14, 0));
-        TextView title = text("⚠️ חסרות הרשאות להתראות", 15, true);
-        title.setTextColor(RED);
-        card.addView(title);
-        if (!notifOk) card.addView(muted("• ההתראות חסומות לאפליקציה", 13));
-        if (!exactOk) card.addView(muted("• אין הרשאה להתראות בשעה מדויקת (ההתראה עלולה להתאחר)", 13));
-        final boolean fixNotifications = !notifOk;
-        TextView fix = btn("תיקון הרשאות", PRIMARY);
-        fix.setOnClickListener(v -> {
-            try {
-                if (fixNotifications) {
-                    Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                    i.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
-                    startActivity(i);
-                } else {
-                    requestMonitoringPermissions(true);
-                }
-            } catch (Exception e) {
-                toast("לא ניתן לפתוח את ההגדרות", true);
-            }
-        });
-        card.addView(fix, lp(-1, dp(44), 8, 0));
-        return card;
-    }
-
-    private View windowRow(final String label, final String dayKey, int dayDefault, final String timeKey, final String timeDefault, final Runnable onChange) {
-        final int defDay = dayDefault;
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(text(label, 14, true), new LinearLayout.LayoutParams(0, -2, 1));
-        final TextView dayChip = pickChip(dayName(prefs.getInt(dayKey, defDay)));
-        final TextView timeChip = pickChip(prefs.getString(timeKey, timeDefault));
-        dayChip.setOnClickListener(v -> {
-            final String[] names = new String[7];
-            for (int i = 0; i < 7; i++) names[i] = "יום " + HEB_DAYS[i];
-            new AlertDialog.Builder(this).setTitle(label)
-                    .setSingleChoiceItems(names, indexOf(CAL_DAYS, prefs.getInt(dayKey, defDay)), (d, which) -> {
-                        prefs.edit().putInt(dayKey, CAL_DAYS[which]).apply();
-                        dayChip.setText(names[which]);
-                        d.dismiss();
-                        onChange.run();
-                    }).setNegativeButton("ביטול", null).show();
-        });
-        timeChip.setOnClickListener(v -> {
-            String[] parts = prefs.getString(timeKey, timeDefault).split(":");
-            int h = 0, m = 0;
-            try { h = Integer.parseInt(parts[0]); m = Integer.parseInt(parts[1]); } catch (Exception ignored) { }
-            new TimePickerDialog(this, (picker, hh, mm) -> {
-                String t = String.format(Locale.US, "%02d:%02d", hh, mm);
-                prefs.edit().putString(timeKey, t).apply();
-                timeChip.setText(t);
-                onChange.run();
-            }, h, m, true).show();
-        });
-        LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(-2, -2);
-        dp1.setMarginEnd(dp(6));
-        row.addView(dayChip, dp1);
-        row.addView(timeChip);
-        return row;
-    }
-
-    private void applyMonitorSettings() {
-        SaleMonitor.stopMonitoring(this);
-        if (prefs.getBoolean("sale_monitor_enabled", true)) {
-            requestMonitoringPermissions(false);            SaleMonitor.scheduleNextStart(this);
-        }
-    }
-
-    private View newSaleCard() {
-        LinearLayout card = card(14);
-        card.addView(sectionTitle("🛒 התראה על מכירה חדשה"));
-        final LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.setVisibility(prefs.getBoolean("sale_monitor_enabled", true) ? View.VISIBLE : View.GONE);
-        final TextView summaryView = muted(monitorSummary(), 12);
-        final Runnable onChange = () -> { summaryView.setText(monitorSummary()); applyMonitorSettings(); };
-
-        card.addView(switchRow("הפעלה", "בדיקה אוטומטית של מכירות פתוחות בחלון הזמן שתגדירו", prefs.getBoolean("sale_monitor_enabled", true), (b, checked) -> {
-            prefs.edit().putBoolean("sale_monitor_enabled", checked).apply();
-            details.setVisibility(checked ? View.VISIBLE : View.GONE);
-            onChange.run();
-        }));
-
-        details.addView(windowRow("מתחילה", "monitor_start_day", Calendar.THURSDAY, "monitor_start_time", "19:00", onChange), lp(-1, -2, 4, 4));
-        details.addView(windowRow("מסתיימת", "monitor_end_day", Calendar.SUNDAY, "monitor_end_time", "10:00", onChange), lp(-1, -2, 4, 8));
-
-        details.addView(text("בדיקה כל כמה דקות", 14, true));
-        final int[] intervals = {1, 2, 3, 5, 10, 15, 30, 60};
-        final TextView[] chips = new TextView[intervals.length];
-        LinearLayout chipRow = new LinearLayout(this);
-        final Runnable styleIntervals = () -> {
-            int cur = prefs.getInt("monitor_interval_minutes", 5);
-            for (int i = 0; i < chips.length; i++) styleChip(chips[i], intervals[i] == cur);
-        };
-        for (int i = 0; i < intervals.length; i++) {
-            final int value = intervals[i];
-            chips[i] = pickChip(String.valueOf(value));
-            chips[i].setOnClickListener(v -> {
-                prefs.edit().putInt("monitor_interval_minutes", value).apply();
-                styleIntervals.run();
-                onChange.run();
-            });
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(48), dp(38));
-            if (i > 0) cp.setMarginStart(dp(6));
-            chipRow.addView(chips[i], cp);
-        }
-        styleIntervals.run();
-        HorizontalScrollView hs = new HorizontalScrollView(this);
-        hs.setHorizontalScrollBarEnabled(false);
-        hs.addView(chipRow);
-        details.addView(hs, lp(-1, -2, 4, 8));
-
-        details.addView(switchRow("צליל", null, prefs.getBoolean("notify_sound", true), (b, checked) -> prefs.edit().putBoolean("notify_sound", checked).apply()));
-        details.addView(switchRow("רטט", null, prefs.getBoolean("notify_vibrate", true), (b, checked) -> prefs.edit().putBoolean("notify_vibrate", checked).apply()));
-
-        summaryView.setPadding(dp(2), dp(6), dp(2), dp(6));
-        details.addView(summaryView);
-        TextView test = btn("🔔 שליחת התראת בדיקה", TONAL);
-        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, false); });
-        details.addView(test, lp(-1, dp(44), 4, 0));
-        card.addView(details);
-        return card;
-    }
-
-    private View closingCard() {
-        LinearLayout card = card(14);
-        card.addView(sectionTitle("⏰ תזכורת לפני סגירת מכירה"));
-        final LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.setVisibility(prefs.getBoolean("closing_reminder_enabled", false) ? View.VISIBLE : View.GONE);
-        final LinearLayout previewBox = new LinearLayout(this);
-        previewBox.setOrientation(LinearLayout.VERTICAL);
-
-        card.addView(switchRow("הפעלה", "התראה כמה זמן לפני שהמכירה נסגרת", prefs.getBoolean("closing_reminder_enabled", false), (b, checked) -> {
-            prefs.edit().putBoolean("closing_reminder_enabled", checked).apply();
-            details.setVisibility(checked ? View.VISIBLE : View.GONE);
-            if (checked) requestMonitoringPermissions(false);
-            SaleMonitor.scheduleClosingFromStore(this);
-            renderClosingPreview(previewBox);
-        }));
-
-        details.addView(text("כמה זמן לפני הסגירה", 14, true));
-        final int[] minutes = {Math.max(30, prefs.getInt("closing_reminder_minutes", 120))};
-        final Stepper st = stepper(42);
-        st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(120), dp(42)));
-        st.qty.setTextSize(15);
-        final int[] quick = {60, 120, 180, 360, 720, 1440};
-        final TextView[] chips = new TextView[quick.length];
-        final Runnable[] commit = new Runnable[1];
-        commit[0] = () -> {
-            prefs.edit().putInt("closing_reminder_minutes", minutes[0]).apply();
-            st.qty.setText(hoursText(minutes[0]));
-            for (int i = 0; i < chips.length; i++) styleChip(chips[i], quick[i] == minutes[0]);
-            SaleMonitor.scheduleClosingFromStore(this);
-            renderClosingPreview(previewBox);
-        };
-        st.plus.setOnClickListener(v -> { minutes[0] = Math.min(4320, minutes[0] + 30); commit[0].run(); });
-        st.minus.setOnClickListener(v -> { minutes[0] = Math.max(30, minutes[0] - 30); commit[0].run(); });
-        LinearLayout stepRow = new LinearLayout(this);
-        stepRow.setGravity(Gravity.CENTER);
-        stepRow.addView(st.view);
-        details.addView(stepRow, lp(-1, -2, 6, 8));
-
-        LinearLayout chipRow = new LinearLayout(this);
-        for (int i = 0; i < quick.length; i++) {
-            final int value = quick[i];
-            chips[i] = pickChip(hoursText(value).replace(" שעות", "ש׳").replace("שעה", "1ש׳"));
-            chips[i].setOnClickListener(v -> { minutes[0] = value; commit[0].run(); });
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(38));
-            if (i > 0) cp.setMarginStart(dp(6));
-            chipRow.addView(chips[i], cp);
-        }
-        HorizontalScrollView hs = new HorizontalScrollView(this);
-        hs.setHorizontalScrollBarEnabled(false);
-        hs.addView(chipRow);
-        details.addView(hs, lp(-1, -2, 0, 10));
-
-        details.addView(previewBox, lp(-1, -2, 0, 8));
-        TextView test = btn("🔔 שליחת תזכורת לדוגמה", TONAL);
-        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, true); });
-        details.addView(test, lp(-1, dp(44), 4, 0));
-        card.addView(details);
-
-        commit[0].run();
-        refreshReminderSales(previewBox);
-        return card;
-    }
-
-    private void renderClosingPreview(LinearLayout box) {
-        box.removeAllViews();
-        int minutes = prefs.getInt("closing_reminder_minutes", 120);
-        long now = System.currentTimeMillis();
-        JSONArray store = SaleMonitor.closingStore(this);
-        List<JSONObject> entries = new ArrayList<>();
-        for (int i = 0; i < store.length(); i++) {
-            JSONObject e = store.optJSONObject(i);
-            if (e != null && e.optLong("end", 0L) > now) entries.add(e);
-        }
-        Collections.sort(entries, new Comparator<JSONObject>() {
-            @Override public int compare(JSONObject a, JSONObject b) { return Long.compare(a.optLong("end"), b.optLong("end")); }
-        });
-        box.addView(text("מתי תגיע ההתראה", 14, true));
-        if (entries.isEmpty()) {
-            box.addView(muted("אין כרגע מכירה פתוחה עם זמן סגירה. התזכורת תיקבע אוטומטית כשתיפתח מכירה.", 12));
-            return;
-        }
-        for (JSONObject e : entries) {
-            long end = e.optLong("end");
-            long trigger = end - minutes * 60000L;
-            LinearLayout item = new LinearLayout(this);
-            item.setOrientation(LinearLayout.VERTICAL);
-            item.setPadding(dp(12), dp(8), dp(12), dp(8));
-            item.setBackground(shape(ORANGE_LIGHT, 12, 0));
-            item.addView(text(e.optString("name", "מכירה"), 14, true));
-            item.addView(muted("נסגרת: " + fmtDay(new Date(end), true), 12));
-            boolean future = trigger > now;
-            TextView when = text(future ? "🔔 ההתראה: " + fmtDay(new Date(trigger), true) + " (בעוד " + humanDuration(trigger - now) + ")"
-                    : "⏱ הזמן שנבחר כבר עבר, לא תישלח התראה למכירה זו", 13, true);
-            when.setTextColor(future ? GREEN : RED);
-            item.addView(when);
-            box.addView(item, lp(-1, -2, 6, 0));
-        }
-    }
-
-    /** Refreshes the open sales so the preview and the alarms use current closing times. */
-    private void refreshReminderSales(final LinearLayout box) {
-        final int t = screenToken;
+    private void openSaleFromNotification(int saleId) {
+        if (saleId < 0) { showOpenSales(); return; }
+        beginScreen("פתיחת המכירה החדשה…");
+        final int gen = screenGen.get();
+        statusView.setText("טוען את המכירה מההתראה…");
         executor.execute(() -> {
             try {
-                HttpResult r = api("GET", "/api/profile/open_sales", null);
-                if (r.code >= 200 && r.code < 300) SaleMonitor.scheduleClosingReminders(getApplicationContext(), arrayFrom(r.body));
-                runOnUiThread(() -> { if (!stale(t)) renderClosingPreview(box); });
+                HttpResult r = authRequest("GET", "/api/profile/open_sales", null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("לא ניתן לטעון את המכירה. פתחי את המכירות הפתוחות ורענני.");
+                JSONArray sales = extractArray(r.body, "data");
+                JSONObject found = null;
+                for (int i = 0; i < sales.length(); i++) {
+                    JSONObject sale = sales.optJSONObject(i);
+                    if (sale != null && sale.optInt("id", -1) == saleId) { found = sale; break; }
+                }
+                final JSONObject selected = found;
+                runOnUiThread(() -> {
+                    if (isStale(gen)) return;
+                    if (selected != null) loadFeatureProducts(selected);
+                    else {
+                        showOpenSales();
+                        Toast.makeText(this, "המכירה כבר לא פתוחה. מציג את המכירות העדכניות.", Toast.LENGTH_LONG).show();
+                    }
+                });
             } catch (Exception e) {
-                runOnUiThread(() -> { if (e instanceof AuthException) showLogin(); });
+                String message = msg(e, "טעינת המכירה נכשלה.");
+                runOnUiThread(() -> {
+                    if (isStale(gen)) return;
+                    showOpenSales();
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                });
             }
         });
     }
 
-    private int indexOf(int[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 0; }
-    private int indexOf(Integer[] values, int target) { for (int i = 0; i < values.length; i++) if (values[i] == target) return i; return 3; }
-    private boolean validTime(String value) { if (value == null || !value.matches("[0-2][0-9]:[0-5][0-9]")) return false; return Integer.parseInt(value.substring(0, 2)) < 24; }
-
-    // ======================================================================== network + auth
-
-    private boolean hasToken() {
-        return !prefs.getString("token", "").isEmpty();
-    }
-
-    /** One place for all authenticated calls: retries GETs on network/5xx, proactive refresh, new token from headers. */
-    private HttpResult api(String method, String path, JSONObject body) throws Exception {
-        boolean idempotent = "GET".equals(method);
-        int attempts = idempotent ? 3 : 1;
-        HttpResult r = null;
-        for (int i = 0; i < attempts; i++) {
+    private void loadOpenSales() {
+        final int gen = screenGen.get();
+        if (statusView != null) statusView.setText("טוען מכירות פתוחות…");
+        executor.execute(() -> {
             try {
-                r = apiOnce(method, path, body);
-            } catch (AuthException ae) {
-                throw ae;
-            } catch (java.io.IOException io) {
-                if (i == attempts - 1) throw io;
-                Thread.sleep(700L * (i + 1));
-                continue;
+                HttpResult r = authRequest("GET", "/api/profile/open_sales", null);
+                if (r.code == 401) {
+                    prefs.edit().remove("token").remove("expires_at").apply();
+                    runOnUiThread(() -> {
+                        SaleMonitor.stopMonitoring(this);
+                        showLogin();
+                        Toast.makeText(this, "נדרשת התחברות מחדש", Toast.LENGTH_LONG).show();
+                    });
+                    return;
+                }
+                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת המכירות נכשלה (" + r.code + ").");
+                final JSONArray rows = extractArray(r.body, "data");
+                runOnUiThread(() -> {
+                    if (isStale(gen)) return; // the user already moved to another screen
+                    beginScreen("הזמנות פתוחות");
+                    statusView.setText("נמצאו " + rows.length() + " מכירות פתוחות. לחצי על מכירה כדי להיכנס ולהזמין.");
+                    if (rows.length() == 0) { root.addView(text("אין כרגע מכירות פתוחות.", 15, false)); return; }
+                    for (int i = 0; i < rows.length(); i++) {
+                        JSONObject sale = rows.optJSONObject(i); if (sale == null) continue;
+                        String name = firstOrderString(sale, "custom_name", "name", "title");
+                        JSONObject parent = sale.optJSONObject("parent");
+                        if (name.isEmpty() && parent != null) name = firstOrderString(parent, "week", "name", "title");
+                        if (name.isEmpty()) name = "מכירה #" + sale.optString("id", "?");
+                        String dates = "";
+                        String begin = firstOrderString(sale, "begin", "start", "start_at");
+                        String finish = firstOrderString(sale, "end", "finish", "end_at");
+                        if (!begin.isEmpty()) dates += "פתיחה: " + begin;
+                        if (!finish.isEmpty()) dates += (dates.isEmpty() ? "" : "   ·   ") + "סגירה: " + finish;
+                        JSONObject order = sale.optJSONObject("order");
+                        boolean hasOrder = order != null && order.optLong("id", order.optLong("order_id", -1)) > 0;
+                        LinearLayout card = new LinearLayout(this);
+                        card.setOrientation(LinearLayout.VERTICAL);
+                        card.setPadding(dp(14), dp(10), dp(14), dp(10));
+                        card.setBackgroundColor(Color.WHITE);
+                        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+                        cp.bottomMargin = dp(10);
+                        root.addView(card, cp);
+                        card.addView(text(name, 17, true));
+                        if (!dates.isEmpty()) card.addView(text(dates, 12, false));
+                        card.addView(text(hasOrder ? "קיימת הזמנה — לחצי להמשך" : "עדיין לא נפתחה הזמנה — לחצי כדי להתחיל", 13, true));
+                        LinearLayout actions = new LinearLayout(this);
+                        actions.setOrientation(LinearLayout.HORIZONTAL);
+                        actions.setGravity(Gravity.CENTER_VERTICAL);
+                        Button enter = button(hasOrder ? "כניסה להזמנה  ›" : "פתיחת הזמנה  ›");
+                        Button info = button("פרטי מכירה");
+                        info.setTextSize(12); info.setMinHeight(dp(42)); enter.setMinHeight(dp(42));
+                        actions.addView(enter, new LinearLayout.LayoutParams(0, -2, 1));
+                        LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(-2, -2); infoLp.leftMargin = dp(6);
+                        actions.addView(info, infoLp);
+                        card.addView(actions);
+                        final JSONObject selected = sale;
+                        enter.setOnClickListener(v -> loadFeatureProducts(selected));
+                        card.setOnClickListener(v -> loadFeatureProducts(selected));
+                        info.setOnClickListener(v -> showSaleDetails(selected));
+                    }
+                });
+            } catch (Exception e) {
+                String message = msg(e, "אירעה שגיאה בטעינה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
             }
-            if (idempotent && (r.code == 429 || r.code == 502 || r.code == 503 || r.code == 504) && i < attempts - 1) {
-                Thread.sleep(900L * (i + 1));
-                continue;
-            }
-            break;
-        }
-        return r;
+        });
     }
 
-    private HttpResult apiOnce(String method, String path, JSONObject body) throws Exception {
+    // ---------------------------------------------------------------- auth / network
+
+    private synchronized String refreshToken(String token) {
+        // Another thread may have refreshed already - reuse its token instead of refreshing twice.
+        String current = prefs.getString("token", "");
+        if (!current.isEmpty() && !current.equals(token)) return current;
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("remember", 1);
+            HttpResult r = request("POST", "/api/refresh", token, payload);
+            if (r.code != 200) r = request("POST", "/api/refresh", token, null);
+            if (r.code != 200) return "";
+            JSONObject data = new JSONObject(r.body);
+            String next = pickToken(data);
+            if (!next.isEmpty()) {
+                long expiry = parseExpiry(data, next);
+                prefs.edit().putString("token", next).putLong("expires_at", expiry).apply();
+                return next;
+            }
+        } catch (Exception ignored) { }
+        return "";
+    }
+
+    private String freshToken() {
         String token = prefs.getString("token", "");
         long expiry = prefs.getLong("expires_at", 0L);
         if (!token.isEmpty() && expiry > 0 && System.currentTimeMillis() > expiry - REFRESH_MARGIN_MS) {
             String refreshed = refreshToken(token);
             if (!refreshed.isEmpty()) token = refreshed;
         }
+        return token;
+    }
+
+    // Request with the saved token: refreshes it when close to expiry, and retries once on 401.
+    private HttpResult authRequest(String method, String path, JSONObject body) throws Exception {
+        String token = freshToken();
         HttpResult r = request(method, path, token, body);
         if (r.code == 401) {
             String refreshed = refreshToken(token);
             if (!refreshed.isEmpty()) r = request(method, path, refreshed, body);
-            if (r.code == 401) {
-                prefs.edit().remove("token").remove("expires_at").apply();
-                throw new AuthException();
-            }
-        }
-        if (r.code < 400 && r.newToken != null && !r.newToken.isEmpty() && !r.newToken.equals(prefs.getString("token", ""))) {
-            saveToken(r.newToken, new JSONObject());
         }
         return r;
-    }
-
-    private void saveToken(String token, JSONObject data) {
-        prefs.edit().putString("token", token).putLong("expires_at", parseExpiry(data, token)).apply();
-    }
-
-    private String refreshToken(String token) {
-        if (refreshDead || token == null || token.isEmpty()) return "";
-        try {
-            JSONObject payload = new JSONObject();
-            payload.put("remember", 1);
-            HttpResult r = request("POST", "/api/refresh", token, payload);
-            if (r.code != 200 && r.code != 401 && r.code != 404 && r.code != 405) r = request("POST", "/api/refresh", token, null);
-            if (r.code == 404 || r.code == 405) { refreshDead = true; return ""; }
-            if (r.code != 200) return "";
-            JSONObject data = new JSONObject();
-            String next = "";
-            try { data = new JSONObject(r.body); next = pickToken(data); } catch (Exception ignored) { }
-            if (next.isEmpty() && r.newToken != null) next = r.newToken;
-            if (!next.isEmpty()) {
-                saveToken(next, data);
-                return next;
-            }
-        } catch (Exception ignored) { }
-        return "";
     }
 
     private String pickToken(JSONObject data) {
@@ -1278,30 +722,6 @@ public class MainActivity extends Activity {
     }
 
     private HttpResult request(String method, String path, String token, JSONObject body) throws Exception {
-        long t0 = System.currentTimeMillis();
-        try {
-            HttpResult r = requestRaw(method, path, token, body);
-            logApi(method, path, String.valueOf(r.code), System.currentTimeMillis() - t0, r.code >= 400 ? r.body : null);
-            return r;
-        } catch (Exception e) {
-            logApi(method, path, e.getClass().getSimpleName(), System.currentTimeMillis() - t0, e.getMessage());
-            throw e;
-        }
-    }
-
-    private String tokenFromHeaders(HttpURLConnection c) {
-        String[] names = {"Authorization", "X-Authorization", "X-New-Token", "X-Access-Token"};
-        for (String n : names) {
-            String v = c.getHeaderField(n);
-            if (v == null) continue;
-            v = v.trim();
-            if (v.toLowerCase(Locale.ROOT).startsWith("bearer ")) v = v.substring(7).trim();
-            if (v.length() > 20 && v.split("\\.").length == 3) return v;
-        }
-        return null;
-    }
-
-    private HttpResult requestRaw(String method, String path, String token, JSONObject body) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(API + path).openConnection();
         try {
             c.setRequestMethod(method);
@@ -1320,396 +740,188 @@ public class MainActivity extends Activity {
             }
             int code = c.getResponseCode();
             InputStream stream = code >= 400 ? c.getErrorStream() : c.getInputStream();
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            StringBuilder response = new StringBuilder();
             if (stream != null) {
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = stream.read(buf)) > 0) out.write(buf, 0, n);
-                stream.close();
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) response.append(line);
+                }
             }
-            return new HttpResult(code, new String(out.toByteArray(), StandardCharsets.UTF_8), tokenFromHeaders(c));
+            return new HttpResult(code, response.toString());
         } finally {
             c.disconnect();
         }
     }
 
-    private void fail(int token, Exception e, String fallback) {
-        runOnUiThread(() -> {
-            if (e instanceof AuthException) {
-                showLogin();
-                toast(e.getMessage(), true);
-                return;
-            }
-            String msg = errText(e, fallback);
-            if (stale(token)) toast(msg, true);
-            else setStatus(msg, true);
-        });
-    }
-
-    // ======================================================================== images
-
-    private String imageUrl(JSONObject p, boolean thumb) {
-        if (p == null) return "";
-        JSONObject prod = p.optJSONObject("product") != null ? p.optJSONObject("product") : p;
-        String url = "";
-        if (thumb) {
-            String t = first(prod, "thumb_featured_image");
-            if (t.isEmpty()) t = first(p, "thumb_featured_image");
-            if (!t.isEmpty()) url = t;
-        }
-        if (url.isEmpty()) {
-            JSONArray images = prod.optJSONArray("images");
-            if (images == null) images = p.optJSONArray("images");
-            if (images != null) {
-                for (int i = 0; i < images.length() && url.isEmpty(); i++) {
-                    JSONObject img = images.optJSONObject(i);
-                    if (img != null) {
-                        String direct = first(img, "url", "src", "path");
-                        String filename = first(img, "filename");
-                        if (!direct.isEmpty()) url = direct;
-                        else if (!filename.isEmpty()) {
-                            String ext = first(img, "extension");
-                            if (ext.startsWith(".")) ext = ext.substring(1);
-                            url = filename + "." + (ext.isEmpty() ? "jpg" : ext);
-                        }
-                    } else if (images.opt(i) instanceof String) {
-                        url = (String) images.opt(i);
-                    }
-                }
+    // Accepts either a bare JSON array, or an object holding the array under one of the given keys.
+    private JSONArray extractArray(String body, String... keys) throws Exception {
+        Object val = new org.json.JSONTokener(body).nextValue();
+        if (val instanceof JSONArray) return (JSONArray) val;
+        if (val instanceof JSONObject) {
+            JSONObject o = (JSONObject) val;
+            for (String k : keys) {
+                JSONArray a = o.optJSONArray(k);
+                if (a != null) return a;
             }
         }
-        if (url.isEmpty()) url = first(prod, "featured_image", "image_url", "imageUrl", "picture_url");
-        if (url.isEmpty()) url = first(p, "featured_image", "image_url", "imageUrl", "picture_url");
-        if (url.isEmpty()) return "";
-        if (url.startsWith("//")) return "https:" + url;
-        if (url.startsWith("http://") || url.startsWith("https://")) return url;
-        return IMG_BASE + url.replaceFirst("^/+", "");
+        return new JSONArray();
     }
 
-    private void loadImage(final ImageView iv, final String url) {
-        if (url == null || url.isEmpty()) return;
-        iv.setTag(url);
+    // ---------------------------------------------------------------- images
+
+    // Loads a product image into the view: memory cache -> background download -> decode downsampled.
+    // The view's tag holds the URL it should show, so recycled views never get a stale image,
+    // and queued downloads for views that were already re-bound are skipped.
+    private void loadImage(final ImageView view, final String url, final int targetPx) {
+        view.setTag(url);
+        if (url == null || url.isEmpty()) { view.setImageDrawable(null); return; }
         Bitmap cached = imageCache.get(url);
-        if (cached != null) { iv.setImageBitmap(cached); return; }
+        if (cached != null) { view.setImageBitmap(cached); return; }
+        view.setImageDrawable(null);
+        if (failedImages.contains(url) || imageExecutor.isShutdown()) return;
         try {
             imageExecutor.execute(() -> {
-                Bitmap bmp = downloadBitmap(url, 360);
-                if (bmp == null) return;
-                imageCache.put(url, bmp);
-                runOnUiThread(() -> { if (url.equals(iv.getTag())) iv.setImageBitmap(bmp); });
+                if (!url.equals(view.getTag())) return;
+                Bitmap b = downloadBitmap(url, targetPx);
+                if (b == null) { failedImages.add(url); return; }
+                imageCache.put(url, b);
+                runOnUiThread(() -> { if (alive() && url.equals(view.getTag())) view.setImageBitmap(b); });
             });
-        } catch (Exception ignored) { }
+        } catch (RejectedExecutionException ignored) { }
     }
 
-    private Bitmap downloadBitmap(String url, int maxPx) {
+    private Bitmap downloadBitmap(String url, int targetPx) {
         HttpURLConnection c = null;
         try {
             c = (HttpURLConnection) new URL(url).openConnection();
-            c.setConnectTimeout(10000);
-            c.setReadTimeout(15000);
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(10000);
             c.setInstanceFollowRedirects(true);
-            c.setRequestProperty("Referer", "https://mishnatyosef.org/");
-            c.setRequestProperty("User-Agent", "Mozilla/5.0");
-            c.setRequestProperty("Accept", "image/*,*/*");
             if (c.getResponseCode() != 200) return null;
             InputStream in = c.getInputStream();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buf = new byte[16384];
+            byte[] buf = new byte[8192];
             int n, total = 0;
             while ((n = in.read(buf)) > 0) {
-                total += n;
-                if (total > 5000000) { in.close(); return null; }
                 out.write(buf, 0, n);
+                total += n;
+                if (total > 6 * 1024 * 1024) return null;
             }
-            in.close();
             byte[] data = out.toByteArray();
-            BitmapFactory.Options bounds = new BitmapFactory.Options();
-            bounds.inJustDecodeBounds = true;
-            BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(data, 0, data.length, o);
             int sample = 1;
-            while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) sample *= 2;
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inSampleSize = sample;
-            return BitmapFactory.decodeByteArray(data, 0, data.length, opts);
-        } catch (Exception e) {
+            while (o.outWidth / (sample * 2) >= targetPx && o.outHeight / (sample * 2) >= targetPx) sample *= 2;
+            o.inJustDecodeBounds = false;
+            o.inSampleSize = sample;
+            return BitmapFactory.decodeByteArray(data, 0, data.length, o);
+        } catch (Throwable t) {
             return null;
         } finally {
             if (c != null) c.disconnect();
         }
     }
 
-    private ImageView imageView(int widthDp, int heightDp, ImageView.ScaleType scale) {
-        ImageView iv = new ImageView(this);
-        iv.setScaleType(scale);
-        iv.setBackgroundColor(Color.rgb(250, 239, 229));
-        iv.setLayoutParams(new LinearLayout.LayoutParams(widthDp < 0 ? widthDp : dp(widthDp), dp(heightDp)));
-        return iv;
+    private String imageFromFile(JSONObject img) {
+        String url = firstOrderString(img, "url", "src", "path", "original", "large", "thumbnail");
+        if (!url.isEmpty()) return url;
+        String filename = img.optString("filename", "");
+        if (filename.isEmpty()) return "";
+        String ext = img.optString("extension", "");
+        if (ext.startsWith(".")) ext = ext.substring(1);
+        boolean hasExt = filename.matches("(?i).*\\.[a-z0-9]{2,5}$");
+        return IMAGE_BASE + filename + (hasExt || ext.isEmpty() ? "" : "." + ext);
     }
 
-    // ======================================================================== product text helpers (learned from the Python script)
-
-    private JSONObject productOf(JSONObject p) {
-        JSONObject prod = p == null ? null : p.optJSONObject("product");
-        return prod != null ? prod : p;
+    private String firstImageFrom(JSONObject obj) {
+        JSONArray images = obj.optJSONArray("images");
+        if (images == null || images.length() == 0) return "";
+        JSONObject img = images.optJSONObject(0);
+        if (img != null) return imageFromFile(img);
+        Object first = images.opt(0);
+        return first == null || first == JSONObject.NULL ? "" : String.valueOf(first);
     }
 
-    private String sidOf(JSONObject p) {
-        String id = first(p, "item_salesID", "item_sales_id", "id", "itemID");
-        return id;
-    }
-
-    private String productName(JSONObject p) {
-        String name = first(p, "name", "full_name", "title");
-        if (name.isEmpty()) name = first(p.optJSONObject("product"), "name", "full_name", "title");
-        return name.isEmpty() ? "מוצר #" + sidOf(p) : name;
-    }
-
-    private double productPrice(JSONObject p) {
-        String raw = first(p, "price", "unit_price", "unitPrice", "price_list");
-        if (raw.isEmpty()) raw = first(p.optJSONObject("product"), "price", "unit_price");
-        return parseMoney(raw);
-    }
-
-    private double numericAvailable(JSONObject p) {
-        if (!p.has("available") || p.isNull("available")) return -1;
-        Object value = p.opt("available");
-        if (value instanceof Number) return ((Number) value).doubleValue();
-        if (value instanceof String) {
-            try { return Double.parseDouble(((String) value).trim()); } catch (Exception ignored) { return -1; }
+    private String normalizeImageUrl(String url) {
+        if (url == null || url.isEmpty()) return "";
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            url = url.startsWith("//") ? "https:" + url : IMAGE_BASE + url.replaceFirst("^/+", "");
         }
-        return -1;
+        return url.startsWith("http") ? url : "";
     }
 
-    private boolean isSoldOut(JSONObject p) { return numericAvailable(p) == 0; }
-
-    /** "רשת כ-2 ק"ג", "שק 5 ק"ג", "יחידה"... */
-    private String packageText(JSONObject p) {
-        String kind = nameOf(p, "item_type"), unit = nameOf(p, "item_unit");
-        double units = num(p.opt("units"));
-        StringBuilder sb = new StringBuilder(kind);
-        if (units > 0 && !unit.isEmpty() && !unit.equals("יחידה") && !unit.equals("יח'") && !unit.equals("יח")) {
-            if (sb.length() > 0) sb.append(" ");
-            if (truthy(p.opt("approx"))) sb.append("כ-");
-            sb.append(fmtNum(units)).append(" ").append(unit);
-        }
-        return sb.toString();
-    }
-
-    /** מחיר ליחידת משקל: ₪3.10 לק"ג, ובפחות מקילו ל-100 גרם. */
-    private String unitPriceText(JSONObject p) {
-        double price = productPrice(p), units = num(p.opt("units"));
-        String unit = nameOf(p, "item_unit");
-        if (price <= 0 || units <= 0 || unit.isEmpty()) return "";
-        if (unit.equals("ק\"ג")) {
-            return units < 1 ? money2(price / (units * 10)) + " ל-100 גרם" : money2(price / units) + " לק\"ג";
-        }
-        if (unit.equals("גרם")) return money2(price / units * 100) + " ל-100 גרם";
-        if (unit.equals("ליטר")) return money2(price / units) + " לליטר";
-        if (unit.equals("מ\"ל")) return money2(price / units * 100) + " ל-100 מ\"ל";
-        return "";
-    }
-
-    private String categoryName(JSONObject p) {
-        JSONObject prod = productOf(p);
-        Object cat = prod.opt("category");
-        if (cat == null || cat == JSONObject.NULL) cat = p.opt("category");
-        String name = "";
-        if (cat instanceof JSONObject) name = ((JSONObject) cat).optString("name", "").trim();
-        else if (cat instanceof String) name = ((String) cat).trim();
-        return name.isEmpty() || "null".equalsIgnoreCase(name) ? "ללא קטגוריה" : name;
-    }
-
-    private int categoryOrder(JSONObject p) {
-        JSONObject prod = productOf(p);
-        Object cat = prod.opt("category");
-        if (!(cat instanceof JSONObject)) cat = p.opt("category");
-        if (cat instanceof JSONObject) {
-            Object o = ((JSONObject) cat).opt("order");
-            if (o instanceof Number) return ((Number) o).intValue();
-        }
-        return 9999;
-    }
-
-    // ======================================================================== sales list
-
-    private boolean autoEnterSingle = true;
-
-    /** From the tab / startup: if there is exactly one open sale, go straight into it. */
-    private void showOpenSales() { showOpenSales(true); }
-
-    private void showOpenSales(boolean autoEnter) {
-        autoEnterSingle = autoEnter;
-        beginScreen("מכירות פתוחות", 0, null);
-        loadOpenSales();
-    }
-
-    private void loadOpenSales() {
-        final int t = screenToken;
-        setStatus("טוען מכירות פתוחות…");
-        executor.execute(() -> {
-            try {
-                HttpResult r = api("GET", "/api/profile/open_sales", null);
-                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת המכירות נכשלה (" + r.code + ").");
-                JSONArray rows = arrayFrom(r.body);
-                try { SaleMonitor.scheduleClosingReminders(getApplicationContext(), rows); } catch (Exception ignored) { }
-                runOnUiThread(() -> { if (!stale(t)) renderSales(rows); });
-            } catch (Exception e) {
-                fail(t, e, "אירעה שגיאה בטעינה.");
+    private String featureImageUrl(JSONObject p) {
+        String url = firstOrderString(p, "featured_image", "image_url", "imageUrl", "picture_url");
+        if (url.isEmpty()) url = firstImageFrom(p);
+        if (url.isEmpty()) {
+            JSONObject product = p.optJSONObject("product");
+            if (product != null) {
+                url = firstOrderString(product, "featured_image", "image_url", "imageUrl");
+                if (url.isEmpty()) url = firstImageFrom(product);
             }
-        });
+        }
+        return normalizeImageUrl(url);
     }
 
-    private void renderSales(JSONArray rows) {
-        setStatus("");
-        if (autoEnterSingle && rows.length() == 1 && rows.optJSONObject(0) != null) {
-            autoEnterSingle = false;
-            loadFeatureProducts(rows.optJSONObject(0));
-            return;
+    private String orderImageUrl(JSONObject item, JSONObject product) {
+        String url = firstOrderString(product, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl", "url");
+        if (url.isEmpty()) url = firstOrderString(item, "thumb_featured_image", "thumbFeaturedImage", "featured_image", "featuredImage", "image_url", "imageUrl", "image_path", "imagePath", "picture_url", "pictureUrl");
+        if (url.isEmpty()) url = firstImageFrom(product);
+        if (url.isEmpty()) url = firstImageFrom(item);
+        if (url.isEmpty()) {
+            JSONObject img = product.optJSONObject("image");
+            if (img == null) img = item.optJSONObject("image");
+            if (img != null) url = imageFromFile(img);
         }
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(muted(rows.length() == 0 ? "אין כרגע מכירות פתוחות" : rows.length() + " מכירות פתוחות", 14), new LinearLayout.LayoutParams(0, -2, 1));
-        TextView refresh = smallChip("↻ רענון", TONAL);
-        refresh.setOnClickListener(v -> showOpenSales(false));
-        top.addView(refresh);
-        root.addView(top, lp(-1, -2, 0, 8));
-        for (int i = 0; i < rows.length(); i++) {
-            JSONObject sale = rows.optJSONObject(i);
-            if (sale != null) root.addView(saleCard(sale), lp(-1, -2, 0, 10));
-        }
+        return normalizeImageUrl(url);
     }
 
-    private View saleCard(final JSONObject sale) {
-        String name = saleTitle(sale);
-        if (name.isEmpty()) name = "מכירה #" + first(sale, "id");
-        JSONObject order = sale.optJSONObject("order");
-        boolean hasOrder = extractOrderId(order) > 0;
-        boolean closed = truthy(sale.opt("closed_for_orders"));
+    // ---------------------------------------------------------------- open order (products screen)
 
-        LinearLayout card = card(14);
-        card.setBackground(ripple(shape(Color.WHITE, 14, LINE), 14));
-        card.setClickable(true);
-        card.setOnClickListener(v -> loadFeatureProducts(sale));
+    private static class ProductRow {
+        final JSONObject json;
+        final int id, itemSalesId, max, initialAmount;
+        final String name, priceText, unit, imageUrl, searchKey;
+        final boolean disabled;
+        final double stock;
 
-        LinearLayout titleRow = new LinearLayout(this);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text(name, 17, true);
-        titleRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView info = smallChip("פרטים", FLAT);
-        info.setOnClickListener(v -> showSaleDetails(sale));
-        titleRow.addView(info);
-        card.addView(titleRow);
-
-        LinearLayout chips = new LinearLayout(this);
-        TextView state = text(hasOrder ? "✔ יש הזמנה" : "טרם נפתחה הזמנה", 12, true);
-        state.setTextColor(hasOrder ? GREEN : MUTED);
-        state.setBackground(shape(hasOrder ? GREEN_LIGHT : Color.rgb(242, 238, 234), 8, 0));
-        state.setPadding(dp(10), dp(3), dp(10), dp(3));
-        chips.addView(state);
-        if (closed) {
-            TextView lock = text("🔒 סגורה להזמנות", 12, true);
-            lock.setTextColor(RED);
-            lock.setBackground(shape(RED_LIGHT, 8, 0));
-            lock.setPadding(dp(10), dp(3), dp(10), dp(3));
-            LinearLayout.LayoutParams lockLp = new LinearLayout.LayoutParams(-2, -2);
-            lockLp.setMarginStart(dp(6));
-            chips.addView(lock, lockLp);
+        ProductRow(JSONObject json, int id, int itemSalesId, String name, String priceText, String unit, int max,
+                   boolean disabled, double stock, String imageUrl, String searchKey, int initialAmount) {
+            this.json = json; this.id = id; this.itemSalesId = itemSalesId; this.name = name;
+            this.priceText = priceText; this.unit = unit; this.max = max; this.disabled = disabled;
+            this.stock = stock; this.imageUrl = imageUrl; this.searchKey = searchKey; this.initialAmount = initialAmount;
         }
-        card.addView(chips, lp(-2, -2, 6, 6));
 
-        String closing = closingText(sale);
-        if (!closing.isEmpty()) card.addView(muted("⏰ " + closing, 13));
-        Date pickup = pickupDate(sale);
-        if (pickup != null) card.addView(muted("📦 איסוף: " + fmtDay(pickup, false), 13));
-
-        TextView go = btn(hasOrder ? "המשך להזמנה  ‹" : "פתיחת הזמנה  ‹", PRIMARY);
-        go.setOnClickListener(v -> loadFeatureProducts(sale));
-        card.addView(go, lp(-1, dp(46), 10, 0));
-        return card;
+        boolean canOrder() { return !disabled && stock != 0; }
     }
 
-    private void showSaleDetails(JSONObject sale) {
-        if (sale == null) return;
-        List<String> lines = new ArrayList<>();
-        JSONObject parent = sale.optJSONObject("parent");
-        JSONObject site = sale.optJSONObject("site");
-        JSONObject order = sale.optJSONObject("order");
-        Date begin = parseDt(first(sale, "begin")), end = parseDt(first(sale, "end"));
-        if (begin != null) lines.add((begin.getTime() <= System.currentTimeMillis() ? "🟢 נפתחה: " : "🕒 תיפתח: ") + fmtDay(begin, true));
-        if (truthy(sale.opt("closed_for_orders"))) {
-            String reason = first(sale, "reason_for_closing");
-            lines.add("🔒 המערכת סגורה" + (reason.isEmpty() ? "" : ": " + reason));
-        }
-        if (end != null) {
-            String closing = closingText(sale);
-            lines.add("⏰ " + (closing.equals("המכירה נסגרה") ? "המערכת נסגרה" : "המערכת " + closing));
-            lines.add("    סגירה: " + fmtDay(end, true));
-        }
-        Date pick = pickupDate(sale);
-        lines.add("📦 יום איסוף: " + (pick == null ? "לא ידוע" : fmtDay(pick, false)));
-        String hours = first(order, "times");
-        if (hours.isEmpty() && !first(sale, "startHour").isEmpty()) hours = first(sale, "startHour") + "-" + first(sale, "endHour");
-        if (!hours.isEmpty()) lines.add("    שעה: " + hours);
-        if (site != null) {
-            String street = first(site, "street"), city = first(site, "city");
-            String addr = street.isEmpty() ? city : (city.isEmpty() ? street : street + ", " + city);
-            if (!addr.isEmpty()) lines.add("📍 מיקום: " + addr);
-            if (!first(site, "name").isEmpty()) lines.add("    תחנה: " + first(site, "name"));
-            if (!first(site, "address_description").isEmpty()) lines.add("    " + first(site, "address_description"));
-        }
-        JSONArray cats = sale.optJSONArray("categories");
-        if (cats != null && cats.length() > 0) {
-            List<String> names = new ArrayList<>();
-            for (int i = 0; i < cats.length(); i++) { String lbl = labelOf(cats.opt(i)); if (!lbl.isEmpty()) names.add(lbl); }
-            lines.add("🗂️ קטגוריות: " + TextUtils.join(", ", names));
-        }
-        String msg = cleanHtml(first(sale, "special_msg_txt"));
-        if (!msg.isEmpty()) { lines.add(""); lines.add("📢 הודעה:"); lines.add(msg); }
-        if (parent != null && first(parent, "week").isEmpty() && lines.isEmpty()) lines.add("אין פרטים נוספים זמינים.");
-
-        String title = saleTitle(sale);
-        new AlertDialog.Builder(this)
-                .setTitle(title.isEmpty() ? "פרטי המכירה" : title)
-                .setMessage(TextUtils.join("\n", lines))
-                .setPositiveButton("סגירה", null)
-                .setNegativeButton("כניסה להזמנה", (d, w) -> loadFeatureProducts(sale))
-                .show();
+    private static class CardHolder {
+        LinearLayout card;
+        ImageView image;
+        TextView name, price, limit, unavailable, qty;
+        Button minus, plus, info;
+        ProductRow bound;
     }
 
-    private void openSaleFromNotification(int saleId) {
-        if (saleId < 0) { showOpenSales(false); return; }
-        beginScreen("פתיחת המכירה החדשה…", 0, null);
-        setStatus("טוען את המכירה מההתראה…");
-        final int t = screenToken;
-        executor.execute(() -> {
-            try {
-                HttpResult r = api("GET", "/api/profile/open_sales", null);
-                if (r.code < 200 || r.code >= 300) throw new Exception("לא ניתן לטעון את המכירה. פתחו את המכירות הפתוחות ורענן.");
-                JSONArray sales = arrayFrom(r.body);
-                JSONObject found = null;
-                for (int i = 0; i < sales.length(); i++) {
-                    JSONObject sale = sales.optJSONObject(i);
-                    if (sale != null && sale.optInt("id", -1) == saleId) { found = sale; break; }
-                }
-                final JSONObject selected = found;
-                runOnUiThread(() -> {
-                    if (selected != null) loadFeatureProducts(selected);
-                    else {
-                        showOpenSales(false);
-                        toast("המכירה כבר לא פתוחה. מציג את המכירות העדכניות.", true);
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    if (e instanceof AuthException) { showLogin(); return; }
-                    showOpenSales(false);
-                    toast(errText(e, "טעינת המכירה נכשלה."), true);
-                });
-            }
-        });
-    }
+    private static class RowHolder { CardHolder a, b; }
 
-    // ======================================================================== order creation / loading
+    private JSONObject featureSale = null;
+    private long featureOrderId = -1;
+    private final ArrayList<ProductRow> allRows = new ArrayList<>();
+    private final ArrayList<ProductRow> shownRows = new ArrayList<>();
+    // Current quantity per product (what the user sees) and last quantity confirmed by the server.
+    private final ConcurrentHashMap<Integer, Integer> featureQuantities = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, Integer> confirmedAmounts = new ConcurrentHashMap<>();
+    private final HashMap<Integer, Runnable> pendingSaves = new HashMap<>(); // UI thread only
+    private int inFlightSaves = 0; // UI thread only
+    private String productQuery = "";
+    private ListView productList;
+    private ProductAdapter productAdapter;
+    private TextView orderInfoView;
+    private Runnable searchRunnable;
+
+    private int featureProductId(JSONObject p) { return p.optInt("item_salesID", p.optInt("id", p.optInt("itemID", -1))); }
 
     private long extractOrderId(JSONObject obj) {
         if (obj == null) return -1;
@@ -1721,137 +933,634 @@ public class MainActivity extends Activity {
         return id;
     }
 
-    private long findOrderIdForSale(int saleId) {
-        try {
-            HttpResult r = api("GET", "/api/orders", null);
-            if (r.code < 200 || r.code >= 300) return -1;
-            JSONArray orders = arrayFrom(r.body);
-            for (int i = 0; i < orders.length(); i++) {
-                JSONObject o = orders.optJSONObject(i);
-                if (o == null) continue;
-                int sid = o.optInt("saleID", o.optInt("sale_id", -2));
-                JSONObject osale = o.optJSONObject("sale");
-                if (sid < 0 && osale != null) sid = osale.optInt("id", -2);
-                if (sid == saleId) {
-                    long id = extractOrderId(o);
-                    if (id > 0) return id;
-                }
-            }
-        } catch (Exception ignored) { }
-        return -1;
-    }
-
-    private long findOrCreateOrder(JSONObject sale) throws Exception {
-        long existingId = extractOrderId(sale.optJSONObject("order"));
+    private long findOrCreateOrder(JSONObject sale, String token) throws Exception {
+        JSONObject existing = sale.optJSONObject("order");
+        long existingId = extractOrderId(existing);
         if (existingId > 0) return existingId;
-        int saleId = sale.optInt("id", -1);
-        if (saleId <= 0) throw new Exception("מזהה המכירה חסר.");
 
-        long mapped = findOrderIdForSale(saleId);
-        if (mapped > 0) return mapped;
-
-        HttpResult cardsResponse = api("GET", "/api/payment_methods/cards", null);
+        HttpResult cardsResponse = request("GET", "/api/payment_methods/cards", token, null);
         if (cardsResponse.code < 200 || cardsResponse.code >= 300)
             throw new Exception("לא ניתן לטעון את אמצעי התשלום השמורים (" + cardsResponse.code + ").");
-        JSONArray cards = arrayFrom(cardsResponse.body);
-        long cardId = -1;
+        JSONArray cards = extractArray(cardsResponse.body, "data");
+        int cardId = -1;
         for (int i = 0; i < cards.length(); i++) {
             JSONObject c = cards.optJSONObject(i);
-            if (c != null && (truthy(c.opt("is_default")) || truthy(c.opt("default")))) {
-                cardId = c.optLong("id", c.optLong("card_id", -1));
-                if (cardId > 0) break;
+            if (c != null && (c.optBoolean("is_default", false) || c.optBoolean("default", false))) {
+                cardId = c.optInt("id", c.optInt("card_id", -1)); if (cardId > 0) break;
             }
         }
-        if (cardId <= 0 && cards.length() > 0) {
+        if (cardId <= 0 && cards.length() == 1) {
             JSONObject c = cards.optJSONObject(0);
-            if (c != null) cardId = c.optLong("id", c.optLong("card_id", -1));
+            if (c != null) cardId = c.optInt("id", c.optInt("card_id", -1));
         }
-        if (cardId <= 0) throw new Exception("לא נמצא כרטיס אשראי שמור. הגדירו כרטיס באתר משנת יוסף ונסו שוב.");
-
-        JSONObject body = new JSONObject();
-        body.put("card_id", cardId);
-        HttpResult created = api("POST", "/api/create_order/" + saleId, body);
+        if (cardId <= 0) throw new Exception("לא נמצא כרטיס ברירת מחדל שמור. הגדירי כרטיס ברירת מחדל באתר משנת יוסף ונסי שוב.");
+        JSONObject body = new JSONObject(); body.put("card_id", cardId);
+        int saleId = sale.optInt("id", -1);
+        if (saleId <= 0) throw new Exception("מזהה המכירה חסר.");
+        HttpResult created = request("POST", "/api/create_order/" + saleId, token, body);
         if (created.code < 200 || created.code >= 300)
-            throw new Exception("פתיחת ההזמנה נכשלה: " + apiError(created));
+            throw new Exception("פתיחת ההזמנה נכשלה (" + created.code + "): " + shorten(created.body));
         try {
             long id = extractOrderId(new JSONObject(created.body));
             if (id > 0) return id;
         } catch (Exception ignored) { }
-        Thread.sleep(500);
-        mapped = findOrderIdForSale(saleId);
-        if (mapped > 0) return mapped;
-        throw new Exception("השרת אישר פתיחת הזמנה אך לא החזיר מזהה. בדקו בהיסטוריית ההזמנות לפני ניסיון חוזר.");
+
+        // Some server versions only return success; resolve the new order by sale id.
+        HttpResult ordersResponse = request("GET", "/api/orders", token, null);
+        if (ordersResponse.code >= 200 && ordersResponse.code < 300) {
+            JSONArray orders = extractArray(ordersResponse.body, "data");
+            for (int i = 0; i < orders.length(); i++) {
+                JSONObject o = orders.optJSONObject(i); if (o == null) continue;
+                int sid = o.optInt("saleID", o.optInt("sale_id", -2));
+                JSONObject osale = o.optJSONObject("sale");
+                if (sid < 0 && osale != null) sid = osale.optInt("id", -2);
+                if (sid == saleId) { long id = extractOrderId(o); if (id > 0) return id; }
+            }
+        }
+        throw new Exception("השרת אישר פתיחת הזמנה אך לא החזיר מזהה. בדקי בהיסטוריית ההזמנות לפני ניסיון חוזר.");
     }
 
-    private List<JSONObject> fetchAllProducts(long orderId, int saleId) throws Exception {
-        long[] ids = saleId > 0 && saleId != orderId ? new long[]{orderId, saleId} : new long[]{orderId};
-        for (long id : ids) {
-            List<JSONObject> all = new ArrayList<>();
-            for (int page = 1; page <= 100; page++) {
-                HttpResult r = api("GET", "/api/get_items_for_sale/" + id + "/null?page=" + page + "&limit=50", null);
-                if (r.code < 200 || r.code >= 300) break;
-                JSONArray a = arrayFrom(r.body);
-                if (a.length() == 0) break;
-                for (int i = 0; i < a.length(); i++) {
-                    JSONObject o = a.optJSONObject(i);
-                    if (o != null) all.add(o);
+    private void appendProductDetail(StringBuilder out, String label, String value) {
+        if (value == null || value.trim().isEmpty() || "null".equalsIgnoreCase(value.trim())) return;
+        if (out.length() > 0) out.append("\n");
+        out.append(label).append(": ").append(value.trim());
+    }
+
+    private void showFeatureProductDetails(JSONObject p) {
+        if (p == null || !alive()) return;
+        StringBuilder out = new StringBuilder();
+        appendProductDetail(out, "שם מוצר", firstOrderString(p, "name", "custom_name", "title"));
+        appendProductDetail(out, "מחיר", firstOrderString(p, "price", "unit_price", "price_list"));
+        appendProductDetail(out, "כמות בהזמנה", String.valueOf(featureQuantities.getOrDefault(featureProductId(p), 0)));
+        appendProductDetail(out, "זמינות", firstOrderString(p, "available"));
+        appendProductDetail(out, "יחידה", firstOrderString(p, "item_unit", "units", "unit"));
+        appendProductDetail(out, "פרטים", firstOrderString(p, "description", "details", "approx"));
+        JSONObject product = p.optJSONObject("product");
+        if (product != null) {
+            appendProductDetail(out, "תיאור מוצר", firstOrderString(product, "description", "details", "name"));
+        }
+        String title = firstOrderString(p, "name", "custom_name", "title");
+        new AlertDialog.Builder(this)
+                .setTitle(title.isEmpty() ? "פרטי מוצר" : title)
+                .setMessage(out.length() == 0 ? "אין פרטים נוספים זמינים." : out.toString())
+                .setPositiveButton("סגירה", null)
+                .show();
+    }
+
+    private void showSaleDetails(JSONObject sale) {
+        if (sale == null || !alive()) return;
+        StringBuilder out = new StringBuilder();
+        appendProductDetail(out, "מזהה מכירה", firstOrderString(sale, "id"));
+        appendProductDetail(out, "שם מכירה", firstOrderString(sale, "custom_name", "name", "title"));
+        appendProductDetail(out, "תחילת מכירה", firstOrderString(sale, "begin", "start", "start_at"));
+        appendProductDetail(out, "סיום מכירה", firstOrderString(sale, "end", "finish", "end_at"));
+        JSONObject parent = sale.optJSONObject("parent");
+        if (parent != null) {
+            appendProductDetail(out, "שבוע", firstOrderString(parent, "week", "name", "title"));
+            appendProductDetail(out, "פרטי שבוע", firstOrderString(parent, "name", "title", "description"));
+        }
+        JSONObject order = sale.optJSONObject("order");
+        appendProductDetail(out, "מצב הזמנה", extractOrderId(order) > 0 ? "הזמנה קיימת #" + extractOrderId(order) : "טרם נפתחה הזמנה");
+        try {
+            java.util.Iterator<String> keys = sale.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                if ("parent".equals(key) || "order".equals(key) || "id".equals(key) || "begin".equals(key) || "end".equals(key)) continue;
+                Object value = sale.opt(key);
+                if (value instanceof String || value instanceof Number || value instanceof Boolean)
+                    appendProductDetail(out, key, String.valueOf(value));
+            }
+        } catch (Exception ignored) { }
+        new AlertDialog.Builder(this).setTitle("פרטי המכירה").setMessage(out.length() == 0 ? "אין פרטים נוספים זמינים." : out.toString())
+                .setPositiveButton("סגירה", null)
+                .setNegativeButton("כניסה להזמנה", (d, w) -> loadFeatureProducts(sale)).show();
+    }
+
+    private double numericAvailable(JSONObject p) {
+        if (!p.has("available") || p.isNull("available")) return -1;
+        Object value = p.opt("available");
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        if (value instanceof String) {
+            try { return Double.parseDouble(((String) value).trim()); } catch (Exception ignored) { return -1; }
+        }
+        // Some API versions return a boolean/object here; it is not a stock count.
+        return -1;
+    }
+
+    // Everything that needs JSON parsing / regex is computed once here (background thread),
+    // so binding a row while scrolling is just setText + setVisibility.
+    private ProductRow makeRow(JSONObject p, int amount) {
+        int id = featureProductId(p);
+        JSONObject product = p.optJSONObject("product");
+        String name = firstOrderString(p, "name", "full_name", "title");
+        if (name.isEmpty() && product != null) name = firstOrderString(product, "name", "full_name", "title");
+        if (name.isEmpty()) name = "מוצר #" + id;
+        String priceText = firstOrderString(p, "price", "unit_price", "price_list");
+        if (priceText.isEmpty() && product != null) priceText = firstOrderString(product, "price", "unit_price");
+        String unit = firstOrderString(p, "item_unit", "unit", "item_type");
+        return new ProductRow(p, id, p.optInt("item_salesID", p.optInt("item_sales_id", -1)), name, priceText, unit,
+                p.optInt("max_per_man", 0), p.optBoolean("disable", false), numericAvailable(p),
+                featureImageUrl(p), name.toLowerCase(java.util.Locale.ROOT), amount);
+    }
+
+    private HashMap<Integer, Integer> loadSavedAmounts(long orderId) {
+        HashMap<Integer, Integer> saved = new HashMap<>();
+        try {
+            HttpResult orderResponse = authRequest("GET", "/api/orders/" + orderId, null);
+            if (orderResponse.code >= 200 && orderResponse.code < 300) {
+                JSONObject response = new JSONObject(orderResponse.body);
+                JSONObject order = response.optJSONObject("order");
+                if (order == null) order = response.optJSONObject("data");
+                if (order == null) order = response;
+                JSONArray savedItems = orderItemsFrom(order);
+                for (int i = 0; i < savedItems.length(); i++) {
+                    JSONObject item = savedItems.optJSONObject(i);
+                    if (item == null) continue;
+                    JSONObject savedProduct = orderProductFrom(item);
+                    int itemId = item.optInt("item_salesID", item.optInt("item_sales_id", -1));
+                    if (itemId <= 0) itemId = savedProduct.optInt("item_salesID", savedProduct.optInt("item_sales_id", -1));
+                    if (itemId <= 0) itemId = item.optInt("itemID", savedProduct.optInt("itemID", -1));
+                    int amount = item.optInt("amount", item.optInt("quantity", item.optInt("qty", 0)));
+                    if (itemId > 0) saved.put(itemId, Math.max(0, amount));
                 }
-                if (a.length() < 50) break;
             }
-            if (!all.isEmpty()) return all;
-        }
-        throw new Exception("לא נמצאו מוצרים במכירה.");
+        } catch (Exception ignored) { }
+        return saved;
     }
 
-    /** GET /api/orders/{id}: order.products, without billing lines, same as the Python script. */
-    private OrderData fetchOrder(long orderId) throws Exception {
-        HttpResult r = api("GET", "/api/orders/" + orderId, null);
-        if (r.code < 200 || r.code >= 300) throw new Exception("טעינת ההזמנה נכשלה (" + r.code + ").");
-        JSONObject response = new JSONObject(r.body);
-        JSONObject order = response.optJSONObject("order");
-        if (order == null) order = response.optJSONObject("data");
-        if (order == null) order = response;
-        JSONObject sale = response.optJSONObject("sale");
-        if (sale == null) sale = order.optJSONObject("sale");
+    // Opens (or creates) the order and loads the products page by page.
+    // The first page is shown immediately; the remaining pages are appended while the user already scrolls.
+    private void loadFeatureProducts(final JSONObject sale) {
+        featureSale = sale;
+        failedImages.clear();
+        beginScreen("פתיחת הזמנה");
+        final int gen = screenGen.get();
+        statusView.setText("פותח הזמנה וטוען מוצרים…");
+        final int[] liveGen = {gen};                       // UI thread only
+        final AtomicBoolean cancelled = new AtomicBoolean(false);
+        executor.execute(() -> {
+            try {
+                final long orderId = findOrCreateOrder(sale, freshToken());
+                // Remember the order on the sale so a refresh never tries to create a second order.
+                try { JSONObject known = new JSONObject(); known.put("id", orderId); sale.put("order", known); } catch (Exception ignored) { }
+                HashMap<Integer, Integer> saved = loadSavedAmounts(orderId);
 
-        OrderData od = new OrderData();
-        od.id = order.optLong("id", orderId);
-        od.status = first(order, "status", "order_status");
-        od.when = fmtWhen(first(order, "time"));
-        od.saleName = saleTitle(sale);
-        od.saleId = order.optLong("saleID", sale == null ? 0 : sale.optLong("id", 0));
-        if (od.saleName.isEmpty()) od.saleName = "מכירה " + first(order, "saleID", "sale_id");
-        if (order.has("total_list") && !order.isNull("total_list")) od.total = num(order.opt("total_list"));
-        od.credits = num(order.opt("trans_list"));
-
-        JSONArray products = orderItemsFrom(order);
-        Map<String, OrderLine> bySid = new LinkedHashMap<>();
-        for (int i = 0; i < products.length(); i++) {
-            JSONObject p = products.optJSONObject(i);
-            if (p == null) continue;
-            if (truthy(p.opt("billing_product"))) continue;
-            if (!p.has("item_salesID") || p.isNull("item_salesID")) continue;
-            String sid = first(p, "item_salesID");
-            double amount = num(p.opt("amount"));
-            OrderLine line = bySid.get(sid);
-            if (line == null) {
-                line = new OrderLine();
-                line.sid = sid;
-                line.raw = p;
-                String name = first(p, "full_name", "name", "item_name", "title");
-                if (name.isEmpty()) name = first(p.optJSONObject("product"), "full_name", "name");
-                line.name = name.isEmpty() ? "(פריט " + sid + ")" : name;
-                line.price = productPrice(p);
-                bySid.put(sid, line);
+                for (int page = 1; page <= 100; page++) {
+                    if (cancelled.get()) return;
+                    HttpResult r = authRequest("GET", "/api/get_items_for_sale/" + orderId + "/null?page=" + page + "&limit=" + PAGE_SIZE, null);
+                    if (r.code < 200 || r.code >= 300)
+                        throw new Exception("טעינת המוצרים נכשלה (" + r.code + ").");
+                    JSONArray a = extractArray(r.body, "data", "items", "products");
+                    final ArrayList<ProductRow> rows = new ArrayList<>();
+                    for (int i = 0; i < a.length(); i++) {
+                        JSONObject p = a.optJSONObject(i);
+                        if (p == null) continue;
+                        int id = featureProductId(p);
+                        int amount = saved.containsKey(id) ? saved.get(id) : Math.max(0, p.optInt("amount", 0));
+                        rows.add(makeRow(p, amount));
+                    }
+                    final boolean first = page == 1;
+                    final boolean last = a.length() < PAGE_SIZE || page == 100;
+                    runOnUiThread(() -> {
+                        if (screenGen.get() != liveGen[0]) { cancelled.set(true); return; } // user left the screen
+                        if (first) {
+                            featureOrderId = orderId;
+                            allRows.clear();
+                            featureQuantities.clear();
+                            confirmedAmounts.clear();
+                            productQuery = "";
+                            renderFeatureProducts();
+                            liveGen[0] = screenGen.get();
+                        }
+                        appendRows(rows);
+                        if (statusView != null)
+                            statusView.setText(last ? (allRows.isEmpty() ? "אין מוצרים במכירה זו." : "נטענו " + allRows.size() + " מוצרים")
+                                    : "נטענו " + allRows.size() + " מוצרים, טוען עוד…");
+                    });
+                    if (last) break;
+                }
+            } catch (Exception e) {
+                String message = msg(e, "פתיחת ההזמנה נכשלה.");
+                runOnUiThread(() -> {
+                    if (screenGen.get() != liveGen[0]) return;
+                    if (statusView != null) statusView.setText(message);
+                });
             }
-            line.amount += amount;
+        });
+    }
+
+    private void appendRows(ArrayList<ProductRow> rows) {
+        for (ProductRow r : rows) {
+            allRows.add(r);
+            featureQuantities.put(r.id, r.initialAmount);
+            confirmedAmounts.put(r.id, r.initialAmount);
         }
-        od.lines.addAll(bySid.values());
-        return od;
+        applyFilter();
+        updateOrderInfo();
+    }
+
+    private void applyFilter() {
+        shownRows.clear();
+        String q = productQuery.trim().toLowerCase(java.util.Locale.ROOT);
+        for (ProductRow r : allRows) if (q.isEmpty() || r.searchKey.contains(q)) shownRows.add(r);
+        if (productAdapter != null) productAdapter.notifyDataSetChanged();
+    }
+
+    private void updateOrderInfo() {
+        if (orderInfoView == null) return;
+        int types = 0, units = 0;
+        for (int q : featureQuantities.values()) if (q > 0) { types++; units += q; }
+        orderInfoView.setText("הזמנה #" + featureOrderId + " · " + types + " סוגי פריטים · " + units
+                + " יחידות · הסכום הסופי בסיכום ההזמנה");
+    }
+
+    private Button quantityButton(String label) {
+        Button b = new Button(this);
+        b.setText(label); b.setTextSize(18); b.setAllCaps(false);
+        b.setTextColor(Color.rgb(230, 94, 20));
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(0, 0, 0, 0);
+        b.setMinHeight(0); b.setMinimumHeight(0);
+        b.setMinWidth(0); b.setMinimumWidth(0);
+        android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+        shape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        shape.setColor(Color.rgb(255, 239, 224));
+        shape.setStroke(dp(1), Color.rgb(230, 94, 20));
+        b.setBackground(shape);
+        b.setLayoutParams(new LinearLayout.LayoutParams(dp(34), dp(34)));
+        return b;
+    }
+
+    private void renderFeatureProducts() {
+        String title = featureSale == null ? "מוצרים להזמנה" : firstOrderString(featureSale, "custom_name", "name");
+        if (title.isEmpty() && featureSale != null && featureSale.optJSONObject("parent") != null)
+            title = firstOrderString(featureSale.optJSONObject("parent"), "week", "name");
+        beginScreen(title.isEmpty() ? "מוצרים להזמנה" : title, true);
+
+        LinearLayout topActions = new LinearLayout(this);
+        topActions.setOrientation(LinearLayout.HORIZONTAL);
+        topActions.setGravity(Gravity.CENTER);
+        Button back = button("מכירות"); back.setTextSize(11); back.setMinHeight(dp(40));
+        Button saleInfo = button("פרטי מכירה"); saleInfo.setTextSize(11); saleInfo.setMinHeight(dp(40));
+        Button summary = button("סיכום הזמנה"); summary.setTextSize(11); summary.setMinHeight(dp(40));
+        topActions.addView(back, new LinearLayout.LayoutParams(0, -2, 1));
+        topActions.addView(saleInfo, new LinearLayout.LayoutParams(0, -2, 1));
+        topActions.addView(summary, new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(topActions);
+        back.setOnClickListener(v -> showOpenSales());
+        saleInfo.setOnClickListener(v -> showSaleDetails(featureSale));
+        summary.setOnClickListener(v -> loadServerOrderSummary());
+
+        EditText search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("חיפוש מוצר…");
+        search.setTextSize(14);
+        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                final String q = s.toString();
+                if (searchRunnable != null) uiHandler.removeCallbacks(searchRunnable);
+                searchRunnable = () -> {
+                    productQuery = q;
+                    applyFilter();
+                    if (productList != null) productList.setSelection(0);
+                };
+                uiHandler.postDelayed(searchRunnable, SEARCH_DEBOUNCE_MS);
+            }
+        });
+        root.addView(search, new LinearLayout.LayoutParams(-1, dp(44)));
+
+        orderInfoView = compactText("", 12, true);
+        root.addView(orderInfoView, new LinearLayout.LayoutParams(-1, -2));
+
+        productList = new ListView(this);
+        productList.setDivider(null);
+        productList.setDividerHeight(0);
+        productList.setSelector(android.R.color.transparent);
+        productList.setScrollingCacheEnabled(false);
+        productList.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        productAdapter = new ProductAdapter();
+        productList.setAdapter(productAdapter);
+        root.addView(productList, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        applyFilter();
+        updateOrderInfo();
+    }
+
+    // Two products per list row. Only the rows on screen exist as views (about 8-10 in total),
+    // and they are re-used while scrolling, no matter how many products the sale has.
+    private class ProductAdapter extends BaseAdapter {
+        @Override public int getCount() { return (shownRows.size() + 1) / 2; }
+        @Override public Object getItem(int position) { return null; }
+        @Override public long getItemId(int position) { return position; }
+
+        @Override public View getView(int position, View convertView, ViewGroup parent) {
+            RowHolder h;
+            if (convertView == null) {
+                h = new RowHolder();
+                LinearLayout row = new LinearLayout(MainActivity.this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.TOP);
+                row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                row.setPadding(0, 0, 0, dp(8));
+                h.a = buildCard();
+                h.b = buildCard();
+                LinearLayout.LayoutParams lpA = new LinearLayout.LayoutParams(0, -2, 1);
+                lpA.setMargins(dp(3), 0, dp(3), 0);
+                LinearLayout.LayoutParams lpB = new LinearLayout.LayoutParams(0, -2, 1);
+                lpB.setMargins(dp(3), 0, dp(3), 0);
+                row.addView(h.a.card, lpA);
+                row.addView(h.b.card, lpB);
+                row.setTag(h);
+                convertView = row;
+            } else {
+                h = (RowHolder) convertView.getTag();
+            }
+            int i = position * 2;
+            if (i < shownRows.size()) bindCard(h.a, shownRows.get(i));
+            int j = i + 1;
+            if (j < shownRows.size()) {
+                h.b.card.setVisibility(View.VISIBLE);
+                bindCard(h.b, shownRows.get(j));
+            } else {
+                h.b.card.setVisibility(View.INVISIBLE);
+                h.b.bound = null;
+            }
+            return convertView;
+        }
+    }
+
+    private CardHolder buildCard() {
+        final CardHolder h = new CardHolder();
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(dp(7), dp(7), dp(7), dp(7));
+        android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+        cardBg.setColor(Color.WHITE); cardBg.setCornerRadius(dp(12));
+        cardBg.setStroke(dp(1), Color.rgb(238, 220, 205));
+        card.setBackground(cardBg);
+        h.card = card;
+
+        h.image = new ImageView(this);
+        h.image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        h.image.setBackgroundColor(Color.rgb(250, 239, 229));
+        card.addView(h.image, new LinearLayout.LayoutParams(-1, dp(105)));
+
+        h.name = text("", 13, true);
+        h.name.setGravity(Gravity.CENTER);
+        h.name.setMaxLines(3);
+        h.name.setMinLines(2);
+        h.name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        card.addView(h.name, new LinearLayout.LayoutParams(-1, -2));
+
+        h.price = text("", 12, true);
+        h.price.setGravity(Gravity.CENTER);
+        card.addView(h.price, new LinearLayout.LayoutParams(-1, -2));
+
+        h.limit = text("", 11, false);
+        h.limit.setGravity(Gravity.CENTER);
+        h.limit.setVisibility(View.GONE);
+        card.addView(h.limit);
+
+        h.unavailable = text("", 11, true);
+        h.unavailable.setGravity(Gravity.CENTER);
+        h.unavailable.setVisibility(View.GONE);
+        card.addView(h.unavailable);
+
+        LinearLayout controls = new LinearLayout(this);
+        controls.setGravity(Gravity.CENTER);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        h.minus = quantityButton("−");
+        h.plus = quantityButton("+");
+        h.qty = text("0", 15, true);
+        h.qty.setGravity(Gravity.CENTER);
+        controls.addView(h.minus);
+        controls.addView(h.qty, new LinearLayout.LayoutParams(dp(30), dp(34)));
+        controls.addView(h.plus);
+        card.addView(controls);
+
+        h.info = button("פרטים");
+        h.info.setTextSize(11); h.info.setMinHeight(dp(32));
+        h.info.setPadding(dp(3), 0, dp(3), 0);
+        card.addView(h.info, new LinearLayout.LayoutParams(-1, dp(34)));
+
+        h.minus.setOnClickListener(v -> { if (h.bound != null) changeQuantity(h, -1); });
+        h.plus.setOnClickListener(v -> { if (h.bound != null) changeQuantity(h, 1); });
+        h.info.setOnClickListener(v -> { if (h.bound != null) showFeatureProductDetails(h.bound.json); });
+        return h;
+    }
+
+    private void bindCard(CardHolder h, ProductRow r) {
+        h.bound = r;
+        h.name.setText(r.name);
+        h.price.setText("מחיר: " + (r.priceText.isEmpty() ? "—" : r.priceText + " ₪") + (r.unit.isEmpty() ? "" : " · " + r.unit));
+        if (r.max > 0) {
+            h.limit.setText("מקס׳ " + r.max);
+            h.limit.setVisibility(View.VISIBLE);
+        } else h.limit.setVisibility(View.GONE);
+        boolean can = r.canOrder();
+        if (!can) {
+            h.unavailable.setText(r.disabled ? "לא זמין" : "אזל מהמלאי");
+            h.unavailable.setVisibility(View.VISIBLE);
+        } else h.unavailable.setVisibility(View.GONE);
+        h.qty.setText(String.valueOf(featureQuantities.getOrDefault(r.id, 0)));
+        h.minus.setEnabled(can);
+        h.plus.setEnabled(can);
+        loadImage(h.image, r.imageUrl, dp(150));
+    }
+
+    // +/- only updates the screen instantly; the server call is debounced and sent in the background.
+    // No reload of the order and no re-render of the list.
+    private void changeQuantity(CardHolder h, int delta) {
+        ProductRow r = h.bound;
+        int cur = featureQuantities.getOrDefault(r.id, 0);
+        int n = Math.max(0, cur + delta);
+        if (n == cur) return;
+        if (delta > 0) {
+            if (r.max > 0 && n > r.max) { Toast.makeText(this, "מותר להזמין עד " + r.max + " יחידות", Toast.LENGTH_SHORT).show(); return; }
+            if (r.stock >= 0 && n > r.stock) { Toast.makeText(this, "נותרו במלאי " + (long) r.stock + " יחידות בלבד", Toast.LENGTH_SHORT).show(); return; }
+        }
+        featureQuantities.put(r.id, n);
+        h.qty.setText(String.valueOf(n));
+        updateOrderInfo();
+        scheduleSave(r);
+    }
+
+    private void scheduleSave(final ProductRow r) {
+        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_SHORT).show(); return; }
+        final long orderId = featureOrderId;
+        Runnable old = pendingSaves.remove(r.id);
+        if (old != null) uiHandler.removeCallbacks(old);
+        Runnable task = () -> {
+            pendingSaves.remove(r.id);
+            inFlightSaves++;
+            try {
+                saveExecutor.execute(() -> persistQuantity(orderId, r));
+            } catch (RejectedExecutionException e) {
+                inFlightSaves--;
+            }
+            updateSaveStatus(false);
+        };
+        pendingSaves.put(r.id, task);
+        uiHandler.postDelayed(task, SAVE_DEBOUNCE_MS);
+        updateSaveStatus(false);
+    }
+
+    // Sends everything that is still waiting for the debounce right now (leaving the app / opening the summary).
+    private void flushPendingSaves() {
+        for (Runnable task : new ArrayList<>(pendingSaves.values())) {
+            uiHandler.removeCallbacks(task);
+            task.run();
+        }
+    }
+
+    // Runs on saveExecutor: always sends the latest quantity of the product, in order.
+    private void persistQuantity(final long orderId, final ProductRow r) {
+        final int desired = featureQuantities.getOrDefault(r.id, 0);
+        final int confirmed = confirmedAmounts.getOrDefault(r.id, 0);
+        String error = null;
+        if (desired != confirmed) {
+            try {
+                HttpResult result;
+                if (desired == 0) {
+                    if (r.itemSalesId <= 0) throw new Exception("חסר מזהה פריט להסרה מההזמנה.");
+                    result = authRequest("POST", "/api/remove_item/" + orderId + "/" + r.itemSalesId, null);
+                } else {
+                    JSONObject item = new JSONObject(r.json.toString());
+                    item.put("amount", desired);
+                    if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
+                    result = authRequest("POST", (confirmed > 0 ? "/api/update_item/" : "/api/add_item/") + orderId, item);
+                }
+                if (result.code < 200 || result.code >= 300)
+                    throw new Exception("עדכון ההזמנה נכשל (" + result.code + "): " + shorten(result.body));
+                confirmedAmounts.put(r.id, desired);
+            } catch (Exception e) {
+                error = msg(e, "עדכון ההזמנה נכשל");
+            }
+        }
+        final String err = error;
+        runOnUiThread(() -> {
+            inFlightSaves = Math.max(0, inFlightSaves - 1);
+            if (err != null) {
+                // Roll the screen back to what the server really has (unless the user already changed it again).
+                if (featureQuantities.getOrDefault(r.id, 0) == desired && !pendingSaves.containsKey(r.id))
+                    featureQuantities.put(r.id, confirmedAmounts.getOrDefault(r.id, 0));
+                if (productAdapter != null) productAdapter.notifyDataSetChanged();
+                updateOrderInfo();
+                Toast.makeText(this, err, Toast.LENGTH_LONG).show();
+            }
+            updateSaveStatus(err != null);
+        });
+    }
+
+    private void updateSaveStatus(boolean hadError) {
+        if (statusView == null || productList == null) return; // not on the products screen
+        if (!pendingSaves.isEmpty() || inFlightSaves > 0) statusView.setText("שומר שינויים…");
+        else statusView.setText(hadError ? "" : "השינויים נשמרו ✓");
+    }
+
+    private void loadServerOrderSummary() {
+        if (featureOrderId <= 0) { Toast.makeText(this, "לא נמצאה הזמנה", Toast.LENGTH_SHORT).show(); return; }
+        flushPendingSaves();
+        statusView.setText("טוען סיכום הזמנה מהשרת…");
+        final long orderId = featureOrderId;
+        final int gen = screenGen.get();
+        // Runs on saveExecutor so it is guaranteed to come after every queued quantity update.
+        saveExecutor.execute(() -> {
+            try {
+                HttpResult r = authRequest("GET", "/api/orders/" + orderId, null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת סיכום ההזמנה נכשלה (" + r.code + ").");
+                JSONObject response = new JSONObject(r.body);
+                JSONObject order = response.optJSONObject("order");
+                if (order == null) order = response.optJSONObject("data");
+                if (order == null) order = response;
+                JSONArray items = orderItemsFrom(order);
+                String total = firstOrderString(order, "total_list", "total", "total_price", "totalPrice", "grand_total", "grandTotal", "sum", "amount_due");
+                String status = firstOrderString(order, "status", "order_status");
+                StringBuilder out = new StringBuilder();
+                if (!status.isEmpty()) out.append("סטטוס: ").append(status).append("\n");
+                out.append("פריטים בהזמנה לפי השרת: ").append(items.length()).append("\n\n");
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject item = items.optJSONObject(i); if (item == null) continue;
+                    JSONObject product = orderProductFrom(item);
+                    String name = firstOrderString(product, "name", "full_name", "item_name", "title");
+                    if (name.isEmpty()) name = firstOrderString(item, "name", "item_name", "title");
+                    if (name.isEmpty()) name = "פריט " + (i + 1);
+                    String qty = firstOrderString(item, "amount", "quantity", "qty", "count");
+                    if (qty.isEmpty()) qty = firstOrderString(product, "amount", "quantity", "qty", "count");
+                    String price = firstOrderString(item, "total_price", "totalPrice", "total_list", "totalList", "subtotal", "sum", "price", "unit_price");
+                    if (price.isEmpty()) price = firstOrderString(product, "total_price", "totalPrice", "price", "unit_price");
+                    out.append(name).append(" × ").append(qty.isEmpty() ? "—" : qty);
+                    if (!price.isEmpty()) out.append(" · ").append(price).append(price.matches(".*[₪$€].*") ? "" : " ₪");
+                    out.append("\n");
+                }
+                if (items.length() == 0) out.append("השרת לא החזיר פריטים להזמנה זו.\n");
+                out.append("\nעלות כוללת לפי השרת: ").append(total.isEmpty() ? "השרת לא החזיר סכום כולל" : total + (total.matches(".*[₪$€].*") ? "" : " ₪"));
+                final String message = out.toString();
+                runOnUiThread(() -> {
+                    if (!isStale(gen) && statusView != null) statusView.setText("");
+                    if (!alive()) return;
+                    new AlertDialog.Builder(this).setTitle("סיכום הזמנה מהשרת")
+                            .setMessage(message).setPositiveButton("סגירה", null)
+                            .setNeutralButton("רענון הזמנה", (d, w) -> loadFeatureProducts(featureSale)).show();
+                });
+            } catch (Exception e) {
+                String message = msg(e, "טעינת סיכום ההזמנה נכשלה.");
+                runOnUiThread(() -> {
+                    if (!isStale(gen) && statusView != null) statusView.setText("");
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------- order history / details
+
+    private void loadFeatureOrders() {
+        beginScreen("היסטוריית הזמנות");
+        final int gen = screenGen.get();
+        statusView.setText("טוען הזמנות…");
+        executor.execute(() -> {
+            try {
+                HttpResult r = authRequest("GET", "/api/orders", null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("שגיאת שרת (" + r.code + ")");
+                final JSONArray orders = extractArray(r.body, "data");
+                runOnUiThread(() -> {
+                    if (isStale(gen)) return;
+                    beginScreen("היסטוריית הזמנות");
+
+                    if (orders.length() == 0) statusView.setText("לא נמצאו הזמנות.");
+                    for (int i = 0; i < orders.length(); i++) {
+                        JSONObject o = orders.optJSONObject(i); if (o == null) continue;
+                        JSONObject sale = o.optJSONObject("sale");
+                        if (sale == null) sale = new JSONObject();
+                        JSONObject parent = sale.optJSONObject("parent");
+                        String saleName = firstOrderString(sale, "custom_name");
+                        if (saleName.isEmpty() && parent != null) saleName = firstOrderString(parent, "week");
+                        if (saleName.isEmpty()) saleName = "מכירה " + firstOrderString(o, "saleID", "sale_id");
+                        String orderIdText = firstOrderString(o, "id");
+                        TextView t = text(saleName + "  ·  הזמנה #" + orderIdText + "  ›", 16, true);
+                        root.addView(t);
+                        final long orderId = o.optLong("id", -1);
+                        if (orderId > 0) t.setOnClickListener(v -> loadFeatureOrderDetails(orderId));
+                        String status = firstOrderString(o, "status");
+                        String total = firstOrderString(o, "total_list", "total", "amount", "sum");
+                        root.addView(text((status.isEmpty() ? "" : "סטטוס: " + status + " · ") + (total.isEmpty() ? "" : "סכום: " + total + " ₪"), 13, false));
+                    }
+                });
+            } catch (Exception e) {
+                String message = msg(e, "טעינת ההזמנות נכשלה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
+            }
+        });
     }
 
     private JSONArray orderItemsFrom(JSONObject order) {
         if (order == null) return new JSONArray();
+        // The documented endpoint returns { "order": { "products": [...] }, "sale": {...} }.
         JSONArray products = order.optJSONArray("products");
         if (products != null) return products;
         String[] keys = {"items", "order_items", "orderItems", "details", "lines", "order_details", "orderDetails", "order_lines", "orderLines"};
@@ -1867,917 +1576,151 @@ public class MainActivity extends Activity {
         return new JSONArray();
     }
 
-    private void loadFeatureProducts(JSONObject sale) {
-        featureSale = sale;
-        summaryFromHistory = false;
-        String title = saleTitle(sale);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
-        setStatus("פותח הזמנה וטוען מוצרים…");
-        final int t = screenToken;
-        executor.execute(() -> {
-            try {
-                long orderId = findOrCreateOrder(sale);
-                List<JSONObject> all = fetchAllProducts(orderId, sale.optInt("id", -1));
-                Map<String, Integer> saved = null;
-                try {
-                    OrderData od = fetchOrder(orderId);
-                    saved = new LinkedHashMap<>();
-                    for (OrderLine line : od.lines) saved.put(line.sid, (int) Math.round(line.amount));
-                } catch (AuthException ae) {
-                    throw ae;
-                } catch (Exception ignored) { }
-                Set<String> favs = null;
-                try { favs = fetchFavouriteIds(sale.optInt("id", -1)); } catch (AuthException ae2) { throw ae2; } catch (Exception ignored) { }
-                final Set<String> favSet = favs;
-                final Map<String, Integer> savedAmounts = saved;
-                runOnUiThread(() -> {
-                    if (stale(t)) return;
-                    featureOrderId = orderId;
-                    featureProducts.clear();
-                    featureQuantities.clear();
-                    pending.clear();
-                    for (JSONObject p : all) {
-                        String sid = sidOf(p);
-                        if (sid.isEmpty() || productName(p).isEmpty()) continue;
-                        int amount = savedAmounts != null
-                                ? (savedAmounts.containsKey(sid) ? savedAmounts.get(sid) : 0)
-                                : Math.max(0, (int) Math.round(num(p.opt("amount"))));
-                        try { p.put("amount", amount); } catch (Exception ignored) { }
-                        featureProducts.add(p);
-                        featureQuantities.put(sid, amount);
-                    }
-                    filterText = "";
-                    viewMode = "all";
-                    if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
-                    renderFeatureProducts();
-                });
-            } catch (Exception e) {
-                fail(t, e, "פתיחת ההזמנה נכשלה.");
-            }
-        });
+    private JSONObject orderProductFrom(JSONObject item) {
+        if (item == null) return new JSONObject();
+        JSONObject product = item.optJSONObject("product");
+        if (product != null) return product;
+        String[] keys = {"item", "sale_item", "saleItem", "product_details", "productDetails"};
+        for (String key : keys) {
+            JSONObject p = item.optJSONObject(key);
+            if (p != null) return p;
+        }
+        return item;
     }
 
-    // ======================================================================== product grid
-
-    private double[] orderTotals() {
-        int lines = 0, units = 0;
-        double total = 0;
-        for (JSONObject p : featureProducts) {
-            Integer q = featureQuantities.get(sidOf(p));
-            if (q != null && q > 0) { lines++; units += q; total += productPrice(p) * q; }
+    private String firstOrderString(JSONObject obj, String... keys) {
+        for (String key : keys) {
+            Object value = obj.opt(key);
+            if (value == null || value == JSONObject.NULL) continue;
+            String s = String.valueOf(value).trim();
+            if (!s.isEmpty() && !"null".equalsIgnoreCase(s)) return s;
         }
-        return new double[]{lines, units, total};
+        return "";
     }
 
-    private void updateOrderBar() {
-        if (barInfo == null || barTotal == null) return;
-        double[] t = orderTotals();
-        barInfo.setText((int) t[0] + " פריטים · " + (int) t[1] + " יחידות");
-        barTotal.setText("סה״כ " + money(t[2]));
+    private String orderPrice(JSONObject item, JSONObject product, String quantity) {
+        // For /api/orders/{id}, each order.products entry contains its own price.
+        String price = firstOrderString(item, "price", "unit_price", "unitPrice", "item_price", "itemPrice", "price_list", "priceList", "total_price", "totalPrice", "total_list", "totalList", "subtotal", "sum", "amount_price", "amountPrice");
+        if (price.isEmpty()) price = firstOrderString(product, "price", "unit_price", "unitPrice", "item_price", "itemPrice", "price_list", "priceList", "total_price", "totalPrice", "total_list", "totalList");
+        if (price.isEmpty()) return "—";
+        if (price.matches(".*[₪$€].*")) return price;
+        return price + " ₪";
     }
 
-    private void renderFeatureProducts() {
-        String title = saleTitle(featureSale);
-        Runnable productsBack;
-        if (summaryFromHistory) productsBack = () -> showOrderSummary();
-        else productsBack = () -> showOpenSales(false);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? 1 : 0, productsBack);
-        screenKind = 1;
-
-        // search + quick actions
-        LinearLayout toolbar = new LinearLayout(this);
-        toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        EditText search = field("חיפוש מוצר…", InputType.TYPE_CLASS_TEXT);
-        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        search.setText(filterText);
-        final Runnable[] debounce = new Runnable[1];
-        search.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void afterTextChanged(Editable s) {
-                if (debounce[0] != null) ui.removeCallbacks(debounce[0]);
-                final String q = s.toString().trim().toLowerCase(Locale.ROOT);
-                debounce[0] = () -> { filterText = q; rebuildGrid(); };
-                ui.postDelayed(debounce[0], 250);
-            }
-        });
-        search.setOnEditorActionListener((v, actionId, event) -> { hideKeyboard(); return true; });
-        toolbar.addView(search, new LinearLayout.LayoutParams(0, dp(46), 1));
-        TextView infoBtn = roundBtn("ℹ", 42, ORANGE_LIGHT, ORANGE_DARK);
-        infoBtn.setOnClickListener(v -> showSaleDetails(featureSale));
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(42), dp(42));
-        ip.setMarginStart(dp(8));
-        if (!summaryFromHistory) toolbar.addView(infoBtn, ip);
-        TextView refreshBtn = roundBtn("↻", 42, ORANGE_LIGHT, ORANGE_DARK);
-        refreshBtn.setOnClickListener(v -> loadFeatureProducts(featureSale));
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(42), dp(42));
-        rp.setMarginStart(dp(8));
-        if (!summaryFromHistory) toolbar.addView(refreshBtn, rp);
-        TextView actionsBtn = roundBtn("⋯", 42, ORANGE_LIGHT, ORANGE_DARK);
-        actionsBtn.setOnClickListener(v -> showOrderActions());
-        LinearLayout.LayoutParams ap0 = new LinearLayout.LayoutParams(dp(42), dp(42));
-        ap0.setMarginStart(dp(8));
-        toolbar.addView(actionsBtn, ap0);
-        root.addView(toolbar, lp(-1, -2, 0, 8));
-
-        LinearLayout modeRow = new LinearLayout(this);
-        final String[] modeKeys = {"all", "fav", "cart"};
-        String[] modeLabels = {"הכול", "⭐ מועדפים", "🛒 בהזמנה"};
-        final TextView[] modeChips = new TextView[3];
-        for (int i = 0; i < 3; i++) {
-            final int idx = i;
-            modeChips[i] = btn(modeLabels[i], TONAL);
-            modeChips[i].setMinHeight(dp(38));
-            modeChips[i].setOnClickListener(v -> { viewMode = modeKeys[idx]; styleModeChips(modeChips, modeKeys); rebuildGrid(); });
-            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(38), 1);
-            if (i > 0) mp.setMarginStart(dp(6));
-            modeRow.addView(modeChips[i], mp);
-        }
-        styleModeChips(modeChips, modeKeys);
-        root.addView(modeRow, lp(-1, -2, 0, 6));
-
-        gridContainer = new LinearLayout(this);        gridContainer.setOrientation(LinearLayout.VERTICAL);
-        root.addView(gridContainer, new LinearLayout.LayoutParams(-1, -2));
-        rebuildGrid();
-
-        // sticky order bar
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Color.WHITE);
-        bar.setElevation(dp(10));
-        bar.setPadding(dp(14), dp(8), dp(14), dp(8));
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        barTotal = text("", 16, true);
-        barTotal.setTextColor(ORANGE_DARK);
-        barInfo = muted("", 12);
-        texts.addView(barTotal);
-        texts.addView(barInfo);
-        bar.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView open = btn("ההזמנה שלי  ‹", PRIMARY);
-        open.setOnClickListener(v -> showOrderSummary());
-        bar.addView(open, new LinearLayout.LayoutParams(-2, dp(46)));
-        bottomHolder.addView(bar);
-        updateOrderBar();
-    }
-
-    private void rebuildGrid() {
-        if (gridContainer == null) return;
-        gridContainer.removeAllViews();
-        cardRefreshers.clear();
-
-        Map<String, List<JSONObject>> byCat = new LinkedHashMap<>();
-        final Map<String, Integer> catOrder = new LinkedHashMap<>();
-        for (JSONObject p : featureProducts) {
-            String name = productName(p);
-            if (!filterText.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(filterText)) continue;
-            if ("fav".equals(viewMode) && !favIds.contains(pidOf(p))) continue;
-            if ("cart".equals(viewMode)) { Integer qq = featureQuantities.get(sidOf(p)); if (qq == null || qq <= 0) continue; }
-            String cat = categoryName(p);
-            if (!byCat.containsKey(cat)) { byCat.put(cat, new ArrayList<JSONObject>()); catOrder.put(cat, categoryOrder(p)); }
-            else catOrder.put(cat, Math.min(catOrder.get(cat), categoryOrder(p)));
-            byCat.get(cat).add(p);
-        }
-        if (byCat.isEmpty()) {
-            String emptyMsg = !filterText.isEmpty() ? "לא נמצאו מוצרים התואמים לחיפוש."
-                    : ("fav".equals(viewMode) ? "אין מועדפים במכירה הזו. סמנו כוכב על מוצר." : ("cart".equals(viewMode) ? "ההזמנה ריקה." : "אין מוצרים להצגה."));
-            gridContainer.addView(muted(emptyMsg, 14), lp(-1, -2, 20, 0));
-            return;
-        }
-        List<String> cats = new ArrayList<>(byCat.keySet());
-        Collections.sort(cats, new Comparator<String>() {
-            @Override public int compare(String a, String b) {
-                int c = Integer.compare(catOrder.get(a), catOrder.get(b));
-                return c != 0 ? c : a.compareTo(b);
-            }
-        });
-        for (String cat : cats) {
-            List<JSONObject> items = byCat.get(cat);
-            Collections.sort(items, new Comparator<JSONObject>() {
-                @Override public int compare(JSONObject a, JSONObject b) { return productName(a).compareTo(productName(b)); }
-            });
-            TextView header = text(cat + "  (" + items.size() + ")", 16, true);
-            header.setTextColor(ORANGE_DARK);
-            gridContainer.addView(header, lp(-1, -2, 10, 4));
-            LinearLayout row = null;
-            for (int i = 0; i < items.size(); i++) {
-                if (i % 2 == 0) {
-                    row = new LinearLayout(this);
-                    row.setOrientation(LinearLayout.HORIZONTAL);
-                    gridContainer.addView(row, lp(-1, -2, 0, 8));
-                }
-                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-                cp.setMargins(dp(3), 0, dp(3), 0);
-                row.addView(productCard(items.get(i)), cp);
-            }
-            if (items.size() % 2 == 1 && row != null) {
-                row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
-            }
-        }
-    }
-
-    private View productCard(final JSONObject p) {
-        final String sid = sidOf(p);
-        final boolean disabled = truthy(p.opt("disable"));
-        final boolean soldOut = isSoldOut(p);
-        final boolean canOrder = !disabled && !soldOut;
+    private void addOrderItemRow(JSONObject item, int index) {
+        JSONObject product = orderProductFrom(item);
+        String name = firstOrderString(product, "name", "full_name", "fullName", "item_name", "product_name", "title", "custom_name");
+        if (name.isEmpty()) name = firstOrderString(item, "name", "full_name", "fullName", "item_name", "product_name", "title", "custom_name");
+        if (name.isEmpty()) name = "פריט " + (index + 1);
+        String quantity = firstOrderString(item, "amount", "quantity", "qty", "count");
+        if (quantity.isEmpty()) quantity = firstOrderString(product, "amount", "quantity", "qty", "count");
+        if (quantity.isEmpty()) quantity = "—";
+        String price = orderPrice(item, product, quantity);
 
         LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(shape(Color.WHITE, 14, LINE));
-        card.setPadding(dp(6), dp(6), dp(6), dp(8));
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(10), dp(8), dp(10), dp(8));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(Color.WHITE);
+        bg.setCornerRadius(dp(12));
+        bg.setStroke(dp(1), Color.rgb(238, 220, 205));
+        card.setBackground(bg);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, -2);
+        cardParams.bottomMargin = dp(8);
+        root.addView(card, cardParams);
 
-        FrameLayout imageBox = new FrameLayout(this);
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
-        image.setClipToOutline(true);
-        imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(118)));
-        if (!canOrder) {
-            image.setAlpha(0.45f);
-            TextView badge = text(disabled ? "לא זמין" : "אזל", 11, true);
-            badge.setTextColor(Color.WHITE);
-            badge.setBackground(shape(RED, 8, 0));
-            badge.setPadding(dp(8), dp(2), dp(8), dp(2));
-            FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-2, -2);
-            bp.gravity = Gravity.TOP | Gravity.END;
-            bp.setMargins(dp(6), dp(6), dp(6), 0);
-            imageBox.addView(badge, bp);
-        }
-        final TextView star = text(favIds.contains(pidOf(p)) ? "⭐" : "☆", 17, false);
-        star.setGravity(Gravity.CENTER);
-        star.setPadding(0, 0, 0, 0);
-        star.setTextColor(ORANGE_DARK);
-        star.setBackground(shape(Color.argb(220, 255, 255, 255), 16, 0));
-        FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(dp(32), dp(32));
-        starLp.gravity = Gravity.TOP | Gravity.START;
-        starLp.setMargins(dp(6), dp(6), 0, 0);
-        imageBox.addView(star, starLp);
-        star.setOnClickListener(v -> toggleFavourite(p, () -> star.setText(favIds.contains(pidOf(p)) ? "⭐" : "☆")));
-        card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(118)));
-        loadImage(image, imageUrl(p, true));
-        card.setOnClickListener(v -> showProductDetails(p));
-        imageBox.setOnClickListener(v -> showProductDetails(p));
+        image.setBackgroundColor(Color.rgb(250, 239, 229));
+        LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(dp(76), dp(76));
+        imageParams.setMargins(dp(4), 0, dp(10), 0);
+        card.addView(image, imageParams);
 
-        TextView name = text(productName(p), 13, true);
-        name.setMinLines(2);
-        name.setMaxLines(3);
-        name.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(name, lp(-1, -2, 4, 0));
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(details, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView productName = text(name, 15, true);
+        productName.setPadding(0, dp(2), 0, dp(5));
+        details.addView(productName);
+        TextView qtyView = text("כמות: " + quantity, 13, false);
+        qtyView.setPadding(0, dp(2), 0, dp(2));
+        details.addView(qtyView);
+        TextView priceView = text("מחיר: " + price, 13, true);
+        priceView.setTextColor(Color.rgb(191, 70, 12));
+        priceView.setPadding(0, dp(2), 0, dp(2));
+        details.addView(priceView);
 
-        String pack = packageText(p);
-        if (!pack.isEmpty()) {
-            TextView packView = muted(pack, 11);
-            packView.setSingleLine(true);
-            packView.setEllipsize(TextUtils.TruncateAt.END);
-            card.addView(packView);
-        }
-        double price = productPrice(p);
-        TextView priceView = text(price > 0 ? money(price) : "—", 15, true);
-        priceView.setTextColor(ORANGE_DARK);
-        card.addView(priceView);
-        int savedQ = favSavedQty(pidOf(p));
-        if (savedQ > 0 && favIds.contains(pidOf(p))) card.addView(muted("📌 כמות שמורה ×" + savedQ, 10));
-        String unitPrice = unitPriceText(p);
-        if (!unitPrice.isEmpty()) {
-            TextView up = muted(unitPrice, 10);
-            up.setSingleLine(true);
-            up.setEllipsize(TextUtils.TruncateAt.END);
-            card.addView(up);
-        }
-
-        // controls: "add" button that turns into a stepper
-        FrameLayout controls = new FrameLayout(this);
-        final TextView add = btn(canOrder ? "הוספה" : (disabled ? "לא זמין" : "אזל מהמלאי"), canOrder ? TONAL : FLAT);
-        add.setMinHeight(dp(38));
-        add.setPadding(dp(8), 0, dp(8), 0);
-        final Stepper st = stepper(38);
-        controls.addView(add, new FrameLayout.LayoutParams(-1, dp(38)));
-        FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, dp(38));
-        sp.gravity = Gravity.CENTER;
-        controls.addView(st.view, sp);
-        card.addView(controls, lp(-1, dp(38), 8, 0));
-
-        final Runnable refresh = () -> {
-            int q = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
-            boolean busyNow = pending.contains(sid);
-            add.setVisibility(q > 0 ? View.GONE : View.VISIBLE);
-            st.view.setVisibility(q > 0 ? View.VISIBLE : View.GONE);
-            st.qty.setText(String.valueOf(q));
-            setEnabledLook(st.view, !busyNow);
-            setEnabledLook(st.plus, !busyNow);
-            setEnabledLook(st.minus, !busyNow);
-            setEnabledLook(add, canOrder && !busyNow);
-            updateOrderBar();
-        };
-        cardRefreshers.put(sid, refresh);
-        refresh.run();
-
-        add.setOnClickListener(v -> { if (canOrder) changeBy(p, 1, refresh, null); });
-        st.plus.setOnClickListener(v -> changeBy(p, 1, refresh, null));
-        st.minus.setOnClickListener(v -> changeBy(p, -1, refresh, null));
-        st.qty.setOnClickListener(v -> askQuantity(p, refresh, null));
-        return card;
+        loadImage(image, orderImageUrl(item, product), dp(80));
     }
 
-    private void changeBy(JSONObject p, int delta, Runnable refresh, Runnable onSuccess) {
-        String sid = sidOf(p);
-        int current = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
-        int next = Math.max(0, current + delta);
-        if (delta > 0) {
-            if (truthy(p.opt("disable")) || isSoldOut(p)) { toast("המוצר אינו זמין כרגע", false); return; }
-            double stock = numericAvailable(p);
-            if (stock >= 0 && next > stock) { toast("נותרו במלאי " + (long) stock + " יחידות בלבד", false); return; }
-        }
-        setItemAmount(p, next, refresh, onSuccess);
-    }
-
-    /** Updates the server (add / update / remove) and only that one row in the UI, without reloading the screen. */
-    private void setItemAmount(final JSONObject p, final int newQty, final Runnable refresh, final Runnable onSuccess) {
-        final String sid = sidOf(p);
-        if (pending.contains(sid) || featureOrderId <= 0) return;
-        final int oldQty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
-        if (newQty == oldQty) return;
-        final int serverAmount = (int) Math.round(num(p.opt("amount")));
-        final long orderId = featureOrderId;
-        pending.add(sid);
-        featureQuantities.put(sid, newQty);
-        refresh.run();
-        executor.execute(() -> {
-            String error = null;
-            boolean needLogin = false;
-            try {
-                HttpResult result = null;
-                if (newQty == 0) {
-                    if (serverAmount > 0) result = api("POST", "/api/remove_item/" + orderId + "/" + sid, null);
-                } else {
-                    JSONObject item = new JSONObject(p.toString());
-                    item.put("amount", newQty);
-                    if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
-                    result = api("POST", (serverAmount > 0 ? "/api/update_item/" : "/api/add_item/") + orderId, item);
-                }
-                if (result != null && (result.code < 200 || result.code >= 300)) error = apiError(result);
-            } catch (AuthException e) {
-                needLogin = true;
-                error = e.getMessage();
-            } catch (Exception e) {
-                error = errText(e, "עדכון ההזמנה נכשל");
-            }
-            final String err = error;
-            final boolean login = needLogin;
-            runOnUiThread(() -> {
-                pending.remove(sid);
-                if (err == null) {
-                    try { p.put("amount", newQty); } catch (Exception ignored) { }
-                    featureQuantities.put(sid, newQty);
-                } else {
-                    featureQuantities.put(sid, oldQty);
-                    if (err.contains("אזל")) { try { p.put("available", 0); } catch (Exception ignored) { } }
-                    toast(err, true);
-                }
-                refresh.run();
-                if (err == null && onSuccess != null) onSuccess.run();
-                if (login) showLogin();
-            });
-        });
-    }
-
-    private void showProductDetails(JSONObject p) {
-        if (p == null) return;
-        JSONObject prod = productOf(p);
-        JSONObject meta = prod.optJSONObject("metadata");
-        JSONObject hechsher = prod.optJSONObject("hechsher");
-
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(16), dp(8), dp(16), dp(4));
-        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-
-        String url = imageUrl(p, false);
-        if (!url.isEmpty()) {
-            ImageView iv = imageView(-1, 200, ImageView.ScaleType.FIT_CENTER);
-            panel.addView(iv);
-            final String full = url;
-            iv.setTag(full);
-            imageExecutor.execute(() -> {
-                Bitmap bmp = downloadBitmap(full, 900);
-                if (bmp != null) runOnUiThread(() -> { if (full.equals(iv.getTag())) iv.setImageBitmap(bmp); });
-            });
-        }
-        panel.addView(text(productName(p), 17, true), lp(-1, -2, 8, 0));
-        double price = productPrice(p);
-        String line = (price > 0 ? money(price) : "") + (packageText(p).isEmpty() ? "" : "  ·  " + packageText(p));
-        if (!line.trim().isEmpty()) panel.addView(text(line, 14, true));
-        if (!unitPriceText(p).isEmpty()) panel.addView(muted(unitPriceText(p), 12));
-        if (isSoldOut(p)) panel.addView(text("⛔ אזל מהמלאי", 13, true));
-
-        String[][] blocks = {
-                {"", cleanHtml(first(prod, "description"))},
-                {"", cleanHtml(first(p, "description", "note", "details", "badge"))},
-                {"הכשר", first(hechsher, "name")},
-                {"רכיבים", metaText(meta, "ingredients")},
-                {"אלרגנים", metaText(meta, "allergens")},
-                {"עלול להכיל", metaText(meta, "precautionary_statement")},
-                {"אחסון", metaText(meta, "storage_instructions")},
-        };
-        Set<String> seen = new HashSet<>();
-        for (String[] b : blocks) {
-            if (b[1].isEmpty() || !seen.add(b[1])) continue;
-            panel.addView(b[0].isEmpty() ? text(b[1], 14, false) : text(b[0] + ": " + b[1], 14, false), lp(-1, -2, 6, 0));
-        }
-        if (seen.isEmpty() && url.isEmpty()) panel.addView(muted("אין פרטים נוספים זמינים.", 13));
-
-        final String pid = pidOf(p);
-        final AlertDialog[] dlg = new AlertDialog[1];
-        if (featureOrderId > 0 && findProduct(sidOf(p)) != null && !pid.isEmpty()) {
-            LinearLayout actionsRow = new LinearLayout(this);
-            TextView favBtn = btn(favIds.contains(pid) ? "☆ הסרה ממועדפים" : "⭐ הוספה למועדפים", TONAL);
-            favBtn.setOnClickListener(v -> { dlg[0].dismiss(); toggleFavourite(p, () -> rebuildGrid()); });
-            int sq = favSavedQty(pid);
-            TextView qtyBtn = btn(sq > 0 ? "📌 כמות שמורה: " + sq : "📌 שמירת כמות", TONAL);
-            qtyBtn.setOnClickListener(v -> { dlg[0].dismiss(); askSavedQty(p); });
-            actionsRow.addView(favBtn, new LinearLayout.LayoutParams(0, dp(44), 1));
-            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(0, dp(44), 1);
-            qlp.setMarginStart(dp(8));
-            actionsRow.addView(qtyBtn, qlp);
-            panel.addView(actionsRow, lp(-1, -2, 12, 0));
-        }
-        ScrollView sv = new ScrollView(this);
-        sv.addView(panel);
-        dlg[0] = new AlertDialog.Builder(this).setView(sv).setPositiveButton("סגירה", null).create();
-        dlg[0].show();
-    }
-
-    private String metaText(JSONObject meta, String key) {
-        if (meta == null) return "";
-        Object v = meta.opt(key);
-        if (v == null || v == JSONObject.NULL) return "";
-        if (v instanceof JSONArray) {
-            JSONArray a = (JSONArray) v;
-            List<String> parts = new ArrayList<>();
-            for (int i = 0; i < a.length(); i++) { String s = labelOf(a.opt(i)).trim(); if (!s.isEmpty()) parts.add(s); }
-            return TextUtils.join(", ", parts);
-        }
-        return cleanHtml(String.valueOf(v));
-    }
-
-    // ======================================================================== order summary (like the order page: images, quantities, remove, collect mode)
-
-    private JSONObject findProduct(String sid) {
-        for (JSONObject p : featureProducts) if (sid.equals(sidOf(p))) return p;
-        return null;
-    }
-
-    private JSONObject productForLine(OrderLine line) {
-        JSONObject known = findProduct(line.sid);
-        if (known != null) return known;
-        JSONObject stub = new JSONObject();
+    private void renderFeatureOrderDetails(long id, String body) {
+        beginScreen("פרטי הזמנה #" + id);
+        Button back = button("חזרה להיסטוריה");
+        root.addView(back);
+        back.setOnClickListener(v -> loadFeatureOrders());
         try {
-            stub.put("item_salesID", line.sid);
-            stub.put("amount", (int) Math.round(line.amount));
-        } catch (Exception ignored) { }
-        return stub;
-    }
+            JSONObject response = new JSONObject(body);
+            JSONObject order = response.optJSONObject("order");
+            if (order == null) order = response.optJSONObject("data");
+            if (order == null) order = response;
+            JSONObject sale = response.optJSONObject("sale");
+            if (sale == null) sale = order.optJSONObject("sale");
+            String saleName = firstOrderString(sale == null ? new JSONObject() : sale, "custom_name");
+            JSONObject parent = sale == null ? null : sale.optJSONObject("parent");
+            if (saleName.isEmpty() && parent != null) saleName = firstOrderString(parent, "week");
+            if (!saleName.isEmpty()) root.addView(text("שם המכירה: " + saleName, 17, true));
+            TextView heading = text("פרטי ההזמנה", 18, true);
+            root.addView(heading);
+            String status = firstOrderString(order, "status", "order_status");
+            String total = firstOrderString(order, "total_list", "total", "total_price", "totalPrice", "amount", "sum");
+            if (!status.isEmpty()) root.addView(text("סטטוס: " + status, 14, false));
+            if (!total.isEmpty()) root.addView(text("סכום הזמנה: " + total + " ₪", 15, true));
 
-    private int lineQty(OrderLine line) {
-        Integer q = featureQuantities.get(line.sid);
-        return q != null ? q : (int) Math.round(line.amount);
-    }
-
-    private Set<String> collectedSet() {
-        return new HashSet<>(prefs.getStringSet("collected_" + featureOrderId, new HashSet<String>()));
-    }
-
-    private void toggleCollected(String sid) {
-        Set<String> set = collectedSet();
-        if (!set.remove(sid)) set.add(sid);
-        prefs.edit().putStringSet("collected_" + featureOrderId, set).apply();
-    }
-
-    private void showOrderSummary() {
-        if (featureOrderId <= 0) { toast("לא נמצאה הזמנה", false); return; }
-        collectMode = false;
-        if (summaryFromHistory) beginScreen("הזמנה #" + featureOrderId, 1, this::loadFeatureOrders);
-        else beginScreen("ההזמנה שלי", 0, this::renderFeatureProducts);
-        setStatus("טוען את ההזמנה מהשרת…");
-        final int t = screenToken;
-        executor.execute(() -> {
-            try {
-                OrderData od = fetchOrder(featureOrderId);
-                runOnUiThread(() -> {
-                    if (stale(t)) return;
-                    summary = od;
-                    for (OrderLine line : od.lines) featureQuantities.put(line.sid, (int) Math.round(line.amount));
-                    renderOrderSummary();
-                });
-            } catch (Exception e) {
-                fail(t, e, "טעינת סיכום ההזמנה נכשלה.");
+            JSONArray items = orderItemsFrom(order);
+            if (items.length() == 0) {
+                root.addView(text("לא נמצאו פריטים בהזמנה בתשובת השרת.", 14, false));
+                return;
             }
-        });
-    }
-
-    private void renderOrderSummary() {
-        screenKind = 2;
-        setStatus("");
-        LinearLayout head = card(14);
-        head.addView(text(summary.saleName, 17, true));
-        String meta = "הזמנה #" + summary.id + (summary.when.isEmpty() ? "" : " · הוזמן: " + summary.when);
-        head.addView(muted(meta, 12));
-        if (summaryFromHistory && !summary.status.isEmpty()) head.addView(muted("סטטוס: " + summary.status, 12));
-        progressView = text("", 13, true);
-        progressView.setTextColor(GREEN);
-        head.addView(progressView);
-        root.addView(head, lp(-1, -2, 0, 10));
-
-        // mode switch
-        LinearLayout modes = new LinearLayout(this);
-        final TextView edit = btn("✏️ עריכה", collectMode ? TONAL : PRIMARY);
-        final TextView collect = btn("☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
-        edit.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(edit, collect); });
-        collect.setOnClickListener(v -> { collectMode = true; rebuildSummary(); updateModeButtons(edit, collect); });
-        modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        cp.setMarginStart(dp(8));
-        modes.addView(collect, cp);
-        TextView summaryActions = btn("⋯", TONAL);
-        summaryActions.setOnClickListener(v -> showOrderActions());
-        LinearLayout.LayoutParams sap = new LinearLayout.LayoutParams(dp(52), dp(44));
-        sap.setMarginStart(dp(8));
-        modes.addView(summaryActions, sap);
-        root.addView(modes, lp(-1, -2, 0, 10));
-
-        summaryList = new LinearLayout(this);
-        summaryList.setOrientation(LinearLayout.VERTICAL);
-        root.addView(summaryList, new LinearLayout.LayoutParams(-1, -2));
-
-        collectedBox = new LinearLayout(this);
-        collectedBox.setOrientation(LinearLayout.VERTICAL);
-        collectedBox.setBackground(shape(GREEN_LIGHT, 14, GREEN));
-        collectedBox.setPadding(dp(12), dp(10), dp(12), dp(10));
-        LinearLayout collectedHead = new LinearLayout(this);
-        collectedHead.setGravity(Gravity.CENTER_VERTICAL);
-        final TextView collectedTitle = text("✔ נאספו", 16, true);
-        collectedTitle.setTextColor(GREEN);
-        collectedTitle.setTag("collectedTitle");
-        collectedHead.addView(collectedTitle, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView reset = smallChip("איפוס", OUTLINE);
-        reset.setOnClickListener(v -> {
-            prefs.edit().remove("collected_" + featureOrderId).apply();
-            rebuildSummary();
-        });
-        collectedHead.addView(reset);
-        collectedBox.addView(collectedHead);
-        collectedList = new LinearLayout(this);
-        collectedList.setOrientation(LinearLayout.VERTICAL);
-        collectedBox.addView(collectedList, lp(-1, -2, 6, 0));
-        root.addView(collectedBox, lp(-1, -2, 12, 0));
-
-        // sticky totals
-        LinearLayout bar = new LinearLayout(this);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Color.WHITE);
-        bar.setElevation(dp(10));
-        bar.setPadding(dp(14), dp(8), dp(14), dp(8));
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        summaryTotal = text("", 17, true);
-        summaryTotal.setTextColor(ORANGE_DARK);
-        summarySub = muted("", 12);
-        texts.addView(summaryTotal);
-        texts.addView(summarySub);
-        bar.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView more = btn("+ הוספת מוצרים", TONAL);
-        more.setOnClickListener(v -> renderFeatureProducts());
-        if (!featureProducts.isEmpty()) bar.addView(more, new LinearLayout.LayoutParams(-2, dp(46)));
-        bottomHolder.addView(bar);
-
-        rebuildSummary();
-    }
-
-    private void updateModeButtons(TextView edit, TextView collect) {
-        edit.setBackground(ripple(shape(collectMode ? ORANGE_LIGHT : ORANGE, 12, 0), 12));
-        edit.setTextColor(collectMode ? ORANGE_DARK : Color.WHITE);
-        collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
-        collect.setTextColor(collectMode ? Color.WHITE : ORANGE_DARK);
-    }
-
-    private void rebuildSummary() {
-        if (summary == null || summaryList == null) return;
-        summaryList.removeAllViews();
-        collectedList.removeAllViews();
-        Set<String> collected = collectedSet();
-        int shown = 0, done = 0, total = 0;
-        for (OrderLine line : summary.lines) {
-            int qty = lineQty(line);
-            if (qty <= 0) continue;
-            total++;
-            if (collectMode && collected.contains(line.sid)) {
-                done++;
-                collectedList.addView(collectRow(line, qty, true), lp(-1, -2, 0, 6));
-            } else {
-                shown++;
-                summaryList.addView(collectMode ? collectRow(line, qty, false) : editRow(line, qty), lp(-1, -2, 0, 8));
+            root.addView(text("פריטים בהזמנה", 17, true));
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item != null) addOrderItemRow(item, i);
             }
+        } catch (Exception e) {
+            statusView.setText("לא ניתן להציג את פרטי ההזמנה.");
         }
-        if (total == 0) {
-            summaryList.addView(muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14), lp(-1, -2, 12, 0));
-        }
-        collectedBox.setVisibility(collectMode && done > 0 ? View.VISIBLE : View.GONE);
-        View title = collectedBox.findViewWithTag("collectedTitle");
-        if (title instanceof TextView) ((TextView) title).setText("✔ נאספו (" + done + ")");
-        progressView.setVisibility(collectMode ? View.VISIBLE : View.GONE);
-        progressView.setText(done == total && total > 0 ? "✅ כל הפריטים נאספו" : "נאספו " + done + " מתוך " + total + " פריטים");
-        updateSummaryTotals();
     }
 
-    private void updateSummaryTotals() {
-        if (summary == null || summaryTotal == null) return;
-        int lines = 0, units = 0;
-        double local = 0;
-        for (OrderLine line : summary.lines) {
-            int q = lineQty(line);
-            if (q > 0) { lines++; units += q; local += line.price * q; }
-        }
-        boolean server = summary.total >= 0 && pending.isEmpty();
-        summaryTotal.setText("סה״כ " + money(server ? summary.total : local) + (server ? "" : " (משוער)"));
-        String sub = lines + " פריטים · " + units + " יחידות";
-        if (summary.credits != 0) sub += " · זיכויים " + money(Math.abs(summary.credits));
-        summarySub.setText(sub);
-    }
-
-    private final Runnable summaryRefresh = new Runnable() {
-        @Override public void run() {
-            if (summary != null && !pending.isEmpty()) summary.total = -1;
-            rebuildSummary();
-        }
-    };
-
-    private void refreshServerTotals() {
-        final int t = screenToken;
+    private void loadFeatureOrderDetails(long id) {
+        final int gen = screenGen.get();
         executor.execute(() -> {
             try {
-                OrderData od = fetchOrder(featureOrderId);
-                runOnUiThread(() -> {
-                    if (stale(t) || summary == null) return;
-                    summary.total = od.total;
-                    summary.credits = od.credits;
-                    updateSummaryTotals();
-                });
-            } catch (Exception ignored) { }
-        });
-    }
-
-    private View rowShell(OrderLine line, int imageDp) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(10), dp(10), dp(10));
-        row.setBackground(shape(Color.WHITE, 14, LINE));
-        ImageView iv = imageView(imageDp, imageDp, ImageView.ScaleType.CENTER_CROP);
-        iv.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
-        iv.setClipToOutline(true);
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(imageDp), dp(imageDp));
-        ip.setMarginEnd(dp(10));
-        row.addView(iv, ip);
-        JSONObject known = findProduct(line.sid);
-        loadImage(iv, imageUrl(known != null ? known : line.raw, true));
-        return row;
-    }
-
-    private View editRow(final OrderLine line, final int qty) {
-        final JSONObject p = productForLine(line);
-        final boolean editable = findProduct(line.sid) != null;
-        LinearLayout row = (LinearLayout) rowShell(line, 84);
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        TextView name = text(line.name, 14, true);
-        name.setMaxLines(3);
-        name.setEllipsize(TextUtils.TruncateAt.END);
-        col.addView(name);
-        String pack = packageText(line.raw);
-        col.addView(muted((line.price > 0 ? money(line.price) + " ליחידה" : "") + (pack.isEmpty() ? "" : (line.price > 0 ? " · " : "") + pack), 12));
-
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setGravity(Gravity.CENTER_VERTICAL);
-        if (editable) {
-            Stepper st = stepper(36);
-            st.qty.setText(String.valueOf(qty));
-            boolean busyNow = pending.contains(line.sid);
-            setEnabledLook(st.plus, !busyNow);
-            setEnabledLook(st.minus, !busyNow && qty > 1);
-            st.plus.setOnClickListener(v -> changeBy(p, 1, summaryRefresh, this::refreshServerTotals));
-            st.minus.setOnClickListener(v -> { if (qty > 1) changeBy(p, -1, summaryRefresh, this::refreshServerTotals); });
-            st.qty.setOnClickListener(v -> askQuantity(p, summaryRefresh, this::refreshServerTotals));
-            bottom.addView(st.view);
-        } else {
-            bottom.addView(text("כמות: " + qty, 14, true));
-        }
-        bottom.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
-        TextView lineTotal = text(line.price > 0 ? money(line.price * qty) : "", 16, true);
-        lineTotal.setTextColor(ORANGE_DARK);
-        bottom.addView(lineTotal);
-        col.addView(bottom, lp(-1, -2, 6, 0));
-        row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
-
-        TextView remove = roundBtn("✕", 36, RED_LIGHT, RED);
-        remove.setTextSize(15);
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(36), dp(36));
-        rp.setMarginStart(dp(8));
-        remove.setOnClickListener(v -> confirmRemove(line, p));
-        row.addView(remove, rp);
-        return row;
-    }
-
-    private void confirmRemove(final OrderLine line, final JSONObject p) {
-        new AlertDialog.Builder(this)
-                .setTitle("הסרה מההזמנה")
-                .setMessage("להסיר את \"" + line.name + "\" מההזמנה?")
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("הסרה", (d, w) -> setItemAmount(p, 0, summaryRefresh, this::refreshServerTotals))
-                .show();
-    }
-
-    private View collectRow(final OrderLine line, final int qty, final boolean isDone) {
-        LinearLayout row = (LinearLayout) rowShell(line, isDone ? 56 : 76);
-        row.setAlpha(isDone ? 0.8f : 1f);
-
-        TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? Color.WHITE : GREEN_LIGHT, GREEN);
-        LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(dp(46), dp(46));
-        chkLp.setMarginEnd(dp(10));
-        check.setOnClickListener(v -> { toggleCollected(line.sid); rebuildSummary(); });
-        row.addView(check, 0, chkLp);
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        TextView name = text(line.name, isDone ? 14 : 15, true);
-        name.setMaxLines(3);
-        name.setEllipsize(TextUtils.TruncateAt.END);
-        if (isDone) name.setPaintFlags(name.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-        col.addView(name);
-        if (!isDone && line.price > 0) col.addView(muted(money(line.price * qty), 12));
-        row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
-
-        TextView q = text(String.valueOf(qty), isDone ? 22 : 30, true);
-        q.setGravity(Gravity.CENTER);
-        q.setBackground(shape(Color.WHITE, 10, INK));
-        q.setMinWidth(dp(isDone ? 44 : 58));
-        q.setPadding(dp(8), dp(2), dp(8), dp(2));
-        LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-2, -2);
-        qp.setMarginStart(dp(8));
-        row.addView(q, qp);
-        return row;
-    }
-
-    // ======================================================================== order history
-
-    private void loadFeatureOrders() {
-        beginScreen("היסטוריית הזמנות", 1, null);
-        EditText search = field("חיפוש לפי שם מוצר…", InputType.TYPE_CLASS_TEXT);
-        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        search.setOnEditorActionListener((v, actionId, event) -> {
-            histSearch = v.getText().toString().trim();
-            histPage = 0;
-            histList.removeAllViews();
-            histMore.setVisibility(View.GONE);
-            hideKeyboard();
-            loadHistoryPage();
-            return true;
-        });
-        root.addView(search, lp(-1, dp(46), 0, 10));
-        histList = new LinearLayout(this);
-        histList.setOrientation(LinearLayout.VERTICAL);
-        root.addView(histList, new LinearLayout.LayoutParams(-1, -2));
-        histMore = btn("טען עוד", TONAL);
-        histMore.setVisibility(View.GONE);
-        histMore.setOnClickListener(v -> loadHistoryPage());
-        root.addView(histMore, lp(-1, dp(46), 4, 0));
-        histSearch = "";
-        histPage = 0;
-        histLast = 1;
-        loadHistoryPage();
-    }
-
-    private void loadHistoryPage() {
-        final int t = screenToken;
-        final int page = histPage + 1;
-        final String q = histSearch;
-        setStatus("טוען הזמנות…");
-        executor.execute(() -> {
-            try {
-                String path = "/api/orders?page=" + page + (q.isEmpty() ? "" : "&search=" + URLEncoder.encode(q, "UTF-8"));
-                HttpResult r = api("GET", path, null);
+                HttpResult r = authRequest("GET", "/api/orders/" + id, null);
                 if (r.code < 200 || r.code >= 300) throw new Exception("שגיאת שרת (" + r.code + ")");
-                int last = 1;
-                try { last = Math.max(1, new JSONObject(r.body).optInt("last_page", 1)); } catch (Exception ignored) { }
-                final int lastPage = last;
-                final JSONArray orders = arrayFrom(r.body);
-                runOnUiThread(() -> {
-                    if (stale(t) || !q.equals(histSearch)) return;
-                    setStatus(page == 1 && orders.length() == 0 ? "לא נמצאו הזמנות." : "");
-                    histPage = page;
-                    histLast = lastPage;
-                    for (int i = 0; i < orders.length(); i++) {
-                        JSONObject o = orders.optJSONObject(i);
-                        if (o != null) histList.addView(historyCard(o), lp(-1, -2, 0, 8));
-                    }
-                    histMore.setVisibility(histPage < histLast ? View.VISIBLE : View.GONE);
-                });
+                String body = r.body;
+                runOnUiThread(() -> { if (!isStale(gen)) renderFeatureOrderDetails(id, body); });
             } catch (Exception e) {
-                fail(t, e, "טעינת ההיסטוריה נכשלה.");
+                String message = msg(e, "טעינת ההזמנה נכשלה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
             }
         });
     }
 
-    private View historyCard(JSONObject o) {
-        JSONObject sale = o.optJSONObject("sale");
-        String saleName = saleTitle(sale);
-        if (saleName.isEmpty()) saleName = "מכירה " + first(o, "saleID", "sale_id");
-        final long orderId = o.optLong("id", -1);
-        String total = first(o, "total_list", "total", "amount", "sum");
-
-        LinearLayout card = card(12);
-        card.setBackground(ripple(shape(Color.WHITE, 14, LINE), 14));
-        card.setClickable(true);
-        if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId));
-
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(text(saleName, 16, true), new LinearLayout.LayoutParams(0, -2, 1));
-        if (!total.isEmpty()) {
-            TextView tv = text(money(parseMoney(total)), 16, true);
-            tv.setTextColor(ORANGE_DARK);
-            top.addView(tv);
-        }
-        card.addView(top);
-        String when = fmtWhen(first(o, "time"));
-        card.addView(muted("הזמנה #" + orderId + (when.isEmpty() ? "" : " · " + when), 12));
-        return card;
-    }
-
-    /** A history order opens as a full order screen: edit, remove, collect mode and every action menu item. */
-    private void openHistoryOrder(final long id) {
-        beginScreen("הזמנה #" + id, 1, this::loadFeatureOrders);
-        setStatus("טוען את ההזמנה…");
-        final int t = screenToken;
-        executor.execute(() -> {
-            try {
-                final OrderData od = fetchOrder(id);
-                List<JSONObject> products = new ArrayList<>();
-                try { products = fetchAllProducts(id, (int) od.saleId); } catch (AuthException ae) { throw ae; } catch (Exception ignored) { }
-                Set<String> favs = null;
-                try { favs = fetchFavouriteIds((int) od.saleId); } catch (AuthException ae) { throw ae; } catch (Exception ignored) { }
-                final List<JSONObject> prods = products;
-                final Set<String> favSet = favs;
-                runOnUiThread(() -> {
-                    if (stale(t)) return;
-                    JSONObject saleStub = new JSONObject();
-                    try {
-                        saleStub.put("id", od.saleId);
-                        saleStub.put("custom_name", od.saleName);
-                    } catch (Exception ignored) { }
-                    featureSale = saleStub;
-                    featureOrderId = id;
-                    featureProducts.clear();
-                    featureQuantities.clear();
-                    pending.clear();
-                    Map<String, Integer> saved = new LinkedHashMap<>();
-                    for (OrderLine l : od.lines) saved.put(l.sid, (int) Math.round(l.amount));
-                    for (JSONObject p : prods) {
-                        String sid = sidOf(p);
-                        if (sid.isEmpty()) continue;
-                        int amount = saved.containsKey(sid) ? saved.get(sid) : 0;
-                        try { p.put("amount", amount); } catch (Exception ignored) { }
-                        featureProducts.add(p);
-                        featureQuantities.put(sid, amount);
-                    }
-                    for (OrderLine l : od.lines) if (!featureQuantities.containsKey(l.sid)) featureQuantities.put(l.sid, (int) Math.round(l.amount));
-                    if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
-                    filterText = "";
-                    viewMode = "all";
-                    summaryFromHistory = true;
-                    summary = od;
-                    renderOrderSummary();
-                });
-            } catch (Exception e) {
-                fail(t, e, "טעינת ההזמנה נכשלה.");
-            }
-        });
-    }
-
-    // ======================================================================== credits / charges
+    // ---------------------------------------------------------------- credits / charges
 
     private void loadFeatureTransactions() {
-        beginScreen("זיכויים וחיובים", 2, null);
-        setStatus("טוען את כל התנועות…");
-        final int t = screenToken;
+        beginScreen("זיכויים וחיובים");
+        final int gen = screenGen.get();
+        statusView.setText("טוען את כל התנועות…");
         executor.execute(() -> {
             try {
-                LinkedHashMap<String, JSONObject> unique = new LinkedHashMap<>();
+                java.util.LinkedHashMap<String, JSONObject> unique = new java.util.LinkedHashMap<>();
                 int page = 1, lastPage = 1;
                 while (page <= Math.min(lastPage, 60)) {
-                    HttpResult response = api("GET", "/api/profile/transactions?page=" + page, null);
+                    if (isStale(gen)) return; // user left the screen - stop downloading pages
+                    HttpResult response = authRequest("GET", "/api/profile/transactions?page=" + page, null);
                     if (response.code < 200 || response.code >= 300)
                         throw new Exception("טעינת הזיכויים נכשלה (עמוד " + page + ", שגיאה " + response.code + ").");
                     JSONObject payload = new JSONObject(response.body);
@@ -2799,135 +1742,96 @@ public class MainActivity extends Activity {
                     lastPage = Math.max(1, transactions.optInt("last_page", 1));
                     page++;
                 }
-                final ArrayList<JSONObject> rows = new ArrayList<>(unique.values());
-                Collections.sort(rows, new Comparator<JSONObject>() {
-                    @Override public int compare(JSONObject a, JSONObject b) { return b.optString("time", "").compareTo(a.optString("time", "")); }
+                java.util.ArrayList<JSONObject> rows = new java.util.ArrayList<>(unique.values());
+                rows.sort((a, b) -> b.optString("time", "").compareTo(a.optString("time", "")));
+                final java.util.ArrayList<JSONObject> finalRows = rows;
+                runOnUiThread(() -> {
+                    if (isStale(gen)) return;
+                    beginScreen("זיכויים וחיובים");
+                    TextView summary = text("", 15, true);
+                    root.addView(summary);
+                    LinearLayout filters = new LinearLayout(this);
+                    filters.setOrientation(LinearLayout.HORIZONTAL);
+                    filters.setGravity(Gravity.CENTER);
+                    LinearLayout.LayoutParams filtersParams = new LinearLayout.LayoutParams(-1, -2);
+                    filtersParams.bottomMargin = dp(10);
+                    root.addView(filters, filtersParams);
+                    Button all = button("הכול");
+                    Button credits = button("זיכויים");
+                    Button charges = button("חיובים");
+                    for (Button filter : new Button[]{all, credits, charges}) {
+                        filter.setTextSize(12);
+                        filter.setMinHeight(dp(44));
+                        filter.setPadding(dp(2), dp(2), dp(2), dp(2));
+                        LinearLayout.LayoutParams filterParams = new LinearLayout.LayoutParams(0, -2, 1);
+                        filterParams.setMargins(dp(2), 0, dp(2), 0);
+                        filters.addView(filter, filterParams);
+                    }
+                    LinearLayout list = new LinearLayout(this);
+                    list.setOrientation(LinearLayout.VERTICAL);
+                    root.addView(list, new LinearLayout.LayoutParams(-1, -2));
+                    Runnable[] render = new Runnable[1];
+                    final String[] mode = {"all"};
+                    render[0] = () -> {
+                        list.removeAllViews();
+                        double creditTotal = 0, chargeTotal = 0;
+                        int creditCount = 0, chargeCount = 0;
+                        for (JSONObject tx : finalRows) {
+                            double amount = tx.optDouble("skum", 0);
+                            boolean canceled = tx.optBoolean("canceled", false);
+                            if (!canceled && amount < 0) { creditTotal += -amount; creditCount++; }
+                            if (!canceled && amount > 0) { chargeTotal += amount; chargeCount++; }
+                            if ("credit".equals(mode[0]) && amount >= 0) continue;
+                            if ("charge".equals(mode[0]) && amount <= 0) continue;
+                            JSONObject product = tx.optJSONObject("product");
+                            if (product == null) product = new JSONObject();
+                            String name = product.optString("full_name", product.optString("name", ""));
+                            String note = android.text.Html.fromHtml(tx.optString("note", ""), android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim();
+                            JSONObject sale = firstTransactionObject(tx, "sale", "sale_data", "saleData");
+                            JSONObject original = firstTransactionObject(tx, "original_sale", "originalSale", "original_sale_data", "originalSaleData");
+                            String saleName = transactionSaleName(tx, sale, false);
+                            String originalName = transactionSaleName(tx, original, true);
+                            String kind = amount < 0 ? "💚 זיכוי" : (amount > 0 ? "🔴 חיוב" : "ללא סכום");
+                            String date = tx.optString("time", "");
+                            String description = name.isEmpty() ? note : name;
+                            if (description.isEmpty()) description = originalName.isEmpty() ? saleName : originalName;
+                            LinearLayout card = new LinearLayout(this);
+                            card.setOrientation(LinearLayout.VERTICAL);
+                            card.setPadding(dp(12), dp(8), dp(12), dp(8));
+                            card.setBackgroundColor(Color.WHITE);
+                            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+                            cp.bottomMargin = dp(8);
+                            list.addView(card, cp);
+                            TextView heading = text(kind + ": " + String.format(java.util.Locale.US, "%.2f", Math.abs(amount)) + " ₪", 16, true);
+                            heading.setTextColor(amount < 0 ? Color.rgb(20, 130, 70) : Color.rgb(175, 45, 45));
+                            card.addView(heading);
+                            if (!description.isEmpty()) card.addView(text("פריט / הערה: " + description, 14, false));
+                            if (tx.has("amount")) card.addView(text("כמות: " + tx.optString("amount"), 13, false));
+                            if (!saleName.isEmpty()) card.addView(text("מכירה: " + saleName, 13, false));
+                            if (!originalName.isEmpty()) card.addView(text("מכירה מקורית: " + originalName, 13, false));
+                            if (!date.isEmpty()) card.addView(text("תאריך: " + date, 12, false));
+                            if (canceled) card.addView(text("בוטל — לא נספר בסיכום", 12, true));
+                        }
+                        summary.setText("זיכויים: " + String.format(java.util.Locale.US, "%.2f", creditTotal) + " ₪ (" + creditCount + ")"
+                                + "\nחיובים: " + String.format(java.util.Locale.US, "%.2f", chargeTotal) + " ₪ (" + chargeCount + ")"
+                                + "\nיתרה: " + String.format(java.util.Locale.US, "%.2f", creditTotal - chargeTotal) + " ₪"
+                                + "\nסה״כ תנועות: " + finalRows.size());
+                        if (finalRows.isEmpty()) statusView.setText("לא נמצאו תנועות בחשבון.");
+                        else statusView.setText("");
+                    };
+                    all.setOnClickListener(v -> { mode[0] = "all"; render[0].run(); });
+                    credits.setOnClickListener(v -> { mode[0] = "credit"; render[0].run(); });
+                    charges.setOnClickListener(v -> { mode[0] = "charge"; render[0].run(); });
+                    render[0].run();
                 });
-                runOnUiThread(() -> { if (!stale(t)) renderTransactions(rows); });
             } catch (Exception e) {
-                fail(t, e, "טעינת הזיכויים נכשלה.");
+                String message = msg(e, "טעינת הזיכויים נכשלה.");
+                runOnUiThread(() -> { if (!isStale(gen) && statusView != null) statusView.setText(message); });
             }
         });
     }
 
-    private void renderTransactions(final List<JSONObject> rows) {
-        double creditTotal = 0, chargeTotal = 0;
-        int creditCount = 0, chargeCount = 0;
-        for (JSONObject tx : rows) {
-            double amount = tx.optDouble("skum", 0);
-            if (tx.optBoolean("canceled", false)) continue;
-            if (amount < 0) { creditTotal += -amount; creditCount++; }
-            if (amount > 0) { chargeTotal += amount; chargeCount++; }
-        }
-        setStatus(rows.isEmpty() ? "לא נמצאו תנועות בחשבון." : "");
-
-        LinearLayout sum = card(14);
-        TextView c1 = text("💚 סך הכל זיכויים: " + money2(creditTotal) + " (" + creditCount + ")", 16, true);
-        c1.setTextColor(GREEN);
-        TextView c2 = text("🔴 סך הכל חיובים: " + money2(chargeTotal) + " (" + chargeCount + ")", 16, true);
-        c2.setTextColor(RED);
-        sum.addView(c1);
-        sum.addView(c2);
-        sum.addView(muted("סה״כ תנועות: " + rows.size(), 12));
-        root.addView(sum, lp(-1, -2, 0, 10));
-
-        final String[] mode = {"all"};
-        LinearLayout filters = new LinearLayout(this);
-        final TextView all = btn("הכול", PRIMARY);
-        final TextView credits = btn("זיכויים", TONAL);
-        final TextView charges = btn("חיובים", TONAL);
-        final TextView[] chips = {all, credits, charges};
-        for (int i = 0; i < chips.length; i++) {
-            chips[i].setMinHeight(dp(40));
-            LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(0, dp(40), 1);
-            if (i > 0) fp.setMarginStart(dp(6));
-            filters.addView(chips[i], fp);
-        }
-        root.addView(filters, lp(-1, -2, 0, 10));
-
-        final LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        root.addView(list, new LinearLayout.LayoutParams(-1, -2));
-
-        final Runnable[] render = new Runnable[1];
-        final String[] query = {""};
-        EditText searchBox = field("חיפוש (מוצר, מכירה, סכום, תאריך)…", InputType.TYPE_CLASS_TEXT);
-        searchBox.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence cs, int a, int b, int c) { }
-            @Override public void onTextChanged(CharSequence cs, int a, int b, int c) { }
-            @Override public void afterTextChanged(Editable e) { query[0] = e.toString().trim().toLowerCase(Locale.ROOT); render[0].run(); }
-        });
-        root.addView(searchBox, root.indexOfChild(filters), lp(-1, dp(46), 0, 8));
-        LinearLayout txTools = new LinearLayout(this);
-        TextView bySale = smallChip("📊 לפי מכירה", TONAL);
-        bySale.setOnClickListener(v -> showCreditsBySale(rows));
-        TextView shareTx = smallChip("📤 שיתוף", TONAL);
-        shareTx.setOnClickListener(v -> shareText("זיכויים וחיובים", creditsText(rows)));
-        txTools.addView(bySale);
-        LinearLayout.LayoutParams stl = new LinearLayout.LayoutParams(-2, -2);
-        stl.setMarginStart(dp(8));
-        txTools.addView(shareTx, stl);
-        root.addView(txTools, root.indexOfChild(filters), lp(-1, -2, 0, 8));
-        render[0] = () -> {
-            list.removeAllViews();
-            String[] keys = {"all", "credit", "charge"};
-            for (int i = 0; i < chips.length; i++) {
-                boolean on = keys[i].equals(mode[0]);
-                chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
-                chips[i].setTextColor(on ? Color.WHITE : ORANGE_DARK);
-            }
-            for (JSONObject tx : rows) {
-                double amount = tx.optDouble("skum", 0);
-                if ("credit".equals(mode[0]) && amount >= 0) continue;
-                if ("charge".equals(mode[0]) && amount <= 0) continue;
-                if (!query[0].isEmpty() && !txSearchText(tx).contains(query[0])) continue;
-                list.addView(transactionCard(tx, amount), lp(-1, -2, 0, 8));
-            }
-        };
-        all.setOnClickListener(v -> { mode[0] = "all"; render[0].run(); });
-        credits.setOnClickListener(v -> { mode[0] = "credit"; render[0].run(); });
-        charges.setOnClickListener(v -> { mode[0] = "charge"; render[0].run(); });
-        render[0].run();
-    }
-
-    private View transactionCard(JSONObject tx, double amount) {
-        boolean canceled = tx.optBoolean("canceled", false);
-        JSONObject product = tx.optJSONObject("product");
-        if (product == null) product = new JSONObject();
-        String name = product.optString("full_name", product.optString("name", ""));
-        if ("null".equals(name)) name = "";
-        String note = cleanHtml(tx.optString("note", ""));
-        if ("null".equals(note)) note = "";
-        JSONObject sale = firstObject(tx, "sale", "sale_data", "saleData");
-        JSONObject original = firstObject(tx, "original_sale", "originalSale", "original_sale_data", "originalSaleData");
-        String saleName = tx.optInt("saleID", tx.optInt("sale_id", -1)) == 1 ? "" : transactionSaleName(tx, sale, false);
-        int origId = tx.optInt("original_saleID", tx.optInt("original_sale_id", -1));
-        String originalName = origId == 0 || origId == 1 ? "" : transactionSaleName(tx, original, true);
-        String description = name.isEmpty() ? note : name;
-        if (description.isEmpty()) description = originalName.isEmpty() ? saleName : originalName;
-        String date = fmtWhen(tx.optString("time", ""));
-
-        LinearLayout card = card(12);
-        if (canceled) card.setAlpha(0.6f);
-        int color = amount < 0 ? GREEN : (amount > 0 ? RED : MUTED);
-        String kind = amount < 0 ? "💚 זיכוי" : (amount > 0 ? "🔴 חיוב" : "ללא סכום");
-        TextView heading = text(kind + ": " + money2(Math.abs(amount)), 16, true);
-        heading.setTextColor(color);
-        card.addView(heading);
-        if (!description.isEmpty()) card.addView(text(description, 14, false));
-        if (tx.has("amount") && !tx.isNull("amount") && !tx.optString("amount").isEmpty()) card.addView(muted("כמות: " + tx.optString("amount"), 12));
-        if (!saleName.isEmpty()) card.addView(muted("מכירה: " + saleName, 12));
-        if (!originalName.isEmpty() && !originalName.equals(saleName)) card.addView(muted("מכירה מקורית: " + originalName, 12));
-        if (!date.isEmpty()) card.addView(muted(date, 12));
-        if (canceled) {
-            TextView cancel = text("בוטל — לא נספר בסיכום", 12, true);
-            cancel.setTextColor(RED);
-            card.addView(cancel);
-        }
-        return card;
-    }
-
-    private JSONObject firstObject(JSONObject tx, String... keys) {
+    private JSONObject firstTransactionObject(JSONObject tx, String... keys) {
         for (String key : keys) {
             JSONObject value = tx.optJSONObject(key);
             if (value != null) return value;
@@ -2939,28 +1843,29 @@ public class MainActivity extends Activity {
         String[] directKeys = original
                 ? new String[]{"original_sale_name", "originalSaleName", "original_sale_custom_name", "originalSaleCustomName"}
                 : new String[]{"sale_name", "saleName", "sale_custom_name", "saleCustomName"};
-        String name = first(tx, directKeys);
+        String name = firstOrderString(tx, directKeys);
         if (!name.isEmpty()) return name;
         if (sale != null) {
-            name = first(sale, "custom_name", "name", "sale_name", "title", "week", "label");
+            name = firstOrderString(sale, "custom_name", "name", "sale_name", "title", "week", "label");
             if (name.isEmpty()) {
-                JSONObject parent = firstObject(sale, "parent", "sale_parent");
-                if (parent != null) name = first(parent, "week", "name", "title", "custom_name");
+                JSONObject parent = firstTransactionObject(sale, "parent", "sale_parent");
+                if (parent != null) name = firstOrderString(parent, "week", "name", "title", "custom_name");
             }
             if (name.isEmpty()) {
-                JSONObject nested = firstObject(sale, "sale", "original_sale", "originalSale");
+                JSONObject nested = firstTransactionObject(sale, "sale", "original_sale", "originalSale");
                 if (nested != null && nested != sale) name = transactionSaleName(tx, nested, original);
             }
             if (!name.isEmpty()) return name;
         }
         String id = original
-                ? first(tx, "original_sale_id", "originalSaleId", "original_saleID")
-                : first(tx, "sale_id", "saleId", "saleID");
-        if (id.isEmpty() && sale != null) id = first(sale, "id", "sale_id", "saleID");
-        return id.isEmpty() ? "" : "מכירה #" + id;
+                ? firstOrderString(tx, "original_sale_id", "originalSaleId", "original_saleID")
+                : firstOrderString(tx, "sale_id", "saleId", "saleID");
+        if (id.isEmpty() && sale != null) id = firstOrderString(sale, "id", "sale_id", "saleID");
+        if (!id.isEmpty()) return "מכירה #" + id;
+        return "";
     }
 
-    private void addTransactionList(Map<String, JSONObject> target, Object value) {
+    private void addTransactionList(java.util.Map<String, JSONObject> target, Object value) {
         JSONArray array = null;
         if (value instanceof JSONArray) array = (JSONArray) value;
         else if (value instanceof JSONObject) array = ((JSONObject) value).optJSONArray("data");
@@ -2971,847 +1876,18 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ======================================================================== misc helpers (log, token status, share, dialogs)
-
-    private String redact(String text) {
-        if (text == null) return "";
-        return text.replaceAll("eyJ[A-Za-z0-9_\\-]{8,}\\.[A-Za-z0-9_\\-]{8,}\\.[A-Za-z0-9_\\-]*", "<jwt>")
-                .replaceAll("(?i)(\"?(?:password|passwd|סיסמה)\"?\\s*[:=]\\s*)\"?[^\",\\s}]+\"?", "$1***");
-    }
-
-    private void logApi(String method, String path, String result, long ms, String errorBody) {
-        String line = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date()) + " " + method + " " + path + " → " + result + " (" + ms + "ms)";
-        if (errorBody != null && !errorBody.isEmpty()) {
-            String b = redact(errorBody.replace("\n", " "));
-            line += "\n    " + (b.length() > 220 ? b.substring(0, 220) : b);
-        }
-        synchronized (apiLog) {
-            apiLog.add(line);
-            while (apiLog.size() > 150) apiLog.remove(0);
-        }
-    }
-
-    private void showApiLog() {
-        String text;
-        synchronized (apiLog) { text = apiLog.isEmpty() ? "עדיין אין רישום תקשורת." : TextUtils.join("\n", apiLog); }
-        final String shown = text;
-        new AlertDialog.Builder(this).setTitle("יומן תקשורת")                .setMessage(shown)
-                .setPositiveButton("סגירה", null)
-                .setNeutralButton("שיתוף", (d, w) -> shareText("יומן תקשורת משנת יוסף", shown))
-                .show();
-    }
-
-    private String tokenStatus() {
-        long exp = prefs.getLong("expires_at", 0L);
-        if (exp <= 0) return "🔑 תוקף ההתחברות לא ידוע";
-        long left = (exp - System.currentTimeMillis()) / 1000L;
-        String until = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(new Date(exp));
-        if (left <= 0) return "🔑 ההתחברות פגה (" + until + ")";
-        long d = left / 86400, h = (left % 86400) / 3600, m = (left % 3600) / 60;
-        String rest = d > 0 ? d + " ימים " + h + " שעות" : (h > 0 ? h + " שעות " + m + " דקות" : m + " דקות");
-        return "🔑 תקף עד " + until + " (נותרו " + rest + ")";
-    }
-
-    private void showTextDialog(String title, String message) {
-        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("סגירה", null).show();
-    }
-
-    private void addHScroll(View content, LinearLayout.LayoutParams params) {
-        HorizontalScrollView hs = new HorizontalScrollView(this);
-        hs.setHorizontalScrollBarEnabled(false);
-        hs.addView(content);
-        root.addView(hs, params);
-    }
-
-    private void shareText(String subject, String text) {
+    private void hideKeyboard() {
         try {
-            Intent i = new Intent(Intent.ACTION_SEND);
-            i.setType("text/plain");
-            i.putExtra(Intent.EXTRA_SUBJECT, subject);
-            i.putExtra(Intent.EXTRA_TEXT, text);
-            startActivity(Intent.createChooser(i, "שיתוף"));
-        } catch (Exception e) {
-            toast("לא ניתן לפתוח את חלון השיתוף", true);
-        }
-    }
-
-    private void shareWhatsapp(String text) {
-        Intent i = new Intent(Intent.ACTION_SEND);
-        i.setType("text/plain");
-        i.putExtra(Intent.EXTRA_TEXT, text);
-        for (String pkg : new String[]{"com.whatsapp", "com.whatsapp.w4b"}) {
-            try {
-                i.setPackage(pkg);
-                startActivity(i);
-                return;
-            } catch (Exception ignored) { }
-        }
-        i.setPackage(null);
-        try { startActivity(Intent.createChooser(i, "שיתוף")); } catch (Exception e) { toast("לא ניתן לשתף", true); }
-    }
-
-    private void copyText(String text) {
-        ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        if (cm != null) {
-            cm.setPrimaryClip(ClipData.newPlainText("order", text));
-            toast("הועתק ללוח", false);
-        }
-    }
-
-    private void showShareMenu(final String text) {
-        String[] labels = {"📋 העתקה ללוח", "🟢 שליחה בווצאפ", "📤 מייל / הודעה / אחר"};
-        new AlertDialog.Builder(this).setTitle("שיתוף").setItems(labels, (d, which) -> {
-            if (which == 0) copyText(text);
-            else if (which == 1) shareWhatsapp(text);
-            else shareText("הזמנה משנת יוסף", text);
-        }).show();
-    }
-
-    private String safeName(String name) {
-        String n = (name == null ? "" : name).replaceAll("[\\\\/:*?\"<>|\\r\\n\\t]+", " ").replaceAll("\\s+", " ").trim();
-        if (n.length() > 80) n = n.substring(0, 80).trim();
-        return n.isEmpty() ? "הזמנה" : n;
-    }
-
-    // ======================================================================== order text / export / import
-
-    private String pidOf(JSONObject p) {
-        String id = first(p, "id", "itemID");
-        if (id.isEmpty()) id = first(p.optJSONObject("product"), "id");
-        return id;
-    }
-
-    private String currentTitle() {
-        String t = saleTitle(featureSale);
-        return t.isEmpty() ? "מכירה " + first(featureSale, "id") : t;
-    }
-
-    private List<OrderLine> currentOrderLines() {
-        List<OrderLine> out = new ArrayList<>();
-        for (JSONObject p : featureProducts) {
-            Integer q = featureQuantities.get(sidOf(p));
-            if (q == null || q <= 0) continue;
-            OrderLine l = new OrderLine();
-            l.sid = sidOf(p);
-            l.name = productName(p);
-            l.price = productPrice(p);
-            l.amount = q;
-            l.raw = p;
-            out.add(l);
-        }
-        return out;
-    }
-
-    private String orderText(String title, long orderId, String when, List<OrderLine> lines) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(title).append("\n").append("הזמנה ").append(orderId).append("\n");
-        sb.append(when == null || when.isEmpty() ? "נוצר: " + new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(new Date()) : "הוזמן: " + when).append("\n\n");
-        int n = 0;
-        double units = 0, total = 0;
-        for (OrderLine l : lines) {
-            if (l.amount <= 0) continue;
-            n++;
-            units += l.amount;
-            total += l.price * l.amount;
-            sb.append(n).append(". ").append(fmtNum(l.amount)).append(" × ").append(l.name);
-            if (l.price > 0) sb.append("  (").append(money(l.price * l.amount)).append(")");
-            sb.append("\n");
-        }
-        sb.append("\n------------------------------\n").append(n).append(" פריטים | ").append(fmtNum(units)).append(" יחידות | סה״כ ").append(money(total)).append("\n");
-        return sb.toString();
-    }
-
-    private String buildExportJson(String saleTitle, long saleId, long orderId, List<OrderLine> lines) {
-        try {
-            JSONArray items = new JSONArray();
-            double units = 0, total = 0;
-            for (OrderLine l : lines) {
-                if (l.amount <= 0) continue;
-                JSONObject it = new JSONObject();
-                String pid = pidOf(l.raw);
-                if (!pid.isEmpty()) {
-                    try { it.put("id", Long.parseLong(pid)); } catch (NumberFormatException nfe) { it.put("id", pid); }
-                }
-                it.put("name", l.name);
-                it.put("amount", l.amount == Math.rint(l.amount) ? (Object) Long.valueOf((long) l.amount) : (Object) Double.valueOf(l.amount));
-                it.put("price", l.price > 0 ? (Object) Double.valueOf(l.price) : (Object) JSONObject.NULL);
-                items.put(it);
-                units += l.amount;
-                total += l.price * l.amount;
-            }
-            JSONObject o = new JSONObject();
-            o.put("format", "mishnat-order");
-            o.put("version", 2);
-            o.put("exported_at", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(new Date()));
-            o.put("sale_id", saleId);
-            o.put("sale_title", saleTitle);
-            o.put("order_id", orderId);
-            o.put("units", units);
-            o.put("total", Math.round(total * 100) / 100.0);
-            o.put("items", items);
-            return o.toString(2);
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private void startExport(String name, String json) {
-        if (json == null || json.isEmpty()) { toast("אין מה לייצא", false); return; }
-        pendingExport = json;
-        try {
-            Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("application/json");
-            i.putExtra(Intent.EXTRA_TITLE, safeName(name) + ".json");
-            startActivityForResult(i, REQ_EXPORT);
-        } catch (Exception e) {
-            toast("לא ניתן לפתוח בחירת קובץ", true);
-        }
-    }
-
-    private void pickImportFile() {
-        try {
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("*/*");
-            startActivityForResult(i, REQ_IMPORT);
-        } catch (Exception e) {
-            toast("לא ניתן לפתוח בחירת קובץ", true);
-        }
-    }
-
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        final Uri uri = data.getData();
-        if (requestCode == REQ_EXPORT) {
-            try (OutputStream os = getContentResolver().openOutputStream(uri)) {
-                if (os == null) throw new Exception("no stream");
-                os.write(pendingExport.getBytes(StandardCharsets.UTF_8));
-                toast("הקובץ נשמר", false);
-            } catch (Exception e) {
-                toast("השמירה נכשלה", true);
-            }
-        } else if (requestCode == REQ_IMPORT) {
-            try {
-                InputStream in = getContentResolver().openInputStream(uri);
-                if (in == null) throw new Exception("no stream");
-                ByteArrayOutputStream bo = new ByteArrayOutputStream();
-                byte[] buf = new byte[8192];
-                int n, total = 0;
-                while ((n = in.read(buf)) > 0) {
-                    total += n;
-                    if (total > 2000000) { in.close(); throw new Exception("הקובץ גדול מדי"); }
-                    bo.write(buf, 0, n);
-                }
-                in.close();
-                String text = new String(bo.toByteArray(), StandardCharsets.UTF_8);
-                if (text.contains("\uFFFD")) text = new String(bo.toByteArray(), java.nio.charset.Charset.forName("windows-1255"));
-                if (text.startsWith("\uFEFF")) text = text.substring(1);
-                startImport(text, "קובץ");
-            } catch (Exception e) {
-                toast("לא הצלחתי לקרוא את הקובץ: " + errText(e, "קובץ לא תקין"), true);
-            }
-        }
-    }
-
-    private void parseImport(String raw, List<ImportEntry> entries, List<String> bad) throws Exception {
-        String trimmed = raw.trim();
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-            JSONArray rows;
-            if (trimmed.startsWith("{")) {
-                rows = new JSONObject(trimmed).optJSONArray("items");
-                if (rows == null) throw new Exception("בקובץ אין רשימת פריטים (items)");
-            } else {
-                rows = new JSONArray(trimmed);
-            }
-            for (int i = 0; i < rows.length(); i++) {
-                JSONObject r = rows.optJSONObject(i);
-                if (r == null) { bad.add("פריט " + (i + 1) + ": מבנה לא תקין"); continue; }
-                String name = first(r, "name"), pid = first(r, "id");
-                String label = !name.isEmpty() ? name : (!pid.isEmpty() ? "מזהה " + pid : "פריט " + (i + 1));
-                double amt = num(r.opt("amount"));
-                if (name.isEmpty() && pid.isEmpty()) bad.add(label + ": אין שם ואין מזהה");
-                else if (amt <= 0 || amt > 999) bad.add(label + ": כמות לא תקינה");
-                else {
-                    ImportEntry ie = new ImportEntry();
-                    ie.pid = pid;
-                    ie.name = name;
-                    ie.amount = Math.round(amt);
-                    entries.add(ie);
-                }
-            }
-        } else {
-            for (String rawLine : raw.split("\\r?\\n")) {
-                String line = rawLine.trim();
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                int bar = line.lastIndexOf('|');
-                String q = line;
-                int amt = 1;
-                if (bar >= 0) {
-                    String tail = line.substring(bar + 1).trim();
-                    if (tail.matches("\\d{1,4}")) { q = line.substring(0, bar).trim(); amt = Integer.parseInt(tail); }
-                }
-                if (amt <= 0 || amt > 999) { bad.add(q + ": כמות לא תקינה"); continue; }
-                ImportEntry ie = new ImportEntry();
-                ie.query = q;
-                ie.amount = amt;
-                entries.add(ie);
-            }
-        }
-    }
-
-    private void startImport(String raw, String label) {
-        if (featureOrderId <= 0 || featureProducts.isEmpty()) { toast("פתחו קודם הזמנה של מכירה", true); return; }
-        List<ImportEntry> entries = new ArrayList<>();
-        List<String> bad = new ArrayList<>();
-        try {
-            parseImport(raw, entries, bad);
-        } catch (Exception e) {
-            toast("לא הצלחתי לקרוא את הקובץ: " + errText(e, "מבנה לא תקין"), true);
-            return;
-        }
-        startImportEntries(entries, bad, label);
-    }
-
-    private List<JSONObject> matchProducts(ImportEntry e) {
-        List<JSONObject> hits = new ArrayList<>();
-        if (e.query != null) {
-            String q = e.query.trim();
-            if (q.matches("\\d+")) for (JSONObject p : featureProducts) if (q.equals(pidOf(p))) hits.add(p);
-            if (hits.isEmpty()) for (JSONObject p : featureProducts) if (q.equals(productName(p).trim())) hits.add(p);
-            if (hits.isEmpty()) for (JSONObject p : featureProducts) if (productName(p).contains(q)) hits.add(p);
-        } else {
-            if (!e.pid.isEmpty()) for (JSONObject p : featureProducts) if (e.pid.equals(pidOf(p))) hits.add(p);
-            if (hits.size() > 1 && !e.name.isEmpty()) {
-                List<JSONObject> narrowed = new ArrayList<>();
-                for (JSONObject p : hits) if (e.name.equals(productName(p).trim())) narrowed.add(p);
-                if (!narrowed.isEmpty()) hits = narrowed;
-            }
-            if (hits.isEmpty() && !e.name.isEmpty()) for (JSONObject p : featureProducts) if (e.name.equals(productName(p).trim())) hits.add(p);
-        }
-        return hits;
-    }
-
-    private void appendList(StringBuilder sb, String title, List<String> list) {
-        if (list.isEmpty()) return;
-        sb.append("\n").append(title).append(" (").append(list.size()).append("):\n");
-        for (int i = 0; i < Math.min(8, list.size()); i++) sb.append("  - ").append(list.get(i)).append("\n");
-        if (list.size() > 8) sb.append("  …ועוד ").append(list.size() - 8).append("\n");
-    }
-
-    private void startImportEntries(List<ImportEntry> entries, List<String> bad, String label) {
-        if (entries.isEmpty()) {
-            showTextDialog("ייבוא", "לא נמצאו פריטים תקינים לייבוא." + (bad.isEmpty() ? "" : "\n\n" + TextUtils.join("\n", bad)));
-            return;
-        }
-        final List<PlanItem> plan = new ArrayList<>();
-        List<String> notFound = new ArrayList<>(), ambiguous = new ArrayList<>(), blocked = new ArrayList<>(), dups = new ArrayList<>();
-        int same = 0;
-        Set<String> seen = new HashSet<>();
-        for (ImportEntry entry : entries) {
-            String lab = !entry.name.isEmpty() ? entry.name : (entry.query != null ? entry.query : "מזהה " + entry.pid);
-            List<JSONObject> hits = matchProducts(entry);
-            if (hits.isEmpty()) { notFound.add(lab); continue; }
-            if (hits.size() > 1) { ambiguous.add(lab); continue; }
-            JSONObject p = hits.get(0);
-            String sid = sidOf(p), name = productName(p);
-            if (!seen.add(sid)) { dups.add(name); continue; }
-            int amount = (int) entry.amount;
-            int cur = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
-            if (cur > 0 && cur == amount) { same++; continue; }
-            if (!(cur > 0 && amount < cur)) {
-                if (truthy(p.opt("disable"))) { blocked.add(name + ": לא זמין"); continue; }
-                if (isSoldOut(p)) { blocked.add(name + ": אזל"); continue; }
-            }
-            PlanItem pi = new PlanItem();
-            pi.p = p;
-            pi.name = name;
-            pi.amount = amount;
-            pi.cur = cur;
-            plan.add(pi);
-        }
-        StringBuilder sb = new StringBuilder();
-        if (!plan.isEmpty()) {
-            sb.append("יתבצעו ").append(plan.size()).append(" שינויים:\n");
-            for (int i = 0; i < Math.min(25, plan.size()); i++) {
-                PlanItem pi = plan.get(i);
-                sb.append(pi.cur > 0 ? "✏️ " + pi.name + ": " + pi.cur + " ← " + pi.amount : "➕ " + pi.amount + " × " + pi.name).append("\n");
-            }
-            if (plan.size() > 25) sb.append("…ועוד ").append(plan.size() - 25).append("\n");
-        } else {
-            sb.append("אין מה לשנות בהזמנה.\n");
-        }
-        if (same > 0) sb.append("\n➖ ללא שינוי (כבר בהזמנה באותה כמות): ").append(same).append("\n");
-        appendList(sb, "⚠️ לא נמצאו במכירה", notFound);
-        appendList(sb, "⚠️ מתאימים ליותר מפריט אחד", ambiguous);
-        appendList(sb, "⛔ דולגו", blocked);
-        appendList(sb, "🔁 כפולים", dups);
-        appendList(sb, "❓ שורות לא תקינות", bad);
-        if (plan.isEmpty()) { showTextDialog("ייבוא: " + label, sb.toString()); return; }
-        new AlertDialog.Builder(this).setTitle("ייבוא: " + label).setMessage(sb.toString())
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("החלה", (d, w) -> applyPlan(plan))
-                .show();
-    }
-
-    /** Runs the plan on the server one by one (a short pause between calls, like the Python script). */
-    private void applyPlan(final List<PlanItem> plan) {
-        final TextView msg = text("מתחיל…", 15, false);
-        msg.setPadding(dp(22), dp(16), dp(22), dp(8));
-        msg.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        final AlertDialog dlg = new AlertDialog.Builder(this).setTitle("מעדכן הזמנה").setView(msg).setCancelable(false).create();
-        dlg.show();
-        final long orderId = featureOrderId;
-        executor.execute(() -> {
-            final List<PlanItem> succeeded = new ArrayList<>();
-            final List<String> failed = new ArrayList<>();
-            boolean authLost = false;
-            for (int i = 0; i < plan.size(); i++) {
-                final PlanItem pi = plan.get(i);
-                final int idx = i;
-                runOnUiThread(() -> msg.setText("מעדכן " + (idx + 1) + " מתוך " + plan.size() + "…\n" + pi.name));
-                String err = syncSetAmount(pi.p, pi.amount, orderId);
-                if (err == null) succeeded.add(pi);
-                else {
-                    failed.add(pi.name + ": " + err);
-                    if (err.equals(new AuthException().getMessage())) { authLost = true; break; }
-                }
-                try { Thread.sleep(350); } catch (InterruptedException ie) { break; }
-            }
-            final boolean needLogin = authLost;
-            runOnUiThread(() -> {
-                for (PlanItem pi : succeeded) featureQuantities.put(sidOf(pi.p), pi.amount);
-                dlg.dismiss();
-                StringBuilder res = new StringBuilder("✅ עודכנו: " + succeeded.size() + " מתוך " + plan.size());
-                if (!failed.isEmpty()) {
-                    res.append("\n\n❌ נכשלו (").append(failed.size()).append("):\n");
-                    for (int i = 0; i < Math.min(8, failed.size()); i++) res.append("  - ").append(failed.get(i)).append("\n");
-                }
-                showTextDialog("סיכום", res.toString());
-                refreshCurrentOrderScreen();
-                if (needLogin) showLogin();
-            });
-        });
-    }
-
-    private String syncSetAmount(JSONObject p, int newQty, long orderId) {
-        String sid = sidOf(p);
-        int serverAmount = (int) Math.round(num(p.opt("amount")));
-        try {
-            HttpResult result = null;
-            if (newQty == 0) {
-                if (serverAmount > 0) result = api("POST", "/api/remove_item/" + orderId + "/" + sid, null);
-            } else {
-                JSONObject item = new JSONObject(p.toString());
-                item.put("amount", newQty);
-                if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
-                result = api("POST", (serverAmount > 0 ? "/api/update_item/" : "/api/add_item/") + orderId, item);
-            }
-            if (result != null && (result.code < 200 || result.code >= 300)) {
-                String msg = apiError(result);
-                if (msg.contains("אזל")) { try { p.put("available", 0); } catch (Exception ignored) { } }
-                return msg;
-            }
-            p.put("amount", newQty);
-            return null;
-        } catch (Exception e) {
-            return errText(e, "העדכון נכשל");
-        }
-    }
-
-    private void refreshCurrentOrderScreen() {
-        if (screenKind == 2) showOrderSummary();
-        else if (screenKind == 1) renderFeatureProducts();
-    }
-
-    // ======================================================================== order actions menu
-
-    private void showOrderActions() {
-        if (featureOrderId <= 0) { toast("לא נמצאה הזמנה", false); return; }
-        final String[] labels = {
-                "📤 שיתוף סיכום ההזמנה",
-                "📦 ייצוא הזמנה לקובץ",
-                "📥 ייבוא הזמנה מקובץ",
-                "📝 הדבקת רשימת קניות",
-                "⭐ טעינת מועדפים להזמנה",
-                "💾 שמירת כמויות למועדפים",
-                "🧹 ניקוי כמויות שמורות",
-                "🗑 מחיקת ההזמנה"};
-        new AlertDialog.Builder(this).setTitle("פעולות הזמנה").setItems(labels, (d, which) -> {
-            switch (which) {
-                case 0: showShareMenu(orderText(currentTitle(), featureOrderId, "", currentOrderLines())); break;
-                case 1: startExport("הזמנה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), featureOrderId, currentOrderLines())); break;
-                case 2: pickImportFile(); break;
-                case 3: showPasteWishlist(); break;
-                case 4: orderFavourites(); break;
-                case 5: saveFavQuantities(); break;
-                case 6: clearFavQuantities(); break;
-                default: confirmDeleteOrder(); break;
-            }
-        }).show();
-    }
-
-    private void showPasteWishlist() {
-        final EditText input = new EditText(this);
-        input.setHint("שורה לכל פריט: שם או מזהה | כמות\n# הערה");
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        input.setMinLines(6);
-        input.setGravity(Gravity.TOP | Gravity.START);
-        input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        new AlertDialog.Builder(this).setTitle("רשימת קניות").setView(input)
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("המשך", (d, w) -> startImport(input.getText().toString(), "רשימה מודבקת"))
-                .show();
-    }
-
-    private void confirmDeleteOrder() {
-        new AlertDialog.Builder(this).setTitle("מחיקת ההזמנה")
-                .setMessage("למחוק את כל ההזמנה? הפעולה בלתי הפיכה.")
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("מחיקה", (d, w) -> deleteOrder())
-                .show();
-    }
-
-    private void deleteOrder() {
-        final long id = featureOrderId;
-        final int t = screenToken;
-        executor.execute(() -> {
-            try {
-                HttpResult r = api("POST", "/api/orders/" + id + "/delete_order", null);
-                boolean ok = r.code >= 200 && r.code < 300;
-                if (ok) {
-                    try {
-                        JSONObject j = new JSONObject(r.body);
-                        if (j.has("status")) ok = "success".equals(j.optString("status"));
-                    } catch (Exception ignored) { }
-                }
-                final boolean done = ok;
-                final String err = ok ? "" : apiError(r);
-                runOnUiThread(() -> {
-                    if (done) {
-                        featureOrderId = -1;
-                        featureProducts.clear();
-                        featureQuantities.clear();
-                        toast("ההזמנה נמחקה", false);
-                        if (summaryFromHistory) loadFeatureOrders();
-                        else showOpenSales(false);
-                    } else {
-                        toast("המחיקה נכשלה: " + err, true);
-                    }
-                });
-            } catch (Exception e) {
-                fail(t, e, "המחיקה נכשלה.");
-            }
-        });
-    }
-
-    private void askQuantity(final JSONObject p, final Runnable refresh, final Runnable onSuccess) {
-        final String sid = sidOf(p);
-        final int cur = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
-        final EditText in = new EditText(this);
-        in.setInputType(InputType.TYPE_CLASS_NUMBER);
-        in.setText(String.valueOf(cur));
-        in.selectAll();
-        in.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        new AlertDialog.Builder(this).setTitle(productName(p)).setMessage("כמות בהזמנה (0 = הסרה)").setView(in)
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("קביעה", (d, w) -> {
-                    int n;
-                    try { n = Integer.parseInt(in.getText().toString().trim()); } catch (Exception ex) { toast("מספר לא תקין", false); return; }
-                    if (n < 0 || n > 999) { toast("כמות בין 0 ל-999", false); return; }
-                    if (n > cur) {
-                        if (truthy(p.opt("disable")) || isSoldOut(p)) { toast("המוצר אינו זמין כרגע", false); return; }
-                        double stock = numericAvailable(p);
-                        if (stock >= 0 && n > stock) { toast("נותרו במלאי " + (long) stock + " יחידות בלבד", false); return; }
-                    }
-                    setItemAmount(p, n, refresh, onSuccess);
-                }).show();
-    }
-
-    // ======================================================================== favourites
-
-    private void styleModeChips(TextView[] chips, String[] keys) {
-        for (int i = 0; i < chips.length; i++) {
-            boolean on = keys[i].equals(viewMode);
-            chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
-            chips[i].setTextColor(on ? Color.WHITE : ORANGE_DARK);
-        }
-    }
-
-    private Set<String> fetchFavouriteIds(int saleId) throws Exception {
-        if (saleId <= 0) return null;
-        HttpResult r = api("GET", "/api/get_favourites/" + saleId, null);
-        if (r.code < 200 || r.code >= 300) return null;
-        Set<String> out = new HashSet<>();
-        Object v = new JSONTokener(r.body).nextValue();
-        JSONArray a = null;
-        if (v instanceof JSONArray) a = (JSONArray) v;
-        else if (v instanceof JSONObject) {
-            a = ((JSONObject) v).optJSONArray("data");
-            if (a == null) a = ((JSONObject) v).optJSONArray("favourites");
-        }
-        if (a == null) return out;
-        for (int i = 0; i < a.length(); i++) {
-            Object o = a.opt(i);
-            String id = o instanceof JSONObject ? first((JSONObject) o, "id") : String.valueOf(o).trim();
-            if (!id.isEmpty()) out.add(id);
-        }
-        return out;
-    }
-
-    private boolean containsId(JSONArray a, String id) {
-        if (a == null) return false;
-        for (int i = 0; i < a.length(); i++) if (id.equals(String.valueOf(a.opt(i)).trim())) return true;
-        return false;
-    }
-
-    private void toggleFavourite(final JSONObject p, final Runnable done) {
-        final String pid = pidOf(p);
-        if (pid.isEmpty()) { toast("אין מזהה למוצר", false); return; }
-        executor.execute(() -> {
-            try {
-                HttpResult r = api("GET", "/api/toggle_favourites/" + pid, null);
-                if (r.code < 200 || r.code >= 300) throw new Exception(apiError(r));
-                JSONObject d = new JSONObject(r.body);
-                final boolean attached = containsId(d.optJSONArray("attached"), pid);
-                final boolean detached = containsId(d.optJSONArray("detached"), pid);
-                runOnUiThread(() -> {
-                    if (attached) favIds.add(pid);
-                    else if (detached) favIds.remove(pid);
-                    else { toast("תשובה לא צפויה מהשרת", true); return; }
-                    toast(attached ? "⭐ נוסף למועדפים" : "☆ הוסר מהמועדפים", false);
-                    if (done != null) done.run();
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    if (e instanceof AuthException) showLogin();
-                    else toast(errText(e, "העדכון נכשל"), true);
-                });
-            }
-        });
-    }
-
-    private int favSavedQty(String pid) {
-        if (pid == null || pid.isEmpty()) return 0;
-        try {
-            JSONObject e = new JSONObject(prefs.getString("fav_quantities", "{}")).optJSONObject(pid);
-            return e == null ? 0 : Math.max(0, e.optInt("qty", 0));
-        } catch (Exception ex) {
-            return 0;
-        }
-    }
-
-    private void setFavSavedQty(String pid, String name, int qty) {
-        try {
-            JSONObject all = new JSONObject(prefs.getString("fav_quantities", "{}"));
-            if (qty > 0) {
-                JSONObject e = new JSONObject();
-                e.put("qty", qty);
-                e.put("name", name);
-                all.put(pid, e);
-            } else {
-                all.remove(pid);
-            }
-            prefs.edit().putString("fav_quantities", all.toString()).apply();
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            View focus = getCurrentFocus();
+            if (imm != null && focus != null) imm.hideSoftInputFromWindow(focus.getWindowToken(), 0);
         } catch (Exception ignored) { }
     }
 
-    private void askSavedQty(final JSONObject p) {
-        final String pid = pidOf(p);
-        int start = favSavedQty(pid);
-        if (start == 0) { Integer q = featureQuantities.get(sidOf(p)); start = q == null || q <= 0 ? 1 : q; }
-        final EditText in = new EditText(this);
-        in.setInputType(InputType.TYPE_CLASS_NUMBER);
-        in.setText(String.valueOf(start));
-        in.selectAll();
-        in.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        new AlertDialog.Builder(this).setTitle(productName(p)).setMessage("כמות שמורה להזמנה אוטומטית של מועדפים (0 = ניקוי)").setView(in)
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("שמירה", (d, w) -> {
-                    int n;
-                    try { n = Integer.parseInt(in.getText().toString().trim()); } catch (Exception ex) { toast("מספר לא תקין", false); return; }
-                    if (n < 0 || n > 999) { toast("כמות בין 0 ל-999", false); return; }
-                    setFavSavedQty(pid, productName(p), n);
-                    toast(n > 0 ? "הכמות נשמרה" : "הכמות השמורה נוקתה", false);
-                    rebuildGrid();
-                }).show();
-    }
-
-    /** Adds every available favourite that is not in the order yet, with its saved quantity (default 1). */
-    private void orderFavourites() {
-        final List<PlanItem> plan = new ArrayList<>();
-        int already = 0, savedCount = 0, units = 0;
-        for (JSONObject p : featureProducts) {
-            String pid = pidOf(p);
-            if (!favIds.contains(pid)) continue;
-            Integer cur = featureQuantities.get(sidOf(p));
-            if (cur != null && cur > 0) { already++; continue; }
-            if (truthy(p.opt("disable")) || isSoldOut(p)) continue;
-            int q = favSavedQty(pid);
-            if (q > 0) savedCount++; else q = 1;
-            PlanItem pi = new PlanItem();
-            pi.p = p;
-            pi.name = productName(p);
-            pi.amount = q;
-            pi.cur = 0;
-            plan.add(pi);
-            units += q;
-        }
-        if (plan.isEmpty()) {
-            toast(already > 0 ? "כל המועדפים (" + already + ") כבר בהזמנה" : "אין מועדפים זמינים להוספה (סמנו כוכב על מוצרים)", true);
-            return;
-        }
-        String detail = units + " יחידות: " + savedCount + " לפי כמות שמורה, " + (plan.size() - savedCount) + " בכמות 1"
-                + (already > 0 ? "\n(" + already + " כבר בהזמנה ולא ישתנו)" : "");
-        new AlertDialog.Builder(this).setTitle("טעינת מועדפים")
-                .setMessage("להוסיף " + plan.size() + " מועדפים להזמנה?\n" + detail)
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("הוספה", (d, w) -> applyPlan(plan))
-                .show();
-    }
-
-    private void storeFavQuantities(List<String[]> items) {
-        for (String[] it : items) setFavSavedQty(it[0], it[1], Integer.parseInt(it[2]));
-        toast("נשמרו כמויות ל-" + items.size() + " מועדפים", false);
-        rebuildGrid();
-    }
-
-    private void saveFavQuantities() {
-        final List<String[]> news = new ArrayList<>(), conflicts = new ArrayList<>();
-        int same = 0;
-        for (JSONObject p : featureProducts) {
-            String pid = pidOf(p);
-            if (pid.isEmpty() || !favIds.contains(pid)) continue;
-            Integer q = featureQuantities.get(sidOf(p));
-            if (q == null || q <= 0) continue;
-            int old = favSavedQty(pid);
-            if (old == 0) news.add(new String[]{pid, productName(p), String.valueOf(q)});
-            else if (old != q) conflicts.add(new String[]{pid, productName(p), String.valueOf(q), String.valueOf(old)});
-            else same++;
-        }
-        if (news.isEmpty() && conflicts.isEmpty()) {
-            toast(same > 0 ? "הכמויות של " + same + " המועדפים שבהזמנה כבר שמורות" : "אין מועדפים בהזמנה הנוכחית", true);
-            return;
-        }
-        if (conflicts.isEmpty()) {
-            new AlertDialog.Builder(this).setTitle("שמירת כמויות")
-                    .setMessage("לשמור כמויות ל-" + news.size() + " מועדפים מההזמנה הנוכחית?")
-                    .setNegativeButton("ביטול", null)
-                    .setPositiveButton("שמירה", (d, w) -> storeFavQuantities(news))
-                    .show();
-            return;
-        }
-        StringBuilder sb = new StringBuilder("יש " + conflicts.size() + " מועדפים עם כמות שמורה שונה מההזמנה:\n");
-        for (int i = 0; i < Math.min(10, conflicts.size()); i++) {
-            String[] c = conflicts.get(i);
-            sb.append(c[1]).append(": ×").append(c[3]).append(" ← ×").append(c[2]).append("\n");
-        }
-        if (conflicts.size() > 10) sb.append("…ועוד ").append(conflicts.size() - 10).append("\n");
-        if (!news.isEmpty()) sb.append("\n").append(news.size()).append(" חדשים יישמרו.");
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("שמירת כמויות").setMessage(sb.toString())
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("דרוס את כולם", (d, w) -> {
-                    List<String[]> all = new ArrayList<>(news);
-                    all.addAll(conflicts);
-                    storeFavQuantities(all);
-                });
-        if (!news.isEmpty()) b.setNeutralButton("רק חדשים", (d, w) -> storeFavQuantities(news));
-        b.show();
-    }
-
-    private void clearFavQuantities() {
-        final List<JSONObject> withQty = new ArrayList<>();
-        for (JSONObject p : featureProducts) if (favIds.contains(pidOf(p)) && favSavedQty(pidOf(p)) > 0) withQty.add(p);
-        if (withQty.isEmpty()) { toast("אין כמויות שמורות", false); return; }
-        new AlertDialog.Builder(this).setTitle("ניקוי כמויות שמורות")
-                .setMessage("לנקות כמויות שמורות של " + withQty.size() + " מועדפים? הם יחזרו לכמות 1.")
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("ניקוי", (d, w) -> {
-                    for (JSONObject p : withQty) setFavSavedQty(pidOf(p), productName(p), 0);
-                    toast("הכמויות נוקו", false);
-                    rebuildGrid();
-                })
-                .show();
-    }
-
-    // ======================================================================== credits: search / by sale / share
-
-    private String[] txNames(JSONObject tx) {
-        JSONObject sale = firstObject(tx, "sale", "sale_data", "saleData");
-        JSONObject original = firstObject(tx, "original_sale", "originalSale", "original_sale_data", "originalSaleData");
-        String saleName = tx.optInt("saleID", tx.optInt("sale_id", -1)) == 1 ? "" : transactionSaleName(tx, sale, false);
-        int origId = tx.optInt("original_saleID", tx.optInt("original_sale_id", -1));
-        String originalName = origId == 0 || origId == 1 ? "" : transactionSaleName(tx, original, true);
-        return new String[]{saleName, originalName};
-    }
-
-    private String txDescription(JSONObject tx) {
-        JSONObject product = tx.optJSONObject("product");
-        String name = product == null ? "" : first(product, "full_name", "name");
-        if (!name.isEmpty()) return name;
-        return cleanHtml(first(tx, "note"));
-    }
-
-    private String txSearchText(JSONObject tx) {
-        String[] names = txNames(tx);
-        return (txDescription(tx) + " " + names[0] + " " + names[1] + " " + fmtWhen(tx.optString("time", "")) + " "
-                + fmtNum(Math.abs(tx.optDouble("skum", 0)))).toLowerCase(Locale.ROOT);
-    }
-
-    private void showCreditsBySale(List<JSONObject> rows) {
-        Map<String, double[]> groups = new LinkedHashMap<>();
-        final Map<String, String> latest = new LinkedHashMap<>();
-        double creditTotal = 0, chargeTotal = 0;
-        for (JSONObject tx : rows) {
-            if (tx.optBoolean("canceled", false)) continue;
-            double amount = tx.optDouble("skum", 0);
-            String[] names = txNames(tx);
-            String key = !names[1].isEmpty() ? names[1] : (!names[0].isEmpty() ? names[0] : "ללא מכירה (כללי)");
-            double[] g = groups.get(key);
-            if (g == null) { g = new double[4]; groups.put(key, g); latest.put(key, ""); }
-            if (amount < 0) { g[0] += -amount; g[2]++; creditTotal += -amount; }
-            else if (amount > 0) { g[1] += amount; g[3]++; chargeTotal += amount; }
-            String time = tx.optString("time", "");
-            if (time.compareTo(latest.get(key)) > 0) latest.put(key, time);
-        }
-        List<String> keys = new ArrayList<>(groups.keySet());
-        Collections.sort(keys, new Comparator<String>() {
-            @Override public int compare(String a, String b) { return latest.get(b).compareTo(latest.get(a)); }
-        });
-        StringBuilder sb = new StringBuilder();
-        for (String key : keys) {
-            double[] g = groups.get(key);
-            StringBuilder bits = new StringBuilder();
-            if (g[2] > 0) bits.append("💚 ").append(money2(g[0])).append(" (").append((int) g[2]).append(")");
-            if (g[3] > 0) bits.append(bits.length() > 0 ? " | " : "").append("🔴 ").append(money2(g[1])).append(" (").append((int) g[3]).append(")");
-            if (bits.length() > 0) sb.append(key).append(": ").append(bits).append("\n\n");
-        }
-        sb.append("סך הכל זיכויים: ").append(money2(creditTotal)).append("\nסך הכל חיובים: ").append(money2(chargeTotal));
-        showTextDialog("📊 זיכויים וחיובים לפי מכירה", sb.toString());
-    }
-
-    private String creditsText(List<JSONObject> rows) {
-        StringBuilder sb = new StringBuilder("זיכויים וחיובים בחשבון\nנוצר: " + new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(new Date()) + "\n\n");
-        int n = 0;
-        double cr = 0, ch = 0;
-        for (JSONObject tx : rows) {
-            n++;
-            double a = tx.optDouble("skum", 0);
-            boolean canceled = tx.optBoolean("canceled", false);
-            if (!canceled) { if (a < 0) cr += -a; else if (a > 0) ch += a; }
-            String[] names = txNames(tx);
-            String sale = !names[1].isEmpty() ? names[1] : names[0];
-            sb.append(n).append(". ").append(a < 0 ? "זיכוי " : (a > 0 ? "חיוב " : "")).append(money2(Math.abs(a)));
-            String desc = txDescription(tx);
-            if (!desc.isEmpty()) sb.append(" | ").append(desc);
-            if (!sale.isEmpty()) sb.append(" | ").append(sale);
-            String date = fmtWhen(tx.optString("time", ""));
-            if (!date.isEmpty()) sb.append(" | ").append(date);
-            if (canceled) sb.append(" | בוטל");
-            sb.append("\n");
-        }
-        sb.append("\n------------------------------\nסך הכל זיכויים ").append(money2(cr)).append(" | חיובים ").append(money2(ch)).append("\n");
-        return sb.toString();
+    private static class HttpResult {
+        final int code;
+        final String body;
+        HttpResult(int code, String body) { this.code = code; this.body = body; }
     }
 }
+
