@@ -36,6 +36,7 @@ import android.util.LruCache;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -71,6 +72,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -208,6 +210,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
             @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount() / 1024; }
@@ -665,6 +668,7 @@ public class MainActivity extends Activity {
         bottomHolder = new FrameLayout(this);
         screen.addView(bottomHolder, new LinearLayout.LayoutParams(-1, -2));
 
+        View navView = null;
         if (hasToken()) {
             LinearLayout nav = new LinearLayout(this);
             nav.setOrientation(LinearLayout.HORIZONTAL);
@@ -688,6 +692,8 @@ public class MainActivity extends Activity {
                 icon.setAlpha(active ? 1f : 0.55f);
                 item.addView(icon, new LinearLayout.LayoutParams(-1, -2));
                 TextView label = text(labels[i], 11, active);
+                label.setMaxLines(1);
+                label.setEllipsize(TextUtils.TruncateAt.END);
                 label.setGravity(Gravity.CENTER);
                 label.setTextColor(active ? ORANGE_DARK : MUTED);
                 item.addView(label, new LinearLayout.LayoutParams(-1, -2));
@@ -695,9 +701,27 @@ public class MainActivity extends Activity {
                 nav.addView(item, new LinearLayout.LayoutParams(0, dp(64), 1));
                 if (i == 2) nav.addView(collectNavButton(), new LinearLayout.LayoutParams(0, dp(64), 1.3f));
             }
-            screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(64)));
+            navView = nav;
+            screen.addView(nav, new LinearLayout.LayoutParams(-1, -2));
         }
+        final View navFinal = navView;
+        final LinearLayout headerFinal = header;
+        final LinearLayout screenFinal = screen;
+        screen.setOnApplyWindowInsetsListener((v, insets) -> {
+            if (Build.VERSION.SDK_INT < 30) return insets; // older Android already keeps content inside the system bars
+            int[] in = systemInsets(insets);
+            headerFinal.setPadding(dp(8) + in[0], dp(8) + in[1], dp(16) + in[2], dp(8));
+            if (navFinal != null) {
+                navFinal.setPadding(in[0], 0, in[2], in[3]);
+                screenFinal.setPadding(0, 0, 0, 0);
+            } else {
+                screenFinal.setPadding(in[0], 0, in[2], in[3]);
+            }
+            return insets;
+        });
         setContentView(screen);
+        screen.requestApplyInsets();
+        styleSystemBars();
     }
 
     // ======================================================================== login / account
@@ -731,6 +755,7 @@ public class MainActivity extends Activity {
         acc.addView(muted(tokenStatus(), 12));
         root.addView(acc, lp(-1, -2, 0, 10));
         addHomeNotificationSettings();
+        addSafetySettings();
         TextView refreshTok = btn("🔁 חידוש התחברות (בלי סיסמה)", TONAL);
         refreshTok.setOnClickListener(v -> executor.execute(() -> {
             String cur = prefs.getString("token", "");
@@ -1398,7 +1423,7 @@ public class MainActivity extends Activity {
         if (cached != null) { iv.setImageBitmap(cached); return; }
         try {
             imageExecutor.execute(() -> {
-                Bitmap bmp = downloadBitmap(url, 360);
+                Bitmap bmp = downloadBitmap(url, 480);
                 if (bmp == null) return;
                 imageCache.put(url, bmp);
                 runOnUiThread(() -> { if (url.equals(iv.getTag())) iv.setImageBitmap(bmp); });
@@ -1651,7 +1676,7 @@ public class MainActivity extends Activity {
             lines.add("    סגירה: " + fmtDay(end, true));
         }
         Date pick = pickupDate(sale);
-        lines.add("�� יום איסוף: " + (pick == null ? "לא ידוע" : fmtDay(pick, false)));
+        lines.add("📦 יום איסוף: " + (pick == null ? "לא ידוע" : fmtDay(pick, false)));
         String hours = first(order, "times");
         if (hours.isEmpty() && !first(sale, "startHour").isEmpty()) hours = first(sale, "startHour") + "-" + first(sale, "endHour");
         if (!hours.isEmpty()) lines.add("    שעה: " + hours);
@@ -2096,10 +2121,10 @@ public class MainActivity extends Activity {
 
         FrameLayout imageBox = new FrameLayout(this);
         ImageView image = new ImageView(this);
-        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
         image.setClipToOutline(true);
-        imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(118)));
+        imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(170)));
         if (!canOrder) {
             image.setAlpha(0.45f);
             TextView badge = text(disabled ? "לא זמין" : "אזל", 11, true);
@@ -2121,8 +2146,8 @@ public class MainActivity extends Activity {
         starLp.setMargins(dp(6), dp(6), 0, 0);
         imageBox.addView(star, starLp);
         star.setOnClickListener(v -> toggleFavourite(p, () -> star.setText(favIds.contains(pidOf(p)) ? "⭐" : "☆")));
-        card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(118)));
-        loadImage(image, imageUrl(p, true));
+        card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(170)));
+        loadImage(image, imageUrl(p, !fullImages()));
         card.setOnClickListener(v -> showProductDetails(p));
         imageBox.setOnClickListener(v -> showProductDetails(p));
 
@@ -2201,6 +2226,10 @@ public class MainActivity extends Activity {
 
     /** Updates the server (add / update / remove) and only that one row in the UI, without reloading the screen. */
     private void setItemAmount(final JSONObject p, final int newQty, final Runnable refresh, final Runnable onSuccess) {
+        requireUnlock(() -> doSetItemAmount(p, newQty, refresh, onSuccess));
+    }
+
+    private void doSetItemAmount(final JSONObject p, final int newQty, final Runnable refresh, final Runnable onSuccess) {
         final String sid = sidOf(p);
         if (pending.contains(sid) || featureOrderId <= 0) return;
         final int oldQty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
@@ -2550,21 +2579,21 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(10), dp(10), dp(10));
         row.setBackground(shape(Color.WHITE, 14, LINE));
-        ImageView iv = imageView(imageDp, imageDp, ImageView.ScaleType.CENTER_CROP);
+        ImageView iv = imageView(imageDp, imageDp, ImageView.ScaleType.FIT_CENTER);
         iv.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
         iv.setClipToOutline(true);
         LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(imageDp), dp(imageDp));
         ip.setMarginEnd(dp(10));
         row.addView(iv, ip);
         JSONObject known = findProduct(line.sid);
-        loadImage(iv, imageUrl(known != null ? known : line.raw, true));
+        loadImage(iv, imageUrl(known != null ? known : line.raw, !fullImages()));
         return row;
     }
 
     private View editRow(final OrderLine line, final int qty) {
         final JSONObject p = productForLine(line);
         final boolean editable = findProduct(line.sid) != null;
-        LinearLayout row = (LinearLayout) rowShell(line, 84);
+        LinearLayout row = (LinearLayout) rowShell(line, 96);
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -2616,7 +2645,7 @@ public class MainActivity extends Activity {
     }
 
     private View collectRow(final OrderLine line, final int qty, final boolean isDone) {
-        LinearLayout row = (LinearLayout) rowShell(line, isDone ? 56 : 76);
+        LinearLayout row = (LinearLayout) rowShell(line, isDone ? 60 : 88);
         row.setAlpha(isDone ? 0.8f : 1f);
 
         TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? Color.WHITE : GREEN_LIGHT, GREEN);
@@ -3384,6 +3413,10 @@ public class MainActivity extends Activity {
 
     /** Runs the plan on the server one by one (a short pause between calls, like the Python script). */
     private void applyPlan(final List<PlanItem> plan) {
+        requireUnlock(() -> applyPlanNow(plan));
+    }
+
+    private void applyPlanNow(final List<PlanItem> plan) {
         final TextView msg = text("מתחיל…", 15, false);
         msg.setPadding(dp(22), dp(16), dp(22), dp(8));
         msg.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -3496,7 +3529,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("מחיקת ההזמנה")
                 .setMessage("למחוק את כל ההזמנה? הפעולה בלתי הפיכה.")
                 .setNegativeButton("ביטול", null)
-                .setPositiveButton("מחיקה", (d, w) -> deleteOrder())
+                .setPositiveButton("מחיקה", (d, w) -> requireUnlock(() -> deleteOrder()))
                 .show();
     }
 
@@ -3919,6 +3952,169 @@ public class MainActivity extends Activity {
             }
             runOnUiThread(() -> { if (!stale(t)) openHistoryOrder(orderId, true); });
         });
+    }
+
+    // ======================================================================== system bars (works on every device)
+
+    /** left, top, right, bottom space that the status bar, navigation bar, cutout and keyboard take. */
+    private int[] systemInsets(WindowInsets w) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            android.graphics.Insets bars = w.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            int bottom = Math.max(bars.bottom, w.getInsets(WindowInsets.Type.ime()).bottom);
+            return new int[]{bars.left, bars.top, bars.right, bottom};
+        }
+        return new int[]{w.getSystemWindowInsetLeft(), w.getSystemWindowInsetTop(), w.getSystemWindowInsetRight(), w.getSystemWindowInsetBottom()};
+    }
+
+    /** Dark icons on the white navigation bar, so the system buttons stay visible. */
+    private void styleSystemBars() {
+        try {
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.view.WindowInsetsController c = getWindow().getInsetsController();
+                if (c != null) c.setSystemBarsAppearance(android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                        android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            } else if (Build.VERSION.SDK_INT >= 26) {
+                View d = getWindow().getDecorView();
+                d.setSystemUiVisibility(d.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+            }
+        } catch (Exception ignored) { }
+    }
+
+    // ======================================================================== child lock (random maths exercise, answer 10..100)
+
+    private long unlockExpiry = 0L;
+    private long mathLockoutUntil = 0L;
+    private int mathFailures = 0;
+    private static final long UNLOCK_WINDOW_MS = 5L * 60L * 1000L;
+
+    private boolean childLockOn() { return prefs.getBoolean("child_lock_enabled", true); }
+
+    private boolean fullImages() { return prefs.getBoolean("full_images", false); }
+
+    @Override protected void onStop() {
+        super.onStop();
+        unlockExpiry = 0L; // the lock closes whenever the app leaves the screen
+    }
+
+    /** Runs the action at once when the lock is off or recently solved; otherwise asks for the exercise first. */
+    private void requireUnlock(final Runnable action) {
+        long now = System.currentTimeMillis();
+        if (!childLockOn() || now < unlockExpiry) {
+            if (childLockOn()) unlockExpiry = now + UNLOCK_WINDOW_MS;
+            action.run();
+            return;
+        }
+        showMathChallenge(action, null);
+    }
+
+    private String[] newMathExercise() {
+        Random r = new Random();
+        for (int tries = 0; tries < 300; tries++) {
+            int a = 0, b = 0, c = 0, res = 0;
+            String expr = "";
+            switch (r.nextInt(5)) {
+                case 0: a = 10 + r.nextInt(80); b = 5 + r.nextInt(80); res = a + b; expr = a + " + " + b; break;
+                case 1: a = 20 + r.nextInt(130); b = 5 + r.nextInt(90); res = a - b; expr = a + " − " + b; break;
+                case 2: a = 2 + r.nextInt(11); b = 2 + r.nextInt(11); res = a * b; expr = a + " × " + b; break;
+                case 3: b = 2 + r.nextInt(8); res = 10 + r.nextInt(50); a = b * res; expr = a + " ÷ " + b; break;
+                default: a = 2 + r.nextInt(9); b = 2 + r.nextInt(9); c = 1 + r.nextInt(40); res = a * b + c; expr = a + " × " + b + " + " + c; break;
+            }
+            if (res >= 10 && res <= 100) return new String[]{expr, String.valueOf(res)};
+        }
+        return new String[]{"7 × 8", "56"};
+    }
+
+    private void showMathChallenge(final Runnable onSuccess, final Runnable onCancel) {
+        long wait = mathLockoutUntil - System.currentTimeMillis();
+        if (wait > 0) {
+            toast("יותר מדי טעויות. נסו שוב בעוד " + (wait / 1000 + 1) + " שניות", true);
+            if (onCancel != null) onCancel.run();
+            return;
+        }
+        final int[] answer = new int[1];
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(22), dp(10), dp(22), dp(6));
+        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView hint = muted("פתרו את התרגיל כדי להמשיך", 14);
+        hint.setGravity(Gravity.CENTER);
+        panel.addView(hint);
+        final TextView question = new TextView(this);
+        question.setTextSize(34);
+        question.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        question.setTextColor(ORANGE_DARK);
+        question.setGravity(Gravity.CENTER);
+        question.setTextDirection(View.TEXT_DIRECTION_LTR);
+        panel.addView(question, lp(-1, -2, 8, 8));
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setTextSize(24);
+        input.setGravity(Gravity.CENTER);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        input.setBackground(shape(Color.WHITE, 12, ORANGE));
+        panel.addView(input, lp(-1, dp(56), 0, 4));
+        final Runnable next = () -> {
+            String[] ex = newMathExercise();
+            question.setText(ex[0] + " = ?");
+            answer[0] = Integer.parseInt(ex[1]);
+            input.setText("");
+        };
+        next.run();
+        final AlertDialog[] ref = new AlertDialog[1];
+        final Runnable check = () -> {
+            int val;
+            try { val = Integer.parseInt(input.getText().toString().trim()); }
+            catch (Exception e) { toast("הקלידו מספר", false); return; }
+            long now = System.currentTimeMillis();
+            if (val == answer[0]) {
+                mathFailures = 0;
+                unlockExpiry = now + UNLOCK_WINDOW_MS;
+                ref[0].dismiss();
+                onSuccess.run();
+            } else {
+                mathFailures++;
+                if (mathFailures >= 3) {
+                    mathFailures = 0;
+                    mathLockoutUntil = now + 30000L;
+                    ref[0].dismiss();
+                    toast("3 טעויות. אפשר לנסות שוב בעוד 30 שניות", true);
+                    if (onCancel != null) onCancel.run();
+                } else {
+                    toast("תשובה שגויה. תרגיל חדש", false);
+                    next.run();
+                }
+            }
+        };
+        input.setOnEditorActionListener((v, actionId, event) -> { check.run(); return true; });
+        ref[0] = new AlertDialog.Builder(this).setTitle("🔒 נעילת ילדים").setView(panel)
+                .setPositiveButton("אישור", null)
+                .setNegativeButton("ביטול", (d, w) -> { if (onCancel != null) onCancel.run(); })
+                .setOnCancelListener(d -> { if (onCancel != null) onCancel.run(); })
+                .create();
+        ref[0].setOnShowListener(x -> {
+            ref[0].getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> check.run());
+            input.requestFocus();
+            if (ref[0].getWindow() != null) ref[0].getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        });
+        ref[0].show();
+    }
+
+    private void addSafetySettings() {
+        LinearLayout card = card(14);
+        card.addView(sectionTitle("🛡️ בטיחות ותצוגה"));
+        card.addView(switchRow("נעילת ילדים", "תרגיל חשבון לפני הוספה, שינוי או מחיקה בהזמנה. אחרי פתרון הנעילה פתוחה 5 דקות", childLockOn(), (b, checked) -> {
+            if (checked) {
+                prefs.edit().putBoolean("child_lock_enabled", true).apply();
+                unlockExpiry = 0L;
+            } else {
+                showMathChallenge(() -> prefs.edit().putBoolean("child_lock_enabled", false).apply(), () -> showAccount());
+            }
+        }));
+        card.addView(switchRow("תמונות מלאות", "טעינת התמונה המקורית במקום תמונה ממוזערת. איטי יותר, אבל לא חתוך", fullImages(), (b, checked) -> {
+            prefs.edit().putBoolean("full_images", checked).apply();
+            imageCache.evictAll();
+        }));
+        root.addView(card, lp(-1, -2, 0, 10));
     }
 }
 
