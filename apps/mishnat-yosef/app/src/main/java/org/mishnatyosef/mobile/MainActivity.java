@@ -1197,12 +1197,12 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "חץ גדול וברור לראש הרשימה";
-        final String whatsNewSummary = "החץ בכפתור החזרה לראש הרשימה הוגדל מאוד, הקו עובה והוא ממורכז יותר — בלי להגדיל את העיגול.";
+        final String whatsNewTitle = "עדכון תצוגת המכירות והמוצרים";
+        final String whatsNewSummary = "מכירות בולטות בכתום במצב לילה, חץ קטן יותר לראש הרשימה ורוחב קבוע לכרטיסי המוצרים.";
         final String whatsNewDetails =
-                "• החץ צויר מחדש בצורה גרפית כדי שיהיה גדול ובולט משמעותית, עם קו לבן עבה ומודגש.\\n\\n" +
-                "• העיגול הכתום נשאר באותו גודל ובאותו מיקום.\\n\\n" +
-                "• החץ ממורכז בתוך העיגול וממשיך להופיע רק לאחר גלילה מטה ברשימת המוצרים.";
+                "• במצב לילה כרטיסי המכירות ברשימת המכירות מקבלים רקע כתום וטקסט מותאם לקריאות.\\n\\n" +
+                "• כפתור החזרה לראש הרשימה הוקטן ב־50%, כולל החץ, בלי לשנות את מיקומו.\\n\\n" +
+                "• כרטיסי המוצרים שומרים על רוחב העמודה גם כשנותרים מקומות ריקים בסוף שורה; כרטיס בודד כבר לא נמתח על כל הרוחב.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -3207,17 +3207,17 @@ public class MainActivity extends Activity {
                 super.onDraw(canvas);
                 arrowPaint.setColor(Color.WHITE);
                 arrowPaint.setStyle(Paint.Style.STROKE);
-                arrowPaint.setStrokeWidth(dp(6));
+                arrowPaint.setStrokeWidth(dp(3));
                 arrowPaint.setStrokeCap(Paint.Cap.ROUND);
                 arrowPaint.setStrokeJoin(Paint.Join.ROUND);
                 float cx = getWidth() / 2f;
                 float cy = getHeight() / 2f - dp(1);
                 Path arrow = new Path();
-                arrow.moveTo(cx, cy + dp(16));
-                arrow.lineTo(cx, cy - dp(13));
-                arrow.moveTo(cx - dp(15), cy + dp(2));
-                arrow.lineTo(cx, cy - dp(14));
-                arrow.lineTo(cx + dp(15), cy + dp(2));
+                arrow.moveTo(cx, cy + dp(8));
+                arrow.lineTo(cx, cy - dp(6));
+                arrow.moveTo(cx - dp(7), cy + dp(1));
+                arrow.lineTo(cx, cy - dp(7));
+                arrow.lineTo(cx + dp(7), cy + dp(1));
                 canvas.drawPath(arrow, arrowPaint);
             }
         };
@@ -3232,7 +3232,7 @@ public class MainActivity extends Activity {
             productList.setSelectionFromTop(0, 0);
         });
         // Keep a clear gap from the screen edge and avoid pinning the control in the left corner.
-        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM | Gravity.RIGHT);
+        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.BOTTOM | Gravity.RIGHT);
         floatingTopLp.setMargins(0, 0, dp(18), dp(18));
         productArea.addView(floatingTopButton, floatingTopLp);
         ViewGroup parent = (ViewGroup) scrollView.getParent();
@@ -3561,7 +3561,8 @@ public class MainActivity extends Activity {
                     holders[i].card.setVisibility(View.VISIBLE);
                     holders[i].bind(products[i]);
                 } else {
-                    holders[i].card.setVisibility(View.GONE);
+                    // Keep an empty grid slot so the remaining product cards never stretch across the row.
+                    holders[i].card.setVisibility(View.INVISIBLE);
                 }
             }
             return h.row;
