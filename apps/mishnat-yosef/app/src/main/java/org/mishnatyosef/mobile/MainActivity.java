@@ -976,16 +976,22 @@ public class MainActivity extends Activity {
         root.addView(versionView, lp(-1, -2, 0, 16));
     }
 
+    // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md
+    // whenever an app update changes user-visible behavior.
     private void addWhatsNewEntry() {
+        final String whatsNewTitle = "שיפור כפתור האיסוף והחזרה לראש הרשימה";
+        final String whatsNewSummary = "בעדכון האחרון: אייקון איסוף גדול וברור יותר, וכפתור כתום שמגליל בצורה חלקה לראש הרשימה.";
+        final String whatsNewDetails =
+                "• אייקון האיסוף המרכזי הוגדל ל־46dp ועובי הקו הוגדל; הכיתוב «איסוף» מופיע מתחתיו.\n\n" +
+                "• כפתור החזרה לראש הרשימה עוצב כריבוע כתום עם פינות מעוגלות וחץ לבן מודגש.\n\n" +
+                "• הלחיצה על הכפתור גוללת לראש הרשימה בהחלקה חלקה שאורכת כ־850 אלפיות השנייה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
-        whatsNewCard.addView(muted("השינוי האחרון: כפתור למחיקת החיפוש ויציאה מהחיפוש בלחיצה מחוץ לתיבה.", 13));
+        whatsNewCard.addView(muted(whatsNewSummary, 13));
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
         open.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("✨ מה חדש במשנת יוסף")
-                .setMessage(
-                        "• נוסף כפתור × קטן בקצה תיבת החיפוש למחיקת כל הטקסט בבת אחת.\n\n" +
-                        "• לחיצה בכל מקום אחר במסך יוצאת ממצב החיפוש ומסתירה את המקלדת, בלי לבטל את הלחיצה על מה שבחרת.")
+                .setMessage(whatsNewTitle + "\n\n" + whatsNewDetails)
                 .setPositiveButton("הבנתי", null)
                 .show());
         whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
