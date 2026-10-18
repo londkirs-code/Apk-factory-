@@ -3235,7 +3235,7 @@ public class MainActivity extends Activity {
         if (!collectMode) cp.setMarginStart(dp(8));
         modes.addView(collect, cp);
         TextView summaryActions = btn("⋯", TONAL);
-        summaryActions.setOnClickListener(v -> showOrderActions());
+        summaryActions.setOnClickListener(v -> showOrderQuickMenu());
         LinearLayout.LayoutParams sap = new LinearLayout.LayoutParams(dp(52), dp(44));
         sap.setMarginStart(dp(8));
         modes.addView(summaryActions, sap);
