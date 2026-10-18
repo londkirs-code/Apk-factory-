@@ -251,7 +251,7 @@ public class MainActivity extends Activity {
                         ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
             }
             if ("nightModeToggle".equals(textView.getTag())) {
-                textView.setText(nightMode ? "☀️" : "🌙");
+                textView.setText(nightToggleLabel());
                 textView.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
                 textView.setTextColor(Color.BLACK);
                 textView.setBackground(ripple(nightToggleBackground(), 15));
@@ -782,10 +782,16 @@ public class MainActivity extends Activity {
         return g;
     }
 
+    private String nightToggleLabel() {
+        // The label describes the mode the button will switch TO.
+        return nightMode ? "☀️ יום" : "🌙 לילה";
+    }
+
     private GradientDrawable nightToggleBackground() {
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.WHITE);
-        background.setCornerRadius(dp(15));
+        GradientDrawable background = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] { Color.rgb(255, 255, 250), Color.WHITE });
+        background.setCornerRadius(dp(18));
         background.setStroke(dp(3), Color.BLACK);
         return background;
     }
@@ -1194,17 +1200,20 @@ public class MainActivity extends Activity {
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView nightToggle = text(nightMode ? "☀️" : "🌙", 22, true);
+        TextView nightToggle = text(nightToggleLabel(), 13, true);
         nightToggle.setTextColor(Color.WHITE);
         nightToggle.setGravity(Gravity.CENTER);
         nightToggle.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
         nightToggle.setTag("nightModeToggle");
-        // White toggle with a thick black outline, kept legible in either theme.
+        // High-contrast capsule: icon + explicit target mode, with a bold outline.
         nightToggle.setTextColor(Color.BLACK);
-        nightToggle.setBackground(ripple(nightToggleBackground(), 15));
-        nightToggle.setElevation(dp(2));
+        nightToggle.setSingleLine(true);
+        nightToggle.setIncludeFontPadding(false);
+        nightToggle.setPadding(dp(7), 0, dp(7), 0);
+        nightToggle.setBackground(ripple(nightToggleBackground(), 18));
+        nightToggle.setElevation(dp(4));
         nightToggle.setOnClickListener(v -> toggleNightMode());
-        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(35), dp(32));
+        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(78), dp(36));
         nightToggleParams.leftMargin = dp(8);
         header.addView(nightToggle, nightToggleParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
