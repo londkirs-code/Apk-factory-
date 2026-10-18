@@ -3244,7 +3244,7 @@ public class MainActivity extends Activity {
     }
 
     private String safeName(String name) {
-        String n = (name == null ? "" : name).replaceAll("[\\\\/:*?\"<>|\\r\\n\\t]+", " ").replaceAll("\\s+", " ").trim();
+        String n = (name == null ? "" : name).replaceAll("[\\\\/:*?\"<>|\\r\n\\t]+", " ").replaceAll("\\s+", " ").trim();
         if (n.length() > 80) n = n.substring(0, 80).trim();
         return n.isEmpty() ? "הזמנה" : n;
     }
@@ -3418,7 +3418,7 @@ public class MainActivity extends Activity {
                 }
             }
         } else {
-            for (String rawLine : raw.split("\\r?\\n")) {
+            for (String rawLine : raw.split("\\r?\n")) {
                 String line = rawLine.trim();
                 if (line.isEmpty() || line.startsWith("#")) continue;
                 int bar = line.lastIndexOf('|');
@@ -4292,9 +4292,9 @@ public class MainActivity extends Activity {
         long lastCheck = prefs.getLong("app_update_last_check_time", 0L);
         String lastCheckText = lastCheck > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("he", "IL")).format(new Date(lastCheck)) : "אין עדיין";
         TextView updateInfo = muted("גרסה מותקנת: " + installedVersion
-                + "\\nגרסה אחרונה ב-GitHub: " + latestVersion
-                + "\\nמצב: " + updateStatus
-                + "\\nבדיקה אחרונה: " + lastCheckText, 13);
+                + "\nגרסה אחרונה ב-GitHub: " + latestVersion
+                + "\nמצב: " + updateStatus
+                + "\nבדיקה אחרונה: " + lastCheckText, 13);
         updateInfo.setSingleLine(false);
         updateInfo.setMaxLines(6);
         card.addView(updateInfo, lp(-1, -2, 0, 12));
