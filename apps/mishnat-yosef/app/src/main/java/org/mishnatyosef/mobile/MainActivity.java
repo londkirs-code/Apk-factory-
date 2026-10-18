@@ -1359,13 +1359,12 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "צבעי חלונות וכפתורים תואמים להגדרות";
-        final String whatsNewSummary = "חלונות בצבע רקע ההגדרות, כפתורי פעולה כתומים ובהירים וקומפקטיים יותר, וסימון מכירות בכתום בהיסטוריה.";
+        final String whatsNewTitle = "כותרות גדולות יותר ומעבר מהיר למצב לילה";
+        final String whatsNewSummary = "כותרת המסך העליונה הוגדלה ב־50%, ונוסף כפתור מצב לילה קבוע בכותרת.";
         final String whatsNewDetails =
-                "• חלונות ותפריטי בחירה מקבלים רקע התואם למסך ההגדרות, עם פינות מעוגלות.\\n\\n" +
-                "• כפתורי אישור וביטול קטנים יותר, מרוחקים מהקצוות ובצבע הכתום הבהיר של כפתורי ההגדרות.\\n\\n" +
-                "• שם המכירה בכל כרטיס ברשימת ההיסטוריה מסומן תמיד בכתום, בלי תלות בפרטי ההזמנה.\\n\\n" +
-                "• כותרות, הודעות, רשימות בחירה ושדות קלט ממשיכים להתאים לקריאות ולמצב לילה.";
+                "• כותרת המסך העליונה גדלה מ־16sp ל־24sp, כדי שיהיה קל יותר לקרוא אותה.\\n\\n" +
+                "• כפתור שמש/ירח מופיע בכותרת בכל מסך ומאפשר לעבור בין מצב יום למצב לילה.\\n\\n" +
+                "• נשמרו גם שיפורי העיצוב הקודמים: חלונות בצבע רקע ההגדרות, כפתורים כתומים קומפקטיים וסימון מכירות בכתום בהיסטוריה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
