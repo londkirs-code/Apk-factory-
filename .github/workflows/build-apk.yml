@@ -32,6 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # A queued build must use the latest branch tip, not an older push's commit.
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
@@ -165,13 +167,32 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Commit APKs and version updates
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apps/ downloads/
           if ! git diff --cached --quiet; then
             git commit -m "Build: update APKs and version codes"
-            git push
+            # Another push can land while Gradle is building. Rebase and retry
+            # rather than failing immediately with a non-fast-forward rejection.
+            for attempt in 1 2 3 4 5; do
+              git fetch origin "$GITHUB_REF_NAME"
+              if ! git rebase "origin/$GITHUB_REF_NAME"; then
+                git rebase --abort || true
+                echo "::error::Could not rebase APK/version update onto the latest branch. Re-run the build from the latest commit."
+                exit 1
+              fi
+              if git push origin "HEAD:$GITHUB_REF_NAME"; then
+                echo "APK and version updates pushed successfully."
+                exit 0
+              fi
+              echo "Push attempt $attempt failed; retrying after refreshing the branch."
+              sleep $((attempt * 2))
+            done
+            echo "::error::Could not push APK/version updates after 5 attempts."
+            exit 1
           fi
 
       - name: Notify the triggering GitHub account
