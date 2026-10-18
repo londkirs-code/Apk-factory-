@@ -4286,6 +4286,7 @@ public class MainActivity extends Activity {
         card.addView(sectionTitle("מידע על העדכון"));
         String installedVersion = "לא ידוע";
         try { installedVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
+        final String installedVersionDisplay = installedVersion;
         String latestVersion = prefs.getString("app_update_latest_version", "");
         if (latestVersion.isEmpty()) latestVersion = "עדיין לא נבדקה";
         String updateStatus = prefs.getString("app_update_status", "טרם בוצעה בדיקת עדכונים");
@@ -4306,7 +4307,7 @@ public class MainActivity extends Activity {
                 String statusNow = prefs.getString("app_update_status", "טרם בוצעה בדיקת עדכונים");
                 long checkedNow = prefs.getLong("app_update_last_check_time", 0L);
                 String checkedTextNow = checkedNow > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("he", "IL")).format(new Date(checkedNow)) : "אין עדיין";
-                updateInfo.setText("גרסה מותקנת: " + installedVersion
+                updateInfo.setText("גרסה מותקנת: " + installedVersionDisplay
                         + "\\nגרסה אחרונה ב-GitHub: " + latestNow
                         + "\\nמצב: " + statusNow
                         + "\\nבדיקה אחרונה: " + checkedTextNow);
