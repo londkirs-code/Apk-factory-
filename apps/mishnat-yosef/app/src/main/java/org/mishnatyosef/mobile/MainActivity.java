@@ -283,20 +283,6 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        // Reset the "don't show again" choice whenever a new app version is installed.
-        String installedVersion = "unknown";
-        try {
-            android.content.pm.PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-            long versionCode = Build.VERSION.SDK_INT >= 28 ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
-            installedVersion = packageInfo.versionName + ":" + versionCode;
-        } catch (PackageManager.NameNotFoundException ignored) { }
-        String previousVersion = prefs.getString("order_notice_version", "");
-        if (!installedVersion.equals(previousVersion)) {
-            prefs.edit()
-                    .remove("skip_order_notice")
-                    .putString("order_notice_version", installedVersion)
-                    .apply();
-        }
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
@@ -2357,13 +2343,28 @@ public class MainActivity extends Activity {
     private boolean orderNoticeDialogVisible = false;
     private boolean orderNoticePending = false;
 
-    /** Explains that quantity changes are sent directly to the server. This dialog is non-blocking for product loading. */
+    /** Version-scoped preference: each new app version can show this notice once again. */
+    private String orderNoticeVersionKey() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            long code = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+            return String.valueOf(info.versionName) + ":" + code;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return "unknown";
+        }
+    }
+
+    /** Show only after the order screen has been laid out; never tie this to product refreshes. */
     private void showOrderEntryNoticeIfNeeded() {
-        if (prefs == null || prefs.getBoolean("skip_order_notice", false) || orderNoticeDialogVisible) return;
+        if (prefs == null || orderNoticeDialogVisible || screenKind != 1 || isFinishing()) return;
+        final String versionKey = orderNoticeVersionKey();
+        if (versionKey.equals(prefs.getString("skip_order_notice_version", ""))) return;
+
         CheckBox dontShowAgain = new CheckBox(this);
         dontShowAgain.setText("אל תציג הודעה זו שוב");
         dontShowAgain.setTextSize(14);
         dontShowAgain.setTextColor(INK);
+
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(20), dp(8), dp(20), dp(4));
@@ -2374,13 +2375,16 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams checkLp = new LinearLayout.LayoutParams(-1, -2);
         checkLp.topMargin = dp(10);
         panel.addView(dontShowAgain, checkLp);
+
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("עדכון כמויות בהזמנה")
                 .setView(panel)
                 .setPositiveButton("הבנתי", null)
                 .create();
         dialog.setOnDismissListener(d -> {
-            if (dontShowAgain.isChecked()) prefs.edit().putBoolean("skip_order_notice", true).apply();
+            if (dontShowAgain.isChecked() && prefs != null) {
+                prefs.edit().putString("skip_order_notice_version", versionKey).apply();
+            }
             orderNoticeDialogVisible = false;
         });
         orderNoticeDialogVisible = true;
@@ -2598,15 +2602,60 @@ public class MainActivity extends Activity {
         beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? historyTab : 0, productsBack);
         screenKind = 1;
 
-        // sticky top: search, quick buttons, loading line and the category strip
+        // Fixed header: category chips first, then a compact search/order-summary row.
         LinearLayout topBox = new LinearLayout(this);
         topBox.setOrientation(LinearLayout.VERTICAL);
+
+        catStripScroll = new HorizontalScrollView(this);
+        catStripScroll.setHorizontalScrollBarEnabled(false);
+        catStripScroll.setBackgroundColor(Color.WHITE);
+        catStripScroll.setPadding(dp(8), dp(5), dp(8), dp(5));
+        catStripRow = new LinearLayout(this);
+        catStripRow.setGravity(Gravity.CENTER_VERTICAL);
+        catStripScroll.addView(catStripRow);
+        topBox.addView(catStripScroll, new LinearLayout.LayoutParams(-1, -2));
+
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.setPadding(dp(14), dp(8), dp(14), dp(4));
-        EditText search = field("חיפוש מוצר…", InputType.TYPE_CLASS_TEXT);
+        toolbar.setPadding(dp(8), dp(5), dp(8), dp(5));
+
+        EditText search = field("⌕", InputType.TYPE_CLASS_TEXT);
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setText(filterText);
+        search.setTextSize(16);
+        search.setGravity(Gravity.CENTER);
+        search.setPadding(dp(5), 0, dp(5), 0);
+        search.setHint("⌕");
+        final LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(dp(42), dp(40));
+        search.setOnClickListener(v -> {
+            searchLp.width = dp(108);
+            search.setLayoutParams(searchLp);
+            search.setHint("חיפוש מוצר…");
+            search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            search.setTextSize(14);
+            search.setPadding(dp(9), 0, dp(9), 0);
+            search.requestFocus();
+            search.post(() -> {
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT);
+            });
+        });
+        search.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                searchLp.width = dp(108);
+                search.setHint("חיפוש מוצר…");
+                search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+                search.setTextSize(14);
+                search.setPadding(dp(9), 0, dp(9), 0);
+            } else if (search.getText().length() == 0) {
+                searchLp.width = dp(42);
+                search.setLayoutParams(searchLp);
+                search.setHint("⌕");
+                search.setGravity(Gravity.CENTER);
+                search.setTextSize(16);
+                search.setPadding(dp(5), 0, dp(5), 0);
+            }
+        });
         final Runnable[] debounce = new Runnable[1];
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
@@ -2618,38 +2667,45 @@ public class MainActivity extends Activity {
                 ui.postDelayed(debounce[0], 250);
             }
         });
-        search.setOnEditorActionListener((v, actionId, event) -> { hideKeyboard(); return true; });
-        toolbar.addView(search, new LinearLayout.LayoutParams(0, dp(46), 1));
-        TextView infoBtn = roundBtn("ℹ", 42, ORANGE_LIGHT, ORANGE_DARK);
-        infoBtn.setOnClickListener(v -> showSaleDetails(featureSale));
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(42), dp(42));
-        ip.setMarginStart(dp(8));
-        if (!summaryFromHistory) toolbar.addView(infoBtn, ip);
-        TextView refreshBtn = roundBtn("↻", 42, ORANGE_LIGHT, ORANGE_DARK);
-        refreshBtn.setOnClickListener(v -> refreshProducts(featureSale, false));
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(42), dp(42));
-        rp.setMarginStart(dp(8));
-        if (!summaryFromHistory) toolbar.addView(refreshBtn, rp);
-        TextView actionsBtn = roundBtn("⋯", 42, ORANGE_LIGHT, ORANGE_DARK);
-        actionsBtn.setOnClickListener(v -> showOrderActions());
-        LinearLayout.LayoutParams ap0 = new LinearLayout.LayoutParams(dp(42), dp(42));
-        ap0.setMarginStart(dp(8));
-        toolbar.addView(actionsBtn, ap0);
-        topBox.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
+        search.setOnEditorActionListener((v, actionId, event) -> { hideKeyboard(); search.clearFocus(); return true; });
+        toolbar.addView(search, searchLp);
 
-        statusView = muted("", 12); // the loading / offline line lives up here, the list below is virtualised
-        statusView.setPadding(dp(16), dp(2), dp(16), dp(4));
+        LinearLayout orderText = new LinearLayout(this);
+        orderText.setOrientation(LinearLayout.VERTICAL);
+        orderText.setGravity(Gravity.CENTER_VERTICAL);
+        orderText.setPadding(dp(3), 0, dp(3), 0);
+        barInfo = text("", 10, false);
+        barInfo.setSingleLine(true);
+        barInfo.setEllipsize(TextUtils.TruncateAt.END);
+        barTotal = text("", 12, true);
+        barTotal.setSingleLine(true);
+        barTotal.setEllipsize(TextUtils.TruncateAt.END);
+        orderText.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
+        orderText.addView(barTotal, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(0, -2, 1);
+        orderTextLp.setMarginStart(dp(4));
+        toolbar.addView(orderText, orderTextLp);
+
+        TextView open = btn("ההזמנה שלי", PRIMARY);
+        open.setTextSize(12);
+        open.setPadding(dp(7), 0, dp(7), 0);
+        open.setMaxLines(1);
+        open.setOnClickListener(v -> showOrderSummary());
+        LinearLayout.LayoutParams openLp = new LinearLayout.LayoutParams(-2, dp(40));
+        openLp.setMarginStart(dp(4));
+        toolbar.addView(open, openLp);
+
+        TextView optionsBtn = roundBtn("⋯", 36, ORANGE_LIGHT, ORANGE_DARK);
+        optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
+        LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(36), dp(40));
+        optionsLp.setMarginStart(dp(4));
+        toolbar.addView(optionsBtn, optionsLp);
+
+        statusView = muted("", 12); // loading/offline state stays in the fixed header, below search
+        statusView.setPadding(dp(12), dp(1), dp(12), dp(3));
         statusView.setVisibility(View.GONE);
+        topBox.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
         topBox.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
-
-        catStripScroll = new HorizontalScrollView(this);
-        catStripScroll.setHorizontalScrollBarEnabled(false);
-        catStripScroll.setBackgroundColor(Color.WHITE);
-        catStripScroll.setPadding(dp(8), dp(6), dp(8), dp(6));
-        catStripRow = new LinearLayout(this);
-        catStripRow.setGravity(Gravity.CENTER_VERTICAL);
-        catStripScroll.addView(catStripRow);
-        topBox.addView(catStripScroll, new LinearLayout.LayoutParams(-1, -2));
         topHolder.addView(topBox);
 
         // the product list: only the rows on screen exist as views, and they are recycled while scrolling
@@ -2671,29 +2727,20 @@ public class MainActivity extends Activity {
         parent.removeViewAt(at);
         parent.addView(productList, at, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        // sticky order bar
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Color.WHITE);
-        bar.setElevation(dp(10));
-        bar.setPadding(dp(14), dp(8), dp(14), dp(8));
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        barTotal = text("", 16, true);
-        barTotal.setTextColor(ORANGE_DARK);
-        barInfo = muted("", 12);
-        texts.addView(barTotal);
-        texts.addView(barInfo);
-        bar.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView open = btn("ההזמנה שלי  ‹", PRIMARY);
-        open.setOnClickListener(v -> showOrderSummary());
-        bar.addView(open, new LinearLayout.LayoutParams(-2, dp(46)));
-        bottomHolder.addView(bar);
+        // Order summary now lives beside search in the fixed header, so no duplicate bottom bar.
+        bottomHolder.setVisibility(View.GONE);
 
         rebuildGrid(true);
         updateOrderBar();
         if (productsLoading) setStatus("טוען מוצרים…");
+        if (orderNoticePending) {
+            orderNoticePending = false;
+            final int noticeScreenToken = screenToken;
+            topHolder.post(() -> {
+                if (screenToken != noticeScreenToken || screenKind != 1 || isFinishing()) return;
+                if (Build.VERSION.SDK_INT < 17 || !isDestroyed()) showOrderEntryNoticeIfNeeded();
+            });
+        }
     }
 
     private void rebuildGrid() { rebuildGrid(false); }
@@ -4253,6 +4300,22 @@ public class MainActivity extends Activity {
     }
 
     // ======================================================================== order actions menu
+
+    private void showOrderQuickMenu() {
+        final List<String> labels = new ArrayList<>();
+        if (!summaryFromHistory) {
+            labels.add("פרטי המכירה");
+            labels.add("רענון מוצרים");
+        }
+        labels.add("פעולות הזמנה");
+        new AlertDialog.Builder(this).setTitle("אפשרויות")
+                .setItems(labels.toArray(new String[0]), (d, which) -> {
+                    String selected = labels.get(which);
+                    if ("פרטי המכירה".equals(selected)) showSaleDetails(featureSale);
+                    else if ("רענון מוצרים".equals(selected)) refreshProducts(featureSale, false);
+                    else showOrderActions();
+                }).show();
+    }
 
     private void showOrderActions() {
         if (featureOrderId <= 0) { toast("לא נמצאה הזמנה", false); return; }
