@@ -1180,7 +1180,7 @@ public class MainActivity extends Activity {
         final Stepper st = stepper(42);
         st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(120), dp(42)));
         st.qty.setTextSize(15);
-        final int[] quick = {60, 120, 180, 360, 720, 1440};
+        final int[] quick = {60, 120, 180, 360, 480, 600, 720, 1440};
         final TextView[] chips = new TextView[quick.length];
         final Runnable[] commit = new Runnable[1];
         commit[0] = () -> {
