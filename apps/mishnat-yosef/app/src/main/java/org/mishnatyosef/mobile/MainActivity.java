@@ -163,7 +163,7 @@ public class MainActivity extends Activity {
     private static final int REQ_EXPORT = 7101, REQ_IMPORT = 7102;
     private final List<String> apiLog = Collections.synchronizedList(new ArrayList<String>());
     private boolean refreshDead = false;
-    private FrameLayout topHolder;
+    private LinearLayout topHolder;
     private LinearLayout catStripRow;
     private HorizontalScrollView catStripScroll;
     private final Map<String, View> catHeaders = new LinkedHashMap<>();
@@ -684,8 +684,9 @@ public class MainActivity extends Activity {
         titles.addView(head);
         header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
-        topHolder = new FrameLayout(this);
-        // Keep the category strip above the scrolling product list.
+        topHolder = new LinearLayout(this);
+        topHolder.setOrientation(LinearLayout.VERTICAL);
+        // Keep search, filters, categories and quick navigation above the scrolling product list.
         topHolder.setBackgroundColor(Color.WHITE);
         topHolder.setElevation(dp(12));
         topHolder.setClipChildren(false);
