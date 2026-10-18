@@ -1560,6 +1560,16 @@ public class MainActivity extends Activity {
 
     private boolean isSoldOut(JSONObject p) { return numericAvailable(p) == 0; }
 
+    /** max_per_man: the most a single customer may order of this item (0 = no limit). */
+    private int maxPerMan(JSONObject p) {
+        if (p == null) return 0;
+        double v = num(p.opt("max_per_man"));
+        if (v <= 0) v = num(productOf(p) == null ? null : productOf(p).opt("max_per_man"));
+        return v > 0 ? (int) Math.round(v) : 0;
+    }
+
+    private boolean showMax() { return prefs.getBoolean("show_max", true); }
+
     /** "רשת כ-2 ק"ג", "שק 5 ק"ג", "יחידה"... */
     private String packageText(JSONObject p) {
         String kind = nameOf(p, "item_type"), unit = nameOf(p, "item_unit");
@@ -2217,6 +2227,12 @@ public class MainActivity extends Activity {
         TextView priceView = text(price > 0 ? money(price) : "—", 15, true);
         priceView.setTextColor(ORANGE_DARK);
         card.addView(priceView);
+        int mx = maxPerMan(p);
+        if (showMax() && mx > 0) {
+            TextView mxView = text("עד " + mx + " לאדם", 11, true);
+            mxView.setTextColor(ORANGE_DARK);
+            card.addView(mxView);
+        }
         int savedQ = favSavedQty(pidOf(p));
         if (savedQ > 0 && favIds.contains(pidOf(p))) card.addView(muted("📌 כמות שמורה ×" + savedQ, 10));
         String unitPrice = unitPriceText(p);
@@ -2269,6 +2285,8 @@ public class MainActivity extends Activity {
             if (truthy(p.opt("disable")) || isSoldOut(p)) { toast("המוצר אינו זמין כרגע", false); return; }
             double stock = numericAvailable(p);
             if (stock >= 0 && next > stock) { toast("נותרו במלאי " + (long) stock + " יחידות בלבד", false); return; }
+            int mxLimit = maxPerMan(p);
+            if (showMax() && mxLimit > 0 && next > mxLimit) { toast("מקסימום " + mxLimit + " לאדם: " + productName(p), true); return; }
         }
         setItemAmount(p, next, refresh, onSuccess);
     }
@@ -2358,6 +2376,7 @@ public class MainActivity extends Activity {
         if (!line.trim().isEmpty()) panel.addView(text(line, 14, true));
         if (!unitPriceText(p).isEmpty()) panel.addView(muted(unitPriceText(p), 12));
         if (isSoldOut(p)) panel.addView(text("⛔ אזל מהמלאי", 13, true));
+        if (showMax() && maxPerMan(p) > 0) panel.addView(text("מקסימום לאדם: " + maxPerMan(p), 13, true));
 
         String[][] blocks = {
                 {"", cleanHtml(first(prod, "description"))},
@@ -2656,6 +2675,12 @@ public class MainActivity extends Activity {
         col.addView(name);
         String pack = packageText(line.raw);
         col.addView(muted((line.price > 0 ? money(line.price) + " ליחידה" : "") + (pack.isEmpty() ? "" : (line.price > 0 ? " · " : "") + pack), 12));
+        int mxRow = maxPerMan(p);
+        if (showMax() && mxRow > 0) {
+            TextView mxView = text("עד " + mxRow + " לאדם", 11, true);
+            mxView.setTextColor(ORANGE_DARK);
+            col.addView(mxView);
+        }
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setGravity(Gravity.CENTER_VERTICAL);
@@ -3436,6 +3461,8 @@ public class MainActivity extends Activity {
                 if (truthy(p.opt("disable"))) { blocked.add(name + ": לא זמין"); continue; }
                 if (isSoldOut(p)) { blocked.add(name + ": אזל"); continue; }
             }
+            int mxImport = maxPerMan(p);
+            if (showMax() && mxImport > 0 && amount > mxImport) { blocked.add(name + ": מעל המקסימום לאדם (" + mxImport + ")"); continue; }
             PlanItem pi = new PlanItem();
             pi.p = p;
             pi.name = name;
@@ -3643,6 +3670,8 @@ public class MainActivity extends Activity {
                         if (truthy(p.opt("disable")) || isSoldOut(p)) { toast("המוצר אינו זמין כרגע", false); return; }
                         double stock = numericAvailable(p);
                         if (stock >= 0 && n > stock) { toast("נותרו במלאי " + (long) stock + " יחידות בלבד", false); return; }
+                        int mxLimit = maxPerMan(p);
+                        if (showMax() && mxLimit > 0 && n > mxLimit) { toast("מקסימום " + mxLimit + " לאדם: " + productName(p), true); return; }
                     }
                     setItemAmount(p, n, refresh, onSuccess);
                 }).show();
@@ -3769,6 +3798,8 @@ public class MainActivity extends Activity {
             if (truthy(p.opt("disable")) || isSoldOut(p)) continue;
             int q = favSavedQty(pid);
             if (q > 0) savedCount++; else q = 1;
+            int mxFav = maxPerMan(p);
+            if (showMax() && mxFav > 0 && q > mxFav) q = mxFav;
             PlanItem pi = new PlanItem();
             pi.p = p;
             pi.name = productName(p);
@@ -4182,6 +4213,10 @@ public class MainActivity extends Activity {
             } else {
                 showMathChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
             }
+        }));
+        card.addView(switchRow("הצגת מקסימום לאדם", "כתיבת \"עד N לאדם\" על כל פריט, וחסימת כמות מעל המקסימום", showMax(), (b, checked) -> {
+            prefs.edit().putBoolean("show_max", checked).apply();
+            toast(checked ? "🔢 המקסימום לאדם מוצג" : "המקסימום לאדם מוסתר", false);
         }));
         card.addView(switchRow("תמונות מלאות", "טעינת התמונה המקורית במקום תמונה ממוזערת. איטי יותר, אבל לא חתוך", fullImages(), (b, checked) -> {
             prefs.edit().putBoolean("full_images", checked).apply();
