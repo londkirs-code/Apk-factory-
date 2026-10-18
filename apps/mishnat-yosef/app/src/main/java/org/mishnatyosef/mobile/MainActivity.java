@@ -465,6 +465,18 @@ public class MainActivity extends Activity {
         return new AppDialogBuilder();
     }
 
+    private final class AppTimePickerDialog extends TimePickerDialog {
+        AppTimePickerDialog(OnTimeSetListener listener, int hour, int minute, boolean is24HourView) {
+            super(MainActivity.this, listener, hour, minute, is24HourView);
+        }
+
+        @Override
+        public void show() {
+            super.show();
+            styleAppDialog(this);
+        }
+    }
+
     private final class AppDialogBuilder extends AlertDialog.Builder {
         AppDialogBuilder() {
             super(MainActivity.this);
@@ -482,7 +494,6 @@ public class MainActivity extends Activity {
         if (dialog == null) return;
         final int panelColor = SURFACE;
         final int textColor = INK;
-        final int mutedColor = MUTED;
         android.view.Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawable(shape(panelColor, 24, LINE));
@@ -492,7 +503,7 @@ public class MainActivity extends Activity {
             window.setLayout(Math.max(dp(280), width), -2);
         }
 
-        TextView title = dialog.findViewById(androidxResourceIdAlertTitle());
+        TextView title = dialog.findViewById(android.R.id.alertTitle);
         if (title != null) {
             title.setTextColor(textColor);
             title.setTextSize(19);
@@ -532,9 +543,6 @@ public class MainActivity extends Activity {
         styleDialogInputs(dialog.getWindow() == null ? null : dialog.getWindow().getDecorView());
     }
 
-    private int androidxResourceIdAlertTitle() {
-        return getResources().getIdentifier("alertTitle", "id", "android");
-    }
 
     private void styleDialogButtons(AlertDialog dialog) {
         int[] ids = {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL};
@@ -1574,7 +1582,7 @@ public class MainActivity extends Activity {
             String[] parts = prefs.getString(timeKey, timeDefault).split(":");
             int h = 0, m = 0;
             try { h = Integer.parseInt(parts[0]); m = Integer.parseInt(parts[1]); } catch (Exception ignored) { }
-            new TimePickerDialog(this, (picker, hh, mm) -> {
+            new AppTimePickerDialog( (picker, hh, mm) -> {
                 String t = String.format(Locale.US, "%02d:%02d", hh, mm);
                 prefs.edit().putString(timeKey, t).apply();
                 timeChip.setText(t);
