@@ -683,6 +683,9 @@ public class MainActivity extends Activity {
         header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
         topHolder = new FrameLayout(this);
+        // Keep the category strip above the scrolling product list.
+        topHolder.setElevation(dp(12));
+        topHolder.setClipChildren(false);
         screen.addView(topHolder, new LinearLayout.LayoutParams(-1, -2));
         catStripRow = null;
         catStripScroll = null;
