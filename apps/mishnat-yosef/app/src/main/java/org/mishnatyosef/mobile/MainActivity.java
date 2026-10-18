@@ -146,6 +146,8 @@ public class MainActivity extends Activity {
     private boolean busy = false;
     private Runnable backAction = null;
     private int screenToken = 0;
+    private EditText activeProductSearch;
+    private View productSearchClearButton;
 
     // ---- ordering state
     private JSONObject featureSale = null;
@@ -278,6 +280,31 @@ public class MainActivity extends Activity {
         config.setLocale(hebrew);
         config.setLayoutDirection(hebrew);
         super.attachBaseContext(base.createConfigurationContext(config));
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN
+                && screenKind == 1
+                && activeProductSearch != null
+                && activeProductSearch.isShown()
+                && activeProductSearch.hasFocus()
+                && !isTouchInsideView(activeProductSearch, event)
+                && !isTouchInsideView(productSearchClearButton, event)) {
+            hideKeyboard();
+            activeProductSearch.clearFocus();
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
+    private boolean isTouchInsideView(View view, android.view.MotionEvent event) {
+        if (view == null || view.getVisibility() != View.VISIBLE || !view.isShown()) return false;
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        float x = event.getRawX();
+        float y = event.getRawY();
+        return x >= location[0] && x < location[0] + view.getWidth()
+                && y >= location[1] && y < location[1] + view.getHeight();
     }
 
     @Override public void onCreate(Bundle state) {
@@ -913,13 +940,13 @@ public class MainActivity extends Activity {
     private void addWhatsNewEntry() {
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
-        whatsNewCard.addView(muted("השינוי האחרון: סיכום הזמנה רחב יותר וחיפוש שמתרחב על כל השורה בלחיצה.", 13));
+        whatsNewCard.addView(muted("השינוי האחרון: כפתור למחיקת החיפוש ויציאה מהחיפוש בלחיצה מחוץ לתיבה.", 13));
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
         open.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("✨ מה חדש במשנת יוסף")
                 .setMessage(
-                        "• סיכום ההזמנה — מספר המוצרים, היחידות והמחיר הכולל — קיבל פי שניים רוחב.\n\n" +
-                        "• בלחיצה על החיפוש הוא מתרחב לכל רוחב השורה ומסתיר זמנית את יתר הכפתורים; בסיום החיפוש הם חוזרים.")
+                        "• נוסף כפתור × קטן בקצה תיבת החיפוש למחיקת כל הטקסט בבת אחת.\n\n" +
+                        "• לחיצה בכל מקום אחר במסך יוצאת ממצב החיפוש ומסתירה את המקלדת, בלי לבטל את הלחיצה על מה שבחרת.")
                 .setPositiveButton("הבנתי", null)
                 .show());
         whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
@@ -2637,13 +2664,14 @@ public class MainActivity extends Activity {
         toolbar.setPadding(dp(8), dp(5), dp(8), dp(5));
 
         EditText search = field("חיפוש מוצר…", InputType.TYPE_CLASS_TEXT);
+        activeProductSearch = search;
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setText(filterText);
         search.setTextSize(14);
         search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         search.setPadding(dp(9), 0, dp(9), 0);
         search.setHint("חיפוש מוצר…");
-        // The search field takes every pixel left after the fixed navigation/action controls.
+        // The search field shares the row with a compact clear button.
         final LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(0, dp(40), 1f);
         search.setOnClickListener(v -> {
             search.requestFocus();
@@ -2652,11 +2680,30 @@ public class MainActivity extends Activity {
                 if (imm != null) imm.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT);
             });
         });
+        TextView clearSearch = text("×", 22, true);
+        clearSearch.setGravity(Gravity.CENTER);
+        clearSearch.setTextColor(MUTED);
+        clearSearch.setBackground(shape(Color.WHITE, 10, LINE));
+        clearSearch.setContentDescription("מחיקת החיפוש");
+        clearSearch.setVisibility(filterText.isEmpty() ? View.GONE : View.VISIBLE);
+        LinearLayout.LayoutParams clearSearchLp = new LinearLayout.LayoutParams(dp(34), dp(36));
+        clearSearchLp.setMarginStart(dp(3));
+        clearSearch.setOnClickListener(v -> {
+            search.setText("");
+            filterText = "";
+            search.requestFocus();
+            search.post(() -> {
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT);
+            });
+        });
+        productSearchClearButton = clearSearch;
         final Runnable[] debounce = new Runnable[1];
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void afterTextChanged(Editable s) {
+                clearSearch.setVisibility(s.length() == 0 ? View.GONE : View.VISIBLE);
                 if (debounce[0] != null) ui.removeCallbacks(debounce[0]);
                 final String q = s.toString().trim().toLowerCase(Locale.ROOT);
                 debounce[0] = () -> { filterText = q; rebuildGrid(true); };
@@ -2665,6 +2712,7 @@ public class MainActivity extends Activity {
         });
         search.setOnEditorActionListener((v, actionId, event) -> { hideKeyboard(); search.clearFocus(); return true; });
         toolbar.addView(search, searchLp);
+        toolbar.addView(clearSearch, clearSearchLp);
 
         LinearLayout orderText = new LinearLayout(this);
         orderText.setOrientation(LinearLayout.VERTICAL);
@@ -2711,8 +2759,8 @@ public class MainActivity extends Activity {
             orderText.setVisibility(controlsVisibility);
             topBtn.setVisibility(controlsVisibility);
             bottomBtn.setVisibility(controlsVisibility);
-            searchLp.width = hasFocus ? -1 : 0;
-            searchLp.weight = hasFocus ? 0f : 1f;
+            searchLp.width = 0;
+            searchLp.weight = 1f;
             search.setLayoutParams(searchLp);
         });
 
