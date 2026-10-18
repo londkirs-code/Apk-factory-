@@ -1197,12 +1197,12 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "שמירת מצב בכל הכרטיסיות";
-        final String whatsNewSummary = "מעבר בין הכרטיסיות וחזרה שומר את המסך הקודם כפי שהיה — כולל מיקום הגלילה, החיפוש, הסינון והמצב הפתוח.";
+        final String whatsNewTitle = "חץ גדול וברור לראש הרשימה";
+        final String whatsNewSummary = "החץ בכפתור החזרה לראש הרשימה הוגדל מאוד, הקו עובה והוא ממורכז יותר — בלי להגדיל את העיגול.";
         final String whatsNewDetails =
-                "• כל כרטיסייה שומרת את תצוגת המסך עצמה ואת מצב הרכיבים שלה, כך שחוזרים לאותו מיקום ולאותו מצב בלי לבנות מחדש את המסך.\\n\\n" +
-                "• נשמרים גם נתוני המסך בזיכרון, לרבות מיקום רשימת המוצרים, טקסט החיפוש, סינון, עמוד בהיסטוריה ומצב האיסוף.\\n\\n" +
-                "• בחזרה למסך שכבר נפתח לא מתבצעת טעינה מחדש של הנתונים רק בגלל המעבר בין כרטיסיות. פתיחה ראשונה של כרטיסייה ממשיכה לפעול כרגיל.";
+                "• החץ צויר מחדש בצורה גרפית כדי שיהיה גדול ובולט משמעותית, עם קו לבן עבה ומודגש.\\n\\n" +
+                "• העיגול הכתום נשאר באותו גודל ובאותו מיקום.\\n\\n" +
+                "• החץ ממורכז בתוך העיגול וממשיך להופיע רק לאחר גלילה מטה ברשימת המוצרים.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -3191,7 +3191,7 @@ public class MainActivity extends Activity {
         productAdapter = new ProductAdapter();
         productList.setAdapter(productAdapter);
         FrameLayout productArea = new FrameLayout(this);
-        final TextView[] floatingTopButtonRef = new TextView[1];
+        final View[] floatingTopButtonRef = new View[1];
         productList.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView view, int scrollState) { }
             @Override public void onScroll(AbsListView view, int first, int visible, int total) {
@@ -3200,12 +3200,28 @@ public class MainActivity extends Activity {
             }
         });
         productArea.addView(productList, new FrameLayout.LayoutParams(-1, -1));
-        TextView floatingTopButton = roundBtn("↑", 48, ORANGE, Color.WHITE);
+        // Keep the circular button the same size; draw a much larger, heavier arrow inside it.
+        View floatingTopButton = new View(this) {
+            private final Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                arrowPaint.setColor(Color.WHITE);
+                arrowPaint.setStyle(Paint.Style.STROKE);
+                arrowPaint.setStrokeWidth(dp(6));
+                arrowPaint.setStrokeCap(Paint.Cap.ROUND);
+                arrowPaint.setStrokeJoin(Paint.Join.ROUND);
+                float cx = getWidth() / 2f;
+                float cy = getHeight() / 2f - dp(1);
+                Path arrow = new Path();
+                arrow.moveTo(cx, cy + dp(16));
+                arrow.lineTo(cx, cy - dp(13));
+                arrow.moveTo(cx - dp(15), cy + dp(2));
+                arrow.lineTo(cx, cy - dp(14));
+                arrow.lineTo(cx + dp(15), cy + dp(2));
+                canvas.drawPath(arrow, arrowPaint);
+            }
+        };
         floatingTopButtonRef[0] = floatingTopButton;
-        floatingTopButton.setTextSize(31);
-        floatingTopButton.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
-        floatingTopButton.setGravity(Gravity.CENTER);
-        floatingTopButton.setIncludeFontPadding(false);
         floatingTopButton.setContentDescription("חזרה מיידית לראש הרשימה");
         floatingTopButton.setBackground(ripple(shape(ORANGE, 26, ORANGE_DARK), 26));
         floatingTopButton.setElevation(dp(8));
