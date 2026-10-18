@@ -3119,10 +3119,8 @@ public class MainActivity extends Activity {
         edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
         edit.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(edit, collect); });
         collect.setOnClickListener(v -> { collectMode = !collectMode; rebuildSummary(); updateModeButtons(edit, collect); });
-        if (!collectMode) {
-            modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
-        }
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), collectMode ? 1 : 1);
+        modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
         if (!collectMode) cp.setMarginStart(dp(8));
         modes.addView(collect, cp);
         TextView summaryActions = btn("⋯", TONAL);
