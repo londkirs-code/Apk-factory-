@@ -3691,12 +3691,16 @@ public class MainActivity extends Activity {
             h.first.bind(r.a);
             CardHolder[] holders = {h.second, h.third, h.fourth, h.fifth};
             JSONObject[] products = {r.b, r.c, r.d, r.e};
+            int columns = cardColumns();
             for (int i = 0; i < holders.length; i++) {
-                if (products[i] != null) {
+                if (i + 1 >= columns) {
+                    // These cells are outside the selected grid; remove them from layout width.
+                    holders[i].card.setVisibility(View.GONE);
+                } else if (products[i] != null) {
                     holders[i].card.setVisibility(View.VISIBLE);
                     holders[i].bind(products[i]);
                 } else {
-                    // Keep an empty grid slot so the remaining product cards never stretch across the row.
+                    // Preserve only unused slots within the selected column count.
                     holders[i].card.setVisibility(View.INVISIBLE);
                 }
             }
