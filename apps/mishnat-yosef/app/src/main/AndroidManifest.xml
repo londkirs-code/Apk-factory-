@@ -24,6 +24,7 @@
         </activity>
         <service android:name=".UpdateService" android:enabled="true" android:exported="false" />
         <provider android:name=".UpdateApkProvider" android:authorities="org.mishnatyosef.mobile.updatefiles" android:exported="false" android:grantUriPermissions="true" />
+        <provider android:name=".JsonReportProvider" android:authorities="org.mishnatyosef.mobile.jsonreports" android:exported="false" android:grantUriPermissions="true" />
         <receiver android:name=".UpdateBootReceiver" android:enabled="true" android:exported="true">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
         </receiver>
