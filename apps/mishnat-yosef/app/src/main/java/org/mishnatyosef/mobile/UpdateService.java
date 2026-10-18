@@ -102,11 +102,15 @@ public class UpdateService extends Service {
             String downloaded = p.getString("app_update_downloaded_version", "");
             String latest = p.getString("app_update_latest_version", "");
             updateReady = !downloaded.isEmpty() && downloaded.equals(latest) && apk.isFile() && apk.length() > 100000;
-            if (updateReady) {
+            long lastInstallAttempt = p.getLong("app_update_last_install_attempt", 0L);
+            boolean attemptedRecently = System.currentTimeMillis() - lastInstallAttempt < 120000L;
+            if (updateReady && !attemptedRecently) {
                 updateNotification("עדכון " + downloaded + " מוכן — פותח את ההתקנה…", true);
                 if (!launchInstallerNow()) {
                     updateNotification("עדכון " + downloaded + " מוכן — לחץ כאן להתקנה", true);
                 }
+            } else if (updateReady) {
+                updateNotification("עדכון " + downloaded + " מוכן — לחץ כאן להתקנה", true);
             } else {
                 updateNotification("אין כרגע עדכון שהורד ומוכן להתקנה", automatic);
             }
@@ -324,6 +328,8 @@ public class UpdateService extends Service {
             Intent target = installerIntent();
             target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(target);
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putLong("app_update_last_install_attempt", System.currentTimeMillis()).apply();
             return true;
         } catch (Exception ignored) {
             return false; // Android may block background activity launches; the notification remains the fallback.
