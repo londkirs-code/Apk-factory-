@@ -19,5 +19,9 @@ find "apps/$APP_ID" -type f \( -name '*.java' -o -name '*.xml' -o -name '*.gradl
   xargs -0 sed -i "s/com\.example\.myapp/$PACKAGE/g"
 sed -i "s/rootProject.name = \"AndroidApp\"/rootProject.name = \"$APP_ID\"/" "apps/$APP_ID/settings.gradle"
 sed -i "s/My App/$APP_ID/g" "apps/$APP_ID/app/src/main/AndroidManifest.xml"
+# Every new app starts with its own change log, so documentation is part of creation.
+cp templates/APP_CHANGELOG_TEMPLATE.md "apps/$APP_ID/CHANGELOG.md"
+sed -i "s/{{APP_ID}}/$APP_ID/g" "apps/$APP_ID/CHANGELOG.md"
+echo "Created apps/$APP_ID/CHANGELOG.md from the documentation template"
 echo "Created apps/$APP_ID"
 echo "Commit the files, then run Actions → Build Android APKs."
