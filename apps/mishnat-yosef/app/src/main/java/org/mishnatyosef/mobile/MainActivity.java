@@ -642,6 +642,75 @@ public class MainActivity extends Activity {
         return end.getTime() <= System.currentTimeMillis();
     }
 
+    private String featureProductsCacheKey(int saleId) {
+        return "feature_products_cache_" + saleId;
+    }
+
+    private void saveFeatureProductsCache(int saleId) {
+        if (saleId <= 0 || prefs == null) return;
+        try {
+            if (featureProducts.isEmpty()) {
+                prefs.edit().remove(featureProductsCacheKey(saleId)).apply();
+                return;
+            }
+            JSONArray products = new JSONArray();
+            JSONObject quantities = new JSONObject();
+            for (JSONObject product : featureProducts) {
+                String sid = sidOf(product);
+                if (sid.isEmpty()) continue;
+                JSONObject copy = new JSONObject(product.toString());
+                int quantity = featureQuantities.containsKey(sid)
+                        ? featureQuantities.get(sid)
+                        : Math.max(0, (int) Math.round(num(product.opt("amount"))));
+                copy.put("amount", quantity);
+                products.put(copy);
+                quantities.put(sid, quantity);
+            }
+            JSONObject cache = new JSONObject();
+            cache.put("sale_id", saleId);
+            cache.put("saved_at", System.currentTimeMillis());
+            cache.put("products", products);
+            cache.put("quantities", quantities);
+            prefs.edit().putString(featureProductsCacheKey(saleId), cache.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    private boolean loadFeatureProductsCache(int saleId) {
+        if (saleId <= 0 || prefs == null) return false;
+        String raw = prefs.getString(featureProductsCacheKey(saleId), "");
+        if (raw.isEmpty()) return false;
+        try {
+            JSONObject cache = new JSONObject(raw);
+            if (cache.optInt("sale_id", -1) != saleId) return false;
+            JSONArray products = cache.optJSONArray("products");
+            JSONObject quantities = cache.optJSONObject("quantities");
+            if (products == null) return false;
+            List<JSONObject> restoredProducts = new ArrayList<>();
+            Map<String, Integer> restoredQuantities = new LinkedHashMap<>();
+            for (int i = 0; i < products.length(); i++) {
+                JSONObject product = products.optJSONObject(i);
+                if (product == null) continue;
+                String sid = sidOf(product);
+                if (sid.isEmpty() || productName(product).isEmpty()) continue;
+                int quantity = quantities != null && quantities.has(sid)
+                        ? quantities.optInt(sid, 0)
+                        : Math.max(0, (int) Math.round(num(product.opt("amount"))));
+                product.put("amount", quantity);
+                restoredProducts.add(product);
+                restoredQuantities.put(sid, quantity);
+            }
+            if (restoredProducts.isEmpty()) return false;
+            featureProducts.clear();
+            featureProducts.addAll(restoredProducts);
+            featureQuantities.clear();
+            featureQuantities.putAll(restoredQuantities);
+            return true;
+        } catch (Exception ignored) {
+            prefs.edit().remove(featureProductsCacheKey(saleId)).apply();
+            return false;
+        }
+    }
+
     private String saleTitle(JSONObject sale) {
         if (sale == null) return "";
         String name = first(sale, "custom_name");
@@ -2006,17 +2075,17 @@ public class MainActivity extends Activity {
         if (sale == null) return;
         summaryFromHistory = false;
         final boolean saleClosed = isSaleClosed(sale);
+        final int saleId = sale.optInt("id", -1);
         if (saleClosed) {
+            prefs.edit().remove(featureProductsCacheKey(saleId)).apply();
             featureOrderId = -1;
             featureProducts.clear();
             featureQuantities.clear();
             pending.clear();
         }
-        final int saleId = sale.optInt("id", -1);
         final boolean isSameSale = !saleClosed
                 && featureSale != null
                 && featureSale.optInt("id", -1) == saleId
-                && featureOrderId > 0
                 && !featureProducts.isEmpty();
 
         featureSale = sale;
@@ -2027,6 +2096,7 @@ public class MainActivity extends Activity {
             pending.clear();
             filterText = "";
             viewMode = "all";
+            if (!saleClosed) loadFeatureProductsCache(saleId);
         }
 
         // הצג מיד את מה שכבר שמור בזיכרון; renderFeatureProducts גם משחזר את הגלילה.
@@ -2082,12 +2152,11 @@ public class MainActivity extends Activity {
                         }
                     }
 
-                    if (dataChanged) {
-                        featureProducts.clear();
-                        featureProducts.addAll(freshProducts);
-                        featureQuantities.clear();
-                        featureQuantities.putAll(freshQuantities);
-                    }
+                    featureProducts.clear();
+                    featureProducts.addAll(freshProducts);
+                    featureQuantities.clear();
+                    featureQuantities.putAll(freshQuantities);
+                    saveFeatureProductsCache(saleId);
                     if (favSet != null) {
                         favIds.clear();
                         favIds.addAll(favSet);
@@ -2455,6 +2524,7 @@ public class MainActivity extends Activity {
                 if (err == null) {
                     try { p.put("amount", newQty); } catch (Exception ignored) { }
                     featureQuantities.put(sid, newQty);
+                    saveFeatureProductsCache(featureSale == null ? -1 : featureSale.optInt("id", -1));
                     toast(newQty == 0 ? "✔ הוסר: " + pname : (oldQty == 0 ? "✔ נוסף להזמנה: " + pname + " ×" + newQty : "✔ עודכן: " + pname + " ← " + newQty), false);
                 } else {
                     featureQuantities.put(sid, oldQty);
