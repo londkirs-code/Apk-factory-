@@ -985,12 +985,12 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "תיקון כפתור החזרה, הצגת «איסוף» ומצב לילה";
-        final String whatsNewSummary = "בעדכון האחרון: חזרה מיידית לראש הרשימה, כפתור עגול וממורכז, כיתוב איסוף גלוי ומצב לילה פעיל.";
+        final String whatsNewTitle = "שמירת מיקום מכירות בעת מעבר בין כרטיסיות";
+        final String whatsNewSummary = "חוזרים לכרטיסיית «מכירות פתוחות» וממשיכים בדיוק במקום שבו עצרתם ברשימה.";
         final String whatsNewDetails =
-                "• כפתור החזרה לראש הרשימה עגול, עם חץ לבן ממורכז, מרווח מהקצוות ומעבר מיידי לראש הרשימה.\n\n" +
-                "• בכפתור האיסוף המרכזי נשמר האייקון הגדול והוקצה גובה נוסף כדי שהכיתוב «איסוף» יוצג מתחתיו ולא ייחתך. גובה האזור מוגדר כעת פעם אחת בקבוע NAV_FINGER_INNER ומשמש גם בהתאמת Insets של Android 11 ומעלה.\n\n" +
-                "• תוקנה פעולת מצב הלילה: בחירה באפשרויות נוספות מחליפה את ערכת הצבעים ושומרת את הבחירה גם בפתיחה הבאה.";
+                "• מיקום הגלילה ברשימת המכירות נשמר לפני מעבר להיסטוריה, לזיכויים או לחשבון.\\n\\n" +
+                "• בחזרה לכרטיסיית המכירות הרשימה נטענת, ואז הגלילה משוחזרת למיקום הקודם.\\n\\n" +
+                "• החזרה לכרטיסייה מציגה את רשימת המכירות גם אם יש מכירה פתוחה אחת, במקום להיכנס אליה אוטומטית. פעולת הפתיחה האוטומטית בעת הפעלת האפליקציה נשארת ללא שינוי.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
