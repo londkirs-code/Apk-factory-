@@ -454,7 +454,7 @@ public class MainActivity extends Activity {
         switch (style) {
             case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
             case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
-            case OUTLINE: fill = Color.WHITE; fg = ORANGE_DARK; stroke = ORANGE; break;
+            case OUTLINE: fill = SURFACE; fg = ORANGE_DARK; stroke = ORANGE; break;
             case DANGER: fill = RED_LIGHT; fg = RED; break;
             default: fill = Color.TRANSPARENT; fg = ORANGE_DARK; break;
         }
@@ -522,7 +522,7 @@ public class MainActivity extends Activity {
         e.setHintTextColor(MUTED);
         e.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         e.setPadding(dp(14), 0, dp(14), 0);
-        e.setBackground(shape(Color.WHITE, 12, LINE));
+        e.setBackground(shape(SURFACE, 12, LINE));
         return e;
     }
 
@@ -826,7 +826,7 @@ public class MainActivity extends Activity {
         if (hasToken()) {
             LinearLayout nav = new LinearLayout(this);
             nav.setOrientation(LinearLayout.HORIZONTAL);
-            nav.setBackgroundColor(Color.WHITE);
+            nav.setBackgroundColor(SURFACE);
             nav.setElevation(dp(8));
             final String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
             final int[] iconTypes = {ICON_CART, ICON_CLOCK, ICON_WALLET, ICON_PERSON};
@@ -848,7 +848,7 @@ public class MainActivity extends Activity {
                 label.setMaxLines(1);
                 label.setEllipsize(TextUtils.TruncateAt.END);
                 label.setGravity(Gravity.CENTER);
-                label.setTextColor(active ? ORANGE_DARK : Color.rgb(70, 62, 58));
+                label.setTextColor(active ? ORANGE_DARK : INK);
                 item.addView(label, new LinearLayout.LayoutParams(-1, -2));
                 View bar = new View(this);
                 bar.setBackground(shape(ORANGE, 2, 0));
@@ -2095,7 +2095,7 @@ public class MainActivity extends Activity {
         boolean closed = truthy(sale.opt("closed_for_orders"));
 
         LinearLayout card = card(14);
-        card.setBackground(ripple(shape(Color.WHITE, 14, LINE), 14));
+        card.setBackground(ripple(shape(SURFACE, 14, LINE), 14));
         card.setClickable(true);
         card.setOnClickListener(v -> loadFeatureProducts(sale));
 
@@ -2855,7 +2855,7 @@ public class MainActivity extends Activity {
         TextView clearSearch = text("×", 22, true);
         clearSearch.setGravity(Gravity.CENTER);
         clearSearch.setTextColor(MUTED);
-        clearSearch.setBackground(shape(Color.WHITE, 10, LINE));
+        clearSearch.setBackground(shape(SURFACE, 10, LINE));
         clearSearch.setContentDescription("מחיקת החיפוש");
         clearSearch.setVisibility(filterText.isEmpty() ? View.GONE : View.VISIBLE);
         LinearLayout.LayoutParams clearSearchLp = new LinearLayout.LayoutParams(dp(34), dp(36));
@@ -2960,7 +2960,7 @@ public class MainActivity extends Activity {
         floatingTopButtonRef[0] = floatingTopButton;
         floatingTopButton.setTextSize(25);
         floatingTopButton.setContentDescription("חזרה לראש הרשימה");
-        floatingTopButton.setBackground(ripple(shape(Color.WHITE, 24, ORANGE_DARK), 24));
+        floatingTopButton.setBackground(ripple(shape(SURFACE, 24, ORANGE_DARK), 24));
         floatingTopButton.setElevation(dp(8));
         floatingTopButton.setVisibility(View.GONE);
         floatingTopButton.setOnClickListener(v -> {
@@ -3079,13 +3079,13 @@ public class MainActivity extends Activity {
 
         CardHolder() {
             card.setOrientation(LinearLayout.VERTICAL);
-            card.setBackground(shape(Color.WHITE, 14, LINE));
+            card.setBackground(shape(SURFACE, 14, LINE));
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
             imageBox = new FrameLayout(MainActivity.this);
             image = new ImageView(MainActivity.this);
             image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            image.setBackgroundColor(Color.WHITE);
+            image.setBackgroundColor(SURFACE);
             imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(112)));
             badge = text("", 11, true);
             badge.setTextColor(Color.WHITE);
@@ -3693,7 +3693,7 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(10), dp(10), dp(10));
-        row.setBackground(shape(Color.WHITE, 14, LINE));
+        row.setBackground(shape(SURFACE, 14, LINE));
         ImageView iv = imageView(imageDp, imageDp, ImageView.ScaleType.FIT_CENTER);
         iv.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
         iv.setClipToOutline(true);
@@ -3796,7 +3796,7 @@ public class MainActivity extends Activity {
 
         TextView q = text(String.valueOf(qty), isDone ? 22 : 30, true);
         q.setGravity(Gravity.CENTER);
-        q.setBackground(shape(Color.WHITE, 10, INK));
+        q.setBackground(shape(SURFACE, 10, LINE));
         q.setMinWidth(dp(isDone ? 44 : 58));
         q.setPadding(dp(8), dp(2), dp(8), dp(2));
         LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-2, -2);
@@ -5657,7 +5657,7 @@ public class MainActivity extends Activity {
         input.setTextSize(24);
         input.setGravity(Gravity.CENTER);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        input.setBackground(shape(Color.WHITE, 12, ORANGE));
+        input.setBackground(shape(SURFACE, 12, ORANGE));
         panel.addView(input, lp(-1, dp(56), 0, 4));
         final Runnable next = () -> {
             String[] ex = newMathExercise();
