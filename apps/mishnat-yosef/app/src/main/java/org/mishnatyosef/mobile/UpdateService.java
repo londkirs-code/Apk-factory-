@@ -59,6 +59,10 @@ public class UpdateService extends Service {
             if(!m.find())throw new IOException("לא נמצא מספר גרסה בקובץ המקור");
             String latest=m.group(1);PackageInfo pi=getPackageManager().getPackageInfo(getPackageName(),0);String installed=pi.versionName==null?"0":pi.versionName;
             if(compareVersions(latest,installed)<=0){if(tellNoUpdate)postResult("האפליקציה מעודכנת (גרסה "+installed+")",false);return;}
+            String alreadyDownloaded=getSharedPreferences(PREFS,MODE_PRIVATE).getString("app_update_downloaded_version","");
+            File existingDir=getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            File existingApk=existingDir==null?new File(getFilesDir(),"mishnat-yosef-update.apk"):new File(existingDir,"mishnat-yosef-update.apk");
+            if(latest.equals(alreadyDownloaded)&&existingApk.isFile()&&existingApk.length()>100000){if(tellNoUpdate)postResult("העדכון "+latest+" כבר הורד וממתין להתקנה",true);return;}
             File dir=getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);if(dir==null)dir=getFilesDir();if(!dir.exists()&&!dir.mkdirs())throw new IOException("לא ניתן ליצור תיקיית הורדה");
             File apk=new File(dir,"mishnat-yosef-update.apk");download(APK+"?t="+System.currentTimeMillis(),apk);if(apk.length()<100000)throw new IOException("קובץ APK קטן מדי או פגום");
             getSharedPreferences(PREFS,MODE_PRIVATE).edit().putString("app_update_downloaded_path",apk.getAbsolutePath()).putString("app_update_downloaded_version",latest).apply();
