@@ -62,9 +62,6 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -136,8 +133,6 @@ public class MainActivity extends Activity {
     private final List<JSONObject> featureProducts = new ArrayList<>();
     private final Map<String, Integer> featureQuantities = new LinkedHashMap<>();
     private final Set<String> pending = new HashSet<>();
-    private final Set<String> cacheDirtyProducts = new HashSet<>();
-    private static final String SALE_CACHE_PREFIX = "sale_cache_";
     private String filterText = "";
     private LinearLayout gridContainer;
     private final Map<String, Runnable> cardRefreshers = new LinkedHashMap<>();
@@ -644,156 +639,6 @@ public class MainActivity extends Activity {
         if (name.isEmpty()) name = first(sale.optJSONObject("parent"), "week");
         if (name.isEmpty()) name = first(sale, "name", "title", "sale_name");
         return name;
-    }
-
-    // ---- persistent per-sale cache (products/order/favourites + sale-scoped images)
-    private String cacheOwnerKey() {
-        String email = prefs == null ? "" : prefs.getString("email", "");
-        return Integer.toHexString(email.trim().toLowerCase(Locale.ROOT).hashCode());
-    }
-
-    private File saleCacheFile(int saleId) {
-        return new File(getFilesDir(), SALE_CACHE_PREFIX + cacheOwnerKey() + "_" + saleId + ".json");
-    }
-
-    private File saleImageDir(int saleId) {
-        return new File(new File(getCacheDir(), "sale_images"), cacheOwnerKey() + "_" + saleId);
-    }
-
-    private JSONObject readSaleCache(int saleId) {
-        if (saleId <= 0) return null;
-        File file = saleCacheFile(saleId);
-        if (!file.isFile() || file.length() <= 0 || file.length() > 20_000_000L) return null;
-        try (InputStream in = new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            JSONObject cache = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
-            if (cache.optInt("sale_id", -1) != saleId || cache.optJSONArray("products") == null) return null;
-            return cache;
-        } catch (Exception ignored) { return null; }
-    }
-
-    private void saveSaleCache() {
-        final JSONObject sale = featureSale;
-        final int saleId = sale == null ? -1 : sale.optInt("id", -1);
-        if (saleId <= 0 || featureOrderId <= 0 || featureProducts.isEmpty()
-                || truthy(sale.opt("closed_for_orders"))) return;
-        try {
-            JSONObject cache = new JSONObject();
-            cache.put("sale_id", saleId);
-            cache.put("order_id", featureOrderId);
-            cache.put("saved_at", System.currentTimeMillis());
-            cache.put("sale", new JSONObject(sale.toString()));
-            JSONArray products = new JSONArray();
-            for (JSONObject p : featureProducts) {
-                JSONObject copy = new JSONObject(p.toString());
-                String sid = sidOf(p);
-                Integer qty = featureQuantities.get(sid);
-                copy.put("amount", qty == null ? 0 : qty);
-                products.put(copy);
-            }
-            cache.put("products", products);
-            JSONArray favourites = new JSONArray();
-            for (String id : favIds) favourites.put(id);
-            cache.put("favourites", favourites);
-            File target = saleCacheFile(saleId);
-            File parent = target.getParentFile();
-            if (parent != null && !parent.exists()) parent.mkdirs();
-            File temp = new File(target.getParentFile(), target.getName() + ".tmp");
-            try (FileOutputStream out = new FileOutputStream(temp)) {
-                out.write(cache.toString().getBytes(StandardCharsets.UTF_8));
-                out.getFD().sync();
-            }
-            if (!temp.renameTo(target)) {
-                try (FileOutputStream out = new FileOutputStream(target)) {
-                    out.write(cache.toString().getBytes(StandardCharsets.UTF_8));
-                }
-                temp.delete();
-            }
-        } catch (Exception ignored) { }
-    }
-
-    private void restoreSaleCache(JSONObject cache) {
-        if (cache == null) return;
-        int saleId = featureSale == null ? -1 : featureSale.optInt("id", -1);
-        if (saleId <= 0 || cache.optInt("sale_id", -2) != saleId) return;
-        long orderId = cache.optLong("order_id", -1);
-        JSONArray products = cache.optJSONArray("products");
-        if (orderId <= 0 || products == null || products.length() == 0) return;
-        featureOrderId = orderId;
-        featureProducts.clear();
-        featureQuantities.clear();
-        pending.clear();
-        cacheDirtyProducts.clear();
-        for (int i = 0; i < products.length(); i++) {
-            JSONObject p = products.optJSONObject(i);
-            if (p == null) continue;
-            String sid = sidOf(p);
-            if (sid.isEmpty() || productName(p).isEmpty()) continue;
-            int amount = Math.max(0, p.optInt("amount", 0));
-            try { p.put("amount", amount); } catch (Exception ignored) { }
-            featureProducts.add(p);
-            featureQuantities.put(sid, amount);
-        }
-        favIds.clear();
-        JSONArray favs = cache.optJSONArray("favourites");
-        if (favs != null) for (int i = 0; i < favs.length(); i++) {
-            String id = String.valueOf(favs.opt(i)).trim();
-            if (!id.isEmpty() && !"null".equals(id)) favIds.add(id);
-        }
-        filterText = "";
-        viewMode = "all";
-    }
-
-    private void deleteSaleCache(int saleId) {
-        if (saleId <= 0) return;
-        try { saleCacheFile(saleId).delete(); } catch (Exception ignored) { }
-        File dir = saleImageDir(saleId);
-        deleteTree(dir);
-        if (featureSale != null && featureSale.optInt("id", -1) == saleId) {
-            for (String key : new ArrayList<>(imageCache.snapshot().keySet())) {
-                // In-memory images are shared by URL; disk files are strictly sale-scoped.
-                if (key != null && key.startsWith("sale:" + saleId + "|")) imageCache.remove(key);
-            }
-        }
-    }
-
-    private void deleteTree(File file) {
-        if (file == null || !file.exists()) return;
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) for (File child : children) deleteTree(child);
-        }
-        try { file.delete(); } catch (Exception ignored) { }
-    }
-
-    private boolean saleIsClosed(JSONObject sale) {
-        if (sale == null || truthy(sale.opt("closed_for_orders"))) return true;
-        Date end = parseDt(first(sale, "end"));
-        return end != null && end.getTime() <= System.currentTimeMillis();
-    }
-
-    private void cleanupClosedSaleCaches(JSONArray openSales) {
-        if (openSales == null) return;
-        Set<Integer> openIds = new HashSet<>();
-        for (int i = 0; i < openSales.length(); i++) {
-            JSONObject sale = openSales.optJSONObject(i);
-            if (sale == null) continue;
-            int id = sale.optInt("id", -1);
-            if (id > 0 && !saleIsClosed(sale)) openIds.add(id);
-            else if (id > 0) deleteSaleCache(id);
-        }
-        final String prefix = SALE_CACHE_PREFIX + cacheOwnerKey() + "_";
-        File[] files = getFilesDir().listFiles((dir, name) -> name.startsWith(prefix) && name.endsWith(".json"));
-        if (files == null) return;
-        for (File file : files) {
-            String name = file.getName();
-            try {
-                int id = Integer.parseInt(name.substring(prefix.length(), name.length() - 5));
-                if (!openIds.contains(id)) deleteSaleCache(id);
-            } catch (Exception ignored) { try { file.delete(); } catch (Exception ignored2) { } }
-        }
     }
 
     // ======================================================================== screens: frame
@@ -1644,35 +1489,15 @@ public class MainActivity extends Activity {
 
     private void loadImage(final ImageView iv, final String url) {
         if (url == null || url.isEmpty()) return;
-        final int saleId = featureSale == null ? -1 : featureSale.optInt("id", -1);
-        final String memoryKey = saleId > 0 ? "sale:" + saleId + "|" + url : url;
         iv.setTag(url);
-        Bitmap cached = imageCache.get(memoryKey);
+        Bitmap cached = imageCache.get(url);
         if (cached != null) { iv.setImageBitmap(cached); return; }
         try {
             imageExecutor.execute(() -> {
-                Bitmap bmp = null;
-                File disk = null;
-                if (saleId > 0) {
-                    File dir = saleImageDir(saleId);
-                    if (!dir.exists()) dir.mkdirs();
-                    disk = new File(dir, Integer.toHexString(url.hashCode()) + ".img");
-                    if (disk.isFile() && disk.length() > 0) {
-                        try { bmp = BitmapFactory.decodeFile(disk.getAbsolutePath()); } catch (Exception ignored) { }
-                    }
-                }
-                if (bmp == null) {
-                    bmp = downloadBitmap(url, 480);
-                    if (bmp != null && disk != null) {
-                        try (FileOutputStream out = new FileOutputStream(disk)) {
-                            bmp.compress(Bitmap.CompressFormat.JPEG, 88, out);
-                        } catch (Exception ignored) { }
-                    }
-                }
+                Bitmap bmp = downloadBitmap(url, 480);
                 if (bmp == null) return;
-                imageCache.put(memoryKey, bmp);
-                Bitmap ready = bmp;
-                runOnUiThread(() -> { if (url.equals(iv.getTag())) iv.setImageBitmap(ready); });
+                imageCache.put(url, bmp);
+                runOnUiThread(() -> { if (url.equals(iv.getTag())) iv.setImageBitmap(bmp); });
             });
         } catch (Exception ignored) { }
     }
@@ -1838,7 +1663,6 @@ public class MainActivity extends Activity {
                 if (r.code < 200 || r.code >= 300) throw new Exception("טעינת המכירות נכשלה (" + r.code + ").");
                 JSONArray rows = arrayFrom(r.body);
                 try { SaleMonitor.scheduleClosingReminders(getApplicationContext(), rows); } catch (Exception ignored) { }
-                cleanupClosedSaleCaches(rows);
                 runOnUiThread(() -> { if (!stale(t)) renderSales(rows); });
             } catch (Exception e) {
                 fail(t, e, "אירעה שגיאה בטעינה.");
@@ -2155,29 +1979,11 @@ public class MainActivity extends Activity {
     }
 
     private void loadFeatureProducts(JSONObject sale) {
-        if (sale == null || sale.optInt("id", -1) <= 0) {
-            toast("לא נמצא מזהה מכירה תקין", true);
-            return;
-        }
-        if (saleIsClosed(sale)) {
-            deleteSaleCache(sale.optInt("id", -1));
-            toast("המכירה נסגרה ואי אפשר לפתוח אותה להזמנות", true);
-            showOpenSales(false);
-            return;
-        }
         featureSale = sale;
         summaryFromHistory = false;
         String title = saleTitle(sale);
         beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
-        JSONObject cached = readSaleCache(sale.optInt("id", -1));
-        restoreSaleCache(cached);
-        final boolean hadCache = !featureProducts.isEmpty() && featureOrderId > 0;
-        if (hadCache) {
-            renderFeatureProducts();
-            setStatus("הנתונים השמורים מוצגים; בודק עדכונים מול השרת…");
-        } else {
-            setStatus("פותח הזמנה וטוען מוצרים…");
-        }
+        setStatus("פותח הזמנה וטוען מוצרים…");
         final int t = screenToken;
         executor.execute(() -> {
             try {
@@ -2190,82 +1996,35 @@ public class MainActivity extends Activity {
                     for (OrderLine line : od.lines) saved.put(line.sid, (int) Math.round(line.amount));
                 } catch (AuthException ae) {
                     throw ae;
-                } catch (Exception orderError) {
-                    if (orderError.getMessage() != null && orderError.getMessage().contains("(404)")) throw orderError;
-                }
+                } catch (Exception ignored) { }
                 Set<String> favs = null;
-                try { favs = fetchFavouriteIds(sale.optInt("id", -1)); }
-                catch (AuthException ae) { throw ae; }
-                catch (Exception ignored) { }
+                try { favs = fetchFavouriteIds(sale.optInt("id", -1)); } catch (AuthException ae2) { throw ae2; } catch (Exception ignored) { }
                 final Set<String> favSet = favs;
                 final Map<String, Integer> savedAmounts = saved;
-                final List<JSONObject> serverProducts = all;
                 runOnUiThread(() -> {
                     if (stale(t)) return;
-                    if (saleIsClosed(sale)) {
-                        deleteSaleCache(sale.optInt("id", -1));
-                        showOpenSales(false);
-                        toast("המכירה נסגרה בזמן הטעינה", true);
-                        return;
-                    }
                     featureOrderId = orderId;
-                    Map<String, JSONObject> oldById = new LinkedHashMap<>();
-                    for (JSONObject old : featureProducts) oldById.put(sidOf(old), old);
-                    List<JSONObject> merged = new ArrayList<>();
-                    Map<String, Integer> mergedQty = new LinkedHashMap<>();
-                    for (JSONObject server : serverProducts) {
-                        String sid = sidOf(server);
-                        if (sid.isEmpty() || productName(server).isEmpty()) continue;
-                        JSONObject old = oldById.get(sid);
-                        int amount = savedAmounts != null && savedAmounts.containsKey(sid) ? savedAmounts.get(sid)
-                                : Math.max(0, (int) Math.round(num(server.opt("amount"))));
-                        if (cacheDirtyProducts.contains(sid) && old != null) {
-                            amount = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : amount;
-                        }
-                        try { server.put("amount", amount); } catch (Exception ignored) { }
-                        merged.add(server);
-                        mergedQty.put(sid, amount);
-                    }
-                    // Keep locally changed items visible until their pending request resolves.
-                    for (String sid : cacheDirtyProducts) {
-                        if (!mergedQty.containsKey(sid)) {
-                            JSONObject old = oldById.get(sid);
-                            if (old != null) {
-                                merged.add(old);
-                                mergedQty.put(sid, featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0);
-                            }
-                        }
-                    }
                     featureProducts.clear();
-                    featureProducts.addAll(merged);
                     featureQuantities.clear();
-                    featureQuantities.putAll(mergedQty);
                     pending.clear();
-                    if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
+                    for (JSONObject p : all) {
+                        String sid = sidOf(p);
+                        if (sid.isEmpty() || productName(p).isEmpty()) continue;
+                        int amount = savedAmounts != null
+                                ? (savedAmounts.containsKey(sid) ? savedAmounts.get(sid) : 0)
+                                : Math.max(0, (int) Math.round(num(p.opt("amount"))));
+                        try { p.put("amount", amount); } catch (Exception ignored) { }
+                        featureProducts.add(p);
+                        featureQuantities.put(sid, amount);
+                    }
                     filterText = "";
                     viewMode = "all";
+                    if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
                     renderFeatureProducts();
-                    saveSaleCache();
-                    cacheDirtyProducts.clear();
-                    setStatus("");
-                    if (!hadCache) toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
+                    toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> {
-                    if (stale(t)) return;
-                    if (e instanceof AuthException) { showLogin(); return; }
-                    if (hadCache && e.getMessage() != null && e.getMessage().contains("(404)")) {
-                        deleteSaleCache(sale.optInt("id", -1));
-                        featureOrderId = -1;
-                        featureProducts.clear();
-                        featureQuantities.clear();
-                        showOpenSales(false);
-                        toast("ההזמנה כבר לא נמצאת בשרת. המטמון נמחק; פתחו מחדש את המכירה.", true);
-                    } else if (hadCache) {
-                        setStatus("אין אפשרות לוודא כרגע מול השרת; מוצגים נתונים שמורים. אין לבצע הזמנה ללא חיבור.");
-                        toast(errText(e, "לא ניתן לעדכן מול השרת"), true);
-                    } else fail(t, e, "פתיחת ההזמנה נכשלה.");
-                });
+                fail(t, e, "פתיחת ההזמנה נכשלה.");
             }
         });
     }
@@ -2584,7 +2343,6 @@ public class MainActivity extends Activity {
         final int serverAmount = (int) Math.round(num(p.opt("amount")));
         final long orderId = featureOrderId;
         pending.add(sid);
-        cacheDirtyProducts.add(sid);
         featureQuantities.put(sid, newQty);
         final String pname = productName(p);
         toast("⏳ " + (newQty == 0 ? "מסיר" : (oldQty == 0 ? "מוסיף" : "מעדכן")) + ": " + pname, false);
@@ -2616,13 +2374,9 @@ public class MainActivity extends Activity {
                 if (err == null) {
                     try { p.put("amount", newQty); } catch (Exception ignored) { }
                     featureQuantities.put(sid, newQty);
-                    saveSaleCache();
-                    cacheDirtyProducts.remove(sid);
                     toast(newQty == 0 ? "✔ הוסר: " + pname : (oldQty == 0 ? "✔ נוסף להזמנה: " + pname + " ×" + newQty : "✔ עודכן: " + pname + " ← " + newQty), false);
                 } else {
                     featureQuantities.put(sid, oldQty);
-                    cacheDirtyProducts.remove(sid);
-                    saveSaleCache();
                     if (err.contains("אזל")) { try { p.put("available", 0); } catch (Exception ignored) { } }
                     toast(err, true);
                 }
@@ -3809,7 +3563,6 @@ public class MainActivity extends Activity {
             final boolean needLogin = authLost;
             runOnUiThread(() -> {
                 for (PlanItem pi : succeeded) featureQuantities.put(sidOf(pi.p), pi.amount);
-                saveSaleCache();
                 dlg.dismiss();
                 StringBuilder res = new StringBuilder("✅ עודכנו: " + succeeded.size() + " מתוך " + plan.size());
                 if (!failed.isEmpty()) {
@@ -3920,7 +3673,6 @@ public class MainActivity extends Activity {
                 final String err = ok ? "" : apiError(r);
                 runOnUiThread(() -> {
                     if (done) {
-                        deleteSaleCache(featureSale == null ? -1 : featureSale.optInt("id", -1));
                         featureOrderId = -1;
                         featureProducts.clear();
                         featureQuantities.clear();
@@ -4009,7 +3761,6 @@ public class MainActivity extends Activity {
                     if (attached) favIds.add(pid);
                     else if (detached) favIds.remove(pid);
                     else { toast("תשובה לא צפויה מהשרת", true); return; }
-                    saveSaleCache();
                     toast(attached ? "⭐ נוסף למועדפים" : "☆ הוסר מהמועדפים", false);
                     if (done != null) done.run();
                 });
