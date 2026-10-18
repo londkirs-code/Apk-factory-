@@ -122,6 +122,9 @@ public class MainActivity extends Activity {
     // Preserve the open-sales list position while navigating to other bottom tabs.
     private int salesListScrollY = 0;
     private boolean showingSalesList = false;
+    // Preserve the position inside an order when navigating to another bottom tab.
+    private int orderScreenScrollY = 0;
+    private boolean showingOrderScreen = false;
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
@@ -769,7 +772,11 @@ public class MainActivity extends Activity {
         if (showingSalesList && scrollView != null) {
             salesListScrollY = Math.max(0, scrollView.getScrollY());
         }
+        if (showingOrderScreen && screenKind == 1 && scrollView != null) {
+            orderScreenScrollY = Math.max(0, scrollView.getScrollY());
+        }
         showingSalesList = false;
+        showingOrderScreen = false;
         screenToken++;
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         screenKind = 0;
@@ -837,7 +844,7 @@ public class MainActivity extends Activity {
             nav.setElevation(dp(8));
             final String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
             final int[] iconTypes = {ICON_CART, ICON_CLOCK, ICON_WALLET, ICON_PERSON};
-            Runnable[] actions = {() -> showOpenSales(false), this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
+            Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
             nav.setClipChildren(false);
             screen.setClipChildren(false);
             List<View> navCells = new ArrayList<>(); // listed right to left, the way Hebrew is read
@@ -2835,6 +2842,7 @@ public class MainActivity extends Activity {
         else productsBack = () -> showOpenSales(false);
         beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? historyTab : 0, productsBack);
         screenKind = 1;
+        showingOrderScreen = true;
 
         // Fixed header: category chips first, then a compact search/order-summary row.
         LinearLayout topBox = new LinearLayout(this);
@@ -3012,6 +3020,16 @@ public class MainActivity extends Activity {
                 if (Build.VERSION.SDK_INT < 17 || !isDestroyed()) showOrderEntryNoticeIfNeeded();
             });
         }
+        // Restore the previous order-list position after its content is laid out.
+        final int restoreOrderY = orderScreenScrollY;
+        if (restoreOrderY > 0 && scrollView != null) {
+            scrollView.post(() -> {
+                if (showingOrderScreen && screenKind == 1 && scrollView != null) {
+                    scrollView.scrollTo(0, restoreOrderY);
+                }
+            });
+        }
+
     }
 
     private void rebuildGrid() { rebuildGrid(false); }
