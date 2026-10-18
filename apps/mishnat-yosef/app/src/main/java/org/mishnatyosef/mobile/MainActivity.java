@@ -660,7 +660,7 @@ public class MainActivity extends Activity {
         header.setBackgroundColor(ORANGE);
         final int padStart = back != null ? dp(8) : dp(16);
         final int padEnd = dp(16);
-        header.setPadding(rtlActive() ? padEnd : padStart, dp(8), rtlActive() ? padStart : padEnd, dp(8));
+        header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
         header.setElevation(dp(3));
         if (back != null) {
             TextView arrow = text("→", 22, true);
@@ -670,17 +670,13 @@ public class MainActivity extends Activity {
             arrow.setOnClickListener(v -> back.run());
             header.addView(arrow, new LinearLayout.LayoutParams(-2, dp(44)));
         }
-        LinearLayout titles = new LinearLayout(this);
-        titles.setOrientation(LinearLayout.VERTICAL);
-        TextView app = text("משנת יוסף", 11, false);
-        app.setTextColor(Color.argb(210, 255, 255, 255));
-        TextView head = text(heading, 18, true);
+        // The app-name line is intentionally omitted on every screen.
+        // Keep only the current-screen heading, at half its former text size (18sp -> 9sp).
+        TextView head = text(heading, 9, true);
         head.setTextColor(Color.WHITE);
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
-        titles.addView(app);
-        titles.addView(head);
-        header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
+        header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
         topHolder = new FrameLayout(this);
         // Keep the category strip above the scrolling product list.
@@ -755,7 +751,7 @@ public class MainActivity extends Activity {
         screen.setOnApplyWindowInsetsListener((v, insets) -> {
             if (Build.VERSION.SDK_INT < 30) return insets; // older Android already keeps content inside the system bars
             int[] in = systemInsets(insets);
-            headerFinal.setPadding((rtlActive() ? padEnd : padStart) + in[0], dp(8) + in[1], (rtlActive() ? padStart : padEnd) + in[2], dp(8));
+            headerFinal.setPadding((rtlActive() ? padEnd : padStart) + in[0], dp(4) + in[1], (rtlActive() ? padStart : padEnd) + in[2], dp(4));
             if (navFinal != null) {
                 LinearLayout navLayout = (LinearLayout) navFinal;
                 navLayout.setPadding(in[0], 0, in[2], 0);
