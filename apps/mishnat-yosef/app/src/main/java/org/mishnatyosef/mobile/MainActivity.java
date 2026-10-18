@@ -4235,19 +4235,36 @@ public class MainActivity extends Activity {
 
     private void shareJsonReportFile(String report) {
         try {
-            File dir = new File(getCacheDir(), "json-reports");
-            if (!dir.exists() && !dir.mkdirs()) throw new java.io.IOException("לא ניתן ליצור תיקיית דוח");
-            File file = new File(dir, "mishnat-yosef-json-report.txt");
-            try (FileOutputStream out = new FileOutputStream(file)) {
-                out.write(report.getBytes(StandardCharsets.UTF_8));
-                out.flush();
+            if (report == null || report.isEmpty()) {
+                toast("אין נתונים בדוח לשיתוף", true);
+                return;
             }
+
+            File dir = new File(getCacheDir(), "json-reports");
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw new java.io.IOException("לא ניתן ליצור תיקיית דוח");
+            }
+            File file = new File(dir, "mishnat-yosef-json-report.txt");
+
+            // Persist the entire UTF-8 report before passing its URI to another app.
+            byte[] bytes = report.getBytes(StandardCharsets.UTF_8);
+            try (FileOutputStream out = new FileOutputStream(file, false)) {
+                out.write(bytes);
+                out.flush();
+                out.getFD().sync();
+            }
+            if (!file.isFile() || file.length() != bytes.length || file.length() == 0) {
+                throw new java.io.IOException("קובץ הדוח לא נכתב במלואו");
+            }
+
             Uri uri = Uri.parse("content://" + getPackageName() + ".jsonreports/" + file.getName());
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("text/plain");
             intent.putExtra(Intent.EXTRA_SUBJECT, "דוח JSON מהשרת — משנת יוסף");
             intent.putExtra(Intent.EXTRA_TEXT, "מצורף דוח JSON מלא מהאפליקציה. בדקו את המידע לפני העברתו הלאה.");
             intent.putExtra(Intent.EXTRA_STREAM, uri);
+            // Some Android share targets only receive URI grants through ClipData.
+            intent.setClipData(android.content.ClipData.newUri(getContentResolver(), file.getName(), uri));
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(intent, "שיתוף דוח JSON מלא"));
         } catch (Exception e) {
