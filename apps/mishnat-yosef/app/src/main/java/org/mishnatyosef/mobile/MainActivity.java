@@ -466,7 +466,7 @@ public class MainActivity extends Activity {
     }
 
     private final class AppTimePickerDialog extends TimePickerDialog {
-        AppTimePickerDialog(OnTimeSetListener listener, int hour, int minute, boolean is24HourView) {
+        AppTimePickerDialog(TimePickerDialog.OnTimeSetListener listener, int hour, int minute, boolean is24HourView) {
             super(MainActivity.this, listener, hour, minute, is24HourView);
         }
 
@@ -1333,9 +1333,9 @@ public class MainActivity extends Activity {
         final String whatsNewTitle = "עיצוב אחיד לכל החלונות והתפריטים";
         final String whatsNewSummary = "חלונות, תפריטי בחירה והודעות בעיצוב המעוגל של האפליקציה, לצד שיפורי התצוגה האחרונים.";
         final String whatsNewDetails =
-                "• במצב לילה כרטיסי המכירות ברשימת המכירות מקבלים רקע כתום וטקסט מותאם לקריאות.\\n\\n" +
-                "• כפתור החזרה לראש הרשימה הוקטן ב־50%, כולל החץ, בלי לשנות את מיקומו.\\n\\n" +
-                "• כרטיסי המוצרים שומרים על רוחב העמודה גם כשנותרים מקומות ריקים בסוף שורה; כרטיס בודד כבר לא נמתח על כל הרוחב.";
+                "• חלונות ותפריטי בחירה מקבלים משטח מעוגל, צבעים תואמים למסך ההגדרות וכפתורים מלבניים מעוגלים.\\n\\n" +
+                "• כותרות, הודעות, רשימות בחירה ושדות קלט מותאמים לקריאות ולמצב לילה.\\n\\n" +
+                "• העיצוב האחיד חל גם על פרטי מכירה, פעולות הזמנה, מיון בזיכויים והפעולות בהיסטוריה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
