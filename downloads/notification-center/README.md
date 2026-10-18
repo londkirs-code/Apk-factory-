@@ -1,1 +1,1 @@
-APK for notification-center, versionName 1.0, versionCode 58, built from commit 4e86321de8855693c7367d81bf957f5d870dafad.
+APK for notification-center, versionName 1.0, versionCode 59, built from commit 5d19e7fbf6c3150ee617ded2b97e80424275d632.
