@@ -258,6 +258,7 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        handleUpdateInstallIntent(intent);
         if (hasToken() && intent != null && intent.hasExtra("sale_id")) {
             openSaleFromNotification(intent.getIntExtra("sale_id", -1));
         }
@@ -964,6 +965,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        handleUpdateInstallIntent(getIntent());
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
     }
 
@@ -4251,15 +4253,6 @@ public class MainActivity extends Activity {
 
 
 
-    @Override protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleUpdateInstallIntent(intent);
-    }
-    @Override protected void onResume() {
-        super.onResume();
-        handleUpdateInstallIntent(getIntent());
-    }
     private void handleUpdateInstallIntent(Intent intent) {
         if (intent == null || !"org.mishnatyosef.mobile.INSTALL_DOWNLOADED_UPDATE".equals(intent.getAction())) return;
         intent.setAction(null);
