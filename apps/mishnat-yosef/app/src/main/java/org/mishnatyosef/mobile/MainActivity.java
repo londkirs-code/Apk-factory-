@@ -106,17 +106,50 @@ public class MainActivity extends Activity {
     private static final long REFRESH_MARGIN_MS = 300000L;
 
     // ---- palette
-    private static final int ORANGE = Color.rgb(230, 94, 20);
-    private static final int ORANGE_DARK = Color.rgb(191, 70, 12);
-    private static final int ORANGE_LIGHT = Color.rgb(255, 239, 224);
-    private static final int BG = Color.rgb(255, 249, 244);
-    private static final int INK = Color.rgb(34, 49, 46);
-    private static final int MUTED = Color.rgb(120, 110, 104);
-    private static final int LINE = Color.rgb(238, 220, 205);
-    private static final int GREEN = Color.rgb(20, 130, 70);
-    private static final int GREEN_LIGHT = Color.rgb(228, 245, 234);
-    private static final int RED = Color.rgb(175, 45, 45);
-    private static final int RED_LIGHT = Color.rgb(253, 236, 234);
+    private int ORANGE = Color.rgb(230, 94, 20);
+    private int ORANGE_DARK = Color.rgb(191, 70, 12);
+    private int ORANGE_LIGHT = Color.rgb(255, 239, 224);
+    private int BG = Color.rgb(255, 249, 244);
+    private int SURFACE = Color.WHITE;
+    private int INK = Color.rgb(34, 49, 46);
+    private int MUTED = Color.rgb(120, 110, 104);
+    private int LINE = Color.rgb(238, 220, 205);
+    private int GREEN = Color.rgb(20, 130, 70);
+    private int GREEN_LIGHT = Color.rgb(228, 245, 234);
+    private int RED = Color.rgb(175, 45, 45);
+    private int RED_LIGHT = Color.rgb(253, 236, 234);
+    private boolean nightMode = false;
+
+    private void applyPalette() {
+        nightMode = prefs.getBoolean("night_mode", false);
+        if (nightMode) {
+            ORANGE = Color.rgb(255, 145, 75);
+            ORANGE_DARK = Color.rgb(255, 166, 105);
+            ORANGE_LIGHT = Color.rgb(75, 48, 34);
+            BG = Color.rgb(18, 20, 22);
+            SURFACE = Color.rgb(30, 33, 36);
+            INK = Color.rgb(240, 240, 238);
+            MUTED = Color.rgb(177, 180, 181);
+            LINE = Color.rgb(65, 69, 72);
+            GREEN = Color.rgb(100, 205, 140);
+            GREEN_LIGHT = Color.rgb(35, 65, 48);
+            RED = Color.rgb(255, 120, 120);
+            RED_LIGHT = Color.rgb(75, 40, 40);
+        } else {
+            ORANGE = Color.rgb(230, 94, 20);
+            ORANGE_DARK = Color.rgb(191, 70, 12);
+            ORANGE_LIGHT = Color.rgb(255, 239, 224);
+            BG = Color.rgb(255, 249, 244);
+            SURFACE = Color.WHITE;
+            INK = Color.rgb(34, 49, 46);
+            MUTED = Color.rgb(120, 110, 104);
+            LINE = Color.rgb(238, 220, 205);
+            GREEN = Color.rgb(20, 130, 70);
+            GREEN_LIGHT = Color.rgb(228, 245, 234);
+            RED = Color.rgb(175, 45, 45);
+            RED_LIGHT = Color.rgb(253, 236, 234);
+        }
+    }
 
     // ---- button styles
     private static final int PRIMARY = 0, TONAL = 1, OUTLINE = 2, DANGER = 3, FLAT = 4;
@@ -311,14 +344,17 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        nightMode = prefs.getBoolean("night_mode", false);
+        setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
+        applyPalette();
         clearLegacyUpdateArtifacts();
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
             @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount() / 1024; }
         };
-        getWindow().setStatusBarColor(ORANGE);
-        getWindow().setNavigationBarColor(Color.WHITE);
+        getWindow().setStatusBarColor(nightMode ? BG : ORANGE);
+        getWindow().setNavigationBarColor(SURFACE);
         pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
         requestMonitoringPermissions(false);
@@ -465,7 +501,7 @@ public class MainActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
         c.setPadding(dp(paddingDp), dp(paddingDp), dp(paddingDp), dp(paddingDp));
-        c.setBackground(shape(Color.WHITE, 14, LINE));
+        c.setBackground(shape(SURFACE, 14, LINE));
         return c;
     }
 
@@ -764,7 +800,7 @@ public class MainActivity extends Activity {
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
         topHolder = new FrameLayout(this);
         // Keep the category strip above the scrolling product list.
-        topHolder.setBackgroundColor(Color.WHITE);
+        topHolder.setBackgroundColor(SURFACE);
         topHolder.setElevation(dp(12));
         topHolder.setClipChildren(false);
         screen.addView(topHolder, new LinearLayout.LayoutParams(-1, -2));
@@ -1901,7 +1937,7 @@ public class MainActivity extends Activity {
     private ImageView imageView(int widthDp, int heightDp, ImageView.ScaleType scale) {
         ImageView iv = new ImageView(this);
         iv.setScaleType(scale);
-        iv.setBackgroundColor(Color.WHITE);
+        iv.setBackgroundColor(SURFACE);
         iv.setLayoutParams(new LinearLayout.LayoutParams(widthDp < 0 ? widthDp : dp(widthDp), dp(heightDp)));
         return iv;
     }
@@ -2788,7 +2824,7 @@ public class MainActivity extends Activity {
 
         catStripScroll = new HorizontalScrollView(this);
         catStripScroll.setHorizontalScrollBarEnabled(false);
-        catStripScroll.setBackgroundColor(Color.WHITE);
+        catStripScroll.setBackgroundColor(SURFACE);
         catStripScroll.setPadding(dp(8), dp(5), dp(8), dp(5));
         catStripRow = new LinearLayout(this);
         catStripRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -3518,7 +3554,7 @@ public class MainActivity extends Activity {
         // sticky totals
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Color.WHITE);
+        bar.setBackgroundColor(SURFACE);
         bar.setElevation(dp(10));
         bar.setPadding(dp(14), dp(8), dp(14), dp(8));
         LinearLayout texts = new LinearLayout(this);
@@ -4963,6 +4999,7 @@ public class MainActivity extends Activity {
     private void showOrderQuickMenu() {
         final List<String> labels = new ArrayList<>();
         final List<Integer> actions = new ArrayList<>();
+        labels.add(nightMode ? "☀️ מעבר למצב יום" : "🌙 הפעלת מצב לילה"); actions.add(11);
         if (!summaryFromHistory) {
             labels.add("פרטי המכירה"); actions.add(0);
             labels.add("רענון מוצרים"); actions.add(1);
