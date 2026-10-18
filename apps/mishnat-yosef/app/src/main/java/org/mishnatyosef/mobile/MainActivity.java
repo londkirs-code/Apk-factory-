@@ -918,6 +918,9 @@ public class MainActivity extends Activity {
         TextView logBtn = btn("📡 יומן תקשורת (לאבחון תקלות)", TONAL);
         logBtn.setOnClickListener(v -> showApiLog());
         root.addView(logBtn, lp(-1, dp(46), 0, 8));
+        TextView itemDiagBtn = btn("🔎 בדיקת פריט 39625438 (מידע מלא מהשרת)", TONAL);
+        itemDiagBtn.setOnClickListener(v -> diagnoseItemFromServer("39625438"));
+        root.addView(itemDiagBtn, lp(-1, dp(46), 0, 8));
         TextView cacheBtn = btn("🧹 ניקוי מטמון תמונות", TONAL);
         cacheBtn.setOnClickListener(v -> { imageCache.evictAll(); toast("המטמון נוקה", false); });
         root.addView(cacheBtn, lp(-1, dp(46), 0, 8));
@@ -3968,6 +3971,124 @@ public class MainActivity extends Activity {
             apiLog.add(line);
             while (apiLog.size() > 150) apiLog.remove(0);
         }
+    }
+
+    /**
+     * Diagnostic-only lookup: inspect the authenticated item lists for all currently open sales,
+     * then show the complete raw server object(s) whose identifier matches the requested ID.
+     */
+    private void diagnoseItemFromServer(final String targetId) {
+        if (!hasToken()) { toast("צריך להתחבר לפני בדיקת הפריט", true); return; }
+        toast("בודק את הפריט מול נתוני המכירות שבשרת…", false);
+        executor.execute(() -> {
+            final List<String> matches = Collections.synchronizedList(new ArrayList<>());
+            final List<String> checkedSales = Collections.synchronizedList(new ArrayList<>());
+            final List<String> failures = Collections.synchronizedList(new ArrayList<>());
+            try {
+                HttpResult salesResponse = api("GET", "/api/profile/open_sales", null);
+                if (salesResponse.code < 200 || salesResponse.code >= 300) {
+                    throw new Exception("טעינת המכירות נכשלה: HTTP " + salesResponse.code
+                            + "\n" + safeBodyForDiagnostic(salesResponse.body));
+                }
+                JSONArray sales = arrayFrom(salesResponse.body);
+                for (int i = 0; i < sales.length(); i++) {
+                    JSONObject sale = sales.optJSONObject(i);
+                    if (sale == null) continue;
+                    long saleId = sale.optLong("id", -1);
+                    if (saleId <= 0) continue;
+                    checkedSales.add("מכירה " + saleId + " — " + saleTitle(sale));
+                    try {
+                        fetchPagesFor(saleId, (items, total) -> {
+                            for (JSONObject item : items) {
+                                if (jsonHasMatchingItemId(item, targetId)) {
+                                    JSONObject record = new JSONObject();
+                                    try {
+                                        record.put("sale_id", saleId);
+                                        record.put("sale_name", saleTitle(sale));
+                                        record.put("item_from_server", item);
+                                        matches.add(record.toString(2));
+                                    } catch (Exception ignored) { }
+                                }
+                            }
+                        });
+                    } catch (Exception e) {
+                        failures.add("מכירה " + saleId + ": " + e.getMessage());
+                    }
+                }
+                StringBuilder report = new StringBuilder();
+                report.append("מזהה שנבדק: ").append(targetId).append("\n");
+                report.append("מקור: GET /api/profile/open_sales ואז GET /api/get_items_for_sale/{sale_id}/null?page=…&limit=…\n");
+                report.append("מכירות פתוחות שנבדקו: ").append(checkedSales.size()).append("\n");
+                if (!matches.isEmpty()) {
+                    report.append("נמצאו ").append(matches.size()).append(" התאמות. כל הנתונים הגולמיים שהשרת החזיר עבורן:\n\n");
+                    synchronized (matches) {
+                        for (int i = 0; i < matches.size(); i++) {
+                            report.append("=== התאמה ").append(i + 1).append(" ===\n")
+                                    .append(matches.get(i)).append("\n\n");
+                        }
+                    }
+                } else {
+                    report.append("\nלא נמצא פריט עם המזהה הזה ברשימות הפריטים של המכירות הפתוחות שנבדקו. ")
+                            .append("זה לא מוכיח שהפריט לא קיים: ייתכן שהוא שייך למכירה סגורה או שהשרת משתמש בנתיב אחר.\n");
+                }
+                if (!failures.isEmpty()) {
+                    report.append("\nשגיאות בזמן בדיקה:\n");
+                    synchronized (failures) {
+                        for (String failure : failures) report.append("• ").append(failure).append("\n");
+                    }
+                }
+                report.append("\nמכירות שנבדקו:\n");
+                synchronized (checkedSales) {
+                    for (String checked : checkedSales) report.append("• ").append(checked).append("\n");
+                }
+                final String result = report.toString();
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                        .setTitle("תוצאות אבחון פריט " + targetId)
+                        .setMessage(result)
+                        .setPositiveButton("סגירה", null)
+                        .setNeutralButton("העתקת כל הדוח", (d, w) -> {
+                            ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                            if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("אבחון פריט " + targetId, result));
+                            toast("דוח האבחון הועתק ללוח", false);
+                        })
+                        .setNegativeButton("שיתוף", (d, w) -> shareText("אבחון פריט " + targetId, result))
+                        .show());
+            } catch (Exception e) {
+                String error = "בדיקת הפריט נכשלה.\n" + e.getMessage();
+                runOnUiThread(() -> showTextDialog("שגיאה באבחון פריט " + targetId, error));
+            }
+        });
+    }
+
+    private boolean jsonHasMatchingItemId(Object value, String targetId) {
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            java.util.Iterator<String> keys = object.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                Object child = object.opt(key);
+                String normalized = key.toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+                if (("id".equals(normalized) || "itemid".equals(normalized)
+                        || "itemsalesid".equals(normalized) || "productid".equals(normalized)
+                        || "catalogitemid".equals(normalized))
+                        && child != null && !JSONObject.NULL.equals(child)
+                        && targetId.equals(String.valueOf(child).trim())) return true;
+                if (jsonHasMatchingItemId(child, targetId)) return true;
+            }
+        } else if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int i = 0; i < array.length(); i++) {
+                if (jsonHasMatchingItemId(array.opt(i), targetId)) return true;
+            }
+        }
+        return false;
+    }
+
+    private String safeBodyForDiagnostic(String body) {
+        if (body == null) return "";
+        String trimmed = body.trim();
+        // Keep the diagnostic useful without allowing a very large server error body into the dialog.
+        return trimmed.length() > 1200 ? trimmed.substring(0, 1200) : trimmed;
     }
 
     private void showApiLog() {
