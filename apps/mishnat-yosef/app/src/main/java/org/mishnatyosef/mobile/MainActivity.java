@@ -992,12 +992,12 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "שמירת מיקום מכירות בעת מעבר בין כרטיסיות";
-        final String whatsNewSummary = "חוזרים לכרטיסיית «מכירות פתוחות» וממשיכים בדיוק במקום שבו עצרתם ברשימה.";
+        final String whatsNewTitle = "שמירת מיקום הגלילה במסך ההזמנה";
+        final String whatsNewSummary = "מעבר לכרטיסייה אחרת וחזרה למסך ההזמנה מחזיר לאותו מיקום ברשימת המוצרים.";
         final String whatsNewDetails =
-                "• מיקום הגלילה ברשימת המכירות נשמר לפני מעבר להיסטוריה, לזיכויים או לחשבון.\\n\\n" +
-                "• בחזרה לכרטיסיית המכירות הרשימה נטענת, ואז הגלילה משוחזרת למיקום הקודם.\\n\\n" +
-                "• החזרה לכרטיסייה מציגה את רשימת המכירות גם אם יש מכירה פתוחה אחת, במקום להיכנס אליה אוטומטית. פעולת הפתיחה האוטומטית בעת הפעלת האפליקציה נשארת ללא שינוי.";
+                "• מיקום הגלילה במסך ההזמנה נשמר לפני מעבר להיסטוריה, לזיכויים או לחשבון, ומשוחזר אחרי שהמסך נבנה מחדש.\\n\\n" +
+                "• נשמרת גם ההתנהגות המקורית: אם יש מכירה פתוחה אחת, הכניסה לכרטיסיית המכירות פותחת אותה אוטומטית.\\n\\n" +
+                "• נשמר בנפרד גם מיקום רשימת המכירות, כאשר מוצגת רשימת מכירות ולא מסך הזמנה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
