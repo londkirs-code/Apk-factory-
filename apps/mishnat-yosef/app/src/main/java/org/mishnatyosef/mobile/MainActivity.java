@@ -684,6 +684,7 @@ public class MainActivity extends Activity {
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
         topHolder = new FrameLayout(this);
         // Keep the category strip above the scrolling product list.
+        topHolder.setBackgroundColor(Color.WHITE);
         topHolder.setElevation(dp(12));
         topHolder.setClipChildren(false);
         screen.addView(topHolder, new LinearLayout.LayoutParams(-1, -2));
@@ -2102,7 +2103,8 @@ public class MainActivity extends Activity {
         catStripScroll = new HorizontalScrollView(this);
         catStripScroll.setHorizontalScrollBarEnabled(false);
         catStripScroll.setBackgroundColor(Color.WHITE);
-        catStripScroll.setElevation(dp(2));
+        catStripScroll.setElevation(dp(12));
+        catStripScroll.bringToFront();
         catStripScroll.setPadding(dp(8), dp(6), dp(8), dp(6));
         catStripRow = new LinearLayout(this);
         catStripRow.setGravity(Gravity.CENTER_VERTICAL);
