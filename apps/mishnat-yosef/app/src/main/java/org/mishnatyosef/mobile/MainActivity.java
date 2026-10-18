@@ -4025,7 +4025,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-2, -2);
         labelLp.topMargin = dp(2);
         dome.addView(label, labelLp);
-        FrameLayout.LayoutParams dp0 = new FrameLayout.LayoutParams(dp(74), dp(72));
+        FrameLayout.LayoutParams dp0 = new FrameLayout.LayoutParams(dp(88), dp(72));
         dp0.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         slot.addView(dome, dp0);
         dome.setOnClickListener(v -> openLatestCollect());
