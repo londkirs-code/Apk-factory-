@@ -2177,10 +2177,18 @@ public class MainActivity extends Activity {
             try {
                 long orderId = findOrCreateOrder(sale);
                 List<JSONObject> all = fetchAllProducts(orderId, sale.optInt("id", -1));
-                OrderData od = fetchOrder(orderId);
-                Map<String, Integer> saved = new LinkedHashMap<>();
-                for (OrderLine line : od.lines) saved.put(line.sid, (int) Math.round(line.amount));
-                Set<String> favs = fetchFavouriteIds(sale.optInt("id", -1));
+                Map<String, Integer> saved = null;
+                try {
+                    OrderData od = fetchOrder(orderId);
+                    saved = new LinkedHashMap<>();
+                    for (OrderLine line : od.lines) saved.put(line.sid, (int) Math.round(line.amount));
+                } catch (AuthException ae) {
+                    throw ae;
+                } catch (Exception ignored) { }
+                Set<String> favs = null;
+                try { favs = fetchFavouriteIds(sale.optInt("id", -1)); }
+                catch (AuthException ae) { throw ae; }
+                catch (Exception ignored) { }
                 final Set<String> favSet = favs;
                 final Map<String, Integer> savedAmounts = saved;
                 final List<JSONObject> serverProducts = all;
@@ -2201,7 +2209,7 @@ public class MainActivity extends Activity {
                         String sid = sidOf(server);
                         if (sid.isEmpty() || productName(server).isEmpty()) continue;
                         JSONObject old = oldById.get(sid);
-                        int amount = savedAmounts.containsKey(sid) ? savedAmounts.get(sid)
+                        int amount = savedAmounts != null && savedAmounts.containsKey(sid) ? savedAmounts.get(sid)
                                 : Math.max(0, (int) Math.round(num(server.opt("amount"))));
                         if (cacheDirtyProducts.contains(sid) && old != null) {
                             amount = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : amount;
