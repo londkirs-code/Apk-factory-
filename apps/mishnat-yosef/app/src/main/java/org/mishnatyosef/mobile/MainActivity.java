@@ -879,6 +879,7 @@ public class MainActivity extends Activity {
         root.addView(acc, lp(-1, -2, 0, 10));
         addHomeNotificationSettings();
         addUpdateSettingsEntry();
+        addWhatsNewEntry();
         addSafetySettings();
         TextView refreshTok = btn("🔁 חידוש התחברות (בלי סיסמה)", TONAL);
         refreshTok.setOnClickListener(v -> executor.execute(() -> {
@@ -907,6 +908,26 @@ public class MainActivity extends Activity {
         TextView versionView = muted("גרסת האפליקציה: " + appVersion, 12);
         versionView.setGravity(Gravity.CENTER);
         root.addView(versionView, lp(-1, -2, 0, 16));
+    }
+
+    private void addWhatsNewEntry() {
+        LinearLayout whatsNewCard = card(14);
+        whatsNewCard.addView(sectionTitle("✨ מה חדש"));
+        whatsNewCard.addView(muted("סקירה קצרה של השיפורים האחרונים באפליקציה", 13));
+        TextView open = btn("✨ מה חדש באפליקציה", TONAL);
+        open.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("✨ מה חדש במשנת יוסף")
+                .setMessage(
+                        "• הזמנה נוחה יותר: חיפוש מוצרים ושורת פעולות מסודרת.\n\n" +
+                        "• קפיצה מיידית לתחילת ההזמנה או לסופה, גם ברשימות גדולות.\n\n" +
+                        "• פעולות הזמנה מרוכזות בתפריט אחד: שיתוף, ייבוא וייצוא, מועדפים וניקוי כמויות.\n\n" +
+                        "• צפייה בהיסטוריית הזמנות ובפרטי הזמנות קודמות.\n\n" +
+                        "• מסך זיכויים ופרטי חשבון.\n\n" +
+                        "• בדיקת עדכוני אפליקציה ברקע, עם אפשרות להתראה קבועה.")
+                .setPositiveButton("הבנתי", null)
+                .show());
+        whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
+        root.addView(whatsNewCard, lp(-1, -2, 0, 10));
     }
 
     private void setBusy(boolean value, String message) {
