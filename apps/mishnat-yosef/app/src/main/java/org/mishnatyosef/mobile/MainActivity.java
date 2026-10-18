@@ -2368,7 +2368,7 @@ public class MainActivity extends Activity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(20), dp(8), dp(20), dp(4));
-        TextView explanation = text("שימו לב: לחיצה על הפלוס או המינוס מעדכנת את כמות המוצר ישירות מול השרת. אין צורך לשמור את הכמות בנפרד.", 15, false);
+        TextView explanation = text("שימו לב: לחיצה על הפלוס, המינוס או על «הוספה» מבצעת את הפעולה מיד מול השרת. הכמות מתעדכנת וההזמנה נוצרת או משתנה מיד — גם בלי ללחוץ על שמירה ובלי לבצע פעולה נוספת.", 15, false);
         explanation.setSingleLine(false);
         explanation.setLineSpacing(dp(2), 1f);
         panel.addView(explanation, new LinearLayout.LayoutParams(-1, -2));
