@@ -12,7 +12,7 @@ import java.util.regex.*;
 
 public class UpdateService extends Service {
     private static final String PREFS = "mishnat_auth";
-    private static final String CHANNEL = "app_update_monitor";
+    private static final String CHANNEL = "app_update_monitor_v2";
     private static final String META = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/apps/mishnat-yosef/app/build.gradle";
     private static final String APK = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk";
     private static final String INSTALL_ACTION = "org.mishnatyosef.mobile.INSTALL_DOWNLOADED_UPDATE";
@@ -86,7 +86,8 @@ public class UpdateService extends Service {
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (nm != null && nm.getNotificationChannel(CHANNEL) == null) {
-                nm.createNotificationChannel(new NotificationChannel(CHANNEL, "בדיקת עדכוני אפליקציה", NotificationManager.IMPORTANCE_LOW));
+                // A new channel is used because Android does not allow the app to raise the importance of an existing channel.
+                nm.createNotificationChannel(new NotificationChannel(CHANNEL, "עדכוני משנת יוסף — מצב ובדיקות", NotificationManager.IMPORTANCE_DEFAULT));
             }
         }
     }
