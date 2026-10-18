@@ -564,14 +564,14 @@ public class MainActivity extends Activity {
             button.setMinWidth(0);
             button.setPadding(dp(12), dp(5), dp(12), dp(5));
             button.setTextColor(ORANGE_DARK);
-            button.setBackground(ripple(shape(ORANGE_LIGHT, 12, LINE), 12));
+            button.setBackground(ripple(shape(ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
             ViewGroup.LayoutParams rawParams = button.getLayoutParams();
             if (rawParams instanceof LinearLayout.LayoutParams) {
                 LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) rawParams;
                 params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
                 params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-                params.leftMargin = dp(5);
-                params.rightMargin = dp(5);
+                params.leftMargin = dp(ACTION_BUTTON_GAP_DP / 2);
+                params.rightMargin = dp(ACTION_BUTTON_GAP_DP / 2);
                 button.setLayoutParams(params);
             }
         }
@@ -586,7 +586,7 @@ public class MainActivity extends Activity {
             item.setPadding(dp(16), dp(12), dp(16), dp(12));
             item.setMinHeight(dp(46));
             item.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-            item.setBackground(ripple(shape(SURFACE, 12, LINE), 12));
+            item.setBackground(ripple(shape(SURFACE, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
         }
     }
 
@@ -639,6 +639,19 @@ public class MainActivity extends Activity {
         return v;
     }
 
+    // Shared action-button style: use the same rounded-rectangle geometry and touch feedback
+    // throughout screens, menus, cards, and dialogs. Circular controls (e.g. +/-) stay separate.
+    private static final int ACTION_BUTTON_RADIUS_DP = 12;
+    private static final int ACTION_BUTTON_GAP_DP = 6;
+
+    private void styleActionButton(TextView button, int fill, int foreground, int stroke) {
+        button.setTextColor(foreground);
+        button.setBackground(ripple(
+                shape(fill, ACTION_BUTTON_RADIUS_DP, stroke), ACTION_BUTTON_RADIUS_DP));
+        button.setMinHeight(dp(44));
+        button.setAllCaps(false);
+    }
+
     private TextView btn(String label, int style) {
         TextView b = new TextView(this);
         b.setText(label);
@@ -657,8 +670,7 @@ public class MainActivity extends Activity {
             case DANGER: fill = RED_LIGHT; fg = RED; break;
             default: fill = Color.TRANSPARENT; fg = ORANGE_DARK; break;
         }
-        b.setTextColor(fg);
-        b.setBackground(ripple(shape(fill, 12, stroke), 12));
+        styleActionButton(b, fill, fg, stroke);
         return b;
     }
 
@@ -1543,7 +1555,7 @@ public class MainActivity extends Activity {
     }
 
     private void styleChip(TextView chip, boolean on) {
-        chip.setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
+        chip.setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         chip.setTextColor(on ? Color.WHITE : ORANGE_DARK);
     }
 
@@ -3263,7 +3275,7 @@ public class MainActivity extends Activity {
         TextView clearSearch = text("×", 22, true);
         clearSearch.setGravity(Gravity.CENTER);
         clearSearch.setTextColor(MUTED);
-        clearSearch.setBackground(shape(SURFACE, 10, LINE));
+        clearSearch.setBackground(ripple(shape(SURFACE, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
         clearSearch.setContentDescription("מחיקת החיפוש");
         clearSearch.setVisibility(filterText.isEmpty() ? View.GONE : View.VISIBLE);
         LinearLayout.LayoutParams clearSearchLp = new LinearLayout.LayoutParams(dp(34), dp(36));
@@ -3500,12 +3512,11 @@ public class MainActivity extends Activity {
         switch (style) {
             case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
             case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
-            case OUTLINE: fill = Color.WHITE; fg = ORANGE_DARK; stroke = ORANGE; break;
+            case OUTLINE: fill = SURFACE; fg = ORANGE_DARK; stroke = ORANGE; break;
             case DANGER: fill = RED_LIGHT; fg = RED; break;
             default: fill = Color.TRANSPARENT; fg = ORANGE_DARK; break;
         }
-        b.setTextColor(fg);
-        b.setBackground(ripple(shape(fill, 12, stroke), 12));
+        styleActionButton(b, fill, fg, stroke);
     }
 
     /** One product card. Created once, then re-bound while the list scrolls. */
@@ -4024,9 +4035,9 @@ public class MainActivity extends Activity {
     private void updateModeButtons(TextView edit, TextView collect) {
         edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
         collect.setText(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף");
-        edit.setBackground(ripple(shape(ORANGE, 12, 0), 12));
+        edit.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         edit.setTextColor(Color.WHITE);
-        collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
+        collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         collect.setTextColor(collectMode ? Color.WHITE : ORANGE_DARK);
     }
 
@@ -4505,7 +4516,7 @@ public class MainActivity extends Activity {
             String[] keys = {"all", "credit", "charge"};
             for (int i = 0; i < chips.length; i++) {
                 boolean on = keys[i].equals(mode[0]);
-                chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
+                chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
                 chips[i].setTextColor(on ? Color.WHITE : ORANGE_DARK);
             }
             for (JSONObject tx : rows) {
