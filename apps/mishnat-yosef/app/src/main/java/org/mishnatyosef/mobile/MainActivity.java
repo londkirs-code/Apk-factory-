@@ -3278,7 +3278,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (stale(t)) return;
                     summary = od;
-                    for (OrderLine line : od.lines) featureQuantities.put(line.sid, (int) Math.round(line.amount));
+                    syncOrderDataFromServer(od);
                     renderOrderSummary();
                 });
             } catch (Exception e) {
@@ -3436,18 +3436,48 @@ public class MainActivity extends Activity {
         }
     };
 
+    /** Treat the server response as authoritative for both the summary list and product-page header. */
+    private void syncOrderDataFromServer(OrderData od) {
+        if (od == null) return;
+        summary = od;
+        featureQuantities.clear();
+        for (JSONObject p : featureProducts) {
+            try { p.put("amount", 0); } catch (Exception ignored) { }
+        }
+        for (OrderLine line : od.lines) {
+            int qty = Math.max(0, (int) Math.round(line.amount));
+            featureQuantities.put(line.sid, qty);
+            JSONObject product = findProduct(line.sid);
+            if (product != null) {
+                try { product.put("amount", qty); } catch (Exception ignored) { }
+            }
+        }
+        persistQuantities();
+        updateOrderBar();
+    }
+
+    /** Re-fetch all order lines after a successful edit, not just the server total. */
     private void refreshServerTotals() {
         final int t = screenToken;
+        final long orderId = featureOrderId;
         executor.execute(() -> {
             try {
-                OrderData od = fetchOrder(featureOrderId);
+                OrderData od = fetchOrder(orderId);
                 runOnUiThread(() -> {
-                    if (stale(t) || summary == null) return;
-                    summary.total = od.total;
-                    summary.credits = od.credits;
-                    updateSummaryTotals();
+                    if (stale(t) || featureOrderId != orderId || summary == null) return;
+                    syncOrderDataFromServer(od);
+                    if (screenKind == 2) {
+                        rebuildSummary();
+                        updateSummaryTotals();
+                    }
                 });
-            } catch (Exception ignored) { }
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    if (!stale(t) && screenKind == 2) {
+                        setStatus("⚠ לא ניתן לרענן את ההזמנה מהשרת; הנתונים יוצגו עד לרענון הבא.", true);
+                    }
+                });
+            }
         });
     }
 
