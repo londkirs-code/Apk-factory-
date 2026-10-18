@@ -660,7 +660,7 @@ public class MainActivity extends Activity {
         header.setBackgroundColor(ORANGE);
         final int padStart = back != null ? dp(8) : dp(16);
         final int padEnd = dp(16);
-        header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
+        header.setPadding(rtlActive() ? padEnd : padStart, dp(1), rtlActive() ? padStart : padEnd, dp(1));
         header.setElevation(dp(3));
         if (back != null) {
             TextView arrow = text("→", 22, true);
@@ -672,7 +672,7 @@ public class MainActivity extends Activity {
         }
         // The app-name line is intentionally omitted on every screen.
         // Keep only the current-screen heading at the ideal compact, readable size (12sp).
-        TextView head = text(heading, 12, true);
+        TextView head = text(heading, 14, true);
         head.setTextColor(Color.WHITE);
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
@@ -751,7 +751,7 @@ public class MainActivity extends Activity {
         screen.setOnApplyWindowInsetsListener((v, insets) -> {
             if (Build.VERSION.SDK_INT < 30) return insets; // older Android already keeps content inside the system bars
             int[] in = systemInsets(insets);
-            headerFinal.setPadding((rtlActive() ? padEnd : padStart) + in[0], dp(4) + in[1], (rtlActive() ? padStart : padEnd) + in[2], dp(4));
+            headerFinal.setPadding((rtlActive() ? padEnd : padStart) + in[0], dp(1) + in[1], (rtlActive() ? padStart : padEnd) + in[2], dp(1));
             if (navFinal != null) {
                 LinearLayout navLayout = (LinearLayout) navFinal;
                 navLayout.setPadding(in[0], 0, in[2], 0);
