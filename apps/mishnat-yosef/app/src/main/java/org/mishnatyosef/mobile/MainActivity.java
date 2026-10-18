@@ -764,7 +764,7 @@ public class MainActivity extends Activity {
                     if ("navCenter".equals(cell.getTag())) {
                         View dome = ((ViewGroup) cell).getChildAt(0);
                         ViewGroup.LayoutParams domeLp = dome.getLayoutParams();
-                        domeLp.height = dp(72) + in[3];
+                        domeLp.height = dp(94) + in[3];
                         dome.setLayoutParams(domeLp);
                     } else {
                         cell.setPadding(dp(2), dp(5), dp(2), dp(5) + in[3]);
@@ -4003,14 +4003,26 @@ public class MainActivity extends Activity {
         LinearLayout dome = new LinearLayout(this);
         dome.setOrientation(LinearLayout.VERTICAL);
         dome.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        dome.setPadding(0, dp(12), 0, 0);
-        float r = dp(34);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(active ? ORANGE_DARK : ORANGE);
-        bg.setCornerRadii(new float[]{r, r, r, r, r, r, r, r});
-        GradientDrawable mask = new GradientDrawable();
-        mask.setColor(Color.WHITE);
-        mask.setCornerRadii(new float[]{r, r, r, r, r, r, r, r});
+        dome.setPadding(0, dp(13), 0, 0);
+
+        // A rounded mountain peak that widens continuously toward the app's bottom edge.
+        android.graphics.Path mountainPath = new android.graphics.Path();
+        mountainPath.moveTo(50f, 0f);
+        mountainPath.cubicTo(59f, 0f, 65f, 7f, 70f, 19f);
+        mountainPath.cubicTo(78f, 39f, 89f, 68f, 100f, 100f);
+        mountainPath.lineTo(0f, 100f);
+        mountainPath.cubicTo(11f, 68f, 22f, 39f, 30f, 19f);
+        mountainPath.cubicTo(35f, 7f, 41f, 0f, 50f, 0f);
+        mountainPath.close();
+
+        android.graphics.drawable.shapes.PathShape mountainShape =
+                new android.graphics.drawable.shapes.PathShape(mountainPath, 100f, 100f);
+        android.graphics.drawable.ShapeDrawable bg =
+                new android.graphics.drawable.ShapeDrawable(mountainShape);
+        bg.getPaint().setColor(active ? ORANGE_DARK : ORANGE);
+        android.graphics.drawable.ShapeDrawable mask =
+                new android.graphics.drawable.ShapeDrawable(new android.graphics.drawable.shapes.PathShape(mountainPath, 100f, 100f));
+        mask.getPaint().setColor(Color.WHITE);
         dome.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
         dome.setElevation(dp(8));
         dome.setClickable(true);
@@ -4026,9 +4038,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-2, -2);
         labelLp.topMargin = dp(2);
         dome.addView(label, labelLp);
-        FrameLayout.LayoutParams dp0 = new FrameLayout.LayoutParams(dp(104), dp(72));
-        dp0.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        slot.addView(dome, dp0);
+        FrameLayout.LayoutParams domeLp = new FrameLayout.LayoutParams(dp(108), dp(94));
+        domeLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        slot.addView(dome, domeLp);
         dome.setOnClickListener(v -> openLatestCollect());
         slot.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1.1f));
         return slot;
