@@ -2619,49 +2619,21 @@ public class MainActivity extends Activity {
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(8), dp(5), dp(8), dp(5));
 
-        EditText search = field("⌕", InputType.TYPE_CLASS_TEXT);
+        EditText search = field("חיפוש מוצר…", InputType.TYPE_CLASS_TEXT);
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setText(filterText);
-        search.setTextSize(16);
-        search.setGravity(Gravity.CENTER);
-        search.setPadding(dp(5), 0, dp(5), 0);
-        search.setHint("⌕");
-        final LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(dp(filterText.isEmpty() ? 42 : 108), dp(40));
-        if (!filterText.isEmpty()) {
-            search.setHint("חיפוש מוצר…");
-            search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-            search.setTextSize(14);
-            search.setPadding(dp(9), 0, dp(9), 0);
-        }
+        search.setTextSize(14);
+        search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        search.setPadding(dp(9), 0, dp(9), 0);
+        search.setHint("חיפוש מוצר…");
+        // The search field takes every pixel left after the fixed navigation/action controls.
+        final LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(0, dp(40), 1f);
         search.setOnClickListener(v -> {
-            searchLp.width = dp(108);
-            search.setLayoutParams(searchLp);
-            search.setHint("חיפוש מוצר…");
-            search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-            search.setTextSize(14);
-            search.setPadding(dp(9), 0, dp(9), 0);
             search.requestFocus();
             search.post(() -> {
                 InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                 if (imm != null) imm.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT);
             });
-        });
-        search.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                searchLp.width = dp(108);
-                search.setLayoutParams(searchLp);
-                search.setHint("חיפוש מוצר…");
-                search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-                search.setTextSize(14);
-                search.setPadding(dp(9), 0, dp(9), 0);
-            } else if (search.getText().length() == 0) {
-                searchLp.width = dp(42);
-                search.setLayoutParams(searchLp);
-                search.setHint("⌕");
-                search.setGravity(Gravity.CENTER);
-                search.setTextSize(16);
-                search.setPadding(dp(5), 0, dp(5), 0);
-            }
         });
         final Runnable[] debounce = new Runnable[1];
         search.addTextChangedListener(new TextWatcher() {
@@ -2689,23 +2661,46 @@ public class MainActivity extends Activity {
         barTotal.setEllipsize(TextUtils.TruncateAt.END);
         orderText.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
         orderText.addView(barTotal, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(0, -2, 1);
-        orderTextLp.setMarginStart(dp(4));
+        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(dp(60), -2);
+        orderTextLp.setMarginStart(dp(3));
         toolbar.addView(orderText, orderTextLp);
 
+        TextView topBtn = roundBtn("↑", 30, ORANGE_LIGHT, ORANGE_DARK);
+        topBtn.setTextSize(20);
+        topBtn.setContentDescription("לתחילת ההזמנה");
+        topBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            if (productList != null) productList.smoothScrollToPosition(0);
+        });
+        LinearLayout.LayoutParams topLp = new LinearLayout.LayoutParams(dp(30), dp(40));
+        topLp.setMarginStart(dp(3));
+        toolbar.addView(topBtn, topLp);
+
+        TextView bottomBtn = roundBtn("↓", 30, ORANGE_LIGHT, ORANGE_DARK);
+        bottomBtn.setTextSize(20);
+        bottomBtn.setContentDescription("לסוף ההזמנה");
+        bottomBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            if (productList != null) productList.smoothScrollToPosition(Math.max(0, gridRows.size() - 1));
+        });
+        LinearLayout.LayoutParams bottomLp = new LinearLayout.LayoutParams(dp(30), dp(40));
+        bottomLp.setMarginStart(dp(2));
+        toolbar.addView(bottomBtn, bottomLp);
+
         TextView open = btn("ההזמנה שלי", PRIMARY);
-        open.setTextSize(12);
-        open.setPadding(dp(7), 0, dp(7), 0);
+        open.setTextSize(11);
+        open.setPadding(dp(4), 0, dp(4), 0);
         open.setMaxLines(1);
         open.setOnClickListener(v -> showOrderSummary());
         LinearLayout.LayoutParams openLp = new LinearLayout.LayoutParams(-2, dp(40));
-        openLp.setMarginStart(dp(4));
+        openLp.setMarginStart(dp(3));
         toolbar.addView(open, openLp);
 
-        TextView optionsBtn = roundBtn("⋯", 36, ORANGE_LIGHT, ORANGE_DARK);
+        TextView optionsBtn = roundBtn("⋯", 32, ORANGE_LIGHT, ORANGE_DARK);
         optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
-        LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(36), dp(40));
-        optionsLp.setMarginStart(dp(4));
+        optionsBtn.setContentDescription("אפשרויות נוספות");
+        LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(32), dp(40));
+        optionsLp.setMarginStart(dp(3));
         toolbar.addView(optionsBtn, optionsLp);
 
         statusView = muted("", 12); // loading/offline state stays in the fixed header, below search
@@ -4310,43 +4305,36 @@ public class MainActivity extends Activity {
 
     private void showOrderQuickMenu() {
         final List<String> labels = new ArrayList<>();
+        final List<Integer> actions = new ArrayList<>();
         if (!summaryFromHistory) {
-            labels.add("פרטי המכירה");
-            labels.add("רענון מוצרים");
+            labels.add("פרטי המכירה"); actions.add(0);
+            labels.add("רענון מוצרים"); actions.add(1);
         }
-        labels.add("פעולות הזמנה");
-        new AlertDialog.Builder(this).setTitle("אפשרויות")
+        if (featureOrderId > 0) {
+            labels.add("📤 שיתוף סיכום ההזמנה"); actions.add(2);
+            labels.add("📦 ייצוא הזמנה לקובץ"); actions.add(3);
+            labels.add("📥 ייבוא הזמנה מקובץ"); actions.add(4);
+            labels.add("📝 הדבקת רשימת קניות"); actions.add(5);
+            labels.add("⭐ טעינת מועדפים להזמנה"); actions.add(6);
+            labels.add("💾 שמירת כמויות למועדפים"); actions.add(7);
+            labels.add("🧹 ניקוי כמויות שמורות"); actions.add(8);
+            labels.add("🗑 מחיקת ההזמנה"); actions.add(9);
+        }
+        new AlertDialog.Builder(this).setTitle("אפשרויות נוספות")
                 .setItems(labels.toArray(new String[0]), (d, which) -> {
-                    String selected = labels.get(which);
-                    if ("פרטי המכירה".equals(selected)) showSaleDetails(featureSale);
-                    else if ("רענון מוצרים".equals(selected)) refreshProducts(featureSale, false);
-                    else showOrderActions();
+                    switch (actions.get(which)) {
+                        case 0: showSaleDetails(featureSale); break;
+                        case 1: refreshProducts(featureSale, false); break;
+                        case 2: showShareMenu(orderText(currentTitle(), featureOrderId, "", currentOrderLines())); break;
+                        case 3: startExport("הזמנה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), featureOrderId, currentOrderLines())); break;
+                        case 4: pickImportFile(); break;
+                        case 5: showPasteWishlist(); break;
+                        case 6: orderFavourites(); break;
+                        case 7: saveFavQuantities(); break;
+                        case 8: clearFavQuantities(); break;
+                        case 9: confirmDeleteOrder(); break;
+                    }
                 }).show();
-    }
-
-    private void showOrderActions() {
-        if (featureOrderId <= 0) { toast("לא נמצאה הזמנה", false); return; }
-        final String[] labels = {
-                "📤 שיתוף סיכום ההזמנה",
-                "📦 ייצוא הזמנה לקובץ",
-                "📥 ייבוא הזמנה מקובץ",
-                "📝 הדבקת רשימת קניות",
-                "⭐ טעינת מועדפים להזמנה",
-                "💾 שמירת כמויות למועדפים",
-                "🧹 ניקוי כמויות שמורות",
-                "🗑 מחיקת ההזמנה"};
-        new AlertDialog.Builder(this).setTitle("פעולות הזמנה").setItems(labels, (d, which) -> {
-            switch (which) {
-                case 0: showShareMenu(orderText(currentTitle(), featureOrderId, "", currentOrderLines())); break;
-                case 1: startExport("הזמנה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), featureOrderId, currentOrderLines())); break;
-                case 2: pickImportFile(); break;
-                case 3: showPasteWishlist(); break;
-                case 4: orderFavourites(); break;
-                case 5: saveFavQuantities(); break;
-                case 6: clearFavQuantities(); break;
-                default: confirmDeleteOrder(); break;
-            }
-        }).show();
     }
 
     private void showPasteWishlist() {
