@@ -729,7 +729,7 @@ public class MainActivity extends Activity {
             item.setMinHeight(dp(38));
             item.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             // Use a narrower row for the visible button itself; preserve the original text size.
-            ViewParent parent = item.getParent();
+            android.view.ViewParent parent = item.getParent();
             if (parent instanceof ListView) {
                 int availableWidth = ((ListView) parent).getWidth();
                 if (availableWidth <= 0) {
