@@ -812,6 +812,7 @@ public class MainActivity extends Activity {
         acc.addView(muted(tokenStatus(), 12));
         root.addView(acc, lp(-1, -2, 0, 10));
         addHomeNotificationSettings();
+        addUpdateSettingsEntry();
         addSafetySettings();
         TextView refreshTok = btn("🔁 חידוש התחברות (בלי סיסמה)", TONAL);
         refreshTok.setOnClickListener(v -> executor.execute(() -> {
@@ -4246,6 +4247,65 @@ public class MainActivity extends Activity {
             if (ref[0].getWindow() != null) ref[0].getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
         });
         ref[0].show();
+    }
+
+
+    private void addUpdateSettingsEntry() {
+        LinearLayout updateCard = card(14);
+        updateCard.addView(sectionTitle("⬇️ עדכוני אפליקציה"));
+        updateCard.addView(muted("בדיקת גרסה חדשה והורדה ישירות מהקישור הקבוע בגיטהאב", 13));
+        TextView open = btn("⚙️ הגדרות עדכונים", TONAL);
+        open.setOnClickListener(v -> showUpdateSettings());
+        updateCard.addView(open, lp(-1, dp(46), 0, 8));
+        root.addView(updateCard, lp(-1, -2, 0, 10));
+    }
+
+    private void showUpdateSettings() {
+        beginScreen("עדכוני אפליקציה", 3, this::showAccount);
+        LinearLayout card = card(14);
+        card.addView(sectionTitle("עדכונים אוטומטיים"));
+        card.addView(switchRow("בדיקה אוטומטית", "בדיקה ברקע גם כשמסך ההגדרות סגור", prefs.getBoolean("app_update_auto", false), (b, checked) -> {
+            prefs.edit().putBoolean("app_update_auto", checked).apply();
+            if (checked) {
+                requestUpdateNotificationPermission();
+                UpdateService.start(this);
+            } else {
+                UpdateService.stop(this);
+            }
+            showUpdateSettings();
+        }));
+        card.addView(switchRow("התראה קבועה", "הצגת התראה בזמן שהבדיקה האוטומטית פעילה", prefs.getBoolean("app_update_notification", true), (b, checked) -> {
+            prefs.edit().putBoolean("app_update_notification", checked).apply();
+            if (prefs.getBoolean("app_update_auto", false)) {
+                if (checked) UpdateService.start(this); else UpdateService.refreshNotification(this);
+            }
+        }));
+        card.addView(muted("מרווח בדיקה (בשניות). המינימום הוא 5 שניות. מרווח קצר משתמש ביותר סוללה ונתונים.", 13));
+        EditText interval = field("5", InputType.TYPE_CLASS_NUMBER);
+        interval.setText(String.valueOf(Math.max(5, prefs.getInt("app_update_interval_seconds", 300))));
+        card.addView(interval, lp(-1, dp(48), 0, 8));
+        TextView save = btn("שמירת מרווח בדיקה", PRIMARY);
+        save.setOnClickListener(v -> {
+            String raw = interval.getText().toString().trim();
+            int seconds;
+            try { seconds = Math.max(5, Math.min(86400, Integer.parseInt(raw))); }
+            catch (Exception e) { toast("יש להזין מספר שניות תקין", true); return; }
+            prefs.edit().putInt("app_update_interval_seconds", seconds).apply();
+            if (prefs.getBoolean("app_update_auto", false)) UpdateService.start(this);
+            toast("✔ מרווח הבדיקה נשמר: " + seconds + " שניות", false);
+        });
+        card.addView(save, lp(-1, dp(46), 0, 8));
+        TextView manual = btn("🔎 בדיקת עדכון עכשיו", TONAL);
+        manual.setOnClickListener(v -> UpdateService.checkNow(this));
+        card.addView(manual, lp(-1, dp(46), 0, 8));
+        root.addView(card, lp(-1, -2, 0, 10));
+        root.addView(muted("התקנת עדכון עשויה לדרוש אישור Android. יש לאפשר התקנה ממקור זה בהגדרות המערכת אם תתבקשו.", 12), lp(-1, -2, 0, 8));
+    }
+
+    private void requestUpdateNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 7331);
+        }
     }
 
     private void addSafetySettings() {
