@@ -835,6 +835,14 @@ public class MainActivity extends Activity {
             showLogin();
         });
         root.addView(logout, lp(-1, dp(48), 16, 8));
+        String appVersion = "לא ידועה";
+        try {
+            String detectedVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            if (detectedVersion != null && !detectedVersion.trim().isEmpty()) appVersion = detectedVersion;
+        } catch (Exception ignored) { }
+        TextView versionView = muted("גרסת האפליקציה: " + appVersion, 12);
+        versionView.setGravity(Gravity.CENTER);
+        root.addView(versionView, lp(-1, -2, 0, 16));
     }
 
     private void setBusy(boolean value, String message) {
@@ -1534,7 +1542,7 @@ public class MainActivity extends Activity {
     private ImageView imageView(int widthDp, int heightDp, ImageView.ScaleType scale) {
         ImageView iv = new ImageView(this);
         iv.setScaleType(scale);
-        iv.setBackgroundColor(Color.rgb(250, 239, 229));
+        iv.setBackgroundColor(Color.WHITE);
         iv.setLayoutParams(new LinearLayout.LayoutParams(widthDp < 0 ? widthDp : dp(widthDp), dp(heightDp)));
         return iv;
     }
@@ -2216,7 +2224,7 @@ public class MainActivity extends Activity {
         FrameLayout imageBox = new FrameLayout(this);
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
+        image.setBackground(shape(Color.WHITE, 10, 0));
         image.setClipToOutline(true);
         imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(170)));
         if (!canOrder) {
