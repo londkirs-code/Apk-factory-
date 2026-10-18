@@ -533,9 +533,11 @@ public class MainActivity extends Activity {
         ListView choices = dialog.getListView();
         if (choices != null) {
             choices.setBackgroundColor(panelColor);
-            choices.setDivider(new ColorDrawable(LINE));
-            choices.setDividerHeight(dp(1));
-            choices.setPadding(dp(10), dp(6), dp(10), dp(6));
+            // Action-list dialogs use the same white panel and spaced orange rounded
+            // buttons as Settings, rather than platform-style flat list rows.
+            choices.setDivider(new ColorDrawable(Color.TRANSPARENT));
+            choices.setDividerHeight(dp(ACTION_BUTTON_GAP_DP));
+            choices.setPadding(dp(12), dp(8), dp(12), dp(8));
             choices.setClipToPadding(false);
             choices.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             for (int i = 0; i < choices.getChildCount(); i++) {
@@ -580,13 +582,14 @@ public class MainActivity extends Activity {
     private void styleDialogChoice(View view) {
         if (view instanceof TextView) {
             TextView item = (TextView) view;
-            item.setTextColor(INK);
-            item.setTextSize(15);
+            item.setTextColor(ORANGE_DARK);
+            item.setTextSize(16);
+            item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             item.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
             item.setPadding(dp(16), dp(12), dp(16), dp(12));
-            item.setMinHeight(dp(46));
+            item.setMinHeight(dp(48));
             item.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-            item.setBackground(ripple(shape(SURFACE, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
+            item.setBackground(ripple(shape(ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
         }
     }
 
