@@ -8,8 +8,8 @@ android {
         applicationId 'org.mishnatyosef.mobile'
         minSdk 23
         targetSdk 33
-        versionCode 101
-        versionName '1.263'
+        versionCode 102
+        versionName '1.264'
     }
 }
 
