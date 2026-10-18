@@ -913,17 +913,13 @@ public class MainActivity extends Activity {
     private void addWhatsNewEntry() {
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
-        whatsNewCard.addView(muted("סקירה קצרה של השיפורים האחרונים באפליקציה", 13));
+        whatsNewCard.addView(muted("השינוי האחרון: סיכום הזמנה רחב יותר וחיפוש שמתרחב על כל השורה בלחיצה.", 13));
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
         open.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("✨ מה חדש במשנת יוסף")
                 .setMessage(
-                        "• הזמנה נוחה יותר: חיפוש מוצרים ושורת פעולות מסודרת.\n\n" +
-                        "• קפיצה מיידית לתחילת ההזמנה או לסופה, גם ברשימות גדולות.\n\n" +
-                        "• פעולות הזמנה מרוכזות בתפריט אחד: שיתוף, ייבוא וייצוא, מועדפים וניקוי כמויות.\n\n" +
-                        "• צפייה בהיסטוריית הזמנות ובפרטי הזמנות קודמות.\n\n" +
-                        "• מסך זיכויים ופרטי חשבון.\n\n" +
-                        "• בדיקת עדכוני אפליקציה ברקע, עם אפשרות להתראה קבועה.")
+                        "• סיכום ההזמנה — מספר המוצרים, היחידות והמחיר הכולל — קיבל פי שניים רוחב.\n\n" +
+                        "• בלחיצה על החיפוש הוא מתרחב לכל רוחב השורה ומסתיר זמנית את יתר הכפתורים; בסיום החיפוש הם חוזרים.")
                 .setPositiveButton("הבנתי", null)
                 .show());
         whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
@@ -2682,8 +2678,7 @@ public class MainActivity extends Activity {
         barTotal.setEllipsize(TextUtils.TruncateAt.END);
         orderText.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
         orderText.addView(barTotal, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(-2, -2);
-        orderText.setMinimumWidth(dp(84));
+        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(dp(168), -2);
         orderTextLp.setMarginStart(dp(3));
         toolbar.addView(orderText, orderTextLp);
 
@@ -2708,6 +2703,18 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams bottomLp = new LinearLayout.LayoutParams(dp(30), dp(40));
         bottomLp.setMarginStart(dp(2));
         toolbar.addView(bottomBtn, bottomLp);
+
+        // When searching, temporarily hide the summary and navigation controls so the field
+        // expands into the entire toolbar row; restore them as soon as search loses focus.
+        search.setOnFocusChangeListener((v, hasFocus) -> {
+            int controlsVisibility = hasFocus ? View.GONE : View.VISIBLE;
+            orderText.setVisibility(controlsVisibility);
+            topBtn.setVisibility(controlsVisibility);
+            bottomBtn.setVisibility(controlsVisibility);
+            searchLp.width = hasFocus ? -1 : 0;
+            searchLp.weight = hasFocus ? 0f : 1f;
+            search.setLayoutParams(searchLp);
+        });
 
         TextView open = btn("ההזמנה שלי", PRIMARY);
         open.setTextSize(11);
