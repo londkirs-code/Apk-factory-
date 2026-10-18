@@ -4245,15 +4245,6 @@ public class MainActivity extends Activity {
                 showMathChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
             }
         }));
-        card.addView(switchRow("הצגת מקסימום", "כתיבת \"מקסימום N\" על כל פריט. ההגבלה עצמה נבדקת בשרת", showMax(), (b, checked) -> {
-            prefs.edit().putBoolean("show_max", checked).apply();
-            toast(checked ? "🔢 המקסימום מוצג על הפריטים" : "המקסימום מוסתר", false);
-        }));
-        card.addView(switchRow("תמונות מלאות", "טעינת התמונה המקורית במקום תמונה ממוזערת. איטי יותר, אבל לא חתוך", fullImages(), (b, checked) -> {
-            prefs.edit().putBoolean("full_images", checked).apply();
-            imageCache.evictAll();
-            toast(checked ? "🖼️ תמונות מלאות הופעלו" : "תמונות ממוזערות הופעלו", false);
-        }));
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
