@@ -243,7 +243,12 @@ public class MainActivity extends Activity {
             if ("openSaleTitle".equals(textView.getTag())) {
                 textView.setTextColor(nightMode ? Color.WHITE : INK);
             } else if ("openSaleInfo".equals(textView.getTag())) {
-                paintButton(textView, nightMode ? TONAL : FLAT);
+                // Keep the compact chip's existing height/padding so the theme switch cannot
+                // shift the sales list vertically.
+                textView.setTextColor(ORANGE_DARK);
+                textView.setBackground(ripple(shape(
+                        nightMode ? ORANGE_LIGHT : Color.TRANSPARENT,
+                        ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
             }
             if ("nightModeToggle".equals(textView.getTag())) {
                 textView.setText(nightMode ? "☀️" : "🌙");
