@@ -18,9 +18,11 @@ public class UpdateService extends Service {
     private static final String INSTALL_ACTION = "org.mishnatyosef.mobile.INSTALL_DOWNLOADED_UPDATE";
     private static final Uri APK_URI = Uri.parse("content://org.mishnatyosef.mobile.updatefiles/apk");
     private static final int NOTIFICATION_ID = 7332;
-    private static final int UPDATE_NOTIFICATION_ID = 7333;
     private Handler handler;
     private volatile boolean checking = false;
+    private volatile boolean manualCheckPending = false;
+    private volatile boolean updateReady = false;
+    private volatile String currentNotificationMessage = "בדיקת עדכונים פעילה ברקע";
 
     private final Runnable loop = new Runnable() {
         @Override public void run() {
@@ -29,7 +31,7 @@ public class UpdateService extends Service {
                 return;
             }
             // Re-post the foreground notification every cycle so it is restored if Android/OEM software drops it.
-            startForeground(NOTIFICATION_ID, buildNotification("בדיקת עדכונים פעילה ברקע", true));
+            startForeground(NOTIFICATION_ID, buildNotification(currentNotificationMessage, true));
             checkUpdate(false);
             long sec = Math.max(5, getSharedPreferences(PREFS, MODE_PRIVATE).getInt("app_update_interval_seconds", 300));
             handler.postDelayed(this, sec * 1000L);
@@ -72,6 +74,8 @@ public class UpdateService extends Service {
         }
         handler.removeCallbacks(loop);
         if (manual) {
+            manualCheckPending = true;
+            updateNotification("בודק כעת אם קיימת גרסה חדשה…", true);
             checkUpdate(true);
             if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) {
                 handler.postDelayed(loop, intervalMillis());
@@ -104,15 +108,17 @@ public class UpdateService extends Service {
         }
         Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
-        return b.setSmallIcon(android.R.drawable.stat_sys_download_done)
-                .setContentTitle("משנת יוסף · עדכונים")
+        Notification.Builder builder = b.setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle(updateReady ? "משנת יוסף — עדכון מוכן" : "משנת יוסף · עדכונים")
                 .setContentText(message)
                 .setOngoing(ongoing)
-                .setOnlyAlertOnce(true)
-                .build();
+                .setOnlyAlertOnce(true);
+        if (updateReady) builder.setContentIntent(installerPendingIntent());
+        return builder.build();
     }
 
     private void updateNotification(String message, boolean ongoing) {
+        currentNotificationMessage = message;
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm != null) nm.notify(NOTIFICATION_ID, buildNotification(message, ongoing));
     }
@@ -131,7 +137,14 @@ public class UpdateService extends Service {
     }
 
     private void checkUpdate(boolean tellNoUpdate) {
-        if (checking) return;
+        if (checking) {
+            if (tellNoUpdate) {
+                manualCheckPending = true;
+                saveStatus("בדיקה כבר מתבצעת — ממתין לתוצאה", null, false);
+                updateNotification("בדיקת עדכונים מתבצעת…", getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false));
+            }
+            return;
+        }
         checking = true;
         new Thread(() -> {
             try {
@@ -144,15 +157,17 @@ public class UpdateService extends Service {
 
                 if (compareVersions(latest, installed) <= 0) {
                     String status = "האפליקציה מעודכנת (גרסה " + installed + ")";
+                    updateReady = false;
                     saveStatus(status, latest, true);
-                    if (tellNoUpdate) postResult(status, false);
+                    if (tellNoUpdate || manualCheckPending) postResult(status, false);
                     return;
                 }
 
                 File apk = updateFile();
                 String downloadedVersion = getSharedPreferences(PREFS, MODE_PRIVATE).getString("app_update_downloaded_version", "");
                 if (latest.equals(downloadedVersion) && apk.isFile() && apk.length() > 100000) {
-                    String status = "עדכון " + latest + " כבר הורד — מנסה לפתוח התקנה";
+                    String status = "עדכון " + latest + " כבר הורד — לחץ על ההתראה כדי להתקין";
+                    updateReady = true;
                     saveStatus(status, latest, true);
                     postResult(status, true);
                     return;
@@ -164,6 +179,7 @@ public class UpdateService extends Service {
                 download(APK + "?t=" + System.currentTimeMillis(), apk);
                 if (!apk.isFile() || apk.length() < 100000) throw new IOException("קובץ APK קטן מדי או פגום");
 
+                updateReady = true;
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                         .putString("app_update_downloaded_path", apk.getAbsolutePath())
                         .putString("app_update_downloaded_version", latest)
@@ -179,9 +195,10 @@ public class UpdateService extends Service {
             } catch (Exception e) {
                 String message = "בדיקת העדכון נכשלה: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
                 saveStatus(message, null, true);
-                if (tellNoUpdate) postResult(message, false);
+                if (tellNoUpdate || manualCheckPending) postResult(message, false);
             } finally {
                 checking = false;
+                manualCheckPending = false;
             }
         }, "mishnat-update-check").start();
     }
@@ -254,24 +271,13 @@ public class UpdateService extends Service {
     private void postResult(String message, boolean hasUpdate) {
         handler.post(() -> {
             boolean automatic = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false);
-            updateNotification(message, automatic);
-            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            updateReady = hasUpdate;
+            updateNotification(message, automatic || hasUpdate);
             if (hasUpdate) {
-                // Tapping this notification launches the Android installer (or the required Android permission screen), never MainActivity.
-                Notification.Builder b = Build.VERSION.SDK_INT >= 26
-                        ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
-                Notification n = b.setSmallIcon(android.R.drawable.stat_sys_download_done)
-                        .setContentTitle("משנת יוסף — עדכון מוכן")
-                        .setContentText(message)
-                        .setContentIntent(installerPendingIntent())
-                        .setAutoCancel(false)
-                        .setOnlyAlertOnce(true)
-                        .build();
-                if (nm != null) nm.notify(UPDATE_NOTIFICATION_ID, n);
-                // Try immediately. If Android blocks background launches, the notification's click action opens the installer.
+                // Reuse the foreground notification ID so the user sees only one notification.
+                // Android can block background installer launches; tapping this notification opens it.
                 launchInstallerNow();
             } else if (!automatic) {
-                if (nm != null) nm.notify(NOTIFICATION_ID, buildNotification(message, false));
                 stopSelf();
             }
         });
