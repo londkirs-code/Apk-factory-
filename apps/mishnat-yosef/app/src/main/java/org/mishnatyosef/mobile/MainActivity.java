@@ -4119,10 +4119,10 @@ public class MainActivity extends Activity {
         toast("אוסף תשובות JSON מהשרת…", true);
         executor.execute(() -> {
             StringBuilder report = new StringBuilder();
-            report.append("אבחון JSON מלא — משנת יוסף\\n")
-                    .append("זמן: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())).append("\\n")
-                    .append("הנתונים הם תשובות GET בלבד; לא נאספו כותרות Authorization או אסימוני התחברות.\\n")
-                    .append("הגבלת בטיחות: עד 80 תשובות ועד 2MB בדוח.\\n\\n");
+            report.append("אבחון JSON מלא — משנת יוסף\n")
+                    .append("זמן: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())).append("\n")
+                    .append("הנתונים הם תשובות GET בלבד; לא נאספו כותרות Authorization או אסימוני התחברות.\n")
+                    .append("הגבלת בטיחות: עד 80 תשובות ועד 2MB בדוח.\n\n");
             int requests = 0;
             int totalChars = report.length();
             final int maxRequests = 80;
@@ -4148,13 +4148,13 @@ public class MainActivity extends Activity {
                     String body = res.body == null ? "" : res.body;
                     String entry = jsonDiagnosticEntry("GET", path, res.code, body, maxBodyChars);
                     if (totalChars + entry.length() > maxTotalChars) {
-                        report.append("\\n[הפסקה: מגבלת גודל הדוח הושגה; תשובה נוספת לא צורפה.]\\n");
+                        report.append("\n[הפסקה: מגבלת גודל הדוח הושגה; תשובה נוספת לא צורפה.]\n");
                         break;
                     }
                     report.append(entry);
                     totalChars += entry.length();
                 } catch (Exception e) {
-                    String entry = "\\n========== GET " + path + " ==========\\nשגיאה: " + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()) + "\\n";
+                    String entry = "\n========== GET " + path + " ==========\nשגיאה: " + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()) + "\n";
                     if (totalChars + entry.length() <= maxTotalChars) { report.append(entry); totalChars += entry.length(); }
                 }
                 requests++;
@@ -4163,8 +4163,8 @@ public class MainActivity extends Activity {
             try {
                 HttpResult salesRes = api("GET", "/api/profile/open_sales", null);
                 JSONArray sales = salesRes.code >= 200 && salesRes.code < 300 ? arrayFrom(salesRes.body) : new JSONArray();
-                report.append("\\n========== פירוט כל דפי המוצרים של המכירות הפתוחות ==========\\n")
-                        .append("מכירות פתוחות שנמצאו: ").append(sales.length()).append("\\n");
+                report.append("\n========== פירוט כל דפי המוצרים של המכירות הפתוחות ==========\n")
+                        .append("מכירות פתוחות שנמצאו: ").append(sales.length()).append("\n");
                 for (int i = 0; i < sales.length() && requests < maxRequests && totalChars < maxTotalChars; i++) {
                     JSONObject sale = sales.optJSONObject(i);
                     if (sale == null) continue;
@@ -4178,7 +4178,7 @@ public class MainActivity extends Activity {
                             String body = res.body == null ? "" : res.body;
                             String entry = jsonDiagnosticEntry("GET", path, res.code, body, maxBodyChars);
                             if (totalChars + entry.length() > maxTotalChars) {
-                                report.append("\\n[הפסקה: מגבלת גודל הדוח הושגה.]\\n");
+                                report.append("\n[הפסקה: מגבלת גודל הדוח הושגה.]\n");
                                 more = false;
                                 break;
                             }
@@ -4189,23 +4189,24 @@ public class MainActivity extends Activity {
                             more = pageItems.length() >= PAGE_LIMIT;
                             if (pageItems.length() == 0) more = false;
                         } catch (Exception e) {
-                            report.append("\\n========== GET ").append(path).append(" ==========\\nשגיאה: ")
-                                    .append(e.getClass().getSimpleName()).append(": ").append(String.valueOf(e.getMessage())).append("\\n");
+                            report.append("\n========== GET ").append(path).append(" ==========\nשגיאה: ")
+                                    .append(e.getClass().getSimpleName()).append(": ").append(String.valueOf(e.getMessage())).append("\n");
                             requests++;
                             more = false;
                         }
                     }
                 }
             } catch (Exception e) {
-                report.append("\\nשגיאה באיסוף המכירות/המוצרים: ").append(String.valueOf(e.getMessage())).append("\\n");
+                report.append("\nשגיאה באיסוף המכירות/המוצרים: ").append(String.valueOf(e.getMessage())).append("\n");
             }
-            report.append("\\n========== סיכום ==========\\nמספר בקשות שנוסו: ").append(requests)
-                    .append("\\nגודל הדוח בתווים: ").append(report.length())
-                    .append("\\nהערה: זה כולל נתיבי GET מוכרים באפליקציה והמכירות הפתוחות שנחשפו; אין בכך הבטחה שכל נתיב פנימי/לא מתועד של האתר נבדק.\\n");
+            report.append("\n========== סיכום ==========\nמספר בקשות שנוסו: ").append(requests)
+                    .append("\nגודל הדוח בתווים: ").append(report.length())
+                    .append("\nהערה: זה כולל נתיבי GET מוכרים באפליקציה והמכירות הפתוחות שנחשפו; אין בכך הבטחה שכל נתיב פנימי/לא מתועד של האתר נבדק.\n");
             final String result = report.toString();
+            final int requestCount = requests;
             runOnUiThread(() -> new AlertDialog.Builder(this)
                     .setTitle("דוח JSON מהשרת")
-                    .setMessage("האיסוף הסתיים. הדוח מכיל " + requests + " בקשות ונשמר זמנית בחלונית. אפשר להעתיק את כולו או לשתף אותו. בדקו פרטים אישיים לפני שיתוף.")
+                    .setMessage("האיסוף הסתיים. הדוח מכיל " + requestCount + " בקשות ונשמר זמנית בחלונית. אפשר להעתיק את כולו או לשתף אותו. בדקו פרטים אישיים לפני שיתוף.")
                     .setPositiveButton("סגירה", null)
                     .setNeutralButton("העתקת כל הדוח", (d, w) -> {
                         ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
@@ -4220,13 +4221,13 @@ public class MainActivity extends Activity {
     private String jsonDiagnosticEntry(String method, String path, int code, String body, int maxBodyChars) {
         String value = body == null ? "" : body;
         StringBuilder entry = new StringBuilder();
-        entry.append("\\n========== ").append(method).append(" ").append(path)
-                .append(" | HTTP ").append(code).append(" | bytes/chars ").append(value.length()).append(" ==========\\n");
+        entry.append("\n========== ").append(method).append(" ").append(path)
+                .append(" | HTTP ").append(code).append(" | bytes/chars ").append(value.length()).append(" ==========\n");
         if (value.length() > maxBodyChars) {
             entry.append(value, 0, maxBodyChars)
-                    .append("\\n[התשובה נחתכה בדוח אחרי ").append(maxBodyChars).append(" תווים; התשובה המקורית ארוכה יותר.]\\n");
+                    .append("\n[התשובה נחתכה בדוח אחרי ").append(maxBodyChars).append(" תווים; התשובה המקורית ארוכה יותר.]\n");
         } else {
-            entry.append(value).append("\\n");
+            entry.append(value).append("\n");
         }
         return entry.toString();
     }
