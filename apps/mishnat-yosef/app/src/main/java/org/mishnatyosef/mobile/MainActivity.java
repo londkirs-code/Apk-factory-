@@ -523,7 +523,7 @@ public class MainActivity extends Activity {
         }
 
         styleDialogButtons(dialog);
-        View buttonPanel = dialog.findViewById(android.R.id.buttonPanel);
+        View buttonPanel = dialog.findViewById(getResources().getIdentifier("buttonPanel", "id", "android"));
         if (buttonPanel instanceof ViewGroup) {
             buttonPanel.setPadding(dp(12), dp(6), dp(12), dp(12));
             if (buttonPanel instanceof LinearLayout) {
