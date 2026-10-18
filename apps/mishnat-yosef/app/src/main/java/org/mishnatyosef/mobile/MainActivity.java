@@ -4283,6 +4283,21 @@ public class MainActivity extends Activity {
     private void showUpdateSettings() {
         beginScreen("עדכוני אפליקציה", 3, this::showAccount);
         LinearLayout card = card(14);
+        card.addView(sectionTitle("מידע על העדכון"));
+        String installedVersion = "לא ידוע";
+        try { installedVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
+        String latestVersion = prefs.getString("app_update_latest_version", "");
+        if (latestVersion.isEmpty()) latestVersion = "עדיין לא נבדקה";
+        String updateStatus = prefs.getString("app_update_status", "טרם בוצעה בדיקת עדכונים");
+        long lastCheck = prefs.getLong("app_update_last_check_time", 0L);
+        String lastCheckText = lastCheck > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("he", "IL")).format(new Date(lastCheck)) : "אין עדיין";
+        TextView updateInfo = muted("גרסה מותקנת: " + installedVersion
+                + "\\nגרסה אחרונה ב-GitHub: " + latestVersion
+                + "\\nמצב: " + updateStatus
+                + "\\nבדיקה אחרונה: " + lastCheckText, 13);
+        updateInfo.setSingleLine(false);
+        updateInfo.setMaxLines(6);
+        card.addView(updateInfo, lp(-1, -2, 0, 12));
         card.addView(sectionTitle("עדכונים אוטומטיים"));
         card.addView(switchRow("בדיקה אוטומטית", "בדיקה ברקע גם כשמסך ההגדרות סגור", prefs.getBoolean("app_update_auto", false), (b, checked) -> {
             prefs.edit().putBoolean("app_update_auto", checked).apply();
