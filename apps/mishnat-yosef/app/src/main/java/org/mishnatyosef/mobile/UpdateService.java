@@ -18,6 +18,7 @@ public class UpdateService extends Service {
     private static final String INSTALL_ACTION = "org.mishnatyosef.mobile.INSTALL_DOWNLOADED_UPDATE";
     private static final Uri APK_URI = Uri.parse("content://org.mishnatyosef.mobile.updatefiles/apk");
     private static final int NOTIFICATION_ID = 7332;
+    private static final int LEGACY_UPDATE_NOTIFICATION_ID = 7333;
     private Handler handler;
     private volatile boolean checking = false;
     private volatile boolean manualCheckPending = false;
@@ -60,6 +61,14 @@ public class UpdateService extends Service {
         super.onCreate();
         handler = new Handler(Looper.getMainLooper());
         createChannel();
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm != null) nm.cancel(LEGACY_UPDATE_NOTIFICATION_ID);
+        SharedPreferences saved = getSharedPreferences(PREFS, MODE_PRIVATE);
+        File savedApk = updateFile();
+        String downloaded = saved.getString("app_update_downloaded_version", "");
+        String latest = saved.getString("app_update_latest_version", "");
+        updateReady = !downloaded.isEmpty() && downloaded.equals(latest) && savedApk.isFile() && savedApk.length() > 100000;
+        if (updateReady) currentNotificationMessage = "עדכון " + downloaded + " הורד — לחץ על ההתראה כדי להתקין";
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
