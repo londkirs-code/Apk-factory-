@@ -795,7 +795,12 @@ public class MainActivity extends Activity {
                 navCells.add(item);
                 if (i == 1) navCells.add(collectNavButton(tab == TAB_COLLECT));
             }
-            addVisualRtl(nav, navCells);
+            List<View> navWithLines = new ArrayList<>();
+            for (int k = 0; k < navCells.size(); k++) {
+                if (k > 0) navWithLines.add(navDivider());
+                navWithLines.add(navCells.get(k));
+            }
+            addVisualRtl(nav, navWithLines);
             navView = nav;
             screen.addView(nav, new LinearLayout.LayoutParams(-1, -2));
         }
@@ -811,14 +816,20 @@ public class MainActivity extends Activity {
                 navLayout.setPadding(in[0], 0, in[2], 0);
                 for (int k = 0; k < navLayout.getChildCount(); k++) {
                     View cell = navLayout.getChildAt(k);
+                    if ("navDivider".equals(cell.getTag())) continue;
                     ViewGroup.LayoutParams cellLp = cell.getLayoutParams();
                     cellLp.height = dp(64) + in[3];
                     cell.setLayoutParams(cellLp);
                     if ("navCenter".equals(cell.getTag())) {
                         View dome = ((ViewGroup) cell).getChildAt(0);
                         ViewGroup.LayoutParams domeLp = dome.getLayoutParams();
-                        domeLp.height = dp(78) + in[3];
+                        domeLp.height = dp(NAV_FINGER_RISE + 64) + in[3];
                         dome.setLayoutParams(domeLp);
+                        View inner = ((ViewGroup) dome).getChildAt(0); // same row as the other buttons
+                        ViewGroup.LayoutParams innerLp = inner.getLayoutParams();
+                        innerLp.height = dp(64) + in[3];
+                        inner.setLayoutParams(innerLp);
+                        inner.setPadding(dp(2), dp(5), dp(2), dp(5) + in[3]);
                     } else {
                         cell.setPadding(dp(2), dp(5), dp(2), dp(5) + in[3]);
                     }
@@ -4574,58 +4585,59 @@ public class MainActivity extends Activity {
 
     // ======================================================================== centre "collect" button
 
-    // Keep the center collect action wider than the other tabs, with a fully rounded hill-like silhouette.
+    private static final int NAV_FINGER_RISE = 10; // dp that the finger sticks up above the bar
+
+    private View navDivider() {
+        View d = new View(this);
+        d.setTag("navDivider");
+        d.setBackgroundColor(Color.rgb(224, 208, 194));
+        d.setLayoutParams(new LinearLayout.LayoutParams(dp(1), -1));
+        return d;
+    }
+
+    /** The centre "collect" button: a fingertip that rises a little above the bar and is cut flat at the bottom. */
     private View collectNavButton(boolean active) {
         FrameLayout slot = new FrameLayout(this);
         slot.setTag("navCenter");
         slot.setClipChildren(false);
 
-        LinearLayout dome = new LinearLayout(this);
-        dome.setOrientation(LinearLayout.VERTICAL);
-        dome.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        dome.setPadding(0, dp(10), 0, 0);
+        FrameLayout finger = new FrameLayout(this);
+        float r = dp(33);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(active ? ORANGE_DARK : ORANGE);
+        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        GradientDrawable mask = new GradientDrawable();
+        mask.setColor(Color.WHITE);
+        mask.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        finger.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
+        finger.setElevation(dp(8));
+        finger.setClickable(true);
+        finger.setFocusable(true);
 
-        // A shorter mountain with a wider, softly squared summit and slopes widening to the base.
-        android.graphics.Path mountainPath = new android.graphics.Path();
-        mountainPath.moveTo(39f, 0f);
-        mountainPath.cubicTo(33f, 0f, 29f, 3f, 26f, 9f);
-        mountainPath.cubicTo(20f, 22f, 12f, 46f, 0f, 100f);
-        mountainPath.lineTo(100f, 100f);
-        mountainPath.cubicTo(88f, 46f, 80f, 22f, 74f, 9f);
-        mountainPath.cubicTo(71f, 3f, 67f, 0f, 61f, 0f);
-        mountainPath.close();
-
-        android.graphics.drawable.shapes.PathShape mountainShape =
-                new android.graphics.drawable.shapes.PathShape(mountainPath, 100f, 100f);
-        android.graphics.drawable.ShapeDrawable bg =
-                new android.graphics.drawable.ShapeDrawable(mountainShape);
-        bg.getPaint().setColor(active ? ORANGE_DARK : ORANGE);
-        android.graphics.drawable.ShapeDrawable mask =
-                new android.graphics.drawable.ShapeDrawable(new android.graphics.drawable.shapes.PathShape(mountainPath, 100f, 100f));
-        mask.getPaint().setColor(Color.WHITE);
-        dome.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
-        dome.setElevation(dp(8));
-        dome.setClickable(true);
-        dome.setFocusable(true);
-
-        // Match the other navigation icons in size and keep the icon and label together.
-        dome.addView(new IconView(ICON_CHECK, Color.WHITE, 2.8f),
-                new LinearLayout.LayoutParams(dp(28), dp(28)));
-        TextView label = new TextView(this);
-        label.setText("איסוף");
-        label.setTextSize(11);
-        label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        // Same structure as the other buttons (icon, label, bar placeholder), so the icon sits at the same height and size.
+        LinearLayout inner = new LinearLayout(this);
+        inner.setOrientation(LinearLayout.VERTICAL);
+        inner.setGravity(Gravity.CENTER);
+        inner.setPadding(dp(2), dp(5), dp(2), dp(5));
+        inner.addView(new IconView(ICON_CHECK, Color.WHITE, 2.8f), new LinearLayout.LayoutParams(dp(28), dp(28)));
+        TextView label = text("איסוף", 11, true);
         label.setTextColor(Color.WHITE);
+        label.setMaxLines(1);
         label.setGravity(Gravity.CENTER);
-        label.setIncludeFontPadding(false);
-        LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-2, -2);
-        labelLp.topMargin = dp(2);
-        dome.addView(label, labelLp);
+        inner.addView(label, new LinearLayout.LayoutParams(-1, -2));
+        View barSpace = new View(this);
+        barSpace.setVisibility(View.INVISIBLE);
+        LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(dp(24), dp(3));
+        barLp.topMargin = dp(2);
+        inner.addView(barSpace, barLp);
+        FrameLayout.LayoutParams innerLp = new FrameLayout.LayoutParams(-1, dp(64));
+        innerLp.gravity = Gravity.BOTTOM;
+        finger.addView(inner, innerLp);
 
-        FrameLayout.LayoutParams domeLp = new FrameLayout.LayoutParams(dp(108), dp(78));
-        domeLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        slot.addView(dome, domeLp);
-        dome.setOnClickListener(v -> openLatestCollect());
+        FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(dp(66), dp(NAV_FINGER_RISE + 64));
+        fingerLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        slot.addView(finger, fingerLp);
+        finger.setOnClickListener(v -> openLatestCollect());
         slot.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1.1f));
         return slot;
     }
