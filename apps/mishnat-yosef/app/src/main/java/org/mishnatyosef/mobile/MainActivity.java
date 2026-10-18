@@ -23,6 +23,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -46,12 +47,15 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AbsListView;
+import android.widget.BaseAdapter;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -62,6 +66,8 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -74,6 +80,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -81,7 +88,12 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.Map;
 import java.util.Set;
+import java.security.MessageDigest;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
 
 // Build verification checkpoint: keep this source in the APK build trigger.
@@ -111,6 +123,13 @@ public class MainActivity extends Activity {
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final ExecutorService imageExecutor = Executors.newFixedThreadPool(4);
+    private final ExecutorService loadExecutor = Executors.newSingleThreadExecutor();   // product loading (keeps `executor` free for order updates)
+    private final ExecutorService fetchPool = Executors.newFixedThreadPool(4);          // parallel product pages
+    private final ExecutorService prefetchExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "img-prefetch");
+        t.setPriority(Thread.MIN_PRIORITY);
+        return t;
+    });
     private final Handler ui = new Handler(Looper.getMainLooper());
     private LruCache<String, Bitmap> imageCache;
     private SharedPreferences prefs;
@@ -134,8 +153,22 @@ public class MainActivity extends Activity {
     private final Map<String, Integer> featureQuantities = new LinkedHashMap<>();
     private final Set<String> pending = new HashSet<>();
     private String filterText = "";
-    private LinearLayout gridContainer;
-    private final Map<String, Runnable> cardRefreshers = new LinkedHashMap<>();
+    private ListView productList;
+    private ProductAdapter productAdapter;
+    private final List<GridRow> gridRows = new ArrayList<>();
+    private boolean productsLoading = false;
+    private boolean productsPartial = false;
+    private boolean emptyMsgShown = false;
+    private long productsLoadedAt = 0L;
+    private int currentSaleId = -1; // sale whose products are in featureProducts right now (not a history order)
+    private final Map<Integer, SaleSnapshot> saleSnapshots = new LinkedHashMap<>();
+    private JSONObject favQtyCache = null;
+    private static final long STALE_MS = 5L * 60L * 1000L;
+    private static final int PAGE_LIMIT = 100;
+    private final Runnable productsRefresh = () -> {
+        if (productAdapter != null) productAdapter.notifyDataSetChanged();
+        updateOrderBar();
+    };
     private TextView barInfo, barTotal;
 
     // ---- order summary state
@@ -165,7 +198,7 @@ public class MainActivity extends Activity {
     private FrameLayout topHolder;
     private LinearLayout catStripRow;
     private HorizontalScrollView catStripScroll;
-    private final Map<String, View> catHeaders = new LinkedHashMap<>();
+    private final Map<String, Integer> catHeaders = new LinkedHashMap<>(); // category -> row index in the list
     private final Map<String, TextView> catChips = new LinkedHashMap<>();
     private final Map<String, Integer> catCounts = new LinkedHashMap<>();
     private String activeCat = "";
@@ -216,6 +249,21 @@ public class MainActivity extends Activity {
         final List<OrderLine> lines = new ArrayList<>();
     }
 
+    private static class GridRow {
+        String header;     // category title row when not null
+        JSONObject a, b;   // otherwise up to two product cards
+    }
+
+    private static class SaleSnapshot {
+        long orderId = -1;
+        long loadedAt = 0L;
+        final List<JSONObject> products = new ArrayList<>();
+        final Map<String, Integer> quantities = new LinkedHashMap<>();
+        final Set<String> favs = new HashSet<>();
+    }
+
+    private interface PageCallback { void onPage(List<JSONObject> items, int total); }
+
     private static class Stepper {
         LinearLayout view;
         TextView minus, plus, qty;
@@ -241,6 +289,7 @@ public class MainActivity extends Activity {
         };
         getWindow().setStatusBarColor(ORANGE);
         getWindow().setNavigationBarColor(Color.WHITE);
+        pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
         requestMonitoringPermissions(false);
         if (hasToken()) {
@@ -273,6 +322,9 @@ public class MainActivity extends Activity {
         super.onDestroy();
         executor.shutdownNow();
         imageExecutor.shutdownNow();
+        loadExecutor.shutdownNow();
+        fetchPool.shutdownNow();
+        prefetchExecutor.shutdownNow();
     }
 
     // ======================================================================== small helpers
@@ -1514,7 +1566,28 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
-    private Bitmap downloadBitmap(String url, int maxPx) {
+    // ---- images are kept on disk, so they open instantly and also work offline
+
+    private File imageDir() {
+        File d = new File(getFilesDir(), "img");
+        if (!d.exists()) d.mkdirs();
+        return d;
+    }
+
+    private String imageKey(String url) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-1").digest(url.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte x : digest) sb.append(String.format("%02x", x));
+            return sb.toString();
+        } catch (Exception e) {
+            return Integer.toHexString(url.hashCode());
+        }
+    }
+
+    private File imageFile(String url) { return new File(imageDir(), imageKey(url) + ".img"); }
+
+    private byte[] fetchImageBytes(String url) {
         HttpURLConnection c = null;
         try {
             c = (HttpURLConnection) new URL(url).openConnection();
@@ -1531,14 +1604,32 @@ public class MainActivity extends Activity {
             int n, total = 0;
             while ((n = in.read(buf)) > 0) {
                 total += n;
-                if (total > 5000000) { in.close(); return null; }
+                if (total > 6000000) { in.close(); return null; }
                 out.write(buf, 0, n);
             }
             in.close();
-            byte[] data = out.toByteArray();
+            return out.toByteArray();
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private void writeImageFile(File f, byte[] data) {
+        try {
+            File tmp = new File(f.getPath() + ".tmp" + Thread.currentThread().getId());
+            try (FileOutputStream os = new FileOutputStream(tmp)) { os.write(data); }
+            if (!tmp.renameTo(f)) tmp.delete();
+        } catch (Exception ignored) { }
+    }
+
+    private Bitmap decodeBytes(byte[] data, int maxPx) {
+        try {
             BitmapFactory.Options bounds = new BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
             BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+            if (bounds.outWidth <= 0) return null;
             int sample = 1;
             while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) sample *= 2;
             BitmapFactory.Options opts = new BitmapFactory.Options();
@@ -1546,9 +1637,76 @@ public class MainActivity extends Activity {
             return BitmapFactory.decodeByteArray(data, 0, data.length, opts);
         } catch (Exception e) {
             return null;
-        } finally {
-            if (c != null) c.disconnect();
         }
+    }
+
+    private Bitmap decodeFile(File f, int maxPx) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(f.getAbsolutePath(), bounds);
+            if (bounds.outWidth <= 0) return null;
+            int sample = 1;
+            while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) sample *= 2;
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sample;
+            return BitmapFactory.decodeFile(f.getAbsolutePath(), opts);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Disk first, then the network (and the downloaded bytes are kept for next time). */
+    private Bitmap downloadBitmap(String url, int maxPx) {
+        File f = imageFile(url);
+        if (f.exists() && f.length() > 0) {
+            Bitmap cached = decodeFile(f, maxPx);
+            if (cached != null) return cached;
+            f.delete();
+        }
+        byte[] data = fetchImageBytes(url);
+        if (data == null) return null;
+        writeImageFile(f, data);
+        return decodeBytes(data, maxPx);
+    }
+
+    /** Quietly downloads every product picture in the background so the next opening is instant. */
+    private void prefetchImages(final List<JSONObject> products) {
+        final boolean thumb = !fullImages();
+        try {
+            prefetchExecutor.execute(() -> {
+                for (JSONObject p : products) {
+                    if (Thread.currentThread().isInterrupted()) return;
+                    String url = imageUrl(p, thumb);
+                    if (url.isEmpty()) continue;
+                    File f = imageFile(url);
+                    if (f.exists() && f.length() > 0) continue;
+                    byte[] data = fetchImageBytes(url);
+                    if (data != null) writeImageFile(f, data);
+                }
+            });
+        } catch (Exception ignored) { }
+    }
+
+    /** Keeps the picture cache under ~300 MB (oldest files go first). */
+    private void pruneImageCache() {
+        try {
+            prefetchExecutor.execute(() -> {
+                File[] files = imageDir().listFiles();
+                if (files == null) return;
+                long total = 0;
+                for (File f : files) total += f.length();
+                if (total <= 300L * 1024L * 1024L) return;
+                java.util.Arrays.sort(files, new Comparator<File>() {
+                    @Override public int compare(File x, File y) { return Long.compare(x.lastModified(), y.lastModified()); }
+                });
+                for (File f : files) {
+                    if (total <= 250L * 1024L * 1024L) break;
+                    total -= f.length();
+                    f.delete();
+                }
+            });
+        } catch (Exception ignored) { }
     }
 
     private ImageView imageView(int widthDp, int heightDp, ImageView.ScaleType scale) {
@@ -1906,24 +2064,103 @@ public class MainActivity extends Activity {
         throw new Exception("השרת אישר פתיחת הזמנה אך לא החזיר מזהה. בדקו בהיסטוריית ההזמנות לפני ניסיון חוזר.");
     }
 
-    private List<JSONObject> fetchAllProducts(long orderId, int saleId) throws Exception {
-        long[] ids = saleId > 0 && saleId != orderId ? new long[]{orderId, saleId} : new long[]{orderId};
-        for (long id : ids) {
-            List<JSONObject> all = new ArrayList<>();
-            for (int page = 1; page <= 100; page++) {
-                HttpResult r = api("GET", "/api/get_items_for_sale/" + id + "/null?page=" + page + "&limit=50", null);
-                if (r.code < 200 || r.code >= 300) break;
-                JSONArray a = arrayFrom(r.body);
-                if (a.length() == 0) break;
-                for (int i = 0; i < a.length(); i++) {
-                    JSONObject o = a.optJSONObject(i);
-                    if (o != null) all.add(o);
-                }
-                if (a.length() < 50) break;
-            }
-            if (!all.isEmpty()) return all;
+    private List<JSONObject> toObjects(JSONArray a) {
+        List<JSONObject> out = new ArrayList<>();
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o != null) out.add(o);
         }
+        return out;
+    }
+
+    private String itemsPath(long id, int page, int limit) {
+        return "/api/get_items_for_sale/" + id + "/null?page=" + page + "&limit=" + limit;
+    }
+
+    /** First page on this thread (so the screen can start at once), the remaining pages in parallel. */
+    private int fetchPagesFor(final long id, PageCallback cb) throws Exception {
+        int limit = PAGE_LIMIT;
+        HttpResult first = api("GET", itemsPath(id, 1, limit), null);
+        if (first.code < 200 || first.code >= 300) {
+            limit = 50;
+            first = api("GET", itemsPath(id, 1, limit), null);
+        }
+        if (first.code < 200 || first.code >= 300) return 0;
+        JSONArray firstArray = arrayFrom(first.body);
+        if (firstArray.length() == 0) return 0;
+        int lastPage = 1, total = 0;
+        try {
+            JSONObject o = new JSONObject(first.body);
+            lastPage = Math.max(1, o.optInt("last_page", 1));
+            total = o.optInt("total", 0);
+        } catch (Exception ignored) { }
+        List<JSONObject> firstItems = toObjects(firstArray);
+        cb.onPage(firstItems, total);
+        int count = firstItems.size();
+        final int lim = limit;
+        if (lastPage <= 1 && firstArray.length() >= lim) {
+            // no pagination info in the answer: keep reading until a short page
+            for (int page = 2; page <= 100; page++) {
+                HttpResult r = api("GET", itemsPath(id, page, lim), null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת עמוד " + page + " נכשלה");
+                List<JSONObject> items = toObjects(arrayFrom(r.body));
+                if (items.isEmpty()) break;
+                cb.onPage(items, total);
+                count += items.size();
+                if (items.size() < lim) break;
+            }
+            return count;
+        }
+        if (lastPage > 1) {
+            ExecutorCompletionService<List<JSONObject>> ecs = new ExecutorCompletionService<>(fetchPool);
+            for (int page = 2; page <= lastPage; page++) {
+                final int pg = page;
+                ecs.submit(new Callable<List<JSONObject>>() {
+                    @Override public List<JSONObject> call() throws Exception {
+                        Exception last = null;
+                        for (int attempt = 0; attempt < 2; attempt++) {
+                            try {
+                                HttpResult r = api("GET", itemsPath(id, pg, lim), null);
+                                if (r.code >= 200 && r.code < 300) return toObjects(arrayFrom(r.body));
+                                last = new Exception(apiError(r));
+                            } catch (AuthException ae) {
+                                throw ae;
+                            } catch (Exception e) {
+                                last = e;
+                            }
+                        }
+                        throw last == null ? new Exception("page failed") : last;
+                    }
+                });
+            }
+            int failures = 0;
+            for (int i = 2; i <= lastPage; i++) {
+                try {
+                    List<JSONObject> items = ecs.take().get();
+                    cb.onPage(items, total);
+                    count += items.size();
+                } catch (ExecutionException ee) {
+                    if (ee.getCause() instanceof AuthException) throw (AuthException) ee.getCause();
+                    failures++;
+                }
+            }
+            if (failures > 0) throw new Exception("נטענו " + count + " מוצרים, אבל " + failures + " עמודים לא נטענו");
+        }
+        return count;
+    }
+
+    private void fetchProductPages(long orderId, int saleId, PageCallback cb) throws Exception {
+        long[] ids = saleId > 0 && saleId != orderId ? new long[]{orderId, saleId} : new long[]{orderId};
+        for (long id : ids) if (fetchPagesFor(id, cb) > 0) return;
         throw new Exception("לא נמצאו מוצרים במכירה.");
+    }
+
+    private List<JSONObject> fetchAllProducts(long orderId, int saleId) throws Exception {
+        final List<JSONObject> all = new ArrayList<>();
+        fetchProductPages(orderId, saleId, new PageCallback() {
+            @Override public void onPage(List<JSONObject> items, int total) { all.addAll(items); }
+        });
+        return all;
     }
 
     /** GET /api/orders/{id}: order.products, without billing lines, same as the Python script. */
@@ -1990,55 +2227,285 @@ public class MainActivity extends Activity {
         return new JSONArray();
     }
 
-    private void loadFeatureProducts(JSONObject sale) {
+    // ---- sale snapshots: memory first, then disk, then network (the screen never waits for all of them)
+
+    private File snapshotFile(int saleId) {
+        File d = new File(getFilesDir(), "cache");
+        if (!d.exists()) d.mkdirs();
+        return new File(d, "sale_" + saleId + ".json");
+    }
+
+    private void persistQuantities() {
+        if (featureOrderId <= 0) return;
+        try {
+            JSONObject o = new JSONObject();
+            for (Map.Entry<String, Integer> e : featureQuantities.entrySet()) {
+                if (e.getValue() != null && e.getValue() > 0) o.put(e.getKey(), e.getValue());
+            }
+            prefs.edit().putString("qty_" + featureOrderId, o.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    private void writeSnapshot(int saleId, long orderId, List<JSONObject> products, Set<String> favs, long savedAt) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("order_id", orderId);
+            o.put("saved_at", savedAt);
+            JSONArray arr = new JSONArray();
+            for (JSONObject p : products) arr.put(p);
+            o.put("products", arr);
+            JSONArray fa = new JSONArray();
+            for (String id : favs) fa.put(id);
+            o.put("favs", fa);
+            File f = snapshotFile(saleId);
+            File tmp = new File(f.getPath() + ".tmp");
+            try (FileOutputStream os = new FileOutputStream(tmp)) { os.write(o.toString().getBytes(StandardCharsets.UTF_8)); }
+            if (!tmp.renameTo(f)) tmp.delete();
+        } catch (Exception ignored) { }
+    }
+
+    private SaleSnapshot readSnapshot(int saleId) {
+        try {
+            File f = snapshotFile(saleId);
+            if (!f.exists() || f.length() == 0) return null;
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            try (InputStream in = new java.io.FileInputStream(f)) {
+                byte[] buf = new byte[32768];
+                int n;
+                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            }
+            JSONObject o = new JSONObject(new String(bo.toByteArray(), StandardCharsets.UTF_8));
+            JSONArray arr = o.optJSONArray("products");
+            if (arr == null || arr.length() == 0) return null;
+            SaleSnapshot snap = new SaleSnapshot();
+            snap.orderId = o.optLong("order_id", -1);
+            snap.loadedAt = o.optLong("saved_at", 0L);
+            JSONObject qty = null;
+            try { qty = new JSONObject(prefs.getString("qty_" + snap.orderId, "")); } catch (Exception ignored) { }
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject p = arr.optJSONObject(i);
+                if (p == null) continue;
+                String sid = sidOf(p);
+                if (sid.isEmpty()) continue;
+                int q = qty != null ? qty.optInt(sid, 0) : Math.max(0, (int) Math.round(num(p.opt("amount"))));
+                try { p.put("amount", q); } catch (Exception ignored) { }
+                snap.products.add(p);
+                snap.quantities.put(sid, q);
+            }
+            JSONArray fa = o.optJSONArray("favs");
+            if (fa != null) for (int i = 0; i < fa.length(); i++) snap.favs.add(String.valueOf(fa.opt(i)));
+            return snap.products.isEmpty() ? null : snap;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void snapshotCurrent() {
+        if (currentSaleId <= 0 || featureOrderId <= 0 || featureProducts.isEmpty() || productsPartial) return;
+        SaleSnapshot snap = new SaleSnapshot();
+        snap.orderId = featureOrderId;
+        snap.loadedAt = productsLoadedAt;
+        snap.products.addAll(featureProducts);
+        snap.quantities.putAll(featureQuantities);
+        snap.favs.addAll(favIds);
+        saleSnapshots.put(currentSaleId, snap);
+    }
+
+    private void applySnapshot(SaleSnapshot snap, int saleId) {
+        featureOrderId = snap.orderId;
+        currentSaleId = saleId;
+        productsLoadedAt = snap.loadedAt;
+        productsPartial = false;
+        pending.clear();
+        featureProducts.clear();
+        featureProducts.addAll(snap.products);
+        featureQuantities.clear();
+        featureQuantities.putAll(snap.quantities);
+        favIds.clear();
+        favIds.addAll(snap.favs);
+    }
+
+    private void loadFeatureProducts(final JSONObject sale) {
+        final int saleId = sale.optInt("id", -1);
+        if (currentSaleId > 0 && currentSaleId != saleId) snapshotCurrent(); // keep the sale we are leaving
         featureSale = sale;
         summaryFromHistory = false;
-        String title = saleTitle(sale);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
-        setStatus("פותח הזמנה וטוען מוצרים…");
+        filterText = "";
+        viewMode = "all";
+
+        boolean inMemory = currentSaleId == saleId && featureOrderId > 0 && !featureProducts.isEmpty() && !productsPartial;
+        if (!inMemory) {
+            SaleSnapshot snap = saleSnapshots.get(saleId);
+            if (snap != null) {
+                applySnapshot(snap, saleId);
+                inMemory = true;
+            } else {
+                featureProducts.clear();
+                featureQuantities.clear();
+                favIds.clear();
+                pending.clear();
+                featureOrderId = -1;
+                currentSaleId = -1;
+                productsPartial = false;
+            }
+        }
+        renderFeatureProducts(); // paints at once from memory (empty when nothing is cached yet)
         final int t = screenToken;
-        executor.execute(() -> {
-            try {
-                long orderId = findOrCreateOrder(sale);
-                List<JSONObject> all = fetchAllProducts(orderId, sale.optInt("id", -1));
-                Map<String, Integer> saved = null;
-                try {
-                    OrderData od = fetchOrder(orderId);
-                    saved = new LinkedHashMap<>();
-                    for (OrderLine line : od.lines) saved.put(line.sid, (int) Math.round(line.amount));
-                } catch (AuthException ae) {
-                    throw ae;
-                } catch (Exception ignored) { }
-                Set<String> favs = null;
-                try { favs = fetchFavouriteIds(sale.optInt("id", -1)); } catch (AuthException ae2) { throw ae2; } catch (Exception ignored) { }
-                final Set<String> favSet = favs;
-                final Map<String, Integer> savedAmounts = saved;
+        if (inMemory) {
+            if (System.currentTimeMillis() - productsLoadedAt > STALE_MS) refreshProducts(sale, true);
+            return;
+        }
+        productsLoading = true;
+        setStatus("טוען מוצרים…");
+        loadExecutor.execute(() -> {
+            final SaleSnapshot disk = readSnapshot(saleId);
+            if (disk != null) {
                 runOnUiThread(() -> {
-                    if (stale(t)) return;
-                    featureOrderId = orderId;
-                    featureProducts.clear();
-                    featureQuantities.clear();
-                    pending.clear();
-                    for (JSONObject p : all) {
-                        String sid = sidOf(p);
-                        if (sid.isEmpty() || productName(p).isEmpty()) continue;
-                        int amount = savedAmounts != null
-                                ? (savedAmounts.containsKey(sid) ? savedAmounts.get(sid) : 0)
-                                : Math.max(0, (int) Math.round(num(p.opt("amount"))));
-                        try { p.put("amount", amount); } catch (Exception ignored) { }
-                        featureProducts.add(p);
-                        featureQuantities.put(sid, amount);
+                    if (!stale(t) && featureSale != null && featureSale.optInt("id", -1) == saleId && featureProducts.isEmpty()) {
+                        applySnapshot(disk, saleId);
+                        productsLoading = false;
+                        setStatus("");
+                        rebuildGrid();
+                        updateOrderBar();
                     }
-                    filterText = "";
-                    viewMode = "all";
-                    if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
-                    renderFeatureProducts();
-                    toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
+                    refreshProducts(sale, true);
                 });
-            } catch (Exception e) {
-                fail(t, e, "פתיחת ההזמנה נכשלה.");
+            } else {
+                refreshProducts(sale, false);
             }
         });
+    }
+
+    /** Loads the sale from the server. Pages arrive in parallel and appear on screen as they come. */
+    private void refreshProducts(final JSONObject sale, final boolean silent) {
+        final int t = screenToken;
+        final int saleId = sale.optInt("id", -1);
+        final boolean hadData = !featureProducts.isEmpty();
+        final boolean showPartial = !hadData;
+        final long knownOrder = (currentSaleId == saleId && featureOrderId > 0) ? featureOrderId : -1;
+        if (!silent || !hadData) {
+            productsLoading = true;
+            setStatus(hadData ? "מרענן את המוצרים…" : "טוען מוצרים…");
+        }
+        loadExecutor.execute(() -> {
+            try {
+                final long orderId = knownOrder > 0 ? knownOrder : findOrCreateOrder(sale);
+                Future<OrderData> orderFuture = fetchPool.submit(new Callable<OrderData>() {
+                    @Override public OrderData call() throws Exception { return fetchOrder(orderId); }
+                });
+                Future<Set<String>> favFuture = fetchPool.submit(new Callable<Set<String>>() {
+                    @Override public Set<String> call() throws Exception { return fetchFavouriteIds(saleId); }
+                });
+                final List<JSONObject> all = new ArrayList<>();
+                fetchProductPages(orderId, saleId, new PageCallback() {
+                    @Override public void onPage(List<JSONObject> items, int total) {
+                        all.addAll(items);
+                        if (showPartial) {
+                            final List<JSONObject> copy = new ArrayList<>(all);
+                            final int tot = total;
+                            runOnUiThread(() -> showPartialProducts(t, saleId, orderId, copy, tot));
+                        }
+                    }
+                });
+                OrderData od = null;
+                Set<String> favs = null;
+                try { od = orderFuture.get(); } catch (ExecutionException ee) { if (ee.getCause() instanceof AuthException) throw (AuthException) ee.getCause(); }
+                try { favs = favFuture.get(); } catch (ExecutionException ee) { if (ee.getCause() instanceof AuthException) throw (AuthException) ee.getCause(); }
+                final OrderData fod = od;
+                final Set<String> ffavs = favs;
+                runOnUiThread(() -> finishProducts(t, saleId, orderId, all, fod, ffavs, silent));
+            } catch (Exception e) {
+                runOnUiThread(() -> productsLoadFailed(t, e));
+            }
+        });
+    }
+
+    private void showPartialProducts(int t, int saleId, long orderId, List<JSONObject> partial, int total) {
+        if (stale(t) || featureSale == null || featureSale.optInt("id", -1) != saleId || summaryFromHistory) return;
+        productsPartial = true;
+        featureOrderId = orderId;
+        featureProducts.clear();
+        for (JSONObject p : partial) {
+            String sid = sidOf(p);
+            if (sid.isEmpty()) continue;
+            featureProducts.add(p);
+            if (!featureQuantities.containsKey(sid)) featureQuantities.put(sid, Math.max(0, (int) Math.round(num(p.opt("amount")))));
+        }
+        setStatus("טוען מוצרים… " + featureProducts.size() + (total > 0 ? " מתוך " + total : ""));
+        rebuildGrid();
+        updateOrderBar();
+    }
+
+    private void finishProducts(int t, int saleId, long orderId, List<JSONObject> all, OrderData od, Set<String> favs, boolean silent) {
+        Map<String, Integer> serverQty = null;
+        if (od != null) {
+            serverQty = new LinkedHashMap<>();
+            for (OrderLine line : od.lines) serverQty.put(line.sid, (int) Math.round(line.amount));
+        }
+        List<JSONObject> clean = new ArrayList<>();
+        Map<String, Integer> quantities = new LinkedHashMap<>();
+        for (JSONObject p : all) {
+            String sid = sidOf(p);
+            if (sid.isEmpty() || productName(p).isEmpty()) continue;
+            int amount = serverQty != null ? (serverQty.containsKey(sid) ? serverQty.get(sid) : 0) : Math.max(0, (int) Math.round(num(p.opt("amount"))));
+            try { p.put("amount", amount); } catch (Exception ignored) { }
+            clean.add(p);
+            quantities.put(sid, amount);
+        }
+        final long now = System.currentTimeMillis();
+        final boolean live = featureSale != null && featureSale.optInt("id", -1) == saleId && !summaryFromHistory;
+        Set<String> favSet = new HashSet<String>();
+        if (favs != null) favSet.addAll(favs);
+        else if (live) favSet.addAll(favIds);
+        SaleSnapshot snap = new SaleSnapshot();
+        snap.orderId = orderId;
+        snap.loadedAt = now;
+        snap.products.addAll(clean);
+        snap.quantities.putAll(quantities);
+        snap.favs.addAll(favSet);
+        saleSnapshots.put(saleId, snap);
+        if (live) {
+            Map<String, Integer> keep = new HashMap<>(); // quantities the user is changing right now
+            for (String sid : pending) if (featureQuantities.containsKey(sid)) keep.put(sid, featureQuantities.get(sid));
+            featureOrderId = orderId;
+            currentSaleId = saleId;
+            productsLoadedAt = now;
+            productsPartial = false;
+            featureProducts.clear();
+            featureProducts.addAll(clean);
+            featureQuantities.clear();
+            featureQuantities.putAll(quantities);
+            featureQuantities.putAll(keep);
+            if (favs != null) { favIds.clear(); favIds.addAll(favs); }
+            persistQuantities();
+            productsLoading = false;
+            if (!stale(t) && screenKind == 1) {
+                setStatus("");
+                rebuildGrid();
+                updateOrderBar();
+                if (!silent) toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
+            }
+        }
+        final List<JSONObject> toSave = clean;
+        final Set<String> favCopy = favSet;
+        try { loadExecutor.execute(() -> writeSnapshot(saleId, orderId, toSave, favCopy, now)); } catch (Exception ignored) { }
+        prefetchImages(clean);
+    }
+
+    private void productsLoadFailed(int t, Exception e) {
+        productsLoading = false;
+        if (e instanceof AuthException) { showLogin(); toast(e.getMessage(), true); return; }
+        if (stale(t)) return;
+        String msg = errText(e, "פתיחת ההזמנה נכשלה.");
+        boolean have = !featureProducts.isEmpty();
+        if (have && !productsPartial) {
+            String when = productsLoadedAt > 0 ? " (נשמרו " + new SimpleDateFormat("dd/MM HH:mm", Locale.US).format(new Date(productsLoadedAt)) + ")" : "";
+            setStatus("⚠ " + msg + " · מוצגים המוצרים השמורים" + when, true);
+        } else if (have) {
+            setStatus("⚠ " + msg + " · לחצו ↻ לניסיון חוזר", true);
+        } else {
+            setStatus(msg, true);
+        }
     }
 
     // ======================================================================== product grid
@@ -2068,9 +2535,12 @@ public class MainActivity extends Activity {
         beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? historyTab : 0, productsBack);
         screenKind = 1;
 
-        // search + quick actions
+        // sticky top: search, quick buttons, loading line and the category strip
+        LinearLayout topBox = new LinearLayout(this);
+        topBox.setOrientation(LinearLayout.VERTICAL);
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(14), dp(8), dp(14), dp(4));
         EditText search = field("חיפוש מוצר…", InputType.TYPE_CLASS_TEXT);
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setText(filterText);
@@ -2081,7 +2551,7 @@ public class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {
                 if (debounce[0] != null) ui.removeCallbacks(debounce[0]);
                 final String q = s.toString().trim().toLowerCase(Locale.ROOT);
-                debounce[0] = () -> { filterText = q; rebuildGrid(); };
+                debounce[0] = () -> { filterText = q; rebuildGrid(true); };
                 ui.postDelayed(debounce[0], 250);
             }
         });
@@ -2093,7 +2563,7 @@ public class MainActivity extends Activity {
         ip.setMarginStart(dp(8));
         if (!summaryFromHistory) toolbar.addView(infoBtn, ip);
         TextView refreshBtn = roundBtn("↻", 42, ORANGE_LIGHT, ORANGE_DARK);
-        refreshBtn.setOnClickListener(v -> loadFeatureProducts(featureSale));
+        refreshBtn.setOnClickListener(v -> refreshProducts(featureSale, false));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(42), dp(42));
         rp.setMarginStart(dp(8));
         if (!summaryFromHistory) toolbar.addView(refreshBtn, rp);
@@ -2102,40 +2572,41 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap0 = new LinearLayout.LayoutParams(dp(42), dp(42));
         ap0.setMarginStart(dp(8));
         toolbar.addView(actionsBtn, ap0);
-        root.addView(toolbar, lp(-1, -2, 0, 8));
+        topBox.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
 
-        LinearLayout modeRow = new LinearLayout(this);
-        final String[] modeKeys = {"all", "fav", "cart"};
-        String[] modeLabels = {"הכול", "⭐ מועדפים", "🛒 בהזמנה"};
-        final TextView[] modeChips = new TextView[3];
-        for (int i = 0; i < 3; i++) {
-            final int idx = i;
-            modeChips[i] = btn(modeLabels[i], TONAL);
-            modeChips[i].setMinHeight(dp(38));
-            modeChips[i].setOnClickListener(v -> { viewMode = modeKeys[idx]; styleModeChips(modeChips, modeKeys); rebuildGrid(); });
-            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(38), 1);
-            if (i > 0) mp.setMarginStart(dp(6));
-            modeRow.addView(modeChips[i], mp);
-        }
-        styleModeChips(modeChips, modeKeys);
-        root.addView(modeRow, lp(-1, -2, 0, 6));
+        statusView = muted("", 12); // the loading / offline line lives up here, the list below is virtualised
+        statusView.setPadding(dp(16), dp(2), dp(16), dp(4));
+        statusView.setVisibility(View.GONE);
+        topBox.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
 
         catStripScroll = new HorizontalScrollView(this);
         catStripScroll.setHorizontalScrollBarEnabled(false);
         catStripScroll.setBackgroundColor(Color.WHITE);
-        catStripScroll.setElevation(dp(12));
-        catStripScroll.bringToFront();
         catStripScroll.setPadding(dp(8), dp(6), dp(8), dp(6));
         catStripRow = new LinearLayout(this);
         catStripRow.setGravity(Gravity.CENTER_VERTICAL);
         catStripScroll.addView(catStripRow);
-        topHolder.addView(catStripScroll);
-        scrollView.setOnScrollChangeListener((v, sx, sy, ox, oy) -> updateActiveCategory(sy));
+        topBox.addView(catStripScroll, new LinearLayout.LayoutParams(-1, -2));
+        topHolder.addView(topBox);
 
-        gridContainer = new LinearLayout(this);
-        gridContainer.setOrientation(LinearLayout.VERTICAL);
-        root.addView(gridContainer, new LinearLayout.LayoutParams(-1, -2));
-        rebuildGrid();
+        // the product list: only the rows on screen exist as views, and they are recycled while scrolling
+        productList = new ListView(this);
+        productList.setDivider(null);
+        productList.setDividerHeight(0);
+        productList.setSelector(new ColorDrawable(Color.TRANSPARENT));
+        productList.setCacheColorHint(Color.TRANSPARENT);
+        productList.setClipToPadding(false);
+        productList.setPadding(dp(11), dp(4), dp(11), dp(12));
+        productAdapter = new ProductAdapter();
+        productList.setAdapter(productAdapter);
+        productList.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) { }
+            @Override public void onScroll(AbsListView view, int first, int visible, int total) { updateActiveCategory(first); }
+        });
+        ViewGroup parent = (ViewGroup) scrollView.getParent();
+        int at = parent.indexOfChild(scrollView);
+        parent.removeViewAt(at);
+        parent.addView(productList, at, new LinearLayout.LayoutParams(-1, 0, 1));
 
         // sticky order bar
         LinearLayout bar = new LinearLayout(this);
@@ -2156,18 +2627,19 @@ public class MainActivity extends Activity {
         open.setOnClickListener(v -> showOrderSummary());
         bar.addView(open, new LinearLayout.LayoutParams(-2, dp(46)));
         bottomHolder.addView(bar);
+
+        rebuildGrid(true);
         updateOrderBar();
+        if (productsLoading) setStatus("טוען מוצרים…");
     }
 
-    private void rebuildGrid() {
-        if (gridContainer == null) return;
-        gridContainer.removeAllViews();
-        cardRefreshers.clear();
+    private void rebuildGrid() { rebuildGrid(false); }
+
+    private void rebuildGrid(boolean toTop) {
+        if (productAdapter == null) return;
+        gridRows.clear();
         catHeaders.clear();
         catCounts.clear();
-        if (catStripRow != null) catStripRow.removeAllViews();
-        catChips.clear();
-        if (catStripScroll != null) catStripScroll.setVisibility(View.GONE);
 
         Map<String, List<JSONObject>> byCat = new LinkedHashMap<>();
         final Map<String, Integer> catOrder = new LinkedHashMap<>();
@@ -2181,12 +2653,6 @@ public class MainActivity extends Activity {
             else catOrder.put(cat, Math.min(catOrder.get(cat), categoryOrder(p)));
             byCat.get(cat).add(p);
         }
-        if (byCat.isEmpty()) {
-            String emptyMsg = !filterText.isEmpty() ? "לא נמצאו מוצרים התואמים לחיפוש."
-                    : ("fav".equals(viewMode) ? "אין מועדפים במכירה הזו. סמנו כוכב על מוצר." : ("cart".equals(viewMode) ? "ההזמנה ריקה." : "אין מוצרים להצגה."));
-            gridContainer.addView(muted(emptyMsg, 14), lp(-1, -2, 20, 0));
-            return;
-        }
         List<String> cats = new ArrayList<>(byCat.keySet());
         Collections.sort(cats, new Comparator<String>() {
             @Override public int compare(String a, String b) {
@@ -2199,49 +2665,65 @@ public class MainActivity extends Activity {
             Collections.sort(items, new Comparator<JSONObject>() {
                 @Override public int compare(JSONObject a, JSONObject b) { return productName(a).compareTo(productName(b)); }
             });
-            TextView header = text(cat + "  (" + items.size() + ")", 16, true);
-            header.setTextColor(ORANGE_DARK);
-            gridContainer.addView(header, lp(-1, -2, 10, 4));
-            catHeaders.put(cat, header);
+            GridRow header = new GridRow();
+            header.header = cat + "  (" + items.size() + ")";
+            catHeaders.put(cat, gridRows.size());
             catCounts.put(cat, items.size());
+            gridRows.add(header);
             for (int i = 0; i < items.size(); i += 2) {
-                LinearLayout row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                gridContainer.addView(row, lp(-1, -2, 0, 8));
-                List<View> cells = new ArrayList<>();
-                for (int k = 0; k < 2; k++) {
-                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-                    cp.setMargins(dp(3), 0, dp(3), 0);
-                    View cell = i + k < items.size() ? productCard(items.get(i + k)) : new View(this);
-                    cell.setLayoutParams(cp);
-                    cells.add(cell);
-                }
-                addVisualRtl(row, cells);
+                GridRow row = new GridRow();
+                row.a = items.get(i);
+                row.b = i + 1 < items.size() ? items.get(i + 1) : null;
+                gridRows.add(row);
             }
         }
+        if (gridRows.isEmpty() && !productsLoading) {
+            String emptyMsg = !filterText.isEmpty() ? "לא נמצאו מוצרים התואמים לחיפוש."
+                    : ("fav".equals(viewMode) ? "אין מועדפים במכירה הזו. סמנו כוכב על מוצר." : ("cart".equals(viewMode) ? "ההזמנה ריקה." : "אין מוצרים להצגה."));
+            setStatus(emptyMsg);
+            emptyMsgShown = true;
+        } else if (emptyMsgShown && !gridRows.isEmpty()) {
+            setStatus("");
+            emptyMsgShown = false;
+        }
         refillCategoryStrip(cats);
+        productAdapter.notifyDataSetChanged();
+        if (toTop && productList != null) productList.setSelection(0);
     }
 
-    private View productCard(final JSONObject p) {
-        final String sid = sidOf(p);
-        final boolean disabled = truthy(p.opt("disable"));
-        final boolean soldOut = isSoldOut(p);
-        final boolean canOrder = !disabled && !soldOut;
+    private void paintButton(TextView b, int style) {
+        int fill, fg, stroke = 0;
+        switch (style) {
+            case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
+            case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
+            case OUTLINE: fill = Color.WHITE; fg = ORANGE_DARK; stroke = ORANGE; break;
+            case DANGER: fill = RED_LIGHT; fg = RED; break;
+            default: fill = Color.TRANSPARENT; fg = ORANGE_DARK; break;
+        }
+        b.setTextColor(fg);
+        b.setBackground(ripple(shape(fill, 12, stroke), 12));
+    }
 
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(shape(Color.WHITE, 14, LINE));
-        card.setPadding(dp(6), dp(6), dp(6), dp(8));
+    /** One product card. Created once, then re-bound while the list scrolls. */
+    private class CardHolder {
+        final LinearLayout card = new LinearLayout(MainActivity.this);
+        final ImageView image;
+        final TextView badge, star, name, pack, price, maxView, savedView, unitView, add;
+        final Stepper st;
+        JSONObject p;
+        String boundUrl = "";
 
-        FrameLayout imageBox = new FrameLayout(this);
-        ImageView image = new ImageView(this);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setBackground(shape(Color.WHITE, 10, 0));
-        image.setClipToOutline(true);
-        imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(170)));
-        if (!canOrder) {
-            image.setAlpha(0.45f);
-            TextView badge = text(disabled ? "לא זמין" : "אזל", 11, true);
+        CardHolder() {
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setBackground(shape(Color.WHITE, 14, LINE));
+            card.setPadding(dp(6), dp(6), dp(6), dp(8));
+
+            FrameLayout imageBox = new FrameLayout(MainActivity.this);
+            image = new ImageView(MainActivity.this);
+            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            image.setBackgroundColor(Color.WHITE);
+            imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(170)));
+            badge = text("", 11, true);
             badge.setTextColor(Color.WHITE);
             badge.setBackground(shape(RED, 8, 0));
             badge.setPadding(dp(8), dp(2), dp(8), dp(2));
@@ -2249,68 +2731,91 @@ public class MainActivity extends Activity {
             bp.gravity = Gravity.TOP | Gravity.END;
             bp.setMargins(dp(6), dp(6), dp(6), 0);
             imageBox.addView(badge, bp);
-        }
-        final TextView star = text(favIds.contains(pidOf(p)) ? "⭐" : "☆", 17, false);
-        star.setGravity(Gravity.CENTER);
-        star.setPadding(0, 0, 0, 0);
-        star.setTextColor(ORANGE_DARK);
-        star.setBackground(shape(Color.argb(220, 255, 255, 255), 16, 0));
-        FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(dp(32), dp(32));
-        starLp.gravity = Gravity.TOP | Gravity.START;
-        starLp.setMargins(dp(6), dp(6), 0, 0);
-        imageBox.addView(star, starLp);
-        star.setOnClickListener(v -> toggleFavourite(p, () -> star.setText(favIds.contains(pidOf(p)) ? "⭐" : "☆")));
-        card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(170)));
-        loadImage(image, imageUrl(p, !fullImages()));
-        card.setOnClickListener(v -> showProductDetails(p));
-        imageBox.setOnClickListener(v -> showProductDetails(p));
+            star = text("☆", 17, false);
+            star.setGravity(Gravity.CENTER);
+            star.setPadding(0, 0, 0, 0);
+            star.setTextColor(ORANGE_DARK);
+            star.setBackground(shape(Color.argb(220, 255, 255, 255), 16, 0));
+            FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(dp(32), dp(32));
+            starLp.gravity = Gravity.TOP | Gravity.START;
+            starLp.setMargins(dp(6), dp(6), 0, 0);
+            imageBox.addView(star, starLp);
+            card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(170)));
 
-        TextView name = text(productName(p), 13, true);
-        name.setMinLines(2);
-        name.setMaxLines(3);
-        name.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(name, lp(-1, -2, 4, 0));
+            name = text("", 13, true);
+            name.setMinLines(2);
+            name.setMaxLines(3);
+            name.setEllipsize(TextUtils.TruncateAt.END);
+            card.addView(name, lp(-1, -2, 4, 0));
+            pack = muted("", 11);
+            pack.setSingleLine(true);
+            pack.setEllipsize(TextUtils.TruncateAt.END);
+            card.addView(pack);
+            price = text("", 15, true);
+            price.setTextColor(ORANGE_DARK);
+            card.addView(price);
+            maxView = text("", 11, true);
+            maxView.setTextColor(ORANGE_DARK);
+            card.addView(maxView);
+            savedView = muted("", 10);
+            card.addView(savedView);
+            unitView = muted("", 10);
+            unitView.setSingleLine(true);
+            unitView.setEllipsize(TextUtils.TruncateAt.END);
+            card.addView(unitView);
 
-        String pack = packageText(p);
-        if (!pack.isEmpty()) {
-            TextView packView = muted(pack, 11);
-            packView.setSingleLine(true);
-            packView.setEllipsize(TextUtils.TruncateAt.END);
-            card.addView(packView);
-        }
-        double price = productPrice(p);
-        TextView priceView = text(price > 0 ? money(price) : "—", 15, true);
-        priceView.setTextColor(ORANGE_DARK);
-        card.addView(priceView);
-        int mx = maxPerMan(p);
-        if (showMax() && mx > 0) {
-            TextView mxView = text("מקסימום " + mx, 11, true);
-            mxView.setTextColor(ORANGE_DARK);
-            card.addView(mxView);
-        }
-        int savedQ = favSavedQty(pidOf(p));
-        if (savedQ > 0 && favIds.contains(pidOf(p))) card.addView(muted("📌 כמות שמורה ×" + savedQ, 10));
-        String unitPrice = unitPriceText(p);
-        if (!unitPrice.isEmpty()) {
-            TextView up = muted(unitPrice, 10);
-            up.setSingleLine(true);
-            up.setEllipsize(TextUtils.TruncateAt.END);
-            card.addView(up);
+            FrameLayout controls = new FrameLayout(MainActivity.this);
+            add = btn("הוספה", TONAL);
+            add.setMinHeight(dp(38));
+            add.setPadding(dp(8), 0, dp(8), 0);
+            st = stepper(38);
+            controls.addView(add, new FrameLayout.LayoutParams(-1, dp(38)));
+            FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, dp(38));
+            sp.gravity = Gravity.CENTER;
+            controls.addView(st.view, sp);
+            card.addView(controls, lp(-1, dp(38), 8, 0));
+
+            card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
+            imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
+            star.setOnClickListener(v -> { if (p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
+            add.setOnClickListener(v -> { if (p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
+            st.plus.setOnClickListener(v -> { if (p != null) changeBy(p, 1, productsRefresh, null); });
+            st.minus.setOnClickListener(v -> { if (p != null) changeBy(p, -1, productsRefresh, null); });
+            st.qty.setOnClickListener(v -> { if (p != null) askQuantity(p, productsRefresh, null); });
         }
 
-        // controls: "add" button that turns into a stepper
-        FrameLayout controls = new FrameLayout(this);
-        final TextView add = btn(canOrder ? "הוספה" : (disabled ? "לא זמין" : "אזל מהמלאי"), canOrder ? TONAL : FLAT);
-        add.setMinHeight(dp(38));
-        add.setPadding(dp(8), 0, dp(8), 0);
-        final Stepper st = stepper(38);
-        controls.addView(add, new FrameLayout.LayoutParams(-1, dp(38)));
-        FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, dp(38));
-        sp.gravity = Gravity.CENTER;
-        controls.addView(st.view, sp);
-        card.addView(controls, lp(-1, dp(38), 8, 0));
+        void bind(JSONObject prod) {
+            p = prod;
+            String sid = sidOf(prod), pid = pidOf(prod);
+            boolean disabled = truthy(prod.opt("disable")), soldOut = isSoldOut(prod), canOrder = !disabled && !soldOut;
+            String url = imageUrl(prod, !fullImages());
+            if (!url.equals(boundUrl)) {
+                boundUrl = url;
+                image.setImageDrawable(null);
+                loadImage(image, url);
+            }
+            image.setAlpha(canOrder ? 1f : 0.45f);
+            badge.setVisibility(canOrder ? View.GONE : View.VISIBLE);
+            badge.setText(disabled ? "לא זמין" : "אזל");
+            star.setText(favIds.contains(pid) ? "⭐" : "☆");
+            name.setText(productName(prod));
+            String packText = packageText(prod);
+            pack.setText(packText);
+            pack.setVisibility(packText.isEmpty() ? View.GONE : View.VISIBLE);
+            double pr = productPrice(prod);
+            price.setText(pr > 0 ? money(pr) : "—");
+            int mx = maxPerMan(prod);
+            maxView.setText("מקסימום " + mx);
+            maxView.setVisibility(showMax() && mx > 0 ? View.VISIBLE : View.GONE);
+            int savedQ = favSavedQty(pid);
+            savedView.setText("📌 כמות שמורה ×" + savedQ);
+            savedView.setVisibility(savedQ > 0 && favIds.contains(pid) ? View.VISIBLE : View.GONE);
+            String up = unitPriceText(prod);
+            unitView.setText(up);
+            unitView.setVisibility(up.isEmpty() ? View.GONE : View.VISIBLE);
 
-        final Runnable refresh = () -> {
+            add.setText(canOrder ? "הוספה" : (disabled ? "לא זמין" : "אזל מהמלאי"));
+            paintButton(add, canOrder ? TONAL : FLAT);
             int q = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
             boolean busyNow = pending.contains(sid);
             add.setVisibility(q > 0 ? View.GONE : View.VISIBLE);
@@ -2320,16 +2825,63 @@ public class MainActivity extends Activity {
             setEnabledLook(st.plus, !busyNow);
             setEnabledLook(st.minus, !busyNow);
             setEnabledLook(add, canOrder && !busyNow);
-            updateOrderBar();
-        };
-        cardRefreshers.put(sid, refresh);
-        refresh.run();
+        }
+    }
 
-        add.setOnClickListener(v -> { if (canOrder) changeBy(p, 1, refresh, null); });
-        st.plus.setOnClickListener(v -> changeBy(p, 1, refresh, null));
-        st.minus.setOnClickListener(v -> changeBy(p, -1, refresh, null));
-        st.qty.setOnClickListener(v -> askQuantity(p, refresh, null));
-        return card;
+    private class RowHolder {
+        final LinearLayout row = new LinearLayout(MainActivity.this);
+        final CardHolder first = new CardHolder();
+        final CardHolder second = new CardHolder();
+
+        RowHolder() {
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setPadding(0, 0, 0, dp(8));
+            List<View> cells = new ArrayList<>();
+            for (CardHolder h : new CardHolder[]{first, second}) {
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+                cp.setMargins(dp(3), 0, dp(3), 0);
+                h.card.setLayoutParams(cp);
+                cells.add(h.card);
+            }
+            addVisualRtl(row, cells);
+        }
+    }
+
+    private class ProductAdapter extends BaseAdapter {
+        @Override public int getCount() { return gridRows.size(); }
+        @Override public Object getItem(int i) { return gridRows.get(i); }
+        @Override public long getItemId(int i) { return i; }
+        @Override public int getViewTypeCount() { return 2; }
+        @Override public int getItemViewType(int i) { return gridRows.get(i).header != null ? 0 : 1; }
+
+        @Override public View getView(int position, View convert, ViewGroup parent) {
+            GridRow r = gridRows.get(position);
+            if (r.header != null) {
+                TextView tv = convert instanceof TextView ? (TextView) convert : null;
+                if (tv == null) {
+                    tv = text("", 16, true);
+                    tv.setTextColor(ORANGE_DARK);
+                    tv.setPadding(dp(4), dp(12), dp(4), dp(4));
+                }
+                tv.setText(r.header);
+                return tv;
+            }
+            RowHolder h;
+            if (convert != null && convert.getTag() instanceof RowHolder) {
+                h = (RowHolder) convert.getTag();
+            } else {
+                h = new RowHolder();
+                h.row.setTag(h);
+            }
+            h.first.bind(r.a);
+            if (r.b != null) {
+                h.second.card.setVisibility(View.VISIBLE);
+                h.second.bind(r.b);
+            } else {
+                h.second.card.setVisibility(View.INVISIBLE);
+            }
+            return h.row;
+        }
     }
 
     private void changeBy(JSONObject p, int delta, Runnable refresh, Runnable onSuccess) {
@@ -2386,6 +2938,7 @@ public class MainActivity extends Activity {
                 if (err == null) {
                     try { p.put("amount", newQty); } catch (Exception ignored) { }
                     featureQuantities.put(sid, newQty);
+                    persistQuantities();
                     toast(newQty == 0 ? "✔ הוסר: " + pname : (oldQty == 0 ? "✔ נוסף להזמנה: " + pname + " ×" + newQty : "✔ עודכן: " + pname + " ← " + newQty), false);
                 } else {
                     featureQuantities.put(sid, oldQty);
@@ -2918,6 +3471,9 @@ public class MainActivity extends Activity {
                 final Set<String> favSet = favs;
                 runOnUiThread(() -> {
                     if (stale(t)) return;
+                    if (currentSaleId > 0) snapshotCurrent(); // the open sale stays available in memory
+                    currentSaleId = -1;
+                    productsPartial = false;
                     JSONObject saleStub = new JSONObject();
                     try {
                         saleStub.put("id", od.saleId);
@@ -3575,6 +4131,7 @@ public class MainActivity extends Activity {
             final boolean needLogin = authLost;
             runOnUiThread(() -> {
                 for (PlanItem pi : succeeded) featureQuantities.put(sidOf(pi.p), pi.amount);
+                persistQuantities();
                 dlg.dismiss();
                 StringBuilder res = new StringBuilder("✅ עודכנו: " + succeeded.size() + " מתוך " + plan.size());
                 if (!failed.isEmpty()) {
@@ -3685,6 +4242,11 @@ public class MainActivity extends Activity {
                 final String err = ok ? "" : apiError(r);
                 runOnUiThread(() -> {
                     if (done) {
+                        if (currentSaleId > 0) {
+                            saleSnapshots.remove(currentSaleId);
+                            try { snapshotFile(currentSaleId).delete(); } catch (Exception ignored) { }
+                            currentSaleId = -1;
+                        }
                         featureOrderId = -1;
                         featureProducts.clear();
                         featureQuantities.clear();
@@ -3788,7 +4350,8 @@ public class MainActivity extends Activity {
     private int favSavedQty(String pid) {
         if (pid == null || pid.isEmpty()) return 0;
         try {
-            JSONObject e = new JSONObject(prefs.getString("fav_quantities", "{}")).optJSONObject(pid);
+            if (favQtyCache == null) favQtyCache = new JSONObject(prefs.getString("fav_quantities", "{}"));
+            JSONObject e = favQtyCache.optJSONObject(pid);
             return e == null ? 0 : Math.max(0, e.optInt("qty", 0));
         } catch (Exception ex) {
             return 0;
@@ -3806,6 +4369,7 @@ public class MainActivity extends Activity {
             } else {
                 all.remove(pid);
             }
+            favQtyCache = all;
             prefs.edit().putString("fav_quantities", all.toString()).apply();
         } catch (Exception ignored) { }
     }
@@ -4496,43 +5060,61 @@ public class MainActivity extends Activity {
         if (catStripRow == null) return;
         catStripRow.removeAllViews();
         catChips.clear();
-        activeCat = cats.isEmpty() ? "" : cats.get(0);
+        if (activeCat.isEmpty() || !cats.contains(activeCat)) activeCat = cats.isEmpty() ? "" : cats.get(0);
         List<View> cells = new ArrayList<>();
         TextView menu = pickChip("☰ קטגוריות");
         styleChip(menu, true);
         menu.setOnClickListener(v -> showCategoryMenu());
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, dp(36));
-        mp.setMargins(dp(3), 0, dp(3), 0);
-        menu.setLayoutParams(mp);
+        menu.setLayoutParams(chipLp());
         cells.add(menu);
+        final String[] modeKeys = {"all", "fav", "cart"};
+        String[] modeLabels = {"הכול", "⭐ מועדפים", "🛒 בהזמנה"};
+        for (int i = 0; i < 3; i++) {
+            final String key = modeKeys[i];
+            TextView mc = pickChip(modeLabels[i]);
+            styleChip(mc, key.equals(viewMode));
+            mc.setOnClickListener(v -> { viewMode = key; rebuildGrid(true); });
+            mc.setLayoutParams(chipLp());
+            cells.add(mc);
+        }
         for (final String cat : cats) {
             Integer count = catCounts.get(cat);
             TextView chip = pickChip(cat + (count == null ? "" : " " + count));
             chip.setOnClickListener(v -> jumpToCategory(cat));
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(36));
-            cp.setMargins(dp(3), 0, dp(3), 0);
-            chip.setLayoutParams(cp);
+            chip.setLayoutParams(chipLp());
             catChips.put(cat, chip);
             cells.add(chip);
         }
         addVisualRtl(catStripRow, cells);
         styleCategoryChips();
-        if (catStripScroll != null) {
-            catStripScroll.setVisibility(cats.isEmpty() ? View.GONE : View.VISIBLE);
-            if (!rtlActive()) catStripScroll.post(() -> catStripScroll.fullScroll(View.FOCUS_RIGHT));
+        if (catStripScroll != null && !rtlActive()) catStripScroll.post(() -> catStripScroll.fullScroll(View.FOCUS_RIGHT));
+    }
+
+    private LinearLayout.LayoutParams chipLp() {
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(36));
+        cp.setMargins(dp(3), 0, dp(3), 0);
+        return cp;
+    }
+
+    /** The active category is drawn with an orange outline so it differs from the filled "mode" chips. */
+    private void styleCategoryChips() {
+        for (Map.Entry<String, TextView> e : catChips.entrySet()) {
+            boolean on = e.getKey().equals(activeCat);
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(on ? Color.WHITE : ORANGE_LIGHT);
+            bg.setCornerRadius(dp(12));
+            if (on) bg.setStroke(dp(2), ORANGE);
+            e.getValue().setBackground(ripple(bg, 12));
+            e.getValue().setTextColor(ORANGE_DARK);
         }
     }
 
-    private void styleCategoryChips() {
-        for (Map.Entry<String, TextView> e : catChips.entrySet()) styleChip(e.getValue(), e.getKey().equals(activeCat));
-    }
-
     private void jumpToCategory(String cat) {
-        View header = catHeaders.get(cat);
-        if (header == null || scrollView == null || gridContainer == null) return;
+        Integer index = catHeaders.get(cat);
+        if (index == null || productList == null) return;
         hideKeyboard();
-        final int y = Math.max(0, gridContainer.getTop() + header.getTop() - dp(6));
-        scrollView.post(() -> scrollView.smoothScrollTo(0, y));
+        final int position = index;
+        productList.post(() -> productList.setSelectionFromTop(position, 0));
         activeCat = cat;
         styleCategoryChips();
     }
@@ -4547,19 +5129,18 @@ public class MainActivity extends Activity {
             labels[i + 1] = names.get(i) + (c == null ? "" : "  (" + c + ")");
         }
         new AlertDialog.Builder(this).setTitle("קפיצה לקטגוריה").setItems(labels, (d, which) -> {
-            if (which == 0) { if (scrollView != null) scrollView.smoothScrollTo(0, 0); }
+            if (which == 0) { if (productList != null) productList.setSelection(0); }
             else jumpToCategory(names.get(which - 1));
         }).show();
     }
 
-    /** Highlights the category that is at the top of the screen and keeps its chip in view. */
-    private void updateActiveCategory(int scrollY) {
-        if (gridContainer == null || catHeaders.isEmpty()) return;
+    /** Highlights the category at the top of the list and keeps its chip in view. */
+    private void updateActiveCategory(int firstVisible) {
+        if (catHeaders.isEmpty()) return;
         String found = "";
-        int threshold = scrollY + dp(70);
-        for (Map.Entry<String, View> e : catHeaders.entrySet()) {
+        for (Map.Entry<String, Integer> e : catHeaders.entrySet()) {
             if (found.isEmpty()) found = e.getKey();
-            if (gridContainer.getTop() + e.getValue().getTop() <= threshold) found = e.getKey();
+            if (e.getValue() <= firstVisible) found = e.getKey();
             else break;
         }
         if (found.isEmpty() || found.equals(activeCat)) return;
