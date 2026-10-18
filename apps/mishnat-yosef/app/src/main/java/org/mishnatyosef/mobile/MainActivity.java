@@ -178,6 +178,9 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
 
     // ---- current screen
+    private View currentScreen;
+    private int activeBottomTab = 0;
+    private final Map<Integer, TabScreenState> tabScreenCache = new LinkedHashMap<>();
     private LinearLayout root;
     private FrameLayout bottomHolder;
     private ScrollView scrollView;
@@ -249,6 +252,44 @@ public class MainActivity extends Activity {
     private String activeCat = "";
 
     // ======================================================================== data classes
+
+    /**
+     * Retain each tab's live view tree and associated state. Reusing the same view hierarchy
+     * preserves scroll, input text, filters, local UI modes, and expanded content.
+     */
+    private static class TabScreenState {
+        View screen;
+        LinearLayout root;
+        ScrollView scrollView;
+        FrameLayout topHolder, bottomHolder;
+        TextView statusView, barInfo, barTotal, summaryTotal, summarySub, progressView, histMore;
+        EditText activeProductSearch;
+        View productSearchClearButton;
+        ListView productList;
+        ProductAdapter productAdapter;
+        LinearLayout histList, summaryList, collectedBox, collectedList, catStripRow;
+        HorizontalScrollView catStripScroll;
+        Runnable backAction;
+        int screenKind;
+        boolean showingSalesList, showingOrderScreen;
+        int salesListScrollY, orderListFirstVisiblePosition, orderListTopOffset;
+        boolean returnToOrderScreenOnSalesTab;
+        JSONObject featureSale, favQtyCache;
+        long featureOrderId;
+        int currentSaleId;
+        List<JSONObject> featureProducts;
+        Map<String, Integer> featureQuantities;
+        Set<String> pending, favIds;
+        Map<Integer, SaleSnapshot> saleSnapshots;
+        String filterText, viewMode, activeCat, histSearch;
+        int histPage, histLast, historyTab;
+        boolean productsLoading, productsPartial, emptyMsgShown, summaryFromHistory, collectMode;
+        long productsLoadedAt;
+        OrderData summary;
+        List<GridRow> gridRows;
+        Map<String, Integer> catHeaders, catCounts;
+        Map<String, TextView> catChips;
+    }
 
     private static class HttpResult {
         final int code;
@@ -850,7 +891,12 @@ public class MainActivity extends Activity {
             nav.setElevation(dp(8));
             final String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
             final int[] iconTypes = {ICON_CART, ICON_CLOCK, ICON_WALLET, ICON_PERSON};
-            Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
+            Runnable[] actions = {
+                    () -> navigateTab(0, this::showOpenSales),
+                    () -> navigateTab(1, this::loadFeatureOrders),
+                    () -> navigateTab(2, this::loadFeatureTransactions),
+                    () -> navigateTab(3, this::showAccount)
+            };
             nav.setClipChildren(false);
             screen.setClipChildren(false);
             List<View> navCells = new ArrayList<>(); // listed right to left, the way Hebrew is read
@@ -926,9 +972,162 @@ public class MainActivity extends Activity {
             }
             return insets;
         });
+        currentScreen = screen;
         setContentView(screen);
         screen.requestApplyInsets();
         styleSystemBars();
+    }
+
+    private TabScreenState captureTabScreenState() {
+        TabScreenState state = new TabScreenState();
+        state.screen = currentScreen;
+        state.root = root;
+        state.scrollView = scrollView;
+        state.topHolder = topHolder;
+        state.bottomHolder = bottomHolder;
+        state.statusView = statusView;
+        state.barInfo = barInfo;
+        state.barTotal = barTotal;
+        state.summaryTotal = summaryTotal;
+        state.summarySub = summarySub;
+        state.progressView = progressView;
+        state.histMore = histMore;
+        state.activeProductSearch = activeProductSearch;
+        state.productSearchClearButton = productSearchClearButton;
+        state.productList = productList;
+        state.productAdapter = productAdapter;
+        state.histList = histList;
+        state.summaryList = summaryList;
+        state.collectedBox = collectedBox;
+        state.collectedList = collectedList;
+        state.catStripRow = catStripRow;
+        state.catStripScroll = catStripScroll;
+        state.backAction = backAction;
+        state.screenKind = screenKind;
+        state.showingSalesList = showingSalesList;
+        state.showingOrderScreen = showingOrderScreen;
+        state.salesListScrollY = salesListScrollY;
+        state.orderListFirstVisiblePosition = orderListFirstVisiblePosition;
+        state.orderListTopOffset = orderListTopOffset;
+        state.returnToOrderScreenOnSalesTab = returnToOrderScreenOnSalesTab;
+        state.featureSale = featureSale;
+        state.featureOrderId = featureOrderId;
+        state.currentSaleId = currentSaleId;
+        state.featureProducts = new ArrayList<>(featureProducts);
+        state.featureQuantities = new LinkedHashMap<>(featureQuantities);
+        state.pending = new HashSet<>(pending);
+        state.favIds = new HashSet<>(favIds);
+        state.saleSnapshots = new LinkedHashMap<>(saleSnapshots);
+        state.favQtyCache = favQtyCache;
+        state.filterText = filterText;
+        state.viewMode = viewMode;
+        state.activeCat = activeCat;
+        state.histSearch = histSearch;
+        state.histPage = histPage;
+        state.histLast = histLast;
+        state.historyTab = historyTab;
+        state.productsLoading = productsLoading;
+        state.productsPartial = productsPartial;
+        state.emptyMsgShown = emptyMsgShown;
+        state.summaryFromHistory = summaryFromHistory;
+        state.collectMode = collectMode;
+        state.productsLoadedAt = productsLoadedAt;
+        state.summary = summary;
+        state.gridRows = new ArrayList<>(gridRows);
+        state.catHeaders = new LinkedHashMap<>(catHeaders);
+        state.catCounts = new LinkedHashMap<>(catCounts);
+        state.catChips = new LinkedHashMap<>(catChips);
+        return state;
+    }
+
+    private void restoreTabScreenState(TabScreenState state) {
+        currentScreen = state.screen;
+        root = state.root;
+        scrollView = state.scrollView;
+        topHolder = state.topHolder;
+        bottomHolder = state.bottomHolder;
+        statusView = state.statusView;
+        barInfo = state.barInfo;
+        barTotal = state.barTotal;
+        summaryTotal = state.summaryTotal;
+        summarySub = state.summarySub;
+        progressView = state.progressView;
+        histMore = state.histMore;
+        activeProductSearch = state.activeProductSearch;
+        productSearchClearButton = state.productSearchClearButton;
+        productList = state.productList;
+        productAdapter = state.productAdapter;
+        histList = state.histList;
+        summaryList = state.summaryList;
+        collectedBox = state.collectedBox;
+        collectedList = state.collectedList;
+        catStripRow = state.catStripRow;
+        catStripScroll = state.catStripScroll;
+        backAction = state.backAction;
+        screenKind = state.screenKind;
+        showingSalesList = state.showingSalesList;
+        showingOrderScreen = state.showingOrderScreen;
+        salesListScrollY = state.salesListScrollY;
+        orderListFirstVisiblePosition = state.orderListFirstVisiblePosition;
+        orderListTopOffset = state.orderListTopOffset;
+        returnToOrderScreenOnSalesTab = state.returnToOrderScreenOnSalesTab;
+        featureSale = state.featureSale;
+        featureOrderId = state.featureOrderId;
+        currentSaleId = state.currentSaleId;
+        featureProducts.clear();
+        featureProducts.addAll(state.featureProducts);
+        featureQuantities.clear();
+        featureQuantities.putAll(state.featureQuantities);
+        pending.clear();
+        pending.addAll(state.pending);
+        favIds.clear();
+        favIds.addAll(state.favIds);
+        saleSnapshots.clear();
+        saleSnapshots.putAll(state.saleSnapshots);
+        favQtyCache = state.favQtyCache;
+        filterText = state.filterText;
+        viewMode = state.viewMode;
+        activeCat = state.activeCat;
+        histSearch = state.histSearch;
+        histPage = state.histPage;
+        histLast = state.histLast;
+        historyTab = state.historyTab;
+        productsLoading = state.productsLoading;
+        productsPartial = state.productsPartial;
+        emptyMsgShown = state.emptyMsgShown;
+        summaryFromHistory = state.summaryFromHistory;
+        collectMode = state.collectMode;
+        productsLoadedAt = state.productsLoadedAt;
+        summary = state.summary;
+        gridRows.clear();
+        gridRows.addAll(state.gridRows);
+        catHeaders.clear();
+        catHeaders.putAll(state.catHeaders);
+        catCounts.clear();
+        catCounts.putAll(state.catCounts);
+        catChips.clear();
+        catChips.putAll(state.catChips);
+    }
+
+    /** Switch to a tab by restoring its live view tree when it has already been opened. */
+    private void navigateTab(int targetTab, Runnable firstOpenAction) {
+        if (targetTab == activeBottomTab && currentScreen != null) return;
+        if (currentScreen != null && activeBottomTab >= 0) {
+            tabScreenCache.put(activeBottomTab, captureTabScreenState());
+        }
+        activeBottomTab = targetTab;
+        TabScreenState cached = tabScreenCache.get(targetTab);
+        if (cached != null && cached.screen != null) {
+            // Prevent asynchronous callbacks from a hidden screen mutating the newly active screen.
+            screenToken++;
+            restoreTabScreenState(cached);
+            if (targetTab == 0) returnToOrderScreenOnSalesTab = false;
+            setContentView(currentScreen);
+            currentScreen.requestApplyInsets();
+            styleSystemBars();
+            return;
+        }
+        firstOpenAction.run();
     }
 
     // ======================================================================== login / account
@@ -5572,7 +5771,7 @@ public class MainActivity extends Activity {
         fingerLp.gravity = Gravity.BOTTOM;
         fingerLp.topMargin = dp(-12);
         slot.addView(finger, fingerLp);
-        finger.setOnClickListener(v -> openLatestCollect());
+        finger.setOnClickListener(v -> navigateTab(TAB_COLLECT, this::openLatestCollect));
         slot.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1.1f));
         return slot;
     }
