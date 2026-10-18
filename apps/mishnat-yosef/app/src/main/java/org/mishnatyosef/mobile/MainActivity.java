@@ -50,6 +50,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.CompoundButton;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
@@ -1813,6 +1814,8 @@ public class MainActivity extends Activity {
     }
 
     private int categoryOrder(JSONObject p) {
+        // Keep eggs near the requested early position in the category strip.
+        if (categoryName(p).contains("ביצים")) return 15;
         JSONObject prod = productOf(p);
         Object cat = prod.opt("category");
         if (!(cat instanceof JSONObject)) cat = p.opt("category");
@@ -2337,7 +2340,40 @@ public class MainActivity extends Activity {
         favIds.addAll(snap.favs);
     }
 
+    private boolean orderNoticeDialogVisible = false;
+
+    /** Explains that quantity changes are sent directly to the server. This dialog is non-blocking for product loading. */
+    private void showOrderEntryNoticeIfNeeded() {
+        if (prefs == null || prefs.getBoolean("skip_order_notice", false) || orderNoticeDialogVisible) return;
+        CheckBox dontShowAgain = new CheckBox(this);
+        dontShowAgain.setText("אל תציג הודעה זו שוב");
+        dontShowAgain.setTextSize(14);
+        dontShowAgain.setTextColor(INK);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(8), dp(20), dp(4));
+        TextView explanation = text("שימו לב: לחיצה על הפלוס או המינוס מעדכנת את כמות המוצר ישירות מול השרת. אין צורך לשמור את הכמות בנפרד.", 15, false);
+        explanation.setSingleLine(false);
+        explanation.setLineSpacing(dp(2), 1f);
+        panel.addView(explanation, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams checkLp = new LinearLayout.LayoutParams(-1, -2);
+        checkLp.topMargin = dp(10);
+        panel.addView(dontShowAgain, checkLp);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("עדכון כמויות בהזמנה")
+                .setView(panel)
+                .setPositiveButton("הבנתי", null)
+                .create();
+        dialog.setOnDismissListener(d -> {
+            if (dontShowAgain.isChecked()) prefs.edit().putBoolean("skip_order_notice", true).apply();
+            orderNoticeDialogVisible = false;
+        });
+        orderNoticeDialogVisible = true;
+        dialog.show();
+    }
+
     private void loadFeatureProducts(final JSONObject sale) {
+        showOrderEntryNoticeIfNeeded();
         final int saleId = sale.optInt("id", -1);
         if (currentSaleId > 0 && currentSaleId != saleId) snapshotCurrent(); // keep the sale we are leaving
         featureSale = sale;
