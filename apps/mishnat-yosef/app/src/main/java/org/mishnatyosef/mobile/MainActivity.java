@@ -253,10 +253,8 @@ public class MainActivity extends Activity {
             if ("nightModeToggle".equals(textView.getTag())) {
                 textView.setText(nightMode ? "☀️" : "🌙");
                 textView.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
-                textView.setTextColor(nightMode ? Color.WHITE : ORANGE_DARK);
-                textView.setBackground(ripple(shape(
-                        nightMode ? Color.rgb(58, 58, 58) : Color.rgb(255, 224, 178),
-                        20, nightMode ? Color.WHITE : ORANGE_DARK), 20));
+                textView.setTextColor(Color.BLACK);
+                textView.setBackground(ripple(nightToggleBackground(), 15));
                 textView.setElevation(dp(2));
             }
         }
@@ -784,6 +782,14 @@ public class MainActivity extends Activity {
         return g;
     }
 
+    private GradientDrawable nightToggleBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.WHITE);
+        background.setCornerRadius(dp(15));
+        background.setStroke(dp(3), Color.BLACK);
+        return background;
+    }
+
     private Drawable ripple(Drawable content, float radiusDp) {
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
@@ -1193,15 +1199,12 @@ public class MainActivity extends Activity {
         nightToggle.setGravity(Gravity.CENTER);
         nightToggle.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
         nightToggle.setTag("nightModeToggle");
-        // Make the day/night control visually prominent with a filled pill and a clear border.
-        int toggleFill = nightMode ? Color.rgb(58, 58, 58) : Color.rgb(255, 224, 178);
-        int toggleText = nightMode ? Color.WHITE : ORANGE_DARK;
-        nightToggle.setTextColor(toggleText);
-        nightToggle.setBackground(ripple(shape(toggleFill, 20,
-                nightMode ? Color.WHITE : ORANGE_DARK), 20));
+        // White toggle with a thick black outline, kept legible in either theme.
+        nightToggle.setTextColor(Color.BLACK);
+        nightToggle.setBackground(ripple(nightToggleBackground(), 15));
         nightToggle.setElevation(dp(2));
         nightToggle.setOnClickListener(v -> toggleNightMode());
-        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(46), dp(42));
+        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(35), dp(32));
         nightToggleParams.leftMargin = dp(8);
         header.addView(nightToggle, nightToggleParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
@@ -6102,7 +6105,7 @@ public class MainActivity extends Activity {
 
     // ======================================================================== centre "collect" button
 
-    private static final int NAV_FINGER_RISE = 22; // raise the orange centre above the neighbouring buttons
+    private static final int NAV_FINGER_RISE = 10; // centre button rises only 10dp above neighbouring buttons
     private static final int NAV_FINGER_INNER = 72; // height of the icon + label area inside the centre button (dp)
 
     private View navDivider() {
