@@ -119,6 +119,9 @@ public class MainActivity extends Activity {
     private int RED = Color.rgb(175, 45, 45);
     private int RED_LIGHT = Color.rgb(253, 236, 234);
     private boolean nightMode = false;
+    // Preserve the open-sales list position while navigating to other bottom tabs.
+    private int salesListScrollY = 0;
+    private boolean showingSalesList = false;
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
@@ -763,6 +766,10 @@ public class MainActivity extends Activity {
     // ======================================================================== screens: frame
 
     private void beginScreen(String heading, int tab, Runnable back) {
+        if (showingSalesList && scrollView != null) {
+            salesListScrollY = Math.max(0, scrollView.getScrollY());
+        }
+        showingSalesList = false;
         screenToken++;
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         screenKind = 0;
@@ -830,7 +837,7 @@ public class MainActivity extends Activity {
             nav.setElevation(dp(8));
             final String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
             final int[] iconTypes = {ICON_CART, ICON_CLOCK, ICON_WALLET, ICON_PERSON};
-            Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
+            Runnable[] actions = {() -> showOpenSales(false), this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
             nav.setClipChildren(false);
             screen.setClipChildren(false);
             List<View> navCells = new ArrayList<>(); // listed right to left, the way Hebrew is read
@@ -2053,6 +2060,7 @@ public class MainActivity extends Activity {
     private void showOpenSales(boolean autoEnter) {
         autoEnterSingle = autoEnter;
         beginScreen("מכירות פתוחות", 0, null);
+        showingSalesList = true;
         loadOpenSales();
     }
 
@@ -2090,6 +2098,11 @@ public class MainActivity extends Activity {
             JSONObject sale = rows.optJSONObject(i);
             if (sale != null) root.addView(saleCard(sale), lp(-1, -2, 0, 10));
         }
+        // Restore only after the sales cards have been added and measured.
+        final int restoreY = salesListScrollY;
+        if (scrollView != null) scrollView.post(() -> {
+            if (showingSalesList && scrollView != null) scrollView.scrollTo(0, restoreY);
+        });
     }
 
     private View saleCard(final JSONObject sale) {
