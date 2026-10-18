@@ -2145,6 +2145,8 @@ public class MainActivity extends Activity {
         bar.addView(open, new LinearLayout.LayoutParams(-2, dp(46)));
         bottomHolder.addView(bar);
         updateOrderBar();
+    }
+
     private void rebuildGrid() {
         if (gridContainer == null) return;
         gridContainer.removeAllViews();
