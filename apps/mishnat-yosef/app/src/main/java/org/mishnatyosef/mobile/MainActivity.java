@@ -283,6 +283,20 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        // Reset the "don't show again" choice whenever a new app version is installed.
+        String installedVersion = "unknown";
+        try {
+            android.content.pm.PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            long versionCode = Build.VERSION.SDK_INT >= 28 ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
+            installedVersion = packageInfo.versionName + ":" + versionCode;
+        } catch (PackageManager.NameNotFoundException ignored) { }
+        String previousVersion = prefs.getString("order_notice_version", "");
+        if (!installedVersion.equals(previousVersion)) {
+            prefs.edit()
+                    .remove("skip_order_notice")
+                    .putString("order_notice_version", installedVersion)
+                    .apply();
+        }
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
