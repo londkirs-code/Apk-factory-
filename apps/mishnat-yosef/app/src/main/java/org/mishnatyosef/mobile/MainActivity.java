@@ -917,7 +917,7 @@ public class MainActivity extends Activity {
         TextView logBtn = btn("📡 יומן תקשורת (לאבחון תקלות)", TONAL);
         logBtn.setOnClickListener(v -> showApiLog());
         root.addView(logBtn, lp(-1, dp(46), 0, 8));
-        TextView itemDiagBtn = btn("🧾 איסוף כל נתוני JSON מהשרת", TONAL);
+        TextView itemDiagBtn = btn("🔎 סריקת API ואיתור האפונה", TONAL);
         itemDiagBtn.setOnClickListener(v -> diagnoseAllServerJson());
         root.addView(itemDiagBtn, lp(-1, dp(46), 0, 8));
         TextView cacheBtn = btn("🧹 ניקוי מטמון תמונות", TONAL);
@@ -1492,12 +1492,154 @@ public class MainActivity extends Activity {
         long t0 = System.currentTimeMillis();
         try {
             HttpResult r = requestRaw(method, path, token, body);
-            logApi(method, path, String.valueOf(r.code), System.currentTimeMillis() - t0, r.code >= 400 ? r.body : null);
+            long elapsed = System.currentTimeMillis() - t0;
+            logApi(method, path, String.valueOf(r.code), elapsed, r.code >= 400 ? r.body : null);
+            recordApiDiscovery(method, path, r.code, r.body, elapsed, null);
             return r;
         } catch (Exception e) {
-            logApi(method, path, e.getClass().getSimpleName(), System.currentTimeMillis() - t0, e.getMessage());
+            long elapsed = System.currentTimeMillis() - t0;
+            logApi(method, path, e.getClass().getSimpleName(), elapsed, e.getMessage());
+            recordApiDiscovery(method, path, -1, "", elapsed, e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()));
             throw e;
         }
+    }
+
+    /*
+     * Local API discovery: records only requests made to this app's configured API host.
+     * It never stores request bodies, Authorization headers, passwords, or access tokens.
+     * The small persistent index helps correlate a response with the screen/feature that
+     * caused it, and keeps matches for the known pea item available across app restarts.
+     */
+    private static final String PREF_API_DISCOVERY = "api_discovery_endpoints_v1";
+    private static final String PREF_API_MATCHES = "api_discovery_matches_v1";
+    private static final String TARGET_PEA_ID = "39625438";
+
+    private void recordApiDiscovery(String method, String path, int code, String responseBody,
+                                    long elapsedMs, String error) {
+        try {
+            if (prefs == null || path == null || !path.startsWith("/api/")) return;
+            String context = apiDiscoveryContext(path);
+            String url = API + path;
+            JSONArray endpoints;
+            try { endpoints = new JSONArray(prefs.getString(PREF_API_DISCOVERY, "[]")); }
+            catch (Exception ignored) { endpoints = new JSONArray(); }
+            JSONObject found = null;
+            for (int i = 0; i < endpoints.length(); i++) {
+                JSONObject item = endpoints.optJSONObject(i);
+                if (item != null && method.equals(item.optString("method"))
+                        && path.equals(item.optString("path"))) { found = item; break; }
+            }
+            if (found == null) {
+                found = new JSONObject();
+                found.put("method", method);
+                found.put("path", path);
+                found.put("url", url);
+                found.put("context", context);
+                found.put("first_seen", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+                endpoints.put(found);
+            }
+            found.put("last_seen", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+            found.put("last_http", code);
+            found.put("last_ms", elapsedMs);
+            found.put("count", found.optInt("count", 0) + 1);
+            if (error != null) found.put("last_error", error.length() > 180 ? error.substring(0, 180) : error);
+            else found.remove("last_error");
+            while (endpoints.length() > 250) {
+                JSONArray trimmed = new JSONArray();
+                for (int i = 1; i < endpoints.length(); i++) trimmed.put(endpoints.opt(i));
+                endpoints = trimmed;
+            }
+            prefs.edit().putString(PREF_API_DISCOVERY, endpoints.toString()).apply();
+
+            String body = responseBody == null ? "" : responseBody;
+            String lower = body.toLowerCase(Locale.ROOT);
+            boolean peaHit = body.contains(TARGET_PEA_ID) || lower.contains("אפונה")
+                    || lower.contains("קייטי") || lower.contains("peas");
+            if (code >= 200 && code < 300 && peaHit) {
+                JSONArray matches;
+                try { matches = new JSONArray(prefs.getString(PREF_API_MATCHES, "[]")); }
+                catch (Exception ignored) { matches = new JSONArray(); }
+                String excerpt;
+                if (body.length() <= 14000) excerpt = body;
+                else {
+                    int at = body.indexOf(TARGET_PEA_ID);
+                    if (at < 0) at = Math.max(lower.indexOf("אפונה"), 0);
+                    int start = Math.max(0, at - 3500);
+                    int end = Math.min(body.length(), at + 10500);
+                    excerpt = body.substring(start, end);
+                }
+                JSONObject match = new JSONObject();
+                match.put("url", url);
+                match.put("path", path);
+                match.put("context", context);
+                match.put("http", code);
+                match.put("matched_id", body.contains(TARGET_PEA_ID));
+                match.put("matched_name", lower.contains("אפונה") || lower.contains("קייטי") || lower.contains("peas"));
+                match.put("response_chars", body.length());
+                match.put("captured_at", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+                match.put("response_excerpt_or_body", excerpt);
+                JSONArray updated = new JSONArray();
+                for (int i = 0; i < matches.length(); i++) {
+                    JSONObject old = matches.optJSONObject(i);
+                    if (old != null && !url.equals(old.optString("url"))) updated.put(old);
+                }
+                updated.put(match);
+                while (updated.length() > 20) {
+                    JSONArray trimmed = new JSONArray();
+                    for (int i = 1; i < updated.length(); i++) trimmed.put(updated.opt(i));
+                    updated = trimmed;
+                }
+                prefs.edit().putString(PREF_API_MATCHES, updated.toString()).apply();
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private String apiDiscoveryContext(String path) {
+        String screen = screenKind == 1 ? "מסך מוצרים" : screenKind == 2 ? "מסך סיכום הזמנה" : "מסך/רקע כללי";
+        if (path.contains("get_items_for_sale")) return screen + " / טעינת מוצרי מכירה";
+        if (path.contains("open_sales")) return screen + " / מכירות פתוחות";
+        if (path.contains("orders")) return screen + " / הזמנות";
+        if (path.contains("transactions")) return screen + " / עסקאות והיסטוריה";
+        if (path.contains("favourites") || path.contains("favorites")) return screen + " / מועדפים";
+        if (path.contains("payment")) return screen + " / אמצעי תשלום";
+        if (path.contains("search")) return screen + " / חיפוש";
+        return screen + " / בקשת API שלא סווגה";
+    }
+
+    private String apiDiscoverySummary() {
+        StringBuilder out = new StringBuilder();
+        try {
+            JSONArray endpoints = new JSONArray(prefs.getString(PREF_API_DISCOVERY, "[]"));
+            JSONArray matches = new JSONArray(prefs.getString(PREF_API_MATCHES, "[]"));
+            out.append("\n========== אינדקס API מקומי שנלמד מהשימוש באפליקציה ==========\n")
+                    .append("הכתובות נשמרות במכשיר בלבד; נרשמו ").append(endpoints.length()).append(" נתיבים ייחודיים.\n");
+            for (int i = 0; i < endpoints.length(); i++) {
+                JSONObject e = endpoints.optJSONObject(i);
+                if (e == null) continue;
+                out.append(e.optString("method", "GET")).append(" ")
+                        .append(e.optString("url", e.optString("path", "")))
+                        .append(" | HTTP ").append(e.optInt("last_http", -1))
+                        .append(" | שימושים ").append(e.optInt("count", 1))
+                        .append(" | הקשר: ").append(e.optString("context", "לא ידוע")).append("\n");
+            }
+            out.append("\n========== תשובות שבהן זוהו אפונה/קייטי/מזהה הפריט ==========\n")
+                    .append("נשמרו ").append(matches.length()).append(" התאמות אחרונות.\n");
+            for (int i = 0; i < matches.length(); i++) {
+                JSONObject m = matches.optJSONObject(i);
+                if (m == null) continue;
+                out.append("\n--- התאמה ").append(i + 1).append(" ---\n")
+                        .append("URL: ").append(m.optString("url", "")).append("\n")
+                        .append("הקשר: ").append(m.optString("context", "")).append("\n")
+                        .append("HTTP: ").append(m.optInt("http", -1))
+                        .append(" | מזהה מדויק: ").append(m.optBoolean("matched_id"))
+                        .append(" | שם מתאים: ").append(m.optBoolean("matched_name"))
+                        .append(" | אורך תשובה: ").append(m.optInt("response_chars")).append("\n")
+                        .append(m.optString("response_excerpt_or_body", "")).append("\n");
+            }
+        } catch (Exception e) {
+            out.append("\nלא ניתן לקרוא את אינדקס ה־API המקומי: ").append(e.getMessage()).append("\n");
+        }
+        return out.toString();
     }
 
     private String tokenFromHeaders(HttpURLConnection c) {
@@ -4126,7 +4268,20 @@ public class MainActivity extends Activity {
                     "/api/profile/transactions?page=3&limit=100",
                     "/api/payment_methods/cards",
                     "/api/get_favourites/",
-                    "/api/get_favourites/null");
+                    "/api/get_favourites/null",
+                    // Bounded GET-only hypotheses for the known item. All stay on API.
+                    "/api/get_items_for_sale/26039956/null?page=1&limit=100",
+                    "/api/get_items_for_sale/26039956/null?page=1&limit=20",
+                    "/api/get_items_for_sale/26039956/39625438?page=1&limit=100",
+                    "/api/get_items_for_sale/171584/39625438?page=1&limit=100",
+                    "/api/items/39625438",
+                    "/api/products/39625438",
+                    "/api/item/39625438",
+                    "/api/get_item/39625438",
+                    "/api/items?item_salesID=39625438",
+                    "/api/products?item_salesID=39625438",
+                    "/api/search?query=" + URLEncoder.encode("אפונה", "UTF-8"),
+                    "/api/search?search=" + URLEncoder.encode("אפונה", "UTF-8"));
             for (String path : paths) {
                 if (requests >= maxRequests || totalChars >= maxTotalChars) break;
                 try {
@@ -4185,9 +4340,10 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 report.append("\nשגיאה באיסוף המכירות/המוצרים: ").append(String.valueOf(e.getMessage())).append("\n");
             }
-            report.append("\n========== סיכום ==========\nמספר בקשות שנוסו: ").append(requests)
-                    .append("\nגודל הדוח בתווים: ").append(report.length())
-                    .append("\nהערה: זה כולל נתיבי GET מוכרים באפליקציה והמכירות הפתוחות שנחשפו; אין בכך הבטחה שכל נתיב פנימי/לא מתועד של האתר נבדק.\n");
+            report.append(apiDiscoverySummary());
+            report.append("\n========== סיכום ==========\nמספר בקשות שנוסו בסריקה: ").append(requests)
+                    .append("\nגודל הדוח בתווים לפני הצגה: ").append(report.length())
+                    .append("\nהערה: הסריקה מנסה נתיבי GET מוגבלים באותו API, ובמקביל לומדת ושומרת מקומית נתיבים מכל שימוש רגיל באפליקציה. נתיב שלא נחשף בשימוש או בניחושים המוגבלים עדיין עשוי להתקיים.\n");
             final String result = report.toString();
             final int requestCount = requests;
             runOnUiThread(() -> showJsonReportActions(result, requestCount));
