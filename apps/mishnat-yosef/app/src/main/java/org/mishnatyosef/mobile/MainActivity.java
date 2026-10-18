@@ -647,12 +647,17 @@ public class MainActivity extends Activity {
     }
 
     // ---- persistent per-sale cache (products/order/favourites + sale-scoped images)
+    private String cacheOwnerKey() {
+        String email = prefs == null ? "" : prefs.getString("email", "");
+        return Integer.toHexString(email.trim().toLowerCase(Locale.ROOT).hashCode());
+    }
+
     private File saleCacheFile(int saleId) {
-        return new File(getFilesDir(), SALE_CACHE_PREFIX + saleId + ".json");
+        return new File(getFilesDir(), SALE_CACHE_PREFIX + cacheOwnerKey() + "_" + saleId + ".json");
     }
 
     private File saleImageDir(int saleId) {
-        return new File(new File(getCacheDir(), "sale_images"), String.valueOf(saleId));
+        return new File(new File(getCacheDir(), "sale_images"), cacheOwnerKey() + "_" + saleId);
     }
 
     private JSONObject readSaleCache(int saleId) {
@@ -779,12 +784,13 @@ public class MainActivity extends Activity {
             if (id > 0 && !saleIsClosed(sale)) openIds.add(id);
             else if (id > 0) deleteSaleCache(id);
         }
-        File[] files = getFilesDir().listFiles((dir, name) -> name.startsWith(SALE_CACHE_PREFIX) && name.endsWith(".json"));
+        final String prefix = SALE_CACHE_PREFIX + cacheOwnerKey() + "_";
+        File[] files = getFilesDir().listFiles((dir, name) -> name.startsWith(prefix) && name.endsWith(".json"));
         if (files == null) return;
         for (File file : files) {
             String name = file.getName();
             try {
-                int id = Integer.parseInt(name.substring(SALE_CACHE_PREFIX.length(), name.length() - 5));
+                int id = Integer.parseInt(name.substring(prefix.length(), name.length() - 5));
                 if (!openIds.contains(id)) deleteSaleCache(id);
             } catch (Exception ignored) { try { file.delete(); } catch (Exception ignored2) { } }
         }
