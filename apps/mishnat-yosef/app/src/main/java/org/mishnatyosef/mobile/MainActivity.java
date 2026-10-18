@@ -663,16 +663,17 @@ public class MainActivity extends Activity {
         header.setPadding(rtlActive() ? padEnd : padStart, dp(1), rtlActive() ? padStart : padEnd, dp(1));
         header.setElevation(dp(3));
         if (back != null) {
-            TextView arrow = text("→", 22, true);
+            TextView arrow = text("→", 16, true);
             arrow.setTextColor(Color.WHITE);
             arrow.setGravity(Gravity.CENTER);
-            arrow.setPadding(dp(10), 0, dp(10), 0);
+            arrow.setPadding(0, 0, 0, 0);
             arrow.setOnClickListener(v -> back.run());
-            header.addView(arrow, new LinearLayout.LayoutParams(-2, dp(44)));
+            // Match the heading row; the back arrow must not increase header height.
+            header.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(24)));
         }
         // The app-name line is intentionally omitted on every screen.
-        // Keep only the current-screen heading at the ideal compact, readable size (12sp).
-        TextView head = text(heading, 14, true);
+        // Keep only the current-screen heading at the requested readable size (16sp).
+        TextView head = text(heading, 16, true);
         head.setTextColor(Color.WHITE);
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
