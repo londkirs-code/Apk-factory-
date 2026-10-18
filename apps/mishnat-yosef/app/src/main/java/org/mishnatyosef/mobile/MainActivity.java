@@ -132,6 +132,8 @@ public class MainActivity extends Activity {
     private long featureOrderId = -1;
     private final List<JSONObject> featureProducts = new ArrayList<>();
     private final Map<String, Integer> featureQuantities = new LinkedHashMap<>();
+    private int featureScrollY = 0;
+    private int featureScrollSaleId = -1;
     private final Set<String> pending = new HashSet<>();
     private String filterText = "";
     private LinearLayout gridContainer;
@@ -644,6 +646,10 @@ public class MainActivity extends Activity {
     // ======================================================================== screens: frame
 
     private void beginScreen(String heading, int tab, Runnable back) {
+        if (screenKind == 1 && scrollView != null && featureSale != null) {
+            featureScrollY = scrollView.getScrollY();
+            featureScrollSaleId = featureSale.optInt("id", -1);
+        }
         screenToken++;
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         screenKind = 0;
@@ -714,7 +720,18 @@ public class MainActivity extends Activity {
             nav.setElevation(dp(8));
             final String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
             final int[] iconTypes = {ICON_CART, ICON_CLOCK, ICON_WALLET, ICON_PERSON};
-            Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
+            Runnable[] actions = {
+                () -> {
+                    if (featureOrderId > 0 && featureSale != null && !featureProducts.isEmpty()) {
+                        loadFeatureProducts(featureSale);
+                    } else {
+                        showOpenSales();
+                    }
+                },
+                this::loadFeatureOrders,
+                this::loadFeatureTransactions,
+                this::showAccount
+            };
             nav.setClipChildren(false);
             screen.setClipChildren(false);
             List<View> navCells = new ArrayList<>(); // listed right to left, the way Hebrew is read
@@ -1979,16 +1996,33 @@ public class MainActivity extends Activity {
     }
 
     private void loadFeatureProducts(JSONObject sale) {
-        featureSale = sale;
+        if (sale == null) return;
         summaryFromHistory = false;
-        String title = saleTitle(sale);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
-        setStatus("פותח הזמנה וטוען מוצרים…");
+        final int saleId = sale.optInt("id", -1);
+        final boolean isSameSale = featureSale != null
+                && featureSale.optInt("id", -1) == saleId
+                && featureOrderId > 0
+                && !featureProducts.isEmpty();
+
+        featureSale = sale;
+        if (!isSameSale) {
+            featureOrderId = -1;
+            featureProducts.clear();
+            featureQuantities.clear();
+            pending.clear();
+            filterText = "";
+            viewMode = "all";
+        }
+
+        // הצג מיד את מה שכבר שמור בזיכרון; renderFeatureProducts גם משחזר את הגלילה.
+        renderFeatureProducts();
+        setStatus(isSameSale ? "בודק עדכונים מהשרת ברקע…" : "פותח הזמנה וטוען מוצרים…");
         final int t = screenToken;
+
         executor.execute(() -> {
             try {
                 long orderId = findOrCreateOrder(sale);
-                List<JSONObject> all = fetchAllProducts(orderId, sale.optInt("id", -1));
+                List<JSONObject> all = fetchAllProducts(orderId, saleId);
                 Map<String, Integer> saved = null;
                 try {
                     OrderData od = fetchOrder(orderId);
@@ -1998,30 +2032,60 @@ public class MainActivity extends Activity {
                     throw ae;
                 } catch (Exception ignored) { }
                 Set<String> favs = null;
-                try { favs = fetchFavouriteIds(sale.optInt("id", -1)); } catch (AuthException ae2) { throw ae2; } catch (Exception ignored) { }
+                try { favs = fetchFavouriteIds(saleId); }
+                catch (AuthException ae2) { throw ae2; }
+                catch (Exception ignored) { }
+
                 final Set<String> favSet = favs;
                 final Map<String, Integer> savedAmounts = saved;
+                final List<JSONObject> finalAll = all;
                 runOnUiThread(() -> {
                     if (stale(t)) return;
                     featureOrderId = orderId;
-                    featureProducts.clear();
-                    featureQuantities.clear();
-                    pending.clear();
-                    for (JSONObject p : all) {
+
+                    List<JSONObject> freshProducts = new ArrayList<>();
+                    Map<String, Integer> freshQuantities = new LinkedHashMap<>();
+                    for (JSONObject p : finalAll) {
                         String sid = sidOf(p);
                         if (sid.isEmpty() || productName(p).isEmpty()) continue;
                         int amount = savedAmounts != null
                                 ? (savedAmounts.containsKey(sid) ? savedAmounts.get(sid) : 0)
                                 : Math.max(0, (int) Math.round(num(p.opt("amount"))));
                         try { p.put("amount", amount); } catch (Exception ignored) { }
-                        featureProducts.add(p);
-                        featureQuantities.put(sid, amount);
+                        freshProducts.add(p);
+                        freshQuantities.put(sid, amount);
                     }
-                    filterText = "";
-                    viewMode = "all";
-                    if (favSet != null) { favIds.clear(); favIds.addAll(favSet); }
+
+                    boolean dataChanged = !isSameSale || freshQuantities.size() != featureQuantities.size();
+                    if (!dataChanged) {
+                        for (Map.Entry<String, Integer> entry : freshQuantities.entrySet()) {
+                            Integer oldQty = featureQuantities.get(entry.getKey());
+                            if (oldQty == null || !oldQty.equals(entry.getValue())) {
+                                dataChanged = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (dataChanged) {
+                        featureProducts.clear();
+                        featureProducts.addAll(freshProducts);
+                        featureQuantities.clear();
+                        featureQuantities.putAll(freshQuantities);
+                    }
+                    if (favSet != null) {
+                        favIds.clear();
+                        favIds.addAll(favSet);
+                    }
+
+                    // בנה מחדש רק אחרי שקיבלנו נתונים; מיקום הגלילה נשמר.
                     renderFeatureProducts();
-                    toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
+                    setStatus(null);
+                    if (isSameSale) {
+                        if (dataChanged) toast("✔ ההזמנה עודכנה מהשרת", false);
+                    } else {
+                        toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
+                    }
                 });
             } catch (Exception e) {
                 fail(t, e, "פתיחת ההזמנה נכשלה.");
@@ -2124,6 +2188,8 @@ public class MainActivity extends Activity {
         gridContainer.setOrientation(LinearLayout.VERTICAL);
         root.addView(gridContainer, new LinearLayout.LayoutParams(-1, -2));
         rebuildGrid();
+        final int restoreY = featureScrollSaleId == (featureSale == null ? -1 : featureSale.optInt("id", -1)) ? featureScrollY : 0;
+        scrollView.post(() -> scrollView.scrollTo(0, Math.max(0, restoreY)));
 
         // sticky order bar
         LinearLayout bar = new LinearLayout(this);
