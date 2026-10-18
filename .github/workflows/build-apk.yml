@@ -78,8 +78,11 @@ jobs:
             BASE="$(git rev-parse HEAD^ 2>/dev/null || true)"
           fi
           TARGET="$(git rev-parse HEAD)"
-          if [[ -z "$BASE" ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "::warning::Cannot determine the previous commit; continuing without blocking the build for documentation."
+          if [[ -z "$BASE" ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BASE" "$TARGET"; then
+            BASE="$(git rev-parse "$TARGET^" 2>/dev/null || true)"
+          fi
+          if [[ -z "$BASE" ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BASE" "$TARGET"; then
+            echo "::warning::Cannot determine an ancestor base commit; continuing without blocking the build for documentation."
             exit 0
           fi
 
