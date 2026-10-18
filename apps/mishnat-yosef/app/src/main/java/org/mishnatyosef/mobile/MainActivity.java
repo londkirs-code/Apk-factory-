@@ -457,6 +457,131 @@ public class MainActivity extends Activity {
         lastToast.show();
     }
 
+    /**
+     * One visual language for every app dialog: rounded surface, app palette,
+     * readable RTL text, and rounded action buttons instead of platform defaults.
+     */
+    private AlertDialog.Builder appDialog() {
+        return new AppDialogBuilder();
+    }
+
+    private final class AppDialogBuilder extends AlertDialog.Builder {
+        AppDialogBuilder() {
+            super(MainActivity.this);
+        }
+
+        @Override
+        public AlertDialog show() {
+            AlertDialog dialog = super.show();
+            styleAppDialog(dialog);
+            return dialog;
+        }
+    }
+
+    private void styleAppDialog(AlertDialog dialog) {
+        if (dialog == null) return;
+        final int panelColor = SURFACE;
+        final int textColor = INK;
+        final int mutedColor = MUTED;
+        android.view.Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(shape(panelColor, 24, LINE));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+            int width = Math.min(metrics.widthPixels - dp(32), dp(440));
+            window.setLayout(Math.max(dp(280), width), -2);
+        }
+
+        TextView title = dialog.findViewById(androidxResourceIdAlertTitle());
+        if (title != null) {
+            title.setTextColor(textColor);
+            title.setTextSize(19);
+            title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            title.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            title.setPadding(dp(22), dp(18), dp(22), dp(8));
+            title.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        }
+        TextView message = dialog.findViewById(android.R.id.message);
+        if (message != null) {
+            message.setTextColor(textColor);
+            message.setTextSize(15);
+            message.setLineSpacing(dp(2), 1f);
+            message.setPadding(dp(22), dp(8), dp(22), dp(12));
+            message.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        }
+
+        styleDialogButtons(dialog);
+        ListView choices = dialog.getListView();
+        if (choices != null) {
+            choices.setBackgroundColor(panelColor);
+            choices.setDivider(new ColorDrawable(LINE));
+            choices.setDividerHeight(dp(1));
+            choices.setPadding(dp(10), dp(6), dp(10), dp(6));
+            choices.setClipToPadding(false);
+            choices.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            for (int i = 0; i < choices.getChildCount(); i++) {
+                styleDialogChoice(choices.getChildAt(i));
+            }
+            choices.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
+                @Override public void onChildViewAdded(View parent, View child) {
+                    styleDialogChoice(child);
+                }
+                @Override public void onChildViewRemoved(View parent, View child) { }
+            });
+        }
+        styleDialogInputs(dialog.getWindow() == null ? null : dialog.getWindow().getDecorView());
+    }
+
+    private int androidxResourceIdAlertTitle() {
+        return getResources().getIdentifier("alertTitle", "id", "android");
+    }
+
+    private void styleDialogButtons(AlertDialog dialog) {
+        int[] ids = {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL};
+        for (int id : ids) {
+            android.widget.Button button = dialog.getButton(id);
+            if (button == null) continue;
+            boolean primary = id == AlertDialog.BUTTON_POSITIVE;
+            button.setAllCaps(false);
+            button.setTextSize(14);
+            button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            button.setMinHeight(dp(42));
+            button.setPadding(dp(14), dp(7), dp(14), dp(7));
+            button.setTextColor(primary ? Color.WHITE : ORANGE_DARK);
+            button.setBackground(ripple(shape(primary ? ORANGE : ORANGE_LIGHT, 12, primary ? 0 : LINE), 12));
+        }
+    }
+
+    private void styleDialogChoice(View view) {
+        if (view instanceof TextView) {
+            TextView item = (TextView) view;
+            item.setTextColor(INK);
+            item.setTextSize(15);
+            item.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            item.setPadding(dp(16), dp(12), dp(16), dp(12));
+            item.setMinHeight(dp(46));
+            item.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            item.setBackground(ripple(shape(SURFACE, 12, LINE), 12));
+        }
+    }
+
+    private void styleDialogInputs(View view) {
+        if (view == null) return;
+        if (view instanceof EditText) {
+            EditText field = (EditText) view;
+            field.setTextColor(INK);
+            field.setHintTextColor(MUTED);
+            field.setPadding(dp(12), dp(10), dp(12), dp(10));
+            field.setBackground(shape(SURFACE, 12, LINE));
+            field.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        } else if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                styleDialogInputs(group.getChildAt(i));
+            }
+        }
+    }
+
     private GradientDrawable shape(int fill, float radiusDp, int stroke) {
         GradientDrawable g = new GradientDrawable();
         g.setColor(fill);
@@ -1197,8 +1322,8 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "עדכון תצוגת המכירות והמוצרים";
-        final String whatsNewSummary = "מכירות בולטות בכתום במצב לילה, חץ קטן יותר לראש הרשימה ורוחב קבוע לכרטיסי המוצרים.";
+        final String whatsNewTitle = "עיצוב אחיד לכל החלונות והתפריטים";
+        final String whatsNewSummary = "חלונות, תפריטי בחירה והודעות בעיצוב המעוגל של האפליקציה, לצד שיפורי התצוגה האחרונים.";
         final String whatsNewDetails =
                 "• במצב לילה כרטיסי המכירות ברשימת המכירות מקבלים רקע כתום וטקסט מותאם לקריאות.\\n\\n" +
                 "• כפתור החזרה לראש הרשימה הוקטן ב־50%, כולל החץ, בלי לשנות את מיקומו.\\n\\n" +
@@ -1207,7 +1332,7 @@ public class MainActivity extends Activity {
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
-        open.setOnClickListener(v -> new AlertDialog.Builder(this)
+        open.setOnClickListener(v -> appDialog()
                 .setTitle("✨ מה חדש במשנת יוסף")
                 .setMessage(whatsNewTitle + "\n\n" + whatsNewDetails)
                 .setPositiveButton("הבנתי", null)
@@ -1437,7 +1562,7 @@ public class MainActivity extends Activity {
         dayChip.setOnClickListener(v -> {
             final String[] names = new String[7];
             for (int i = 0; i < 7; i++) names[i] = "יום " + HEB_DAYS[i];
-            new AlertDialog.Builder(this).setTitle(label)
+            appDialog().setTitle(label)
                     .setSingleChoiceItems(names, indexOf(CAL_DAYS, prefs.getInt(dayKey, defDay)), (d, which) -> {
                         prefs.edit().putInt(dayKey, CAL_DAYS[which]).apply();
                         dayChip.setText(names[which]);
@@ -2420,7 +2545,7 @@ public class MainActivity extends Activity {
         if (parent != null && first(parent, "week").isEmpty() && lines.isEmpty()) lines.add("אין פרטים נוספים זמינים.");
 
         String title = saleTitle(sale);
-        new AlertDialog.Builder(this)
+        appDialog()
                 .setTitle(title.isEmpty() ? "פרטי המכירה" : title)
                 .setMessage(TextUtils.join("\n", lines))
                 .setPositiveButton("סגירה", null)
@@ -2836,7 +2961,7 @@ public class MainActivity extends Activity {
         checkLp.topMargin = dp(10);
         panel.addView(dontShowAgain, checkLp);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = appDialog()
                 .setTitle("עדכון כמויות בהזמנה")
                 .setView(panel)
                 .setPositiveButton("הבנתי", null)
@@ -2849,6 +2974,7 @@ public class MainActivity extends Activity {
         });
         orderNoticeDialogVisible = true;
         dialog.show();
+        styleAppDialog(dialog);
     }
 
     private void loadFeatureProducts(final JSONObject sale) {
@@ -3701,8 +3827,9 @@ public class MainActivity extends Activity {
         }
         ScrollView sv = new ScrollView(this);
         sv.addView(panel);
-        dlg[0] = new AlertDialog.Builder(this).setView(sv).setPositiveButton("סגירה", null).create();
+        dlg[0] = appDialog().setView(sv).setPositiveButton("סגירה", null).create();
         dlg[0].show();
+        styleAppDialog(dlg[0]);
     }
 
     private String metaText(JSONObject meta, String key) {
@@ -4037,7 +4164,7 @@ public class MainActivity extends Activity {
     }
 
     private void confirmRemove(final OrderLine line, final JSONObject p) {
-        new AlertDialog.Builder(this)
+        appDialog()
                 .setTitle("הסרה מההזמנה")
                 .setMessage("להסיר את \"" + line.name + "\" מההזמנה?")
                 .setNegativeButton("ביטול", null)
@@ -4563,7 +4690,7 @@ public class MainActivity extends Activity {
                     for (String checked : checkedSales) report.append("• ").append(checked).append("\n");
                 }
                 final String result = report.toString();
-                runOnUiThread(() -> new AlertDialog.Builder(this)
+                runOnUiThread(() -> appDialog()
                         .setTitle("תוצאות אבחון פריט " + targetId)
                         .setMessage(result)
                         .setPositiveButton("סגירה", null)
@@ -4587,7 +4714,7 @@ public class MainActivity extends Activity {
      */
     private void diagnoseAllServerJson() {
         if (!hasToken()) { toast("צריך להתחבר לפני איסוף נתוני השרת", true); return; }
-        new AlertDialog.Builder(this)
+        appDialog()
                 .setTitle("איסוף נתוני JSON")
                 .setMessage("הפעולה תשלח בקשות GET לנתיבים שהאפליקציה משתמשת בהם ותאסוף את גופי התשובות המלאים. הדוח עשוי להכיל פרטים אישיים מהחשבון ומההזמנות. הוא לא יישלח אוטומטית; אפשר יהיה להעתיק או לשתף אותו ידנית.")
                 .setNegativeButton("ביטול", null)
@@ -4703,7 +4830,7 @@ public class MainActivity extends Activity {
     }
 
     private void showJsonReportActions(String report, int requestCount) {
-        new AlertDialog.Builder(this)
+        appDialog()
                 .setTitle("דוח JSON מהשרת")
                 .setMessage("האיסוף הסתיים: " + requestCount + " בקשות. כדי למנוע קריסה בגלל דוח גדול, השיתוף ישלח קובץ TXT מלא. העתקה ללוח מוגבלת ל־200,000 תווים; אם הדוח ארוך יותר, השתמשו בשיתוף הקובץ. בדקו פרטים אישיים לפני שיתוף.")
                 .setPositiveButton("סגירה", null)
@@ -4836,7 +4963,7 @@ public class MainActivity extends Activity {
         String text;
         synchronized (apiLog) { text = apiLog.isEmpty() ? "עדיין אין רישום תקשורת." : TextUtils.join("\n", apiLog); }
         final String shown = text;
-        new AlertDialog.Builder(this).setTitle("יומן תקשורת")
+        appDialog().setTitle("יומן תקשורת")
                 .setMessage(shown)
                 .setPositiveButton("סגירה", null)
                 .setNeutralButton("שיתוף", (d, w) -> shareText("יומן תקשורת משנת יוסף", shown))
@@ -4855,7 +4982,7 @@ public class MainActivity extends Activity {
     }
 
     private void showTextDialog(String title, String message) {
-        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("סגירה", null).show();
+        appDialog().setTitle(title).setMessage(message).setPositiveButton("סגירה", null).show();
     }
 
     private void addHScroll(View content, LinearLayout.LayoutParams params) {
@@ -4902,7 +5029,7 @@ public class MainActivity extends Activity {
 
     private void showShareMenu(final String text) {
         String[] labels = {"📋 העתקה ללוח", "🟢 שליחה בווצאפ", "📤 מייל / הודעה / אחר"};
-        new AlertDialog.Builder(this).setTitle("שיתוף").setItems(labels, (d, which) -> {
+        appDialog().setTitle("שיתוף").setItems(labels, (d, which) -> {
             if (which == 0) copyText(text);
             else if (which == 1) shareWhatsapp(text);
             else shareText("הזמנה משנת יוסף", text);
@@ -5191,7 +5318,7 @@ public class MainActivity extends Activity {
         appendList(sb, "🔁 כפולים", dups);
         appendList(sb, "❓ שורות לא תקינות", bad);
         if (plan.isEmpty()) { showTextDialog("ייבוא: " + label, sb.toString()); return; }
-        new AlertDialog.Builder(this).setTitle("ייבוא: " + label).setMessage(sb.toString())
+        appDialog().setTitle("ייבוא: " + label).setMessage(sb.toString())
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("החלה", (d, w) -> applyPlan(plan))
                 .show();
@@ -5206,8 +5333,9 @@ public class MainActivity extends Activity {
         final TextView msg = text("מתחיל…", 15, false);
         msg.setPadding(dp(22), dp(16), dp(22), dp(8));
         msg.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        final AlertDialog dlg = new AlertDialog.Builder(this).setTitle("מעדכן הזמנה").setView(msg).setCancelable(false).create();
+        final AlertDialog dlg = appDialog().setTitle("מעדכן הזמנה").setView(msg).setCancelable(false).create();
         dlg.show();
+        styleAppDialog(dlg);
         toast("⏳ מעדכן " + plan.size() + " פריטים…", false);
         final long orderId = featureOrderId;
         executor.execute(() -> {
@@ -5295,7 +5423,7 @@ public class MainActivity extends Activity {
             labels.add("🧹 ניקוי כמויות שמורות"); actions.add(8);
             labels.add("🗑 מחיקת ההזמנה"); actions.add(9);
         }
-        new AlertDialog.Builder(this).setTitle("אפשרויות נוספות")
+        appDialog().setTitle("אפשרויות נוספות")
                 .setItems(labels.toArray(new String[0]), (d, which) -> {
                     switch (actions.get(which)) {
                         case 0: showSaleDetails(featureSale); break;
@@ -5354,7 +5482,7 @@ public class MainActivity extends Activity {
         });
         int initial = slider.getProgress();
         value.setText(cardSizeLabel(initial + 1));
-        new AlertDialog.Builder(this).setTitle("גודל כרטיסי המוצרים").setView(box)
+        appDialog().setTitle("גודל כרטיסי המוצרים").setView(box)
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("שמירה", (d, w) -> {
                     prefs.edit().putInt("product_card_columns", slider.getProgress() + 1).apply();
@@ -5370,14 +5498,14 @@ public class MainActivity extends Activity {
         input.setMinLines(6);
         input.setGravity(Gravity.TOP | Gravity.START);
         input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        new AlertDialog.Builder(this).setTitle("רשימת קניות").setView(input)
+        appDialog().setTitle("רשימת קניות").setView(input)
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("המשך", (d, w) -> startImport(input.getText().toString(), "רשימה מודבקת"))
                 .show();
     }
 
     private void confirmDeleteOrder() {
-        new AlertDialog.Builder(this).setTitle("מחיקת ההזמנה")
+        appDialog().setTitle("מחיקת ההזמנה")
                 .setMessage("למחוק את כל ההזמנה? הפעולה בלתי הפיכה.")
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("מחיקה", (d, w) -> requireUnlock(() -> deleteOrder()))
@@ -5431,7 +5559,7 @@ public class MainActivity extends Activity {
         in.setText(String.valueOf(cur));
         in.selectAll();
         in.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        new AlertDialog.Builder(this).setTitle(productName(p)).setMessage("כמות בהזמנה (0 = הסרה)").setView(in)
+        appDialog().setTitle(productName(p)).setMessage("כמות בהזמנה (0 = הסרה)").setView(in)
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("קביעה", (d, w) -> {
                     int n;
@@ -5543,7 +5671,7 @@ public class MainActivity extends Activity {
         in.setText(String.valueOf(start));
         in.selectAll();
         in.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        new AlertDialog.Builder(this).setTitle(productName(p)).setMessage("כמות שמורה להזמנה אוטומטית של מועדפים (0 = ניקוי)").setView(in)
+        appDialog().setTitle(productName(p)).setMessage("כמות שמורה להזמנה אוטומטית של מועדפים (0 = ניקוי)").setView(in)
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("שמירה", (d, w) -> {
                     int n;
@@ -5581,7 +5709,7 @@ public class MainActivity extends Activity {
         }
         String detail = units + " יחידות: " + savedCount + " לפי כמות שמורה, " + (plan.size() - savedCount) + " בכמות 1"
                 + (already > 0 ? "\n(" + already + " כבר בהזמנה ולא ישתנו)" : "");
-        new AlertDialog.Builder(this).setTitle("טעינת מועדפים")
+        appDialog().setTitle("טעינת מועדפים")
                 .setMessage("להוסיף " + plan.size() + " מועדפים להזמנה?\n" + detail)
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("הוספה", (d, w) -> applyPlan(plan))
@@ -5612,7 +5740,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (conflicts.isEmpty()) {
-            new AlertDialog.Builder(this).setTitle("שמירת כמויות")
+            appDialog().setTitle("שמירת כמויות")
                     .setMessage("לשמור כמויות ל-" + news.size() + " מועדפים מההזמנה הנוכחית?")
                     .setNegativeButton("ביטול", null)
                     .setPositiveButton("שמירה", (d, w) -> storeFavQuantities(news))
@@ -5626,7 +5754,7 @@ public class MainActivity extends Activity {
         }
         if (conflicts.size() > 10) sb.append("…ועוד ").append(conflicts.size() - 10).append("\n");
         if (!news.isEmpty()) sb.append("\n").append(news.size()).append(" חדשים יישמרו.");
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("שמירת כמויות").setMessage(sb.toString())
+        AlertDialog.Builder b = appDialog().setTitle("שמירת כמויות").setMessage(sb.toString())
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("דרוס את כולם", (d, w) -> {
                     List<String[]> all = new ArrayList<>(news);
@@ -5641,7 +5769,7 @@ public class MainActivity extends Activity {
         final List<JSONObject> withQty = new ArrayList<>();
         for (JSONObject p : featureProducts) if (favIds.contains(pidOf(p)) && favSavedQty(pidOf(p)) > 0) withQty.add(p);
         if (withQty.isEmpty()) { toast("אין כמויות שמורות", false); return; }
-        new AlertDialog.Builder(this).setTitle("ניקוי כמויות שמורות")
+        appDialog().setTitle("ניקוי כמויות שמורות")
                 .setMessage("לנקות כמויות שמורות של " + withQty.size() + " מועדפים? הם יחזרו לכמות 1.")
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("ניקוי", (d, w) -> {
@@ -5978,7 +6106,7 @@ public class MainActivity extends Activity {
             }
         };
         input.setOnEditorActionListener((v, actionId, event) -> { check.run(); return true; });
-        ref[0] = new AlertDialog.Builder(this).setTitle("🔒 נעילת ילדים").setView(panel)
+        ref[0] = appDialog().setTitle("🔒 נעילת ילדים").setView(panel)
                 .setPositiveButton("אישור", null)
                 .setNegativeButton("ביטול", (d, w) -> { if (onCancel != null) onCancel.run(); })
                 .setOnCancelListener(d -> { if (onCancel != null) onCancel.run(); })
@@ -6201,7 +6329,7 @@ public class MainActivity extends Activity {
             Integer c = catCounts.get(names.get(i));
             labels[i + 1] = names.get(i) + (c == null ? "" : "  (" + c + ")");
         }
-        new AlertDialog.Builder(this).setTitle("קפיצה לקטגוריה").setItems(labels, (d, which) -> {
+        appDialog().setTitle("קפיצה לקטגוריה").setItems(labels, (d, which) -> {
             if (which == 0) { if (productList != null) productList.setSelection(0); }
             else jumpToCategory(names.get(which - 1));
         }).show();
