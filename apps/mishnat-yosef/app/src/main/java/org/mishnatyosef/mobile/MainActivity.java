@@ -764,7 +764,7 @@ public class MainActivity extends Activity {
                     if ("navCenter".equals(cell.getTag())) {
                         View dome = ((ViewGroup) cell).getChildAt(0);
                         ViewGroup.LayoutParams domeLp = dome.getLayoutParams();
-                        domeLp.height = dp(94) + in[3];
+                        domeLp.height = dp(78) + in[3];
                         dome.setLayoutParams(domeLp);
                     } else {
                         cell.setPadding(dp(2), dp(5), dp(2), dp(5) + in[3]);
@@ -4000,19 +4000,20 @@ public class MainActivity extends Activity {
         FrameLayout slot = new FrameLayout(this);
         slot.setTag("navCenter");
         slot.setClipChildren(false);
+
         LinearLayout dome = new LinearLayout(this);
         dome.setOrientation(LinearLayout.VERTICAL);
         dome.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        dome.setPadding(0, dp(13), 0, 0);
+        dome.setPadding(0, dp(10), 0, 0);
 
-        // A rounded mountain peak that widens continuously toward the app's bottom edge.
+        // A shorter mountain with a wider, softly squared summit and slopes widening to the base.
         android.graphics.Path mountainPath = new android.graphics.Path();
-        mountainPath.moveTo(50f, 0f);
-        mountainPath.cubicTo(59f, 0f, 65f, 7f, 70f, 19f);
-        mountainPath.cubicTo(78f, 39f, 89f, 68f, 100f, 100f);
-        mountainPath.lineTo(0f, 100f);
-        mountainPath.cubicTo(11f, 68f, 22f, 39f, 30f, 19f);
-        mountainPath.cubicTo(35f, 7f, 41f, 0f, 50f, 0f);
+        mountainPath.moveTo(39f, 0f);
+        mountainPath.cubicTo(33f, 0f, 29f, 3f, 26f, 9f);
+        mountainPath.cubicTo(20f, 22f, 12f, 46f, 0f, 100f);
+        mountainPath.lineTo(100f, 100f);
+        mountainPath.cubicTo(88f, 46f, 80f, 22f, 74f, 9f);
+        mountainPath.cubicTo(71f, 3f, 67f, 0f, 61f, 0f);
         mountainPath.close();
 
         android.graphics.drawable.shapes.PathShape mountainShape =
@@ -4027,7 +4028,10 @@ public class MainActivity extends Activity {
         dome.setElevation(dp(8));
         dome.setClickable(true);
         dome.setFocusable(true);
-        dome.addView(new IconView(ICON_CHECK, Color.WHITE, 3f), new LinearLayout.LayoutParams(dp(28), dp(28)));
+
+        // Match the other navigation icons in size and keep the icon and label together.
+        dome.addView(new IconView(ICON_CHECK, Color.WHITE, 2.8f),
+                new LinearLayout.LayoutParams(dp(28), dp(28)));
         TextView label = new TextView(this);
         label.setText("איסוף");
         label.setTextSize(11);
@@ -4038,7 +4042,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-2, -2);
         labelLp.topMargin = dp(2);
         dome.addView(label, labelLp);
-        FrameLayout.LayoutParams domeLp = new FrameLayout.LayoutParams(dp(108), dp(94));
+
+        FrameLayout.LayoutParams domeLp = new FrameLayout.LayoutParams(dp(108), dp(78));
         domeLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         slot.addView(dome, domeLp);
         dome.setOnClickListener(v -> openLatestCollect());
