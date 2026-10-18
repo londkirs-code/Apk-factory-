@@ -162,6 +162,13 @@ public class MainActivity extends Activity {
     private static final int REQ_EXPORT = 7101, REQ_IMPORT = 7102;
     private final List<String> apiLog = Collections.synchronizedList(new ArrayList<String>());
     private boolean refreshDead = false;
+    private FrameLayout topHolder;
+    private LinearLayout catStripRow;
+    private HorizontalScrollView catStripScroll;
+    private final Map<String, View> catHeaders = new LinkedHashMap<>();
+    private final Map<String, TextView> catChips = new LinkedHashMap<>();
+    private final Map<String, Integer> catCounts = new LinkedHashMap<>();
+    private String activeCat = "";
 
     // ======================================================================== data classes
 
@@ -675,6 +682,10 @@ public class MainActivity extends Activity {
         titles.addView(head);
         header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
+        topHolder = new FrameLayout(this);
+        screen.addView(topHolder, new LinearLayout.LayoutParams(-1, -2));
+        catStripRow = null;
+        catStripScroll = null;
 
         scrollView = new ScrollView(this);
         root = new LinearLayout(this);
@@ -2085,6 +2096,17 @@ public class MainActivity extends Activity {
         styleModeChips(modeChips, modeKeys);
         root.addView(modeRow, lp(-1, -2, 0, 6));
 
+        catStripScroll = new HorizontalScrollView(this);
+        catStripScroll.setHorizontalScrollBarEnabled(false);
+        catStripScroll.setBackgroundColor(Color.WHITE);
+        catStripScroll.setElevation(dp(2));
+        catStripScroll.setPadding(dp(8), dp(6), dp(8), dp(6));
+        catStripRow = new LinearLayout(this);
+        catStripRow.setGravity(Gravity.CENTER_VERTICAL);
+        catStripScroll.addView(catStripRow);
+        topHolder.addView(catStripScroll);
+        scrollView.setOnScrollChangeListener((v, sx, sy, ox, oy) -> updateActiveCategory(sy));
+
         gridContainer = new LinearLayout(this);
         gridContainer.setOrientation(LinearLayout.VERTICAL);
         root.addView(gridContainer, new LinearLayout.LayoutParams(-1, -2));
@@ -2116,6 +2138,11 @@ public class MainActivity extends Activity {
         if (gridContainer == null) return;
         gridContainer.removeAllViews();
         cardRefreshers.clear();
+        catHeaders.clear();
+        catCounts.clear();
+        if (catStripRow != null) catStripRow.removeAllViews();
+        catChips.clear();
+        if (catStripScroll != null) catStripScroll.setVisibility(View.GONE);
 
         Map<String, List<JSONObject>> byCat = new LinkedHashMap<>();
         final Map<String, Integer> catOrder = new LinkedHashMap<>();
@@ -2150,6 +2177,8 @@ public class MainActivity extends Activity {
             TextView header = text(cat + "  (" + items.size() + ")", 16, true);
             header.setTextColor(ORANGE_DARK);
             gridContainer.addView(header, lp(-1, -2, 10, 4));
+            catHeaders.put(cat, header);
+            catCounts.put(cat, items.size());
             for (int i = 0; i < items.size(); i += 2) {
                 LinearLayout row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2165,6 +2194,7 @@ public class MainActivity extends Activity {
                 addVisualRtl(row, cells);
             }
         }
+        refillCategoryStrip(cats);
     }
 
     private View productCard(final JSONObject p) {
@@ -2229,7 +2259,7 @@ public class MainActivity extends Activity {
         card.addView(priceView);
         int mx = maxPerMan(p);
         if (showMax() && mx > 0) {
-            TextView mxView = text("עד " + mx + " לאדם", 11, true);
+            TextView mxView = text("מקסימום " + mx, 11, true);
             mxView.setTextColor(ORANGE_DARK);
             card.addView(mxView);
         }
@@ -2283,10 +2313,6 @@ public class MainActivity extends Activity {
         int next = Math.max(0, current + delta);
         if (delta > 0) {
             if (truthy(p.opt("disable")) || isSoldOut(p)) { toast("המוצר אינו זמין כרגע", false); return; }
-            double stock = numericAvailable(p);
-            if (stock >= 0 && next > stock) { toast("נותרו במלאי " + (long) stock + " יחידות בלבד", false); return; }
-            int mxLimit = maxPerMan(p);
-            if (showMax() && mxLimit > 0 && next > mxLimit) { toast("מקסימום " + mxLimit + " לאדם: " + productName(p), true); return; }
         }
         setItemAmount(p, next, refresh, onSuccess);
     }
@@ -2376,7 +2402,7 @@ public class MainActivity extends Activity {
         if (!line.trim().isEmpty()) panel.addView(text(line, 14, true));
         if (!unitPriceText(p).isEmpty()) panel.addView(muted(unitPriceText(p), 12));
         if (isSoldOut(p)) panel.addView(text("⛔ אזל מהמלאי", 13, true));
-        if (showMax() && maxPerMan(p) > 0) panel.addView(text("מקסימום לאדם: " + maxPerMan(p), 13, true));
+        if (showMax() && maxPerMan(p) > 0) panel.addView(text("מקסימום " + maxPerMan(p), 13, true));
 
         String[][] blocks = {
                 {"", cleanHtml(first(prod, "description"))},
@@ -2677,7 +2703,7 @@ public class MainActivity extends Activity {
         col.addView(muted((line.price > 0 ? money(line.price) + " ליחידה" : "") + (pack.isEmpty() ? "" : (line.price > 0 ? " · " : "") + pack), 12));
         int mxRow = maxPerMan(p);
         if (showMax() && mxRow > 0) {
-            TextView mxView = text("עד " + mxRow + " לאדם", 11, true);
+            TextView mxView = text("מקסימום " + mxRow, 11, true);
             mxView.setTextColor(ORANGE_DARK);
             col.addView(mxView);
         }
@@ -3461,8 +3487,6 @@ public class MainActivity extends Activity {
                 if (truthy(p.opt("disable"))) { blocked.add(name + ": לא זמין"); continue; }
                 if (isSoldOut(p)) { blocked.add(name + ": אזל"); continue; }
             }
-            int mxImport = maxPerMan(p);
-            if (showMax() && mxImport > 0 && amount > mxImport) { blocked.add(name + ": מעל המקסימום לאדם (" + mxImport + ")"); continue; }
             PlanItem pi = new PlanItem();
             pi.p = p;
             pi.name = name;
@@ -3668,10 +3692,6 @@ public class MainActivity extends Activity {
                     if (n < 0 || n > 999) { toast("כמות בין 0 ל-999", false); return; }
                     if (n > cur) {
                         if (truthy(p.opt("disable")) || isSoldOut(p)) { toast("המוצר אינו זמין כרגע", false); return; }
-                        double stock = numericAvailable(p);
-                        if (stock >= 0 && n > stock) { toast("נותרו במלאי " + (long) stock + " יחידות בלבד", false); return; }
-                        int mxLimit = maxPerMan(p);
-                        if (showMax() && mxLimit > 0 && n > mxLimit) { toast("מקסימום " + mxLimit + " לאדם: " + productName(p), true); return; }
                     }
                     setItemAmount(p, n, refresh, onSuccess);
                 }).show();
@@ -3798,8 +3818,6 @@ public class MainActivity extends Activity {
             if (truthy(p.opt("disable")) || isSoldOut(p)) continue;
             int q = favSavedQty(pid);
             if (q > 0) savedCount++; else q = 1;
-            int mxFav = maxPerMan(p);
-            if (showMax() && mxFav > 0 && q > mxFav) q = mxFav;
             PlanItem pi = new PlanItem();
             pi.p = p;
             pi.name = productName(p);
@@ -4214,9 +4232,9 @@ public class MainActivity extends Activity {
                 showMathChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
             }
         }));
-        card.addView(switchRow("הצגת מקסימום לאדם", "כתיבת \"עד N לאדם\" על כל פריט, וחסימת כמות מעל המקסימום", showMax(), (b, checked) -> {
+        card.addView(switchRow("הצגת מקסימום", "כתיבת \"מקסימום N\" על כל פריט. ההגבלה עצמה נבדקת בשרת", showMax(), (b, checked) -> {
             prefs.edit().putBoolean("show_max", checked).apply();
-            toast(checked ? "🔢 המקסימום לאדם מוצג" : "המקסימום לאדם מוסתר", false);
+            toast(checked ? "🔢 המקסימום מוצג על הפריטים" : "המקסימום מוסתר", false);
         }));
         card.addView(switchRow("תמונות מלאות", "טעינת התמונה המקורית במקום תמונה ממוזערת. איטי יותר, אבל לא חתוך", fullImages(), (b, checked) -> {
             prefs.edit().putBoolean("full_images", checked).apply();
@@ -4297,6 +4315,88 @@ public class MainActivity extends Activity {
                     break;
             }
             c.restore();
+        }
+    }
+
+    // ======================================================================== category menu (jump straight to a category)
+
+    private void refillCategoryStrip(List<String> cats) {
+        if (catStripRow == null) return;
+        catStripRow.removeAllViews();
+        catChips.clear();
+        activeCat = cats.isEmpty() ? "" : cats.get(0);
+        List<View> cells = new ArrayList<>();
+        TextView menu = pickChip("☰ קטגוריות");
+        styleChip(menu, true);
+        menu.setOnClickListener(v -> showCategoryMenu());
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, dp(36));
+        mp.setMargins(dp(3), 0, dp(3), 0);
+        menu.setLayoutParams(mp);
+        cells.add(menu);
+        for (final String cat : cats) {
+            Integer count = catCounts.get(cat);
+            TextView chip = pickChip(cat + (count == null ? "" : " " + count));
+            chip.setOnClickListener(v -> jumpToCategory(cat));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(36));
+            cp.setMargins(dp(3), 0, dp(3), 0);
+            chip.setLayoutParams(cp);
+            catChips.put(cat, chip);
+            cells.add(chip);
+        }
+        addVisualRtl(catStripRow, cells);
+        styleCategoryChips();
+        if (catStripScroll != null) {
+            catStripScroll.setVisibility(cats.isEmpty() ? View.GONE : View.VISIBLE);
+            if (!rtlActive()) catStripScroll.post(() -> catStripScroll.fullScroll(View.FOCUS_RIGHT));
+        }
+    }
+
+    private void styleCategoryChips() {
+        for (Map.Entry<String, TextView> e : catChips.entrySet()) styleChip(e.getValue(), e.getKey().equals(activeCat));
+    }
+
+    private void jumpToCategory(String cat) {
+        View header = catHeaders.get(cat);
+        if (header == null || scrollView == null || gridContainer == null) return;
+        hideKeyboard();
+        final int y = Math.max(0, gridContainer.getTop() + header.getTop() - dp(6));
+        scrollView.post(() -> scrollView.smoothScrollTo(0, y));
+        activeCat = cat;
+        styleCategoryChips();
+    }
+
+    private void showCategoryMenu() {
+        if (catHeaders.isEmpty()) { toast("אין קטגוריות להצגה", false); return; }
+        final List<String> names = new ArrayList<>(catHeaders.keySet());
+        String[] labels = new String[names.size() + 1];
+        labels[0] = "⬆ לראש הרשימה";
+        for (int i = 0; i < names.size(); i++) {
+            Integer c = catCounts.get(names.get(i));
+            labels[i + 1] = names.get(i) + (c == null ? "" : "  (" + c + ")");
+        }
+        new AlertDialog.Builder(this).setTitle("קפיצה לקטגוריה").setItems(labels, (d, which) -> {
+            if (which == 0) { if (scrollView != null) scrollView.smoothScrollTo(0, 0); }
+            else jumpToCategory(names.get(which - 1));
+        }).show();
+    }
+
+    /** Highlights the category that is at the top of the screen and keeps its chip in view. */
+    private void updateActiveCategory(int scrollY) {
+        if (gridContainer == null || catHeaders.isEmpty()) return;
+        String found = "";
+        int threshold = scrollY + dp(70);
+        for (Map.Entry<String, View> e : catHeaders.entrySet()) {
+            if (found.isEmpty()) found = e.getKey();
+            if (gridContainer.getTop() + e.getValue().getTop() <= threshold) found = e.getKey();
+            else break;
+        }
+        if (found.isEmpty() || found.equals(activeCat)) return;
+        activeCat = found;
+        styleCategoryChips();
+        TextView chip = catChips.get(found);
+        if (chip != null && catStripScroll != null) {
+            int target = chip.getLeft() - (catStripScroll.getWidth() - chip.getWidth()) / 2;
+            catStripScroll.smoothScrollTo(Math.max(0, target), 0);
         }
     }
 }
