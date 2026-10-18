@@ -2249,8 +2249,12 @@ public class MainActivity extends Activity {
             JSONObject p = products.optJSONObject(i);
             if (p == null) continue;
             if (truthy(p.opt("billing_product"))) continue;
-            if (!p.has("item_salesID") || p.isNull("item_salesID")) continue;
-            String sid = first(p, "item_salesID");
+            // API versions may expose the sale-item identifier with either spelling,
+            // and some order responses put the catalog item inside "product".
+            JSONObject nestedProduct = p.optJSONObject("product");
+            String sid = first(p, "item_salesID", "item_sales_id");
+            if (sid.isEmpty()) sid = first(nestedProduct, "item_salesID", "item_sales_id", "itemID", "id");
+            if (sid.isEmpty()) continue;
             double amount = num(p.opt("amount"));
             OrderLine line = bySid.get(sid);
             if (line == null) {
@@ -2258,7 +2262,7 @@ public class MainActivity extends Activity {
                 line.sid = sid;
                 line.raw = p;
                 String name = first(p, "full_name", "name", "item_name", "title");
-                if (name.isEmpty()) name = first(p.optJSONObject("product"), "full_name", "name");
+                if (name.isEmpty()) name = first(nestedProduct, "full_name", "name", "item_name", "title");
                 line.name = name.isEmpty() ? "(פריט " + sid + ")" : name;
                 line.price = productPrice(p);
                 bySid.put(sid, line);
