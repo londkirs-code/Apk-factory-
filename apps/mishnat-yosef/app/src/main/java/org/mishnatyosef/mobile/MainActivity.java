@@ -635,6 +635,13 @@ public class MainActivity extends Activity {
         return "נסגרת בעוד " + (days > 0 ? days + " ימים " : "") + hours + " שעות " + mins + " דקות";
     }
 
+    private boolean isSaleClosed(JSONObject sale) {
+        if (sale == null) return false;
+        Date end = parseDt(first(sale, "end"));
+        if (end == null) return false;
+        return end.getTime() <= System.currentTimeMillis();
+    }
+
     private String saleTitle(JSONObject sale) {
         if (sale == null) return "";
         String name = first(sale, "custom_name");
@@ -1998,8 +2005,16 @@ public class MainActivity extends Activity {
     private void loadFeatureProducts(JSONObject sale) {
         if (sale == null) return;
         summaryFromHistory = false;
+        final boolean saleClosed = isSaleClosed(sale);
+        if (saleClosed) {
+            featureOrderId = -1;
+            featureProducts.clear();
+            featureQuantities.clear();
+            pending.clear();
+        }
         final int saleId = sale.optInt("id", -1);
-        final boolean isSameSale = featureSale != null
+        final boolean isSameSale = !saleClosed
+                && featureSale != null
                 && featureSale.optInt("id", -1) == saleId
                 && featureOrderId > 0
                 && !featureProducts.isEmpty();
