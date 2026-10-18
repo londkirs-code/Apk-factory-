@@ -3995,6 +3995,7 @@ public class MainActivity extends Activity {
 
     // ======================================================================== centre "collect" button
 
+    // Keep the center collect action wider than the other tabs, with a fully rounded hill-like silhouette.
     private View collectNavButton(boolean active) {
         FrameLayout slot = new FrameLayout(this);
         slot.setTag("navCenter");
