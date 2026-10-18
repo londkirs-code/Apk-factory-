@@ -2661,7 +2661,7 @@ public class MainActivity extends Activity {
         barTotal.setEllipsize(TextUtils.TruncateAt.END);
         orderText.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
         orderText.addView(barTotal, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(dp(60), -2);
+        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(dp(84), -2);
         orderTextLp.setMarginStart(dp(3));
         toolbar.addView(orderText, orderTextLp);
 
@@ -2670,7 +2670,7 @@ public class MainActivity extends Activity {
         topBtn.setContentDescription("לתחילת ההזמנה");
         topBtn.setOnClickListener(v -> {
             hideKeyboard();
-            if (productList != null) productList.smoothScrollToPosition(0);
+            if (productList != null) productList.setSelection(0);
         });
         LinearLayout.LayoutParams topLp = new LinearLayout.LayoutParams(dp(30), dp(40));
         topLp.setMarginStart(dp(3));
@@ -2681,7 +2681,7 @@ public class MainActivity extends Activity {
         bottomBtn.setContentDescription("לסוף ההזמנה");
         bottomBtn.setOnClickListener(v -> {
             hideKeyboard();
-            if (productList != null) productList.smoothScrollToPosition(Math.max(0, gridRows.size() - 1));
+            if (productList != null) productList.setSelection(Math.max(0, gridRows.size() - 1));
         });
         LinearLayout.LayoutParams bottomLp = new LinearLayout.LayoutParams(dp(30), dp(40));
         bottomLp.setMarginStart(dp(2));
