@@ -2866,35 +2866,12 @@ public class MainActivity extends Activity {
         orderTextLp.setMarginStart(dp(3));
         toolbar.addView(orderText, orderTextLp);
 
-        TextView topBtn = roundBtn("↑", 30, ORANGE_LIGHT, ORANGE_DARK);
-        topBtn.setTextSize(20);
-        topBtn.setContentDescription("לתחילת ההזמנה");
-        topBtn.setOnClickListener(v -> {
-            hideKeyboard();
-            if (productList != null) productList.setSelection(0);
-        });
-        LinearLayout.LayoutParams topLp = new LinearLayout.LayoutParams(dp(30), dp(40));
-        topLp.setMarginStart(dp(3));
-        toolbar.addView(topBtn, topLp);
-
-        TextView bottomBtn = roundBtn("↓", 30, ORANGE_LIGHT, ORANGE_DARK);
-        bottomBtn.setTextSize(20);
-        bottomBtn.setContentDescription("לסוף ההזמנה");
-        bottomBtn.setOnClickListener(v -> {
-            hideKeyboard();
-            if (productList != null) productList.setSelection(Math.max(0, gridRows.size() - 1));
-        });
-        LinearLayout.LayoutParams bottomLp = new LinearLayout.LayoutParams(dp(30), dp(40));
-        bottomLp.setMarginStart(dp(2));
-        toolbar.addView(bottomBtn, bottomLp);
 
         // When searching, temporarily hide the summary and navigation controls so the field
         // expands into the entire toolbar row; restore them as soon as search loses focus.
         search.setOnFocusChangeListener((v, hasFocus) -> {
             int controlsVisibility = hasFocus ? View.GONE : View.VISIBLE;
             orderText.setVisibility(controlsVisibility);
-            topBtn.setVisibility(controlsVisibility);
-            bottomBtn.setVisibility(controlsVisibility);
             searchLp.width = 0;
             searchLp.weight = 1f;
             search.setLayoutParams(searchLp);
@@ -2933,14 +2910,32 @@ public class MainActivity extends Activity {
         productList.setPadding(dp(11), dp(4), dp(11), dp(12));
         productAdapter = new ProductAdapter();
         productList.setAdapter(productAdapter);
+        FrameLayout productArea = new FrameLayout(this);
         productList.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView view, int scrollState) { }
-            @Override public void onScroll(AbsListView view, int first, int visible, int total) { updateActiveCategory(first); }
+            @Override public void onScroll(AbsListView view, int first, int visible, int total) {
+                updateActiveCategory(first);
+                if (floatingTopButton != null) floatingTopButton.setVisibility(first > 0 ? View.VISIBLE : View.GONE);
+            }
         });
+        productArea.addView(productList, new FrameLayout.LayoutParams(-1, -1));
+        TextView floatingTopButton = roundBtn("↑", 44, Color.WHITE, ORANGE_DARK);
+        floatingTopButton.setTextSize(25);
+        floatingTopButton.setContentDescription("חזרה לראש הרשימה");
+        floatingTopButton.setBackground(ripple(shape(Color.WHITE, 24, ORANGE_DARK), 24));
+        floatingTopButton.setElevation(dp(8));
+        floatingTopButton.setVisibility(View.GONE);
+        floatingTopButton.setOnClickListener(v -> {
+            hideKeyboard();
+            productList.smoothScrollToPosition(0);
+        });
+        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM | Gravity.END);
+        floatingTopLp.setMargins(0, 0, dp(18), dp(18));
+        productArea.addView(floatingTopButton, floatingTopLp);
         ViewGroup parent = (ViewGroup) scrollView.getParent();
         int at = parent.indexOfChild(scrollView);
         parent.removeViewAt(at);
-        parent.addView(productList, at, new LinearLayout.LayoutParams(-1, 0, 1));
+        parent.addView(productArea, at, new LinearLayout.LayoutParams(-1, 0, 1));
 
         // Order summary now lives beside search in the fixed header, so no duplicate bottom bar.
         bottomHolder.setVisibility(View.GONE);
@@ -5450,7 +5445,7 @@ public class MainActivity extends Activity {
         inner.setOrientation(LinearLayout.VERTICAL);
         inner.setGravity(Gravity.CENTER);
         inner.setPadding(dp(2), dp(5), dp(2), dp(5));
-        inner.addView(new IconView(ICON_CHECK, Color.WHITE, 2.8f), new LinearLayout.LayoutParams(dp(28), dp(28)));
+        inner.addView(new IconView(ICON_CHECK, Color.WHITE, 3.2f), new LinearLayout.LayoutParams(dp(42), dp(42)));
         TextView label = text("איסוף", 11, true);
         label.setTextColor(Color.WHITE);
         label.setMaxLines(1);
