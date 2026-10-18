@@ -58,6 +58,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -2994,11 +2995,12 @@ public class MainActivity extends Activity {
             catHeaders.put(cat, gridRows.size());
             catCounts.put(cat, items.size());
             gridRows.add(header);
-            for (int i = 0; i < items.size(); i += 3) {
+            int columns = cardColumns();
+            for (int i = 0; i < items.size(); i += columns) {
                 GridRow row = new GridRow();
                 row.a = items.get(i);
-                row.b = i + 1 < items.size() ? items.get(i + 1) : null;
-                row.c = i + 2 < items.size() ? items.get(i + 2) : null;
+                row.b = columns >= 2 && i + 1 < items.size() ? items.get(i + 1) : null;
+                row.c = columns >= 3 && i + 2 < items.size() ? items.get(i + 2) : null;
                 gridRows.add(row);
             }
         }
@@ -4930,6 +4932,7 @@ public class MainActivity extends Activity {
         if (!summaryFromHistory) {
             labels.add("פרטי המכירה"); actions.add(0);
             labels.add("רענון מוצרים"); actions.add(1);
+            labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);
         }
         if (featureOrderId > 0) {
             labels.add("📤 שיתוף סיכום ההזמנה"); actions.add(2);
@@ -4954,7 +4957,44 @@ public class MainActivity extends Activity {
                         case 7: saveFavQuantities(); break;
                         case 8: clearFavQuantities(); break;
                         case 9: confirmDeleteOrder(); break;
+                        case 10: showCardSizeDialog(); break;
                     }
+                }).show();
+    }
+
+    private int cardColumns() {
+        return Math.max(1, Math.min(3, prefs.getInt("product_card_columns", 3)));
+    }
+
+    private void showCardSizeDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(12), dp(20), dp(8));
+        TextView value = text("", 16, true);
+        value.setTextColor(ORANGE_DARK);
+        value.setGravity(Gravity.CENTER);
+        box.addView(value, lp(-1, -2, 0, 4));
+        SeekBar slider = new SeekBar(this);
+        slider.setMax(2);
+        slider.setProgress(cardColumns() - 1);
+        box.addView(slider, lp(-1, -2, 0, 4));
+        box.addView(muted("פחות עמודות = כרטיסים גדולים יותר. השינוי נשמר גם לפעם הבאה.", 12), lp(-1, -2, 0, 0));
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int c = progress + 1;
+                value.setText(c == 1 ? "כרטיס גדול — עמודה אחת" : c == 2 ? "כרטיס בינוני — 2 עמודות" : "כרטיס קומפקטי — 3 עמודות");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) { }
+            @Override public void onStopTrackingTouch(SeekBar seekBar) { }
+        });
+        int initial = slider.getProgress();
+        value.setText(initial == 0 ? "כרטיס גדול — עמודה אחת" : initial == 1 ? "כרטיס בינוני — 2 עמודות" : "כרטיס קומפקטי — 3 עמודות");
+        new AlertDialog.Builder(this).setTitle("גודל כרטיסי המוצרים").setView(box)
+                .setNegativeButton("ביטול", null)
+                .setPositiveButton("שמירה", (d, w) -> {
+                    prefs.edit().putInt("product_card_columns", slider.getProgress() + 1).apply();
+                    rebuildGrid(false);
+                    toast("גודל הכרטיסים נשמר", false);
                 }).show();
     }
 
