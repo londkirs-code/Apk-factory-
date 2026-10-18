@@ -4280,8 +4280,8 @@ public class MainActivity extends Activity {
                     "/api/get_item/39625438",
                     "/api/items?item_salesID=39625438",
                     "/api/products?item_salesID=39625438",
-                    "/api/search?query=" + URLEncoder.encode("אפונה", "UTF-8"),
-                    "/api/search?search=" + URLEncoder.encode("אפונה", "UTF-8"));
+                    "/api/search?query=%D7%90%D7%A4%D7%95%D7%A0%D7%94",
+                    "/api/search?search=%D7%90%D7%A4%D7%95%D7%A0%D7%94");
             for (String path : paths) {
                 if (requests >= maxRequests || totalChars >= maxTotalChars) break;
                 try {
