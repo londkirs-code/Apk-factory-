@@ -976,15 +976,14 @@ public class MainActivity extends Activity {
         root.addView(versionView, lp(-1, -2, 0, 16));
     }
 
-    // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md
-    // whenever an app update changes user-visible behavior.
+    // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "שיפור כפתור האיסוף והחזרה לראש הרשימה";
-        final String whatsNewSummary = "בעדכון האחרון: אייקון איסוף גדול וברור יותר, וכפתור כתום שמגליל בצורה חלקה לראש הרשימה.";
+        final String whatsNewTitle = "תיקון כפתור החזרה, הצגת «איסוף» ומצב לילה";
+        final String whatsNewSummary = "בעדכון האחרון: חזרה מיידית לראש הרשימה, כפתור עגול וממורכז, כיתוב איסוף גלוי ומצב לילה פעיל.";
         final String whatsNewDetails =
-                "• אייקון האיסוף המרכזי הוגדל ל־46dp ועובי הקו הוגדל; הכיתוב «איסוף» מופיע מתחתיו.\n\n" +
-                "• כפתור החזרה לראש הרשימה עוצב כריבוע כתום עם פינות מעוגלות וחץ לבן מודגש.\n\n" +
-                "• הלחיצה על הכפתור גוללת לראש הרשימה בהחלקה חלקה שאורכת כ־850 אלפיות השנייה.";
+                "• כפתור החזרה לראש הרשימה עגול, עם חץ לבן ממורכז, מרווח מהקצוות ומעבר מיידי לראש הרשימה.\n\n" +
+                "• בכפתור האיסוף המרכזי נשמר האייקון הגדול והוקצה גובה נוסף כדי שהכיתוב «איסוף» יוצג מתחתיו ולא ייחתך.\n\n" +
+                "• תוקנה פעולת מצב הלילה: בחירה באפשרויות נוספות מחליפה את ערכת הצבעים ושומרת את הבחירה גם בפתיחה הבאה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
