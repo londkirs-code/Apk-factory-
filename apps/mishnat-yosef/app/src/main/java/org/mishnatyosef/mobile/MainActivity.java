@@ -11,12 +11,16 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -36,6 +40,7 @@ import android.util.LruCache;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
@@ -136,6 +141,9 @@ public class MainActivity extends Activity {
     private OrderData summary = null;
     private boolean collectMode = false;
     private boolean summaryFromHistory = false;
+    private int historyTab = 1;
+    private static final int TAB_COLLECT = 4;
+    private static final int ICON_CART = 0, ICON_CLOCK = 1, ICON_WALLET = 2, ICON_PERSON = 3, ICON_CHECK = 4;
     private LinearLayout summaryList, collectedBox, collectedList;
     private TextView summaryTotal, summarySub, progressView;
 
@@ -678,36 +686,40 @@ public class MainActivity extends Activity {
             nav.setOrientation(LinearLayout.HORIZONTAL);
             nav.setBackgroundColor(Color.WHITE);
             nav.setElevation(dp(8));
-            String[] icons = {"🛒", "🧾", "💚", "👤"};
-            String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
+            final String[] labels = {"מכירות פתוחות", "היסטוריה", "זיכויים", "חשבון"};
+            final int[] iconTypes = {ICON_CART, ICON_CLOCK, ICON_WALLET, ICON_PERSON};
             Runnable[] actions = {this::showOpenSales, this::loadFeatureOrders, this::loadFeatureTransactions, this::showAccount};
-            for (int i = labels.length - 1; i >= 0; i--) {
+            nav.setClipChildren(false);
+            screen.setClipChildren(false);
+            List<View> navCells = new ArrayList<>(); // listed right to left, the way Hebrew is read
+            for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 boolean active = i == tab;
+                int tint = active ? ORANGE : Color.rgb(70, 62, 58);
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
                 item.setPadding(dp(2), dp(5), dp(2), dp(5));
                 item.setBackground(ripple(new GradientDrawable(), 0));
-                TextView icon = new TextView(this);
-                icon.setText(icons[i]);
-                icon.setTextSize(21);
-                icon.setGravity(Gravity.CENTER);
-                icon.setIncludeFontPadding(false);
-                icon.setBackground(shape(active ? ORANGE : Color.rgb(244, 235, 226), 17, active ? 0 : Color.rgb(228, 212, 198)));
-                LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(58), dp(34));
-                iconLp.gravity = Gravity.CENTER_HORIZONTAL;
-                item.addView(icon, iconLp);
-                TextView label = text(labels[i], 12, true);
+                item.addView(new IconView(iconTypes[i], tint, 2.8f), new LinearLayout.LayoutParams(dp(28), dp(28)));
+                TextView label = text(labels[i], 11, true);
                 label.setMaxLines(1);
                 label.setEllipsize(TextUtils.TruncateAt.END);
                 label.setGravity(Gravity.CENTER);
-                label.setTextColor(active ? ORANGE_DARK : Color.rgb(84, 74, 68));
+                label.setTextColor(active ? ORANGE_DARK : Color.rgb(70, 62, 58));
                 item.addView(label, new LinearLayout.LayoutParams(-1, -2));
+                View bar = new View(this);
+                bar.setBackground(shape(ORANGE, 2, 0));
+                bar.setVisibility(active ? View.VISIBLE : View.INVISIBLE);
+                LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(dp(24), dp(3));
+                barLp.topMargin = dp(2);
+                item.addView(bar, barLp);
                 item.setOnClickListener(v -> actions[index].run());
-                nav.addView(item, new LinearLayout.LayoutParams(0, dp(64), 1));
-                if (i == 2) nav.addView(collectNavButton(), new LinearLayout.LayoutParams(0, dp(64), 1.75f));
+                item.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1));
+                navCells.add(item);
+                if (i == 1) navCells.add(collectNavButton(tab == TAB_COLLECT));
             }
+            addVisualRtl(nav, navCells);
             navView = nav;
             screen.addView(nav, new LinearLayout.LayoutParams(-1, -2));
         }
@@ -719,7 +731,22 @@ public class MainActivity extends Activity {
             int[] in = systemInsets(insets);
             headerFinal.setPadding(dp(8) + in[0], dp(8) + in[1], dp(16) + in[2], dp(8));
             if (navFinal != null) {
-                navFinal.setPadding(in[0], 0, in[2], in[3]);
+                LinearLayout navLayout = (LinearLayout) navFinal;
+                navLayout.setPadding(in[0], 0, in[2], 0);
+                for (int k = 0; k < navLayout.getChildCount(); k++) {
+                    View cell = navLayout.getChildAt(k);
+                    ViewGroup.LayoutParams cellLp = cell.getLayoutParams();
+                    cellLp.height = dp(64) + in[3];
+                    cell.setLayoutParams(cellLp);
+                    if ("navCenter".equals(cell.getTag())) {
+                        View dome = ((ViewGroup) cell).getChildAt(0);
+                        ViewGroup.LayoutParams domeLp = dome.getLayoutParams();
+                        domeLp.height = dp(72) + in[3];
+                        dome.setLayoutParams(domeLp);
+                    } else {
+                        cell.setPadding(dp(2), dp(5), dp(2), dp(5) + in[3]);
+                    }
+                }
                 screenFinal.setPadding(0, 0, 0, 0);
             } else {
                 screenFinal.setPadding(in[0], 0, in[2], in[3]);
@@ -1982,7 +2009,7 @@ public class MainActivity extends Activity {
         Runnable productsBack;
         if (summaryFromHistory) productsBack = () -> showOrderSummary();
         else productsBack = () -> showOpenSales(false);
-        beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? 1 : 0, productsBack);
+        beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? historyTab : 0, productsBack);
         screenKind = 1;
 
         // search + quick actions
@@ -2102,19 +2129,19 @@ public class MainActivity extends Activity {
             TextView header = text(cat + "  (" + items.size() + ")", 16, true);
             header.setTextColor(ORANGE_DARK);
             gridContainer.addView(header, lp(-1, -2, 10, 4));
-            LinearLayout row = null;
-            for (int i = 0; i < items.size(); i++) {
-                if (i % 2 == 0) {
-                    row = new LinearLayout(this);
-                    row.setOrientation(LinearLayout.HORIZONTAL);
-                    gridContainer.addView(row, lp(-1, -2, 0, 8));
+            for (int i = 0; i < items.size(); i += 2) {
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                gridContainer.addView(row, lp(-1, -2, 0, 8));
+                List<View> cells = new ArrayList<>();
+                for (int k = 0; k < 2; k++) {
+                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+                    cp.setMargins(dp(3), 0, dp(3), 0);
+                    View cell = i + k < items.size() ? productCard(items.get(i + k)) : new View(this);
+                    cell.setLayoutParams(cp);
+                    cells.add(cell);
                 }
-                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-                cp.setMargins(dp(3), 0, dp(3), 0);
-                row.addView(productCard(items.get(i)), cp);
-            }
-            if (items.size() % 2 == 1 && row != null) {
-                row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+                addVisualRtl(row, cells);
             }
         }
     }
@@ -2408,7 +2435,7 @@ public class MainActivity extends Activity {
     private void showOrderSummary() {
         if (featureOrderId <= 0) { toast("לא נמצאה הזמנה", false); return; }
         collectMode = false;
-        if (summaryFromHistory) beginScreen("הזמנה #" + featureOrderId, 1, this::loadFeatureOrders);
+        if (summaryFromHistory) beginScreen("הזמנה #" + featureOrderId, historyTab, this::loadFeatureOrders);
         else beginScreen("ההזמנה שלי", 0, this::renderFeatureProducts);
         setStatus("טוען את ההזמנה מהשרת…");
         final int t = screenToken;
@@ -2786,10 +2813,11 @@ public class MainActivity extends Activity {
     }
 
     /** A history order opens as a full order screen: edit, remove, collect mode and every action menu item. */
-    private void openHistoryOrder(final long id) { openHistoryOrder(id, false); }
+    private void openHistoryOrder(final long id) { openHistoryOrder(id, false, 1); }
 
-    private void openHistoryOrder(final long id, final boolean collect) {
-        beginScreen("הזמנה #" + id, 1, this::loadFeatureOrders);
+    private void openHistoryOrder(final long id, final boolean collect, final int tab) {
+        historyTab = tab;
+        beginScreen("הזמנה #" + id, tab, this::loadFeatureOrders);
         setStatus("טוען את ההזמנה…");
         final int t = screenToken;
         executor.execute(() -> {
@@ -3897,50 +3925,47 @@ public class MainActivity extends Activity {
 
     // ======================================================================== centre "collect" button
 
-    private View collectNavButton() {
+    private View collectNavButton(boolean active) {
         FrameLayout slot = new FrameLayout(this);
-        LinearLayout pill = new LinearLayout(this);
-        pill.setOrientation(LinearLayout.HORIZONTAL);
-        pill.setGravity(Gravity.CENTER);
+        slot.setTag("navCenter");
+        slot.setClipChildren(false);
+        LinearLayout dome = new LinearLayout(this);
+        dome.setOrientation(LinearLayout.VERTICAL);
+        dome.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        dome.setPadding(0, dp(12), 0, 0);
+        float r = dp(34);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(ORANGE);
-        bg.setCornerRadius(dp(28));
-        bg.setStroke(dp(2), ORANGE_DARK);
+        bg.setColor(active ? ORANGE_DARK : ORANGE);
+        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
-        mask.setCornerRadius(dp(28));
-        pill.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
-        pill.setElevation(dp(6));
-        pill.setClickable(true);
-        pill.setFocusable(true);
-        TextView icon = new TextView(this);
-        icon.setText("☑");
-        icon.setTextSize(24);
-        icon.setTextColor(Color.WHITE);
-        icon.setGravity(Gravity.CENTER);
-        icon.setIncludeFontPadding(false);
+        mask.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        dome.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
+        dome.setElevation(dp(8));
+        dome.setClickable(true);
+        dome.setFocusable(true);
+        dome.addView(new IconView(ICON_CHECK, Color.WHITE, 3f), new LinearLayout.LayoutParams(dp(28), dp(28)));
         TextView label = new TextView(this);
         label.setText("איסוף");
-        label.setTextSize(16);
+        label.setTextSize(11);
         label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         label.setTextColor(Color.WHITE);
         label.setGravity(Gravity.CENTER);
         label.setIncludeFontPadding(false);
-        pill.addView(icon, new LinearLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-2, -2);
-        labelLp.setMarginStart(dp(6));
-        pill.addView(label, labelLp);
-        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(-1, dp(52));
-        pp.gravity = Gravity.CENTER;
-        pp.setMargins(dp(4), 0, dp(4), 0);
-        slot.addView(pill, pp);
-        pill.setOnClickListener(v -> openLatestCollect());
+        labelLp.topMargin = dp(2);
+        dome.addView(label, labelLp);
+        FrameLayout.LayoutParams dp0 = new FrameLayout.LayoutParams(dp(74), dp(72));
+        dp0.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        slot.addView(dome, dp0);
+        dome.setOnClickListener(v -> openLatestCollect());
+        slot.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1.1f));
         return slot;
     }
 
     /** Opens the newest order in the history straight in collect mode. Collected items are kept per order. */
     private void openLatestCollect() {
-        beginScreen("איסוף הזמנה", 1, null);
+        beginScreen("איסוף הזמנה", TAB_COLLECT, null);
         setStatus("מחפש את ההזמנה האחרונה…");
         final int t = screenToken;
         executor.execute(() -> {
@@ -3973,7 +3998,7 @@ public class MainActivity extends Activity {
                 fail(t, err != null ? err : new Exception("לא נמצאו הזמנות בהיסטוריה."), "לא ניתן לפתוח את ההזמנה האחרונה.");
                 return;
             }
-            runOnUiThread(() -> { if (!stale(t)) openHistoryOrder(orderId, true); });
+            runOnUiThread(() -> { if (!stale(t)) openHistoryOrder(orderId, true, TAB_COLLECT); });
         });
     }
 
@@ -4153,6 +4178,80 @@ public class MainActivity extends Activity {
             toast(checked ? "🖼️ תמונות מלאות הופעלו" : "תמונות ממוזערות הופעלו", false);
         }));
         root.addView(card, lp(-1, -2, 0, 10));
+    }
+
+    // ======================================================================== layout helpers
+
+    /** The manifest has no supportsRtl, so Android lays everything out left-to-right. This keeps Hebrew order either way. */
+    private boolean rtlActive() { return (getApplicationInfo().flags & ApplicationInfo.FLAG_SUPPORTS_RTL) != 0; }
+
+    /** Adds the cells so that the first one ends up on the visual right (cells need their LayoutParams already). */
+    private void addVisualRtl(LinearLayout row, List<View> cells) {
+        if (rtlActive()) for (View v : cells) row.addView(v);
+        else for (int i = cells.size() - 1; i >= 0; i--) row.addView(cells.get(i));
+    }
+
+    /** Thick-line vector icons, drawn in code so no image files are needed. */
+    private class IconView extends View {
+        private final int type;
+        private final float strokePx;
+        private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        IconView(int type, int color, float strokeDp) {
+            super(MainActivity.this);
+            this.type = type;
+            this.strokePx = strokeDp * getResources().getDisplayMetrics().density;
+            stroke.setStyle(Paint.Style.STROKE);
+            stroke.setStrokeCap(Paint.Cap.ROUND);
+            stroke.setStrokeJoin(Paint.Join.ROUND);
+            stroke.setColor(color);
+            fill.setStyle(Paint.Style.FILL);
+            fill.setColor(color);
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            float s = Math.min(getWidth(), getHeight()) / 24f;
+            if (s <= 0) return;
+            c.save();
+            c.translate((getWidth() - 24f * s) / 2f, (getHeight() - 24f * s) / 2f);
+            c.scale(s, s);
+            stroke.setStrokeWidth(strokePx / s);
+            Path path = new Path();
+            switch (type) {
+                case ICON_CART:
+                    path.moveTo(2.5f, 3.5f); path.lineTo(5.2f, 3.5f); path.lineTo(7.6f, 15f);
+                    path.lineTo(19f, 15f); path.lineTo(21f, 6.5f); path.lineTo(6f, 6.5f);
+                    c.drawPath(path, stroke);
+                    c.drawCircle(9.5f, 19.6f, 1.6f, fill);
+                    c.drawCircle(17f, 19.6f, 1.6f, fill);
+                    break;
+                case ICON_CLOCK:
+                    c.drawCircle(12f, 12f, 9f, stroke);
+                    path.moveTo(12f, 6.5f); path.lineTo(12f, 12f); path.lineTo(16f, 14.5f);
+                    c.drawPath(path, stroke);
+                    break;
+                case ICON_WALLET:
+                    c.drawRoundRect(new RectF(3f, 5.5f, 21f, 19.5f), 3.2f, 3.2f, stroke);
+                    path.moveTo(3f, 9.5f); path.lineTo(21f, 9.5f);
+                    c.drawPath(path, stroke);
+                    c.drawCircle(16.8f, 14.5f, 1.5f, fill);
+                    break;
+                case ICON_PERSON:
+                    c.drawCircle(12f, 8f, 4f, stroke);
+                    path.moveTo(4.5f, 20.5f);
+                    path.cubicTo(4.5f, 15.5f, 8f, 13.8f, 12f, 13.8f);
+                    path.cubicTo(16f, 13.8f, 19.5f, 15.5f, 19.5f, 20.5f);
+                    c.drawPath(path, stroke);
+                    break;
+                default:
+                    c.drawRoundRect(new RectF(3.5f, 3.5f, 20.5f, 20.5f), 4f, 4f, stroke);
+                    path.moveTo(7.6f, 12.4f); path.lineTo(10.8f, 15.6f); path.lineTo(16.6f, 8.6f);
+                    c.drawPath(path, stroke);
+                    break;
+            }
+            c.restore();
+        }
     }
 }
 
