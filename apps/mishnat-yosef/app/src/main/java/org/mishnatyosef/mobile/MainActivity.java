@@ -3078,7 +3078,7 @@ public class MainActivity extends Activity {
         card.addView(heading);
         if (!description.isEmpty()) card.addView(text(description, 14, false));
         if (tx.has("amount") && !tx.isNull("amount") && !tx.optString("amount").isEmpty()) card.addView(muted("כמות: " + tx.optString("amount"), 12));
-        if (!saleName.isEmpty()) card.addView(muted("מכירה: " + saleName, 12));
+        if (!saleName.isEmpty()) card.addView(muted("זוכה במכירה: " + saleName, 12));
         if (!originalName.isEmpty() && !originalName.equals(saleName)) card.addView(muted("מכירה מקורית: " + originalName, 12));
         if (!date.isEmpty()) card.addView(muted(date, 12));
         if (canceled) {
