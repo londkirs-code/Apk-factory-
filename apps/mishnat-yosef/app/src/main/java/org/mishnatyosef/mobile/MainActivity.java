@@ -4585,12 +4585,12 @@ public class MainActivity extends Activity {
 
     // ======================================================================== centre "collect" button
 
-    private static final int NAV_FINGER_RISE = 10; // dp that the finger sticks up above the bar
+    private static final int NAV_FINGER_RISE = 22; // raise the orange centre above the neighbouring buttons
 
     private View navDivider() {
         View d = new View(this);
         d.setTag("navDivider");
-        d.setBackgroundColor(Color.rgb(224, 208, 194));
+        d.setBackgroundColor(Color.TRANSPARENT);
         d.setLayoutParams(new LinearLayout.LayoutParams(dp(1), -1));
         return d;
     }
@@ -4636,6 +4636,7 @@ public class MainActivity extends Activity {
 
         FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(-1, dp(NAV_FINGER_RISE + 64));
         fingerLp.gravity = Gravity.BOTTOM;
+        fingerLp.topMargin = dp(-12);
         slot.addView(finger, fingerLp);
         finger.setOnClickListener(v -> openLatestCollect());
         slot.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1.1f));
