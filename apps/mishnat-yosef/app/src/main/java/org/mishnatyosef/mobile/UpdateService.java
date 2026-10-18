@@ -39,6 +39,7 @@ public class UpdateService extends Service {
     }
     private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);if(nm!=null&&nm.getNotificationChannel(CHANNEL)==null)nm.createNotificationChannel(new NotificationChannel(CHANNEL,"בדיקת עדכוני אפליקציה",NotificationManager.IMPORTANCE_LOW));}}
     private Notification buildNotification(String text,boolean ongoing){
+        if(!getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean("app_update_notification",true) && ongoing) text="בדיקת עדכונים פעילה ברקע";
         Intent open=new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pi=PendingIntent.getActivity(this,7332,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
