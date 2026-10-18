@@ -4309,12 +4309,36 @@ public class MainActivity extends Activity {
             }
             showUpdateSettings();
         }));
-        card.addView(switchRow("התראה קבועה", "הצגת פירוט מצב הבדיקה. Android מחייב התראת שירות בסיסית בזמן בדיקה ברקע", prefs.getBoolean("app_update_notification", true), (b, checked) -> {
+        card.addView(switchRow("התראה קבועה", "הצגת התראה בזמן שהבדיקה האוטומטית פועלת", prefs.getBoolean("app_update_notification", true), (b, checked) -> {
             prefs.edit().putBoolean("app_update_notification", checked).apply();
+            if (checked) requestUpdateNotificationPermission();
             if (prefs.getBoolean("app_update_auto", false)) {
-                if (checked) UpdateService.start(this); else UpdateService.refreshNotification(this);
+                UpdateService.start(this);
             }
+            showUpdateSettings();
         }));
+        NotificationManager updateNm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        boolean updateNotificationsEnabled = updateNm != null && updateNm.areNotificationsEnabled();
+        if (!updateNotificationsEnabled || (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)) {
+            card.addView(muted("⚠️ התראות Android חסומות כרגע. לכן גם כשהמתג מופעל לא תופיע התראה. יש לאפשר התראות לאפליקציה בהגדרות המערכת.", 13));
+            TextView openNotificationSettings = btn("פתיחת הגדרות ההתראות של Android", TONAL);
+            openNotificationSettings.setOnClickListener(v -> {
+                try {
+                    Intent settingsIntent = new Intent();
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        settingsIntent.setAction("android.settings.APP_NOTIFICATION_SETTINGS");
+                        settingsIntent.putExtra("android.provider.extra.APP_PACKAGE", getPackageName());
+                    } else {
+                        settingsIntent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        settingsIntent.setData(Uri.parse("package:" + getPackageName()));
+                    }
+                    startActivity(settingsIntent);
+                } catch (Exception e) {
+                    startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+                }
+            });
+            card.addView(openNotificationSettings, lp(-1, dp(46), 0, 8));
+        }
         card.addView(muted("מרווח בדיקה (בשניות). המינימום הוא 5 שניות. מרווח קצר משתמש ביותר סוללה ונתונים.", 13));
         EditText interval = field("5", InputType.TYPE_CLASS_NUMBER);
         interval.setText(String.valueOf(Math.max(5, prefs.getInt("app_update_interval_seconds", 300))));
