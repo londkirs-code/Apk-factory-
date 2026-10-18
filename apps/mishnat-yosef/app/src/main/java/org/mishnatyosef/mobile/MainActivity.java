@@ -671,8 +671,8 @@ public class MainActivity extends Activity {
             header.addView(arrow, new LinearLayout.LayoutParams(-2, dp(44)));
         }
         // The app-name line is intentionally omitted on every screen.
-        // Keep only the current-screen heading, at half its former text size (18sp -> 9sp).
-        TextView head = text(heading, 9, true);
+        // Keep only the current-screen heading at the ideal compact, readable size (12sp).
+        TextView head = text(heading, 12, true);
         head.setTextColor(Color.WHITE);
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
