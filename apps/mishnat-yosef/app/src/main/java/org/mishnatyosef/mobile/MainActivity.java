@@ -966,6 +966,18 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         handleUpdateInstallIntent(getIntent());
+        // Opening the app or returning from another screen refreshes the updater's persistent notification.
+        if (prefs != null) {
+            if (prefs.getBoolean("app_update_auto", false)) {
+                UpdateService.refreshNotification(this);
+            }
+            String downloaded = prefs.getString("app_update_downloaded_version", "");
+            String latest = prefs.getString("app_update_latest_version", "");
+            if (!downloaded.isEmpty() && downloaded.equals(latest)) {
+                // The activity is now foregrounded, giving Android the best chance to show the installer.
+                UpdateService.tryInstallPending(this);
+            }
+        }
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
     }
 
