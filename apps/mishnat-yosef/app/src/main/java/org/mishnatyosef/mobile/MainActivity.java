@@ -251,7 +251,7 @@ public class MainActivity extends Activity {
 
     private static class GridRow {
         String header;     // category title row when not null
-        JSONObject a, b;   // otherwise up to two product cards
+        JSONObject a, b, c;   // otherwise up to three product cards
     }
 
     private static class SaleSnapshot {
@@ -378,7 +378,7 @@ public class MainActivity extends Activity {
     private TextView btn(String label, int style) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextSize(14);
+        b.setTextSize(16);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setGravity(Gravity.CENTER);
         b.setClickable(true);
@@ -400,8 +400,9 @@ public class MainActivity extends Activity {
 
     private TextView smallChip(String label, int style) {
         TextView b = btn(label, style);
-        b.setTextSize(12);
-        b.setMinHeight(dp(32));
+        b.setTextSize(14);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setMinHeight(dp(34));
         b.setPadding(dp(12), dp(4), dp(12), dp(4));
         return b;
     }
@@ -409,8 +410,8 @@ public class MainActivity extends Activity {
     private TextView roundBtn(String label, int sizeDp, int fill, int fg) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextSize(18);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextSize(21);
+        b.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
         b.setTextColor(fg);
         b.setGravity(Gravity.CENTER);
         b.setClickable(true);
@@ -2681,10 +2682,11 @@ public class MainActivity extends Activity {
             catHeaders.put(cat, gridRows.size());
             catCounts.put(cat, items.size());
             gridRows.add(header);
-            for (int i = 0; i < items.size(); i += 2) {
+            for (int i = 0; i < items.size(); i += 3) {
                 GridRow row = new GridRow();
                 row.a = items.get(i);
                 row.b = i + 1 < items.size() ? items.get(i + 1) : null;
+                row.c = i + 2 < items.size() ? items.get(i + 2) : null;
                 gridRows.add(row);
             }
         }
@@ -2727,13 +2729,13 @@ public class MainActivity extends Activity {
         CardHolder() {
             card.setOrientation(LinearLayout.VERTICAL);
             card.setBackground(shape(Color.WHITE, 14, LINE));
-            card.setPadding(dp(6), dp(6), dp(6), dp(8));
+            card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
             FrameLayout imageBox = new FrameLayout(MainActivity.this);
             image = new ImageView(MainActivity.this);
             image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             image.setBackgroundColor(Color.WHITE);
-            imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(170)));
+            imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(112)));
             badge = text("", 11, true);
             badge.setTextColor(Color.WHITE);
             badge.setBackground(shape(RED, 8, 0));
@@ -2742,7 +2744,7 @@ public class MainActivity extends Activity {
             bp.gravity = Gravity.TOP | Gravity.END;
             bp.setMargins(dp(6), dp(6), dp(6), 0);
             imageBox.addView(badge, bp);
-            star = text("☆", 17, false);
+            star = text("☆", 20, true);
             star.setGravity(Gravity.CENTER);
             star.setPadding(0, 0, 0, 0);
             star.setTextColor(ORANGE_DARK);
@@ -2751,40 +2753,42 @@ public class MainActivity extends Activity {
             starLp.gravity = Gravity.TOP | Gravity.START;
             starLp.setMargins(dp(6), dp(6), 0, 0);
             imageBox.addView(star, starLp);
-            card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(170)));
+            card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(112)));
 
-            name = text("", 13, true);
+            name = text("", 12, true);
             name.setMinLines(2);
             name.setMaxLines(3);
             name.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(name, lp(-1, -2, 4, 0));
-            pack = muted("", 11);
+            pack = muted("", 10);
             pack.setSingleLine(true);
             pack.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(pack);
-            price = text("", 15, true);
+            price = text("", 14, true);
             price.setTextColor(ORANGE_DARK);
             card.addView(price);
-            maxView = text("", 11, true);
+            maxView = text("", 10, true);
             maxView.setTextColor(ORANGE_DARK);
             card.addView(maxView);
-            savedView = muted("", 10);
+            savedView = muted("", 9);
             card.addView(savedView);
-            unitView = muted("", 10);
+            unitView = muted("", 9);
             unitView.setSingleLine(true);
             unitView.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(unitView);
 
             FrameLayout controls = new FrameLayout(MainActivity.this);
             add = btn("הוספה", TONAL);
-            add.setMinHeight(dp(38));
-            add.setPadding(dp(8), 0, dp(8), 0);
-            st = stepper(38);
-            controls.addView(add, new FrameLayout.LayoutParams(-1, dp(38)));
-            FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, dp(38));
+            add.setTextSize(14);
+            add.setMinHeight(dp(34));
+            add.setPadding(dp(3), 0, dp(3), 0);
+            st = stepper(32);
+            st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(28), dp(32)));
+            controls.addView(add, new FrameLayout.LayoutParams(-1, dp(34)));
+            FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, dp(34));
             sp.gravity = Gravity.CENTER;
             controls.addView(st.view, sp);
-            card.addView(controls, lp(-1, dp(38), 8, 0));
+            card.addView(controls, lp(-1, dp(34), 6, 0));
 
             card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
@@ -2843,12 +2847,13 @@ public class MainActivity extends Activity {
         final LinearLayout row = new LinearLayout(MainActivity.this);
         final CardHolder first = new CardHolder();
         final CardHolder second = new CardHolder();
+        final CardHolder third = new CardHolder();
 
         RowHolder() {
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setPadding(0, 0, 0, dp(8));
             List<View> cells = new ArrayList<>();
-            for (CardHolder h : new CardHolder[]{first, second}) {
+            for (CardHolder h : new CardHolder[]{first, second, third}) {
                 LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
                 cp.setMargins(dp(3), 0, dp(3), 0);
                 h.card.setLayoutParams(cp);
@@ -2890,6 +2895,12 @@ public class MainActivity extends Activity {
                 h.second.bind(r.b);
             } else {
                 h.second.card.setVisibility(View.INVISIBLE);
+            }
+            if (r.c != null) {
+                h.third.card.setVisibility(View.VISIBLE);
+                h.third.bind(r.c);
+            } else {
+                h.third.card.setVisibility(View.INVISIBLE);
             }
             return h.row;
         }
