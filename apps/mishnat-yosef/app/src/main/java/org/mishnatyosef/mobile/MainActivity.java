@@ -222,10 +222,21 @@ public class MainActivity extends Activity {
     private void rethemeViewTree(View view, PaletteSnapshot old, Set<View> visited) {
         if (view == null || !visited.add(view)) return;
         rethemeDrawable(view.getBackground(), old);
+        if ("historySaleCard".equals(view.getTag())) {
+            view.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, LINE), 14));
+        } else if ("openSaleCard".equals(view.getTag())) {
+            view.setBackground(ripple(shape(nightMode ? ORANGE : SURFACE, 14,
+                    nightMode ? ORANGE_DARK : LINE), 14));
+        }
         if (view instanceof TextView) {
             TextView textView = (TextView) view;
             textView.setTextColor(remapPaletteColor(textView.getCurrentTextColor(), old));
             textView.setHintTextColor(remapPaletteColor(textView.getHintTextColors().getDefaultColor(), old));
+            if ("openSaleTitle".equals(textView.getTag())) {
+                textView.setTextColor(nightMode ? Color.WHITE : INK);
+            } else if ("openSaleInfo".equals(textView.getTag())) {
+                paintButton(textView, nightMode ? TONAL : FLAT);
+            }
             if ("nightModeToggle".equals(textView.getTag())) {
                 textView.setText(nightMode ? "☀️" : "🌙");
                 textView.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
@@ -2615,6 +2626,7 @@ public class MainActivity extends Activity {
         boolean closed = truthy(sale.opt("closed_for_orders"));
 
         LinearLayout card = card(14);
+        card.setTag("openSaleCard");
         card.setBackground(ripple(shape(nightMode ? ORANGE : SURFACE, 14, nightMode ? ORANGE_DARK : LINE), 14));
         card.setClickable(true);
         card.setOnClickListener(v -> loadFeatureProducts(sale));
@@ -2622,9 +2634,11 @@ public class MainActivity extends Activity {
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text(name, 17, true);
+        title.setTag("openSaleTitle");
         if (nightMode) title.setTextColor(Color.WHITE);
         titleRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         TextView info = smallChip("פרטים", nightMode ? TONAL : FLAT);
+        info.setTag("openSaleInfo");
         info.setOnClickListener(v -> showSaleDetails(sale));
         titleRow.addView(info);
         card.addView(titleRow);
@@ -4435,7 +4449,8 @@ public class MainActivity extends Activity {
         String total = first(o, "total_list", "total", "amount", "sum");
 
         LinearLayout card = card(12);
-        card.setBackground(ripple(shape(SURFACE, 14, LINE), 14));
+        card.setTag("historySaleCard");
+        card.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, LINE), 14));
         card.setClickable(true);
         if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId));
 
