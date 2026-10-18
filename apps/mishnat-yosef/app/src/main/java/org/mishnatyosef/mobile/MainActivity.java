@@ -46,7 +46,6 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -163,14 +162,13 @@ public class MainActivity extends Activity {
     private static final int REQ_EXPORT = 7101, REQ_IMPORT = 7102;
     private final List<String> apiLog = Collections.synchronizedList(new ArrayList<String>());
     private boolean refreshDead = false;
-    private LinearLayout topHolder;
+    private FrameLayout topHolder;
     private LinearLayout catStripRow;
     private HorizontalScrollView catStripScroll;
     private final Map<String, View> catHeaders = new LinkedHashMap<>();
     private final Map<String, TextView> catChips = new LinkedHashMap<>();
     private final Map<String, Integer> catCounts = new LinkedHashMap<>();
     private String activeCat = "";
-    private long orderNoticeShownForOrder = -1;
 
     // ======================================================================== data classes
 
@@ -416,7 +414,7 @@ public class MainActivity extends Activity {
         s.view.setGravity(Gravity.CENTER);
         s.view.setBackground(shape(ORANGE_LIGHT, heightDp, 0));
         s.plus = roundBtn("+", heightDp, ORANGE, Color.WHITE);
-        s.minus = roundBtn("−", heightDp, ORANGE_LIGHT, ORANGE_DARK);
+        s.minus = roundBtn("−", heightDp, Color.rgb(255, 247, 239), ORANGE_DARK);
         s.qty = new TextView(this);
         s.qty.setTextSize(16);
         s.qty.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -684,9 +682,8 @@ public class MainActivity extends Activity {
         titles.addView(head);
         header.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
-        topHolder = new LinearLayout(this);
-        topHolder.setOrientation(LinearLayout.VERTICAL);
-        // Keep search, filters, categories and quick navigation above the scrolling product list.
+        topHolder = new FrameLayout(this);
+        // Keep the category strip above the scrolling product list.
         topHolder.setBackgroundColor(Color.WHITE);
         topHolder.setElevation(dp(12));
         topHolder.setClipChildren(false);
@@ -1634,7 +1631,6 @@ public class MainActivity extends Activity {
     }
 
     private int categoryOrder(JSONObject p) {
-        if (categoryName(p).contains("ביצים")) return 15;
         JSONObject prod = productOf(p);
         Object cat = prod.opt("category");
         if (!(cat instanceof JSONObject)) cat = p.opt("category");
@@ -2094,7 +2090,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap0 = new LinearLayout.LayoutParams(dp(42), dp(42));
         ap0.setMarginStart(dp(8));
         toolbar.addView(actionsBtn, ap0);
-        topHolder.addView(toolbar, lp(-1, -2, 0, 4));
+        root.addView(toolbar, lp(-1, -2, 0, 8));
 
         LinearLayout modeRow = new LinearLayout(this);
         final String[] modeKeys = {"all", "fav", "cart"};
@@ -2110,7 +2106,7 @@ public class MainActivity extends Activity {
             modeRow.addView(modeChips[i], mp);
         }
         styleModeChips(modeChips, modeKeys);
-        topHolder.addView(modeRow, lp(-1, -2, 0, 4));
+        root.addView(modeRow, lp(-1, -2, 0, 6));
 
         catStripScroll = new HorizontalScrollView(this);
         catStripScroll.setHorizontalScrollBarEnabled(false);
@@ -2121,19 +2117,8 @@ public class MainActivity extends Activity {
         catStripRow = new LinearLayout(this);
         catStripRow.setGravity(Gravity.CENTER_VERTICAL);
         catStripScroll.addView(catStripRow);
-        topHolder.addView(catStripScroll, lp(-1, -2, 0, 0));
+        topHolder.addView(catStripScroll);
         scrollView.setOnScrollChangeListener((v, sx, sy, ox, oy) -> updateActiveCategory(sy));
-
-        // Quick navigation controls stay visible while the product list scrolls.
-        LinearLayout jumpRow = new LinearLayout(this);
-        jumpRow.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        TextView jumpTop = roundBtn("⬆", 34, ORANGE_LIGHT, ORANGE_DARK);
-        TextView jumpBottom = roundBtn("⬇", 34, ORANGE_LIGHT, ORANGE_DARK);
-        jumpTop.setOnClickListener(v -> scrollView.smoothScrollTo(0, 0));
-        jumpBottom.setOnClickListener(v -> scrollView.post(() -> scrollView.smoothScrollTo(0, Math.max(0, gridContainer.getBottom()))));
-        jumpRow.addView(jumpTop, lp(dp(34), dp(34), 0, 0));
-        jumpRow.addView(jumpBottom, lp(dp(34), dp(34), 0, 0));
-        topHolder.addView(jumpRow, lp(-1, -2, 2, 2));
 
         gridContainer = new LinearLayout(this);
         gridContainer.setOrientation(LinearLayout.VERTICAL);
@@ -2160,30 +2145,6 @@ public class MainActivity extends Activity {
         bar.addView(open, new LinearLayout.LayoutParams(-2, dp(46)));
         bottomHolder.addView(bar);
         updateOrderBar();
-        maybeShowOrderNotice();
-    }
-
-    private void maybeShowOrderNotice() {
-        if (prefs == null || prefs.getBoolean("skip_order_notice", false)) return;
-        final long orderKey = featureOrderId > 0 ? featureOrderId : (featureSale == null ? -1 : featureSale.optLong("id", -1));
-        if (orderNoticeShownForOrder == orderKey) return;
-        orderNoticeShownForOrder = orderKey;
-        CheckBox check = new CheckBox(this);
-        check.setText("אל תציג הודעה זו שוב");
-        check.setTextColor(INK);
-        check.setPadding(dp(8), dp(8), dp(8), dp(8));
-        TextView message = text("לתשומת לבך: לחיצה על פלוס/מינוס מוסיפה או מורידה פריטים ישירות מול השרת.", 16, false);
-        message.setPadding(dp(20), dp(16), dp(20), dp(4));
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.addView(message);
-        content.addView(check);
-        new AlertDialog.Builder(this).setTitle("עדכון ההזמנה").setView(content)
-            .setPositiveButton("הבנתי", (dialog, which) -> {
-                if (check.isChecked()) prefs.edit().putBoolean("skip_order_notice", true).apply();
-            }).show();
-    }
-
     private void rebuildGrid() {
         if (gridContainer == null) return;
         gridContainer.removeAllViews();
@@ -2229,12 +2190,12 @@ public class MainActivity extends Activity {
             gridContainer.addView(header, lp(-1, -2, 10, 4));
             catHeaders.put(cat, header);
             catCounts.put(cat, items.size());
-            for (int i = 0; i < items.size(); i += 3) {
+            for (int i = 0; i < items.size(); i += 2) {
                 LinearLayout row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 gridContainer.addView(row, lp(-1, -2, 0, 8));
                 List<View> cells = new ArrayList<>();
-                for (int k = 0; k < 3; k++) {
+                for (int k = 0; k < 2; k++) {
                     LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
                     cp.setMargins(dp(3), 0, dp(3), 0);
                     View cell = i + k < items.size() ? productCard(items.get(i + k)) : new View(this);
@@ -2263,7 +2224,7 @@ public class MainActivity extends Activity {
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setBackground(shape(Color.WHITE, 10, 0));
         image.setClipToOutline(true);
-        imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(100)));
+        imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(170)));
         if (!canOrder) {
             image.setAlpha(0.45f);
             TextView badge = text(disabled ? "לא זמין" : "אזל", 11, true);
@@ -2285,12 +2246,12 @@ public class MainActivity extends Activity {
         starLp.setMargins(dp(6), dp(6), 0, 0);
         imageBox.addView(star, starLp);
         star.setOnClickListener(v -> toggleFavourite(p, () -> star.setText(favIds.contains(pidOf(p)) ? "⭐" : "☆")));
-        card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(100)));
+        card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(170)));
         loadImage(image, imageUrl(p, !fullImages()));
         card.setOnClickListener(v -> showProductDetails(p));
         imageBox.setOnClickListener(v -> showProductDetails(p));
 
-        TextView name = text(productName(p), 11, true);
+        TextView name = text(productName(p), 13, true);
         name.setMinLines(2);
         name.setMaxLines(3);
         name.setEllipsize(TextUtils.TruncateAt.END);
@@ -2326,14 +2287,14 @@ public class MainActivity extends Activity {
         // controls: "add" button that turns into a stepper
         FrameLayout controls = new FrameLayout(this);
         final TextView add = btn(canOrder ? "הוספה" : (disabled ? "לא זמין" : "אזל מהמלאי"), canOrder ? TONAL : FLAT);
-        add.setMinHeight(dp(32));
+        add.setMinHeight(dp(38));
         add.setPadding(dp(8), 0, dp(8), 0);
-        final Stepper st = stepper(32);
-        controls.addView(add, new FrameLayout.LayoutParams(-1, dp(32)));
-        FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, dp(32));
+        final Stepper st = stepper(38);
+        controls.addView(add, new FrameLayout.LayoutParams(-1, dp(38)));
+        FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, dp(38));
         sp.gravity = Gravity.CENTER;
         controls.addView(st.view, sp);
-        card.addView(controls, lp(-1, dp(32), 6, 0));
+        card.addView(controls, lp(-1, dp(38), 8, 0));
 
         final Runnable refresh = () -> {
             int q = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
