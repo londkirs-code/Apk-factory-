@@ -233,8 +233,8 @@ public class MainActivity extends Activity {
         if ("historySaleCard".equals(view.getTag())) {
             view.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, LINE), 14));
         } else if ("openSaleCard".equals(view.getTag())) {
-            view.setBackground(ripple(shape(nightMode ? ORANGE : SURFACE, 14,
-                    nightMode ? ORANGE_DARK : LINE), 14));
+            view.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14,
+                    nightMode ? Color.BLACK : LINE), 14));
         }
         if (view instanceof TextView) {
             TextView textView = (TextView) view;
@@ -2661,7 +2661,7 @@ public class MainActivity extends Activity {
 
         LinearLayout card = card(14);
         card.setTag("openSaleCard");
-        card.setBackground(ripple(shape(nightMode ? ORANGE : SURFACE, 14, nightMode ? ORANGE_DARK : LINE), 14));
+        card.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, nightMode ? Color.BLACK : LINE), 14));
         card.setClickable(true);
         card.setOnClickListener(v -> loadFeatureProducts(sale));
 
