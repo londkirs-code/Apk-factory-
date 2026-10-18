@@ -2956,18 +2956,19 @@ public class MainActivity extends Activity {
             }
         });
         productArea.addView(productList, new FrameLayout.LayoutParams(-1, -1));
-        TextView floatingTopButton = roundBtn("↑", 44, Color.WHITE, ORANGE_DARK);
+        TextView floatingTopButton = roundBtn("↑", 48, ORANGE, Color.WHITE);
         floatingTopButtonRef[0] = floatingTopButton;
-        floatingTopButton.setTextSize(25);
+        floatingTopButton.setTextSize(31);
+        floatingTopButton.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         floatingTopButton.setContentDescription("חזרה לראש הרשימה");
-        floatingTopButton.setBackground(ripple(shape(SURFACE, 24, ORANGE_DARK), 24));
+        floatingTopButton.setBackground(ripple(shape(ORANGE, 12, ORANGE_DARK), 12));
         floatingTopButton.setElevation(dp(8));
         floatingTopButton.setVisibility(View.GONE);
         floatingTopButton.setOnClickListener(v -> {
             hideKeyboard();
-            productList.smoothScrollToPosition(0);
+            productList.smoothScrollToPositionFromTop(0, 0, 850);
         });
-        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM | Gravity.END);
+        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM | Gravity.END);
         floatingTopLp.setMargins(0, 0, dp(18), dp(18));
         productArea.addView(floatingTopButton, floatingTopLp);
         ViewGroup parent = (ViewGroup) scrollView.getParent();
@@ -5484,7 +5485,7 @@ public class MainActivity extends Activity {
         inner.setOrientation(LinearLayout.VERTICAL);
         inner.setGravity(Gravity.CENTER);
         inner.setPadding(dp(2), dp(5), dp(2), dp(5));
-        inner.addView(new IconView(ICON_CHECK, Color.WHITE, 3.2f), new LinearLayout.LayoutParams(dp(42), dp(42)));
+        inner.addView(new IconView(ICON_CHECK, Color.WHITE, 3.8f), new LinearLayout.LayoutParams(dp(46), dp(46)));
         TextView label = text("איסוף", 11, true);
         label.setTextColor(Color.WHITE);
         label.setMaxLines(1);
