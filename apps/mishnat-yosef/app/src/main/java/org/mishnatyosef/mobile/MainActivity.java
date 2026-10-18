@@ -159,6 +159,107 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Snapshot of the palette before a live day/night switch. Existing view trees are recolored
+     * in place so scroll offsets, search text/focus, open tab, and expanded screens stay untouched.
+     */
+    private final class PaletteSnapshot {
+        final int orange = ORANGE, orangeDark = ORANGE_DARK, orangeLight = ORANGE_LIGHT;
+        final int bg = BG, surface = SURFACE, ink = INK, muted = MUTED, line = LINE;
+        final int green = GREEN, greenLight = GREEN_LIGHT, red = RED, redLight = RED_LIGHT;
+    }
+
+    private int remapPaletteColor(int color, PaletteSnapshot old) {
+        if (color == old.orange) return ORANGE;
+        if (color == old.orangeDark) return ORANGE_DARK;
+        if (color == old.orangeLight) return ORANGE_LIGHT;
+        if (color == old.bg) return BG;
+        if (color == old.ink) return INK;
+        if (color == old.muted) return MUTED;
+        if (color == old.line) return LINE;
+        if (color == old.green) return GREEN;
+        if (color == old.greenLight) return GREEN_LIGHT;
+        if (color == old.red) return RED;
+        if (color == old.redLight) return RED_LIGHT;
+        // The inactive bottom-navigation icons use this dedicated dark-brown color.
+        if (color == Color.rgb(70, 62, 58)) return INK;
+        return color;
+    }
+
+    private int remapDrawableColor(int color, PaletteSnapshot old) {
+        // White surfaces (including history-sale cards) must become dark surfaces at night.
+        if (color == old.surface) return SURFACE;
+        return remapPaletteColor(color, old);
+    }
+
+    private void rethemeDrawable(Drawable drawable, PaletteSnapshot old) {
+        if (drawable == null) return;
+        if (drawable instanceof ColorDrawable) {
+            ColorDrawable colorDrawable = (ColorDrawable) drawable;
+            colorDrawable.setColor(remapDrawableColor(colorDrawable.getColor(), old));
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 24 && drawable instanceof GradientDrawable) {
+            GradientDrawable gradient = (GradientDrawable) drawable;
+            ColorStateList fill = gradient.getColor();
+            if (fill != null) gradient.setColor(ColorStateList.valueOf(
+                    remapDrawableColor(fill.getDefaultColor(), old)));
+            ColorStateList stroke = gradient.getStrokeColor();
+            if (stroke != null) gradient.setStroke(Math.max(1, gradient.getStrokeWidth()),
+                    remapDrawableColor(stroke.getDefaultColor(), old));
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 23 && drawable instanceof RippleDrawable) {
+            RippleDrawable ripple = (RippleDrawable) drawable;
+            ripple.setColor(ColorStateList.valueOf(Color.argb(40,
+                    Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE))));
+            for (int i = 0; i < ripple.getNumberOfLayers(); i++) {
+                rethemeDrawable(ripple.getDrawable(i), old);
+            }
+        }
+    }
+
+    private void rethemeViewTree(View view, PaletteSnapshot old, Set<View> visited) {
+        if (view == null || !visited.add(view)) return;
+        rethemeDrawable(view.getBackground(), old);
+        if (view instanceof TextView) {
+            TextView textView = (TextView) view;
+            textView.setTextColor(remapPaletteColor(textView.getCurrentTextColor(), old));
+            textView.setHintTextColor(remapPaletteColor(textView.getHintTextColors().getDefaultColor(), old));
+            if ("nightModeToggle".equals(textView.getTag())) {
+                textView.setText(nightMode ? "☀️" : "🌙");
+                textView.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
+            }
+        }
+        if (view instanceof IconView) {
+            IconView icon = (IconView) view;
+            icon.setIconColor(remapPaletteColor(icon.getIconColor(), old));
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                rethemeViewTree(group.getChildAt(i), old, visited);
+            }
+        }
+        view.invalidate();
+    }
+
+    private void toggleNightMode() {
+        PaletteSnapshot old = new PaletteSnapshot();
+        prefs.edit().putBoolean("night_mode", !nightMode).apply();
+        applyPalette();
+        Set<View> visited = new HashSet<>();
+        rethemeViewTree(currentScreen, old, visited);
+        // Other bottom tabs are cached as live view trees too; recolor them now so returning
+        // to a previously visited tab cannot bring back the old theme.
+        for (TabScreenState state : tabScreenCache.values()) {
+            if (state != null) rethemeViewTree(state.screen, old, visited);
+        }
+        getWindow().setStatusBarColor(nightMode ? BG : ORANGE);
+        getWindow().setNavigationBarColor(SURFACE);
+        styleSystemBars();
+    }
+
     // ---- button styles
     private static final int PRIMARY = 0, TONAL = 1, OUTLINE = 2, DANGER = 3, FLAT = 4;
 
@@ -1008,13 +1109,13 @@ public class MainActivity extends Activity {
         header.setPadding(rtlActive() ? padEnd : padStart, dp(1), rtlActive() ? padStart : padEnd, dp(1));
         header.setElevation(dp(3));
         if (back != null) {
-            TextView arrow = text("→", 16, true);
+            TextView arrow = text("→", 24, true);
             arrow.setTextColor(Color.WHITE);
             arrow.setGravity(Gravity.CENTER);
             arrow.setPadding(0, 0, 0, 0);
             arrow.setOnClickListener(v -> back.run());
-            // Match the heading row; the back arrow must not increase header height.
-            header.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(24)));
+            // Keep the arrow typography as large as the 24sp screen title.
+            header.addView(arrow, new LinearLayout.LayoutParams(dp(36), dp(36)));
         }
         // The current screen title is enlarged by 50% and the night-mode toggle is always available.
         TextView head = text(heading, 24, true);
@@ -1026,11 +1127,9 @@ public class MainActivity extends Activity {
         nightToggle.setTextColor(Color.WHITE);
         nightToggle.setGravity(Gravity.CENTER);
         nightToggle.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
+        nightToggle.setTag("nightModeToggle");
         nightToggle.setBackground(ripple(shape(Color.TRANSPARENT, 24, Color.TRANSPARENT), 24));
-        nightToggle.setOnClickListener(v -> {
-            prefs.edit().putBoolean("night_mode", !nightMode).apply();
-            recreate();
-        });
+        nightToggle.setOnClickListener(v -> toggleNightMode());
         LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(40), dp(40));
         nightToggleParams.leftMargin = dp(4);
         header.addView(nightToggle, nightToggleParams);
@@ -3380,30 +3479,30 @@ public class MainActivity extends Activity {
             }
         });
         productArea.addView(productList, new FrameLayout.LayoutParams(-1, -1));
-        // Keep the circular button the same size; draw a much larger, heavier arrow inside it.
+        // Enlarge the entire floating jump-to-top control by 50%, and scale its arrow too.
         View floatingTopButton = new View(this) {
             private final Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             @Override protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
                 arrowPaint.setColor(Color.WHITE);
                 arrowPaint.setStyle(Paint.Style.STROKE);
-                arrowPaint.setStrokeWidth(dp(3));
+                arrowPaint.setStrokeWidth(dp(4.5f));
                 arrowPaint.setStrokeCap(Paint.Cap.ROUND);
                 arrowPaint.setStrokeJoin(Paint.Join.ROUND);
                 float cx = getWidth() / 2f;
-                float cy = getHeight() / 2f - dp(1);
+                float cy = getHeight() / 2f - dp(1.5f);
                 Path arrow = new Path();
-                arrow.moveTo(cx, cy + dp(8));
-                arrow.lineTo(cx, cy - dp(6));
-                arrow.moveTo(cx - dp(7), cy + dp(1));
-                arrow.lineTo(cx, cy - dp(7));
-                arrow.lineTo(cx + dp(7), cy + dp(1));
+                arrow.moveTo(cx, cy + dp(12));
+                arrow.lineTo(cx, cy - dp(9));
+                arrow.moveTo(cx - dp(10.5f), cy + dp(1.5f));
+                arrow.lineTo(cx, cy - dp(10.5f));
+                arrow.lineTo(cx + dp(10.5f), cy + dp(1.5f));
                 canvas.drawPath(arrow, arrowPaint);
             }
         };
         floatingTopButtonRef[0] = floatingTopButton;
         floatingTopButton.setContentDescription("חזרה מיידית לראש הרשימה");
-        floatingTopButton.setBackground(ripple(shape(ORANGE, 26, ORANGE_DARK), 26));
+        floatingTopButton.setBackground(ripple(shape(ORANGE, 30, ORANGE_DARK), 30));
         floatingTopButton.setElevation(dp(8));
         floatingTopButton.setVisibility(View.GONE);
         floatingTopButton.setOnClickListener(v -> {
@@ -3412,7 +3511,7 @@ public class MainActivity extends Activity {
             productList.setSelectionFromTop(0, 0);
         });
         // Keep a clear gap from the screen edge and avoid pinning the control in the left corner.
-        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.BOTTOM | Gravity.RIGHT);
+        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(39), dp(39), Gravity.BOTTOM | Gravity.RIGHT);
         floatingTopLp.setMargins(0, 0, dp(18), dp(18));
         productArea.addView(floatingTopButton, floatingTopLp);
         ViewGroup parent = (ViewGroup) scrollView.getParent();
@@ -4336,7 +4435,7 @@ public class MainActivity extends Activity {
         String total = first(o, "total_list", "total", "amount", "sum");
 
         LinearLayout card = card(12);
-        card.setBackground(ripple(shape(Color.WHITE, 14, LINE), 14));
+        card.setBackground(ripple(shape(SURFACE, 14, LINE), 14));
         card.setClickable(true);
         if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId));
 
@@ -5496,8 +5595,8 @@ public class MainActivity extends Activity {
                         case 9: confirmDeleteOrder(); break;
                         case 10: showCardSizeDialog(); break;
                         case 11:
-                            prefs.edit().putBoolean("night_mode", !nightMode).apply();
-                            recreate();
+                            d.dismiss();
+                            toggleNightMode();
                             break;
                     }
                 }).show();
@@ -6036,11 +6135,17 @@ public class MainActivity extends Activity {
         try {
             if (Build.VERSION.SDK_INT >= 30) {
                 android.view.WindowInsetsController c = getWindow().getInsetsController();
-                if (c != null) c.setSystemBarsAppearance(android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                        android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+                if (c != null) {
+                    int appearance = nightMode ? 0 : android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                    c.setSystemBarsAppearance(appearance,
+                            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+                }
             } else if (Build.VERSION.SDK_INT >= 26) {
-                View d = getWindow().getDecorView();
-                d.setSystemUiVisibility(d.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+                View decor = getWindow().getDecorView();
+                int flags = decor.getSystemUiVisibility();
+                if (nightMode) flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                else flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                decor.setSystemUiVisibility(flags);
             }
         } catch (Exception ignored) { }
     }
@@ -6255,12 +6360,14 @@ public class MainActivity extends Activity {
     private class IconView extends View {
         private final int type;
         private final float strokePx;
+        private int iconColor;
         private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         IconView(int type, int color, float strokeDp) {
             super(MainActivity.this);
             this.type = type;
+            this.iconColor = color;
             this.strokePx = strokeDp * getResources().getDisplayMetrics().density;
             stroke.setStyle(Paint.Style.STROKE);
             stroke.setStrokeCap(Paint.Cap.ROUND);
@@ -6268,6 +6375,15 @@ public class MainActivity extends Activity {
             stroke.setColor(color);
             fill.setStyle(Paint.Style.FILL);
             fill.setColor(color);
+        }
+
+        int getIconColor() { return iconColor; }
+
+        void setIconColor(int color) {
+            iconColor = color;
+            stroke.setColor(color);
+            fill.setColor(color);
+            invalidate();
         }
 
         @Override protected void onDraw(Canvas c) {
