@@ -469,7 +469,7 @@ public class MainActivity extends Activity {
         s.view.setGravity(Gravity.CENTER);
         s.view.setBackground(shape(ORANGE_LIGHT, heightDp, 0));
         s.plus = roundBtn("+", heightDp, ORANGE, Color.WHITE);
-        s.minus = roundBtn("−", heightDp, Color.rgb(255, 247, 239), ORANGE_DARK);
+        s.minus = roundBtn("−", heightDp, Color.rgb(255, 218, 190), ORANGE_DARK);
         s.qty = new TextView(this);
         s.qty.setTextSize(16);
         s.qty.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -2341,6 +2341,7 @@ public class MainActivity extends Activity {
     }
 
     private boolean orderNoticeDialogVisible = false;
+    private boolean orderNoticePending = false;
 
     /** Explains that quantity changes are sent directly to the server. This dialog is non-blocking for product loading. */
     private void showOrderEntryNoticeIfNeeded() {
@@ -2373,7 +2374,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadFeatureProducts(final JSONObject sale) {
-        showOrderEntryNoticeIfNeeded();
+        orderNoticePending = true;
         final int saleId = sale.optInt("id", -1);
         if (currentSaleId > 0 && currentSaleId != saleId) snapshotCurrent(); // keep the sale we are leaving
         featureSale = sale;
