@@ -669,9 +669,9 @@ public class MainActivity extends Activity {
             // Action-list dialogs use the same white panel and spaced orange rounded
             // buttons as Settings, rather than platform-style flat list rows.
             choices.setDivider(new ColorDrawable(Color.TRANSPARENT));
-            // Keep action-list buttons compact, with a clearly larger gap around each one.
-            choices.setDividerHeight(dp(12));
-            choices.setPadding(dp(16), dp(10), dp(16), dp(10));
+            // Keep action-list buttons narrower, with generous spacing around each one.
+            choices.setDividerHeight(dp(18));
+            choices.setPadding(dp(24), dp(14), dp(24), dp(14));
             choices.setClipToPadding(false);
             choices.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             for (int i = 0; i < choices.getChildCount(); i++) {
@@ -717,12 +717,26 @@ public class MainActivity extends Activity {
         if (view instanceof TextView) {
             TextView item = (TextView) view;
             item.setTextColor(ORANGE_DARK);
-            item.setTextSize(14);
+            item.setTextSize(16);
             item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             item.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
             item.setPadding(dp(12), dp(6), dp(12), dp(6));
             item.setMinHeight(dp(38));
             item.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            // Use a narrower row for the visible button itself; preserve the original text size.
+            ViewParent parent = item.getParent();
+            if (parent instanceof ListView) {
+                int availableWidth = ((ListView) parent).getWidth();
+                if (availableWidth <= 0) {
+                    availableWidth = getResources().getDisplayMetrics().widthPixels - dp(64);
+                }
+                int buttonWidth = Math.max(dp(220), availableWidth - dp(72));
+                ViewGroup.LayoutParams params = item.getLayoutParams();
+                if (params != null) {
+                    params.width = buttonWidth;
+                    item.setLayoutParams(params);
+                }
+            }
             item.setBackground(ripple(shape(ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
         }
     }
