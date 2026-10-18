@@ -310,6 +310,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        clearLegacyUpdateArtifacts();
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
@@ -335,7 +336,6 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleUpdateInstallIntent(intent);
         if (hasToken() && intent != null && intent.hasExtra("sale_id")) {
             openSaleFromNotification(intent.getIntExtra("sale_id", -1));
         }
@@ -905,7 +905,6 @@ public class MainActivity extends Activity {
         acc.addView(muted(tokenStatus(), 12));
         root.addView(acc, lp(-1, -2, 0, 10));
         addHomeNotificationSettings();
-        addUpdateSettingsEntry();
         addWhatsNewEntry();
         addSafetySettings();
         TextView refreshTok = btn("🔁 חידוש התחברות (בלי סיסמה)", TONAL);
@@ -1077,19 +1076,6 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        handleUpdateInstallIntent(getIntent());
-        // Opening the app or returning from another screen refreshes the updater's persistent notification.
-        if (prefs != null) {
-            if (prefs.getBoolean("app_update_auto", false)) {
-                UpdateService.refreshNotification(this);
-            }
-            String downloaded = prefs.getString("app_update_downloaded_version", "");
-            String latest = prefs.getString("app_update_latest_version", "");
-            if (!downloaded.isEmpty() && downloaded.equals(latest)) {
-                // The activity is now foregrounded, giving Android the best chance to show the installer.
-                UpdateService.tryInstallPending(this);
-            }
-        }
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
     }
 
@@ -5444,140 +5430,49 @@ public class MainActivity extends Activity {
 
 
 
-    private void handleUpdateInstallIntent(Intent intent) {
-        if (intent == null || !"org.mishnatyosef.mobile.INSTALL_DOWNLOADED_UPDATE".equals(intent.getAction())) return;
-        intent.setAction(null);
+    /**
+     * One-time compatibility cleanup for installations upgrading from builds that had
+     * the removed in-app updater. This only cancels old jobs and notifications; it
+     * does not check, download, or install application updates.
+     */
+    private void clearLegacyUpdateArtifacts() {
         try {
-            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
-                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
-                toast("יש לאשר התקנת אפליקציות ממקור זה ואז ללחוץ שוב על התראת העדכון", true);
-                return;
-            }
-            Uri uri = Uri.parse("content://org.mishnatyosef.mobile.updatefiles/apk");
-            Intent install = new Intent(Intent.ACTION_VIEW);
-            install.setDataAndType(uri, "application/vnd.android.package-archive");
-            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(install);
-        } catch (Exception e) { toast("לא ניתן לפתוח את מתקין העדכון. אפשר להוריד ידנית מהגדרות העדכונים.", true); }
-    }
+            stopService(new Intent().setClassName(this, getPackageName() + ".UpdateService"));
+        } catch (Exception ignored) { }
 
-    private void addUpdateSettingsEntry() {
-        LinearLayout updateCard = card(14);
-        updateCard.addView(sectionTitle("⬇️ עדכוני אפליקציה"));
-        updateCard.addView(muted("בדיקת גרסה חדשה והורדה ישירות מהקישור הקבוע בגיטהאב", 13));
-        TextView open = btn("⚙️ הגדרות עדכונים", TONAL);
-        open.setOnClickListener(v -> showUpdateSettings());
-        updateCard.addView(open, lp(-1, dp(46), 0, 8));
-        root.addView(updateCard, lp(-1, -2, 0, 10));
-    }
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.cancel(7332);
+                nm.cancel(7333);
+                if (Build.VERSION.SDK_INT >= 26) nm.deleteNotificationChannel("app_update_monitor_v2");
+            }
+        } catch (Exception ignored) { }
 
-    private void showUpdateSettings() {
-        beginScreen("עדכוני אפליקציה", 3, this::showAccount);
-        LinearLayout card = card(14);
-        card.addView(sectionTitle("מידע על העדכון"));
-        String installedVersion = "לא ידוע";
-        try { installedVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
-        final String installedVersionDisplay = installedVersion;
-        String latestVersion = prefs.getString("app_update_latest_version", "");
-        if (latestVersion.isEmpty()) latestVersion = "עדיין לא נבדקה";
-        String updateStatus = prefs.getString("app_update_status", "טרם בוצעה בדיקת עדכונים");
-        long lastCheck = prefs.getLong("app_update_last_check_time", 0L);
-        String lastCheckText = lastCheck > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("he", "IL")).format(new Date(lastCheck)) : "אין עדיין";
-        TextView updateInfo = muted("גרסה מותקנת: " + installedVersion
-                + "\nגרסה אחרונה ב-GitHub: " + latestVersion
-                + "\nמצב: " + updateStatus
-                + "\nבדיקה אחרונה: " + lastCheckText, 13);
-        updateInfo.setSingleLine(false);
-        updateInfo.setMaxLines(6);
-        card.addView(updateInfo, lp(-1, -2, 0, 12));
-        final Runnable refreshUpdateInfo = new Runnable() {
-            @Override public void run() {
-                if (updateInfo.getParent() == null) return;
-                String latestNow = prefs.getString("app_update_latest_version", "");
-                if (latestNow.isEmpty()) latestNow = "עדיין לא נבדקה";
-                String statusNow = prefs.getString("app_update_status", "טרם בוצעה בדיקת עדכונים");
-                long checkedNow = prefs.getLong("app_update_last_check_time", 0L);
-                String checkedTextNow = checkedNow > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("he", "IL")).format(new Date(checkedNow)) : "אין עדיין";
-                updateInfo.setText("גרסה מותקנת: " + installedVersionDisplay
-                        + "\nגרסה אחרונה ב-GitHub: " + latestNow
-                        + "\nמצב: " + statusNow
-                        + "\nבדיקה אחרונה: " + checkedTextNow);
-                ui.postDelayed(this, 1000);
+        try {
+            Intent watchdogIntent = new Intent()
+                    .setClassName(this, getPackageName() + ".UpdateBootReceiver")
+                    .setAction("org.mishnatyosef.mobile.UPDATE_SERVICE_WATCHDOG");
+            android.app.PendingIntent watchdog = android.app.PendingIntent.getBroadcast(
+                    this, 7334, watchdogIntent,
+                    android.app.PendingIntent.FLAG_NO_CREATE | android.app.PendingIntent.FLAG_IMMUTABLE);
+            if (watchdog != null) {
+                AlarmManager alarms = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+                if (alarms != null) alarms.cancel(watchdog);
+                watchdog.cancel();
             }
-        };
-        ui.postDelayed(refreshUpdateInfo, 1000);
-        card.addView(sectionTitle("עדכונים אוטומטיים"));
-        card.addView(switchRow("בדיקה אוטומטית", "בדיקה ברקע גם כשמסך ההגדרות סגור", prefs.getBoolean("app_update_auto", false), (b, checked) -> {
-            prefs.edit().putBoolean("app_update_auto", checked).apply();
-            if (checked) {
-                requestUpdateNotificationPermission();
-                UpdateService.start(this);
-            } else {
-                UpdateService.stop(this);
-            }
-            showUpdateSettings();
-        }));
-        card.addView(switchRow("התראה קבועה", "הצגת התראה בזמן שהבדיקה האוטומטית פועלת", prefs.getBoolean("app_update_notification", true), (b, checked) -> {
-            prefs.edit().putBoolean("app_update_notification", checked).apply();
-            if (checked) requestUpdateNotificationPermission();
-            if (prefs.getBoolean("app_update_auto", false)) {
-                UpdateService.start(this);
-            }
-            showUpdateSettings();
-        }));
-        NotificationManager updateNm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        boolean updateNotificationsEnabled = updateNm != null && updateNm.areNotificationsEnabled();
-        if (!updateNotificationsEnabled || (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)) {
-            card.addView(muted("⚠️ התראות Android חסומות כרגע. לכן גם כשהמתג מופעל לא תופיע התראה. יש לאפשר התראות לאפליקציה בהגדרות המערכת.", 13));
-            TextView openNotificationSettings = btn("פתיחת הגדרות ההתראות של Android", TONAL);
-            openNotificationSettings.setOnClickListener(v -> {
-                try {
-                    Intent settingsIntent = new Intent();
-                    if (Build.VERSION.SDK_INT >= 26) {
-                        settingsIntent.setAction("android.settings.APP_NOTIFICATION_SETTINGS");
-                        settingsIntent.putExtra("android.provider.extra.APP_PACKAGE", getPackageName());
-                    } else {
-                        settingsIntent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        settingsIntent.setData(Uri.parse("package:" + getPackageName()));
-                    }
-                    startActivity(settingsIntent);
-                } catch (Exception e) {
-                    startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
-                }
-            });
-            card.addView(openNotificationSettings, lp(-1, dp(46), 0, 8));
-        }
-        card.addView(muted("מרווח בדיקה (בשניות). המינימום הוא 5 שניות. מרווח קצר משתמש ביותר סוללה ונתונים.", 13));
-        EditText interval = field("5", InputType.TYPE_CLASS_NUMBER);
-        interval.setText(String.valueOf(Math.max(5, prefs.getInt("app_update_interval_seconds", 300))));
-        card.addView(interval, lp(-1, dp(48), 0, 8));
-        TextView save = btn("שמירת מרווח בדיקה", PRIMARY);
-        save.setOnClickListener(v -> {
-            String raw = interval.getText().toString().trim();
-            int seconds;
-            try { seconds = Math.max(5, Math.min(86400, Integer.parseInt(raw))); }
-            catch (Exception e) { toast("יש להזין מספר שניות תקין", true); return; }
-            prefs.edit().putInt("app_update_interval_seconds", seconds).apply();
-            if (prefs.getBoolean("app_update_auto", false)) UpdateService.start(this);
-            toast("✔ מרווח הבדיקה נשמר: " + seconds + " שניות", false);
-        });
-        card.addView(save, lp(-1, dp(46), 0, 8));
-        TextView manual = btn("🔎 בדיקת עדכון עכשיו", TONAL);
-        manual.setOnClickListener(v -> {
-            updateInfo.setText("מתחיל בדיקת עדכונים מול GitHub…");
-            toast("מתבצעת בדיקת עדכונים. התוצאה תופיע כאן.", false);
-            UpdateService.checkNow(this);
-            ui.postDelayed(refreshUpdateInfo, 500);
-        });
-        card.addView(manual, lp(-1, dp(46), 0, 8));
-        root.addView(card, lp(-1, -2, 0, 10));
-        root.addView(muted("התקנת עדכון עשויה לדרוש אישור Android. יש לאפשר התקנה ממקור זה בהגדרות המערכת אם תתבקשו.", 12), lp(-1, -2, 0, 8));
-    }
+        } catch (Exception ignored) { }
 
-    private void requestUpdateNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 7331);
-        }
+        prefs.edit()
+                .remove("app_update_auto")
+                .remove("app_update_notification")
+                .remove("app_update_interval_seconds")
+                .remove("app_update_downloaded_version")
+                .remove("app_update_latest_version")
+                .remove("app_update_status")
+                .remove("app_update_last_check_time")
+                .remove("app_update_last_install_attempt")
+                .apply();
     }
 
     private void addSafetySettings() {
