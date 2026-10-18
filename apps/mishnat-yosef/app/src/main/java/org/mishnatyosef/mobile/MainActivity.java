@@ -122,9 +122,11 @@ public class MainActivity extends Activity {
     // Preserve the open-sales list position while navigating to other bottom tabs.
     private int salesListScrollY = 0;
     private boolean showingSalesList = false;
-    // Preserve the position inside an order when navigating to another bottom tab.
-    private int orderScreenScrollY = 0;
+    // Preserve the real ListView position when leaving the order screen.
+    private int orderListFirstVisiblePosition = 0;
+    private int orderListTopOffset = 0;
     private boolean showingOrderScreen = false;
+    private boolean returnToOrderScreenOnSalesTab = false;
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
@@ -772,8 +774,12 @@ public class MainActivity extends Activity {
         if (showingSalesList && scrollView != null) {
             salesListScrollY = Math.max(0, scrollView.getScrollY());
         }
-        if (showingOrderScreen && screenKind == 1 && scrollView != null) {
-            orderScreenScrollY = Math.max(0, scrollView.getScrollY());
+        if (showingOrderScreen && screenKind == 1 && productList != null) {
+            // The products are in a ListView; scrollView is detached on the order screen.
+            orderListFirstVisiblePosition = Math.max(0, productList.getFirstVisiblePosition());
+            View firstVisibleRow = productList.getChildAt(0);
+            orderListTopOffset = firstVisibleRow == null ? 0 : firstVisibleRow.getTop();
+            returnToOrderScreenOnSalesTab = true;
         }
         showingSalesList = false;
         showingOrderScreen = false;
@@ -2061,8 +2067,20 @@ public class MainActivity extends Activity {
 
     private boolean autoEnterSingle = true;
 
-    /** From the tab / startup: if there is exactly one open sale, go straight into it. */
-    private void showOpenSales() { showOpenSales(true); }
+    /** From the tab / startup: restore the in-memory order if we just left it for another tab. */
+    private void showOpenSales() {
+        if (returnToOrderScreenOnSalesTab && featureSale != null) {
+            int cachedSaleId = featureSale.optInt("id", -1);
+            if (cachedSaleId > 0 && currentSaleId == cachedSaleId
+                    && featureOrderId > 0 && !featureProducts.isEmpty() && !productsPartial) {
+                // Rebuild only the view from the already-loaded in-memory data; do not refetch sales/products.
+                returnToOrderScreenOnSalesTab = false;
+                renderFeatureProducts();
+                return;
+            }
+        }
+        showOpenSales(true);
+    }
 
     private void showOpenSales(boolean autoEnter) {
         autoEnterSingle = autoEnter;
@@ -3020,15 +3038,18 @@ public class MainActivity extends Activity {
                 if (Build.VERSION.SDK_INT < 17 || !isDestroyed()) showOrderEntryNoticeIfNeeded();
             });
         }
-        // Restore the previous order-list position after its content is laid out.
-        final int restoreOrderY = orderScreenScrollY;
-        if (restoreOrderY > 0 && scrollView != null) {
-            scrollView.post(() -> {
-                if (showingOrderScreen && screenKind == 1 && scrollView != null) {
-                    scrollView.scrollTo(0, restoreOrderY);
+        // Restore the actual product ListView row and its pixel offset, not the detached ScrollView.
+        final ListView listToRestore = productList;
+        final int restorePosition = orderListFirstVisiblePosition;
+        final int restoreTop = orderListTopOffset;
+        if (listToRestore != null && restorePosition > 0) {
+            listToRestore.post(() -> {
+                if (showingOrderScreen && screenKind == 1 && productList == listToRestore) {
+                    listToRestore.setSelectionFromTop(restorePosition, restoreTop);
                 }
             });
         }
+        returnToOrderScreenOnSalesTab = false;
 
     }
 
