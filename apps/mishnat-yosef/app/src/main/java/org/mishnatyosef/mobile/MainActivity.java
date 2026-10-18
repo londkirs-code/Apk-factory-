@@ -1001,13 +1001,25 @@ public class MainActivity extends Activity {
             // Match the heading row; the back arrow must not increase header height.
             header.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(24)));
         }
-        // The app-name line is intentionally omitted on every screen.
-        // Keep only the current-screen heading at the requested readable size (16sp).
-        TextView head = text(heading, 16, true);
+        // The current screen title is enlarged by 50% and the night-mode toggle is always available.
+        TextView head = text(heading, 24, true);
         head.setTextColor(Color.WHITE);
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView nightToggle = text(nightMode ? "☀️" : "🌙", 22, true);
+        nightToggle.setTextColor(Color.WHITE);
+        nightToggle.setGravity(Gravity.CENTER);
+        nightToggle.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
+        nightToggle.setBackground(ripple(shape(Color.TRANSPARENT, 24, Color.TRANSPARENT), 24));
+        nightToggle.setOnClickListener(v -> {
+            prefs.edit().putBoolean("night_mode", !nightMode).apply();
+            recreate();
+        });
+        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        nightToggleParams.leftMargin = dp(4);
+        header.addView(nightToggle, nightToggleParams);
+        header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
         topHolder = new FrameLayout(this);
         // Keep the category strip above the scrolling product list.
