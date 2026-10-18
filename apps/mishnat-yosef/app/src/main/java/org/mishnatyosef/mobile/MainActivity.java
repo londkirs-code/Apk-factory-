@@ -2163,16 +2163,16 @@ public class MainActivity extends Activity {
         summaryFromHistory = false;
         String title = saleTitle(sale);
         beginScreen(title.isEmpty() ? "הזמנה" : title, 0, () -> showOpenSales(false));
-        final int t = screenToken;
         JSONObject cached = readSaleCache(sale.optInt("id", -1));
         restoreSaleCache(cached);
         final boolean hadCache = !featureProducts.isEmpty() && featureOrderId > 0;
         if (hadCache) {
-            setStatus("הנתונים השמורים מוצגים; בודק עדכונים מול השרת…");
             renderFeatureProducts();
+            setStatus("הנתונים השמורים מוצגים; בודק עדכונים מול השרת…");
         } else {
             setStatus("פותח הזמנה וטוען מוצרים…");
         }
+        final int t = screenToken;
         executor.execute(() -> {
             try {
                 long orderId = findOrCreateOrder(sale);
