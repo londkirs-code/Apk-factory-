@@ -4634,8 +4634,8 @@ public class MainActivity extends Activity {
         innerLp.gravity = Gravity.BOTTOM;
         finger.addView(inner, innerLp);
 
-        FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(dp(66), dp(NAV_FINGER_RISE + 64));
-        fingerLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(-1, dp(NAV_FINGER_RISE + 64));
+        fingerLp.gravity = Gravity.BOTTOM;
         slot.addView(finger, fingerLp);
         finger.setOnClickListener(v -> openLatestCollect());
         slot.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1.1f));
