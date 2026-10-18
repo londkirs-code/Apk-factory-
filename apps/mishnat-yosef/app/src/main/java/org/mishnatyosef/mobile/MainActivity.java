@@ -3982,9 +3982,39 @@ public class MainActivity extends Activity {
         toast("בודק את הפריט מול נתוני המכירות שבשרת…", false);
         executor.execute(() -> {
             final List<String> matches = Collections.synchronizedList(new ArrayList<>());
+            final List<String> orderMatches = Collections.synchronizedList(new ArrayList<>());
             final List<String> checkedSales = Collections.synchronizedList(new ArrayList<>());
             final List<String> failures = Collections.synchronizedList(new ArrayList<>());
+            String orderCheck = "לא בוצעה בדיקת הזמנה";
             try {
+                // Inspect the exact order independently from the open-sale catalogue endpoint.
+                try {
+                    HttpResult orderResponse = api("GET", "/api/orders/26039956", null);
+                    if (orderResponse.code >= 200 && orderResponse.code < 300) {
+                        JSONObject response = new JSONObject(orderResponse.body);
+                        JSONObject order = response.optJSONObject("order");
+                        if (order == null) order = response.optJSONObject("data");
+                        if (order == null) order = response;
+                        JSONArray orderItems = orderItemsFrom(order);
+                        orderCheck = "GET /api/orders/26039956 הצליח; מספר שורות פריטים שנקראו: " + orderItems.length();
+                        for (int i = 0; i < orderItems.length(); i++) {
+                            JSONObject item = orderItems.optJSONObject(i);
+                            if (item != null && (jsonHasMatchingItemId(item, targetId) || jsonContainsItemName(item))) {
+                                JSONObject record = new JSONObject();
+                                record.put("order_id", 26039956);
+                                record.put("matched_by", jsonHasMatchingItemId(item, targetId)
+                                        ? "מזהה " + targetId : "שם שעשוי להיות קשור לאפונה/קייטי");
+                                record.put("order_item_from_server", item);
+                                orderMatches.add(record.toString(2));
+                            }
+                        }
+                    } else {
+                        orderCheck = "GET /api/orders/26039956 נכשל: HTTP " + orderResponse.code
+                                + "\n" + safeBodyForDiagnostic(orderResponse.body);
+                    }
+                } catch (Exception orderError) {
+                    orderCheck = "בדיקת GET /api/orders/26039956 נכשלה: " + orderError.getMessage();
+                }
                 HttpResult salesResponse = api("GET", "/api/profile/open_sales", null);
                 if (salesResponse.code < 200 || salesResponse.code >= 300) {
                     throw new Exception("טעינת המכירות נכשלה: HTTP " + salesResponse.code
@@ -4017,6 +4047,17 @@ public class MainActivity extends Activity {
                 }
                 StringBuilder report = new StringBuilder();
                 report.append("מזהה שנבדק: ").append(targetId).append("\n");
+                report.append("בדיקת ההזמנה 26039956: ").append(orderCheck).append("\n");
+                if (!orderMatches.isEmpty()) {
+                    report.append("\nנתוני פריטים מההזמנה 26039956 (התאמה לפי מזהה או שם אפונה/קייטי):\n\n");
+                    for (int i = 0; i < orderMatches.size(); i++) {
+                        report.append("=== פריט מההזמנה ").append(i + 1).append(" ===\n")
+                                .append(orderMatches.get(i)).append("\n\n");
+                    }
+                } else {
+                    report.append("לא נמצאה שורת הזמנה שמכילה את המזהה ").append(targetId)
+                            .append(" או שם עם אפונה/קייטי.\n");
+                }
                 report.append("מקור: GET /api/profile/open_sales ואז GET /api/get_items_for_sale/{sale_id}/null?page=…&limit=…\n");
                 report.append("מכירות פתוחות שנבדקו: ").append(checkedSales.size()).append("\n");
                 if (!matches.isEmpty()) {
@@ -4079,6 +4120,27 @@ public class MainActivity extends Activity {
             JSONArray array = (JSONArray) value;
             for (int i = 0; i < array.length(); i++) {
                 if (jsonHasMatchingItemId(array.opt(i), targetId)) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean jsonContainsItemName(Object value) {
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            java.util.Iterator<String> keys = object.keys();
+            while (keys.hasNext()) {
+                Object child = object.opt(keys.next());
+                if (child instanceof String) {
+                    String text = ((String) child).toLowerCase(Locale.ROOT);
+                    if (text.contains("אפונה") || text.contains("קייטי") || text.contains("peas")) return true;
+                }
+                if (jsonContainsItemName(child)) return true;
+            }
+        } else if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int i = 0; i < array.length(); i++) {
+                if (jsonContainsItemName(array.opt(i))) return true;
             }
         }
         return false;
