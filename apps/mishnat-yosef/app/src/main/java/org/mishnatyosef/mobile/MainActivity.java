@@ -2911,15 +2911,17 @@ public class MainActivity extends Activity {
         productAdapter = new ProductAdapter();
         productList.setAdapter(productAdapter);
         FrameLayout productArea = new FrameLayout(this);
+        final TextView[] floatingTopButtonRef = new TextView[1];
         productList.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView view, int scrollState) { }
             @Override public void onScroll(AbsListView view, int first, int visible, int total) {
                 updateActiveCategory(first);
-                if (floatingTopButton != null) floatingTopButton.setVisibility(first > 0 ? View.VISIBLE : View.GONE);
+                if (floatingTopButtonRef[0] != null) floatingTopButtonRef[0].setVisibility(first > 0 ? View.VISIBLE : View.GONE);
             }
         });
         productArea.addView(productList, new FrameLayout.LayoutParams(-1, -1));
         TextView floatingTopButton = roundBtn("↑", 44, Color.WHITE, ORANGE_DARK);
+        floatingTopButtonRef[0] = floatingTopButton;
         floatingTopButton.setTextSize(25);
         floatingTopButton.setContentDescription("חזרה לראש הרשימה");
         floatingTopButton.setBackground(ripple(shape(Color.WHITE, 24, ORANGE_DARK), 24));
