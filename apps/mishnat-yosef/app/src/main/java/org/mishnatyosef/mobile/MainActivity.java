@@ -1347,12 +1347,13 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "עיצוב אחיד לכל החלונות והתפריטים";
-        final String whatsNewSummary = "חלונות, תפריטי בחירה והודעות בעיצוב המעוגל של האפליקציה, לצד שיפורי התצוגה האחרונים.";
+        final String whatsNewTitle = "צבעי חלונות וכפתורים תואמים להגדרות";
+        final String whatsNewSummary = "חלונות בצבע רקע ההגדרות, כפתורי פעולה כתומים ובהירים וקומפקטיים יותר, וסימון מכירות בכתום בהיסטוריה.";
         final String whatsNewDetails =
-                "• חלונות ותפריטי בחירה מקבלים משטח מעוגל, צבעים תואמים למסך ההגדרות וכפתורים מלבניים מעוגלים.\\n\\n" +
-                "• כותרות, הודעות, רשימות בחירה ושדות קלט מותאמים לקריאות ולמצב לילה.\\n\\n" +
-                "• העיצוב האחיד חל גם על פרטי מכירה, פעולות הזמנה, מיון בזיכויים והפעולות בהיסטוריה.";
+                "• חלונות ותפריטי בחירה מקבלים רקע התואם למסך ההגדרות, עם פינות מעוגלות.\\n\\n" +
+                "• כפתורי אישור וביטול קטנים יותר, מרוחקים מהקצוות ובצבע הכתום הבהיר של כפתורי ההגדרות.\\n\\n" +
+                "• שם המכירה בכל כרטיס ברשימת ההיסטוריה מסומן תמיד בכתום, בלי תלות בפרטי ההזמנה.\\n\\n" +
+                "• כותרות, הודעות, רשימות בחירה ושדות קלט ממשיכים להתאים לקריאות ולמצב לילה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
