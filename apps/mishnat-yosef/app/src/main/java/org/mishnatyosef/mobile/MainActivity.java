@@ -255,7 +255,7 @@ public class MainActivity extends Activity {
 
     private static class GridRow {
         String header;     // category title row when not null
-        JSONObject a, b, c;   // otherwise up to three product cards
+        JSONObject a, b, c, d, e;   // otherwise up to five product cards
     }
 
     private static class SaleSnapshot {
@@ -3001,6 +3001,8 @@ public class MainActivity extends Activity {
                 row.a = items.get(i);
                 row.b = columns >= 2 && i + 1 < items.size() ? items.get(i + 1) : null;
                 row.c = columns >= 3 && i + 2 < items.size() ? items.get(i + 2) : null;
+                row.d = columns >= 4 && i + 3 < items.size() ? items.get(i + 3) : null;
+                row.e = columns >= 5 && i + 4 < items.size() ? items.get(i + 4) : null;
                 gridRows.add(row);
             }
         }
@@ -3035,6 +3037,8 @@ public class MainActivity extends Activity {
     private class CardHolder {
         final LinearLayout card = new LinearLayout(MainActivity.this);
         final ImageView image;
+        final FrameLayout imageBox;
+        final FrameLayout controls;
         final TextView badge, star, name, pack, price, maxView, savedView, unitView, add;
         final Stepper st;
         JSONObject p;
@@ -3045,7 +3049,7 @@ public class MainActivity extends Activity {
             card.setBackground(shape(Color.WHITE, 14, LINE));
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
-            FrameLayout imageBox = new FrameLayout(MainActivity.this);
+            imageBox = new FrameLayout(MainActivity.this);
             image = new ImageView(MainActivity.this);
             image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             image.setBackgroundColor(Color.WHITE);
@@ -3091,7 +3095,7 @@ public class MainActivity extends Activity {
             unitView.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(unitView);
 
-            FrameLayout controls = new FrameLayout(MainActivity.this);
+            controls = new FrameLayout(MainActivity.this);
             add = btn("הוספה", TONAL);
             add.setTextSize(14);
             add.setMinHeight(dp(34));
@@ -3113,8 +3117,40 @@ public class MainActivity extends Activity {
             st.qty.setOnClickListener(v -> { if (p != null) askQuantity(p, productsRefresh, null); });
         }
 
+        void adaptCardSize() {
+            int columns = cardColumns();
+            float scale = columns == 1 ? 1.18f : columns == 2 ? 1.08f : columns == 3 ? 1f : columns == 4 ? 0.84f : 0.72f;
+            int imageHeight = columns == 1 ? 176 : columns == 2 ? 144 : columns == 3 ? 112 : columns == 4 ? 84 : 66;
+            int controlHeight = columns == 1 ? 42 : columns == 2 ? 38 : columns == 3 ? 34 : columns == 4 ? 30 : 27;
+            card.setPadding(dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 3 : 6));
+            imageBox.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(imageHeight)));
+            image.setLayoutParams(new FrameLayout.LayoutParams(-1, dp(imageHeight)));
+            name.setTextSize(12 * scale);
+            name.setMinLines(columns >= 4 ? 1 : 2);
+            name.setMaxLines(columns >= 4 ? 2 : 3);
+            pack.setTextSize(10 * scale);
+            price.setTextSize(14 * scale);
+            maxView.setTextSize(10 * scale);
+            savedView.setTextSize(9 * scale);
+            unitView.setTextSize(9 * scale);
+            badge.setTextSize(11 * scale);
+            badge.setPadding(dp(columns >= 4 ? 2 : 8), dp(1), dp(columns >= 4 ? 2 : 8), dp(1));
+            star.setTextSize(20 * scale);
+            star.setLayoutParams(new FrameLayout.LayoutParams(dp(columns >= 4 ? 22 : 32), dp(columns >= 4 ? 22 : 32), Gravity.TOP | Gravity.START));
+            add.setTextSize(14 * scale);
+            add.setMinHeight(dp(controlHeight));
+            st.qty.setTextSize(16 * scale);
+            st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(columns >= 4 ? 18 : 28), dp(controlHeight)));
+            st.minus.setLayoutParams(new LinearLayout.LayoutParams(dp(controlHeight), dp(controlHeight)));
+            st.plus.setLayoutParams(new LinearLayout.LayoutParams(dp(controlHeight), dp(controlHeight)));
+            controls.setLayoutParams(lp(-1, dp(controlHeight), columns >= 4 ? 2 : 6, 0));
+            add.setLayoutParams(new FrameLayout.LayoutParams(-1, dp(controlHeight)));
+            st.view.setLayoutParams(new FrameLayout.LayoutParams(-2, dp(controlHeight), Gravity.CENTER));
+        }
+
         void bind(JSONObject prod) {
             p = prod;
+            adaptCardSize();
             String sid = sidOf(prod), pid = pidOf(prod);
             boolean disabled = truthy(prod.opt("disable")), soldOut = isSoldOut(prod), canOrder = !disabled && !soldOut;
             String url = imageUrl(prod, !fullImages());
@@ -3162,14 +3198,16 @@ public class MainActivity extends Activity {
         final CardHolder first = new CardHolder();
         final CardHolder second = new CardHolder();
         final CardHolder third = new CardHolder();
+        final CardHolder fourth = new CardHolder();
+        final CardHolder fifth = new CardHolder();
 
         RowHolder() {
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setPadding(0, 0, 0, dp(8));
             List<View> cells = new ArrayList<>();
-            for (CardHolder h : new CardHolder[]{first, second, third}) {
+            for (CardHolder h : new CardHolder[]{first, second, third, fourth, fifth}) {
                 LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-                cp.setMargins(dp(3), 0, dp(3), 0);
+                cp.setMargins(dp(2), 0, dp(2), 0);
                 h.card.setLayoutParams(cp);
                 cells.add(h.card);
             }
@@ -3203,18 +3241,17 @@ public class MainActivity extends Activity {
                 h = new RowHolder();
                 h.row.setTag(h);
             }
+            h.first.card.setVisibility(View.VISIBLE);
             h.first.bind(r.a);
-            if (r.b != null) {
-                h.second.card.setVisibility(View.VISIBLE);
-                h.second.bind(r.b);
-            } else {
-                h.second.card.setVisibility(View.INVISIBLE);
-            }
-            if (r.c != null) {
-                h.third.card.setVisibility(View.VISIBLE);
-                h.third.bind(r.c);
-            } else {
-                h.third.card.setVisibility(View.INVISIBLE);
+            CardHolder[] holders = {h.second, h.third, h.fourth, h.fifth};
+            JSONObject[] products = {r.b, r.c, r.d, r.e};
+            for (int i = 0; i < holders.length; i++) {
+                if (products[i] != null) {
+                    holders[i].card.setVisibility(View.VISIBLE);
+                    holders[i].bind(products[i]);
+                } else {
+                    holders[i].card.setVisibility(View.GONE);
+                }
             }
             return h.row;
         }
@@ -4963,7 +5000,17 @@ public class MainActivity extends Activity {
     }
 
     private int cardColumns() {
-        return Math.max(1, Math.min(3, prefs.getInt("product_card_columns", 3)));
+        return Math.max(1, Math.min(5, prefs.getInt("product_card_columns", 3)));
+    }
+
+    private String cardSizeLabel(int columns) {
+        switch (columns) {
+            case 1: return "כרטיסים ענקיים — עמודה אחת";
+            case 2: return "כרטיסים גדולים — 2 עמודות";
+            case 3: return "כרטיסים בינוניים — 3 עמודות";
+            case 4: return "כרטיסים קטנים — 4 עמודות";
+            default: return "כרטיסים קומפקטיים — 5 עמודות";
+        }
     }
 
     private void showCardSizeDialog() {
@@ -4975,20 +5022,20 @@ public class MainActivity extends Activity {
         value.setGravity(Gravity.CENTER);
         box.addView(value, lp(-1, -2, 0, 4));
         SeekBar slider = new SeekBar(this);
-        slider.setMax(2);
+        slider.setMax(4);
         slider.setProgress(cardColumns() - 1);
         box.addView(slider, lp(-1, -2, 0, 4));
-        box.addView(muted("פחות עמודות = כרטיסים גדולים יותר. השינוי נשמר גם לפעם הבאה.", 12), lp(-1, -2, 0, 0));
+        box.addView(muted("אפשר לבחור 1–5 עמודות. התמונות, הטקסטים וכפתורי הכמות משתנים יחד עם רוחב הכרטיס; בעמודה אחת או שתיים הכרטיסים מנצלים את כל רוחב המסך.", 12), lp(-1, -2, 0, 0));
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int c = progress + 1;
-                value.setText(c == 1 ? "כרטיס גדול — עמודה אחת" : c == 2 ? "כרטיס בינוני — 2 עמודות" : "כרטיס קומפקטי — 3 עמודות");
+                value.setText(cardSizeLabel(c));
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) { }
         });
         int initial = slider.getProgress();
-        value.setText(initial == 0 ? "כרטיס גדול — עמודה אחת" : initial == 1 ? "כרטיס בינוני — 2 עמודות" : "כרטיס קומפקטי — 3 עמודות");
+        value.setText(cardSizeLabel(initial + 1));
         new AlertDialog.Builder(this).setTitle("גודל כרטיסי המוצרים").setView(box)
                 .setNegativeButton("ביטול", null)
                 .setPositiveButton("שמירה", (d, w) -> {
