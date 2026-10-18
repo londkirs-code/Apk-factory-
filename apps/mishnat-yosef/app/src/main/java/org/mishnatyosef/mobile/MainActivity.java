@@ -889,13 +889,13 @@ public class MainActivity extends Activity {
                     if ("navCenter".equals(cell.getTag())) {
                         View dome = ((ViewGroup) cell).getChildAt(0);
                         ViewGroup.LayoutParams domeLp = dome.getLayoutParams();
-                        domeLp.height = dp(NAV_FINGER_RISE + 64) + in[3];
+                        domeLp.height = dp(NAV_FINGER_RISE + NAV_FINGER_INNER) + in[3];
                         dome.setLayoutParams(domeLp);
                         View inner = ((ViewGroup) dome).getChildAt(0); // same row as the other buttons
                         ViewGroup.LayoutParams innerLp = inner.getLayoutParams();
-                        innerLp.height = dp(64) + in[3];
+                        innerLp.height = dp(NAV_FINGER_INNER) + in[3];
                         inner.setLayoutParams(innerLp);
-                        inner.setPadding(dp(2), dp(5), dp(2), dp(5) + in[3]);
+                        inner.setPadding(dp(2), dp(2), dp(2), dp(1) + in[3]);
                     } else {
                         cell.setPadding(dp(2), dp(5), dp(2), dp(5) + in[3]);
                     }
@@ -5465,6 +5465,7 @@ public class MainActivity extends Activity {
     // ======================================================================== centre "collect" button
 
     private static final int NAV_FINGER_RISE = 22; // raise the orange centre above the neighbouring buttons
+    private static final int NAV_FINGER_INNER = 72; // height of the icon + label area inside the centre button (dp)
 
     private View navDivider() {
         View d = new View(this);
@@ -5510,11 +5511,11 @@ public class MainActivity extends Activity {
         barLp.topMargin = dp(2);
         inner.addView(barSpace, barLp);
         // Extra height prevents the label under the enlarged icon from being clipped.
-        FrameLayout.LayoutParams innerLp = new FrameLayout.LayoutParams(-1, dp(72));
+        FrameLayout.LayoutParams innerLp = new FrameLayout.LayoutParams(-1, dp(NAV_FINGER_INNER));
         innerLp.gravity = Gravity.BOTTOM;
         finger.addView(inner, innerLp);
 
-        FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(-1, dp(NAV_FINGER_RISE + 72));
+        FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(-1, dp(NAV_FINGER_RISE + NAV_FINGER_INNER));
         fingerLp.gravity = Gravity.BOTTOM;
         fingerLp.topMargin = dp(-12);
         slot.addView(finger, fingerLp);
