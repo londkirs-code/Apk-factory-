@@ -4008,8 +4008,8 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (attached) favIds.add(pid);
                     else if (detached) favIds.remove(pid);
-                    saveSaleCache();
                     else { toast("תשובה לא צפויה מהשרת", true); return; }
+                    saveSaleCache();
                     toast(attached ? "⭐ נוסף למועדפים" : "☆ הוסר מהמועדפים", false);
                     if (done != null) done.run();
                 });
