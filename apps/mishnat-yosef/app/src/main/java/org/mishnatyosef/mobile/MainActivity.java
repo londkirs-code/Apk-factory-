@@ -4006,10 +4006,10 @@ public class MainActivity extends Activity {
         float r = dp(34);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(active ? ORANGE_DARK : ORANGE);
-        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        bg.setCornerRadii(new float[]{r, r, r, r, r, r, r, r});
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
-        mask.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        mask.setCornerRadii(new float[]{r, r, r, r, r, r, r, r});
         dome.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
         dome.setElevation(dp(8));
         dome.setClickable(true);
@@ -4025,7 +4025,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(-2, -2);
         labelLp.topMargin = dp(2);
         dome.addView(label, labelLp);
-        FrameLayout.LayoutParams dp0 = new FrameLayout.LayoutParams(dp(88), dp(72));
+        FrameLayout.LayoutParams dp0 = new FrameLayout.LayoutParams(dp(104), dp(72));
         dp0.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         slot.addView(dome, dp0);
         dome.setOnClickListener(v -> openLatestCollect());
