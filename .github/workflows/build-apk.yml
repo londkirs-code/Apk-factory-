@@ -77,31 +77,32 @@ jobs:
           if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             BASE="$(git rev-parse "$GITHUB_SHA^" 2>/dev/null || true)"
           fi
-          if [[ -n "$BASE" ]]; then
-            mapfile -t CHANGED_FILES < <(git diff --name-only "$BASE" "$GITHUB_SHA")
-          else
-            mapfile -t CHANGED_FILES < <(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")
-          fi
-          declare -A CHANGED=()
-          declare -A TOUCHED_APPS=()
-          for path in "${CHANGED_FILES[@]}"; do
-            CHANGED["$path"]=1
-            if [[ "$path" =~ ^apps/([^/]+)/.+ ]]; then
-              TOUCHED_APPS["${BASH_REMATCH[1]}"]=1
-            fi
+          [[ -n "$BASE" ]] || { echo "::error::Cannot determine the base commit for the documentation check."; exit 1; }
+          mapfile -t COMMITS < <(git rev-list --reverse "$BASE..$GITHUB_SHA")
+          for commit in "${COMMITS[@]}"; do
+            mapfile -t COMMIT_FILES < <(git diff-tree --no-commit-id --name-only -r "$commit^1" "$commit")
+            declare -A COMMIT_CHANGED=()
+            declare -A TOUCHED_APPS=()
+            for path in "${COMMIT_FILES[@]}"; do
+              COMMIT_CHANGED["$path"]=1
+              if [[ "$path" =~ ^apps/([^/]+)/.+ ]]; then
+                TOUCHED_APPS["${BASH_REMATCH[1]}"]=1
+              fi
+            done
+            for app in "${!TOUCHED_APPS[@]}"; do
+              LOG="apps/$app/CHANGELOG.md"
+              if [[ -z "${COMMIT_CHANGED[$LOG]+yes}" ]]; then
+                echo "::error::Documentation required in commit $commit: update $LOG in the same commit as changes under apps/$app/. See docs/APP_CHANGE_DOCUMENTATION.md."
+                exit 1
+              fi
+              if [[ ! -f "$LOG" ]]; then
+                echo "::error::Missing $LOG. Create it from templates/APP_CHANGELOG_TEMPLATE.md."
+                exit 1
+              fi
+            done
+            unset COMMIT_CHANGED TOUCHED_APPS
           done
-          for app in "${!TOUCHED_APPS[@]}"; do
-            LOG="apps/$app/CHANGELOG.md"
-            if [[ -z "${CHANGED[$LOG]+yes}" ]]; then
-              echo "::error::Documentation required: update $LOG in the same commit as every change under apps/$app/. See docs/APP_CHANGE_DOCUMENTATION.md."
-              exit 1
-            fi
-            if [[ ! -f "$LOG" ]]; then
-              echo "::error::Missing $LOG. Create it from templates/APP_CHANGELOG_TEMPLATE.md."
-              exit 1
-            fi
-          done
-          echo "Documentation check passed for all changed apps."
+          echo "Documentation check passed for every commit affecting an app."
       - name: Update Mishnat Yosef launcher icon from public Dropbox folder
         shell: bash
         run: |
