@@ -6123,6 +6123,7 @@ public class MainActivity extends Activity {
             ref[0].getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> check.run());
             input.requestFocus();
             if (ref[0].getWindow() != null) ref[0].getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+            styleAppDialog(ref[0]);
         });
         ref[0].show();
     }
