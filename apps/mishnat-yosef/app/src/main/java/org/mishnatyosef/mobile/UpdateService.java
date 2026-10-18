@@ -16,6 +16,8 @@ public class UpdateService extends Service {
     private static final String META = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/apps/mishnat-yosef/app/build.gradle";
     private static final String APK = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk";
     private static final String INSTALL_ACTION = "org.mishnatyosef.mobile.INSTALL_DOWNLOADED_UPDATE";
+    private static final String ACTION_REFRESH = "org.mishnatyosef.mobile.UPDATE_REFRESH";
+    private static final String ACTION_INSTALL_PENDING = "org.mishnatyosef.mobile.UPDATE_INSTALL_PENDING";
     private static final Uri APK_URI = Uri.parse("content://org.mishnatyosef.mobile.updatefiles/apk");
     private static final int NOTIFICATION_ID = 7332;
     private static final int LEGACY_UPDATE_NOTIFICATION_ID = 7333;
@@ -55,7 +57,19 @@ public class UpdateService extends Service {
         } catch (Exception ignored) {}
     }
 
-    public static void refreshNotification(Context c) { start(c); }
+    public static void refreshNotification(Context c) {
+        Intent i = new Intent(c, UpdateService.class).setAction(ACTION_REFRESH);
+        try {
+            if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i); else c.startService(i);
+        } catch (Exception ignored) {}
+    }
+
+    public static void tryInstallPending(Context c) {
+        Intent i = new Intent(c, UpdateService.class).setAction(ACTION_INSTALL_PENDING);
+        try {
+            if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i); else c.startService(i);
+        } catch (Exception ignored) {}
+    }
 
     @Override public void onCreate() {
         super.onCreate();
@@ -72,12 +86,49 @@ public class UpdateService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        boolean manual = intent != null && "org.mishnatyosef.mobile.UPDATE_CHECK_NOW".equals(intent.getAction());
-        if (!manual && !getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) {
+        String action = intent == null ? null : intent.getAction();
+        boolean manual = "org.mishnatyosef.mobile.UPDATE_CHECK_NOW".equals(action);
+        boolean refresh = ACTION_REFRESH.equals(action);
+        boolean installPending = ACTION_INSTALL_PENDING.equals(action);
+        boolean automatic = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false);
+        if (!manual && !refresh && !installPending && !automatic) {
             stopSelf();
             return START_NOT_STICKY;
         }
-        startForeground(NOTIFICATION_ID, buildNotification("בדיקת עדכונים פעילה ברקע", true));
+        startForeground(NOTIFICATION_ID, buildNotification(currentNotificationMessage, true));
+        if (installPending) {
+            File apk = updateFile();
+            SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
+            String downloaded = p.getString("app_update_downloaded_version", "");
+            String latest = p.getString("app_update_latest_version", "");
+            updateReady = !downloaded.isEmpty() && downloaded.equals(latest) && apk.isFile() && apk.length() > 100000;
+            if (updateReady) {
+                updateNotification("עדכון " + downloaded + " מוכן — פותח את ההתקנה…", true);
+                if (!launchInstallerNow()) {
+                    updateNotification("עדכון " + downloaded + " מוכן — לחץ כאן להתקנה", true);
+                }
+            } else {
+                updateNotification("אין כרגע עדכון שהורד ומוכן להתקנה", automatic);
+            }
+            if (!automatic) handler.postDelayed(() -> { if (!automatic) stopSelf(); }, 1500);
+            return START_STICKY;
+        }
+        if (refresh) {
+            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (manager != null) manager.cancel(LEGACY_UPDATE_NOTIFICATION_ID);
+            updateNotification(currentNotificationMessage, automatic || updateReady);
+            if (automatic) {
+                UpdateBootReceiver.scheduleWatchdog(this);
+                handler.removeCallbacks(loop);
+                checkUpdate(false);
+                handler.postDelayed(loop, intervalMillis());
+            } else if (updateReady) {
+                launchInstallerNow();
+            } else {
+                stopSelf();
+            }
+            return START_STICKY;
+        }
         if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) {
             UpdateBootReceiver.scheduleWatchdog(this);
         }
@@ -252,7 +303,8 @@ public class UpdateService extends Service {
 
     private Intent installerIntent() {
         if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
-            return new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()));
+            return new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         }
         Intent i = new Intent(Intent.ACTION_VIEW);
         i.setDataAndType(APK_URI, "application/vnd.android.package-archive");
@@ -268,9 +320,10 @@ public class UpdateService extends Service {
     }
 
     private boolean launchInstallerNow() {
-        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) return false;
         try {
-            startActivity(installerIntent());
+            Intent target = installerIntent();
+            target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(target);
             return true;
         } catch (Exception ignored) {
             return false; // Android may block background activity launches; the notification remains the fallback.
