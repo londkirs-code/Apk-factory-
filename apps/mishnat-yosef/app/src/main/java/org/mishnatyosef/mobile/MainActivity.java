@@ -253,6 +253,11 @@ public class MainActivity extends Activity {
             if ("nightModeToggle".equals(textView.getTag())) {
                 textView.setText(nightMode ? "☀️" : "🌙");
                 textView.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
+                textView.setTextColor(nightMode ? Color.WHITE : ORANGE_DARK);
+                textView.setBackground(ripple(shape(
+                        nightMode ? Color.rgb(58, 58, 58) : Color.rgb(255, 224, 178),
+                        20, nightMode ? Color.WHITE : ORANGE_DARK), 20));
+                textView.setElevation(dp(2));
             }
         }
         if (view instanceof IconView) {
@@ -1188,10 +1193,16 @@ public class MainActivity extends Activity {
         nightToggle.setGravity(Gravity.CENTER);
         nightToggle.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
         nightToggle.setTag("nightModeToggle");
-        nightToggle.setBackground(ripple(shape(Color.TRANSPARENT, 24, Color.TRANSPARENT), 24));
+        // Make the day/night control visually prominent with a filled pill and a clear border.
+        int toggleFill = nightMode ? Color.rgb(58, 58, 58) : Color.rgb(255, 224, 178);
+        int toggleText = nightMode ? Color.WHITE : ORANGE_DARK;
+        nightToggle.setTextColor(toggleText);
+        nightToggle.setBackground(ripple(shape(toggleFill, 20,
+                nightMode ? Color.WHITE : ORANGE_DARK), 20));
+        nightToggle.setElevation(dp(2));
         nightToggle.setOnClickListener(v -> toggleNightMode());
-        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(40), dp(40));
-        nightToggleParams.leftMargin = dp(4);
+        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(46), dp(42));
+        nightToggleParams.leftMargin = dp(8);
         header.addView(nightToggle, nightToggleParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
