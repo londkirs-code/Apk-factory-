@@ -2083,6 +2083,7 @@ public class MainActivity extends Activity {
     }
 
     private void showOpenSales(boolean autoEnter) {
+        returnToOrderScreenOnSalesTab = false;
         autoEnterSingle = autoEnter;
         beginScreen("מכירות פתוחות", 0, null);
         showingSalesList = true;
@@ -3042,7 +3043,7 @@ public class MainActivity extends Activity {
         final ListView listToRestore = productList;
         final int restorePosition = orderListFirstVisiblePosition;
         final int restoreTop = orderListTopOffset;
-        if (listToRestore != null && restorePosition > 0) {
+        if (listToRestore != null && (restorePosition > 0 || restoreTop != 0)) {
             listToRestore.post(() -> {
                 if (showingOrderScreen && screenKind == 1 && productList == listToRestore) {
                     listToRestore.setSelectionFromTop(restorePosition, restoreTop);
