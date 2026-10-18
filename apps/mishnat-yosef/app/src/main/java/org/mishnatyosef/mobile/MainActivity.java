@@ -2661,7 +2661,8 @@ public class MainActivity extends Activity {
         barTotal.setEllipsize(TextUtils.TruncateAt.END);
         orderText.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
         orderText.addView(barTotal, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(dp(84), -2);
+        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(-2, -2);
+        orderText.setMinimumWidth(dp(84));
         orderTextLp.setMarginStart(dp(3));
         toolbar.addView(orderText, orderTextLp);
 
