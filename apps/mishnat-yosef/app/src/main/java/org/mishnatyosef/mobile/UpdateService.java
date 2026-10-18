@@ -33,8 +33,14 @@ public class UpdateService extends Service {
         if(!manual&&!getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean("app_update_auto",false)){stopSelf();return START_NOT_STICKY;}
         startForeground(NOTIFICATION_ID,buildNotification("בדיקת עדכונים פעילה",true));
         handler.removeCallbacks(loop);
-        if(manual)checkUpdate(true);
-        else{checkUpdate(false);handler.postDelayed(loop,Math.max(5,getSharedPreferences(PREFS,MODE_PRIVATE).getInt("app_update_interval_seconds",300))*1000L);}
+        if(manual) {
+            checkUpdate(true);
+            if(getSharedPreferences(PREFS,MODE_PRIVATE).getBoolean("app_update_auto",false))
+                handler.postDelayed(loop,Math.max(5,getSharedPreferences(PREFS,MODE_PRIVATE).getInt("app_update_interval_seconds",300))*1000L);
+        } else {
+            checkUpdate(false);
+            handler.postDelayed(loop,Math.max(5,getSharedPreferences(PREFS,MODE_PRIVATE).getInt("app_update_interval_seconds",300))*1000L);
+        }
         return START_STICKY;
     }
     private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);if(nm!=null&&nm.getNotificationChannel(CHANNEL)==null)nm.createNotificationChannel(new NotificationChannel(CHANNEL,"בדיקת עדכוני אפליקציה",NotificationManager.IMPORTANCE_LOW));}}
@@ -49,12 +55,12 @@ public class UpdateService extends Service {
     private void checkUpdate(boolean tellNoUpdate){
         if(checking)return;checking=true;
         new Thread(()->{try{
-            String gradle=readText(META);Matcher m=Pattern.compile("versionName\\s+'([^']+)'").matcher(gradle);
+            String gradle=readText(META+"?t="+System.currentTimeMillis());Matcher m=Pattern.compile("versionName\\s+'([^']+)'").matcher(gradle);
             if(!m.find())throw new IOException("לא נמצא מספר גרסה בקובץ המקור");
             String latest=m.group(1);PackageInfo pi=getPackageManager().getPackageInfo(getPackageName(),0);String installed=pi.versionName==null?"0":pi.versionName;
             if(compareVersions(latest,installed)<=0){if(tellNoUpdate)postResult("האפליקציה מעודכנת (גרסה "+installed+")",false);return;}
             File dir=getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);if(dir==null)dir=getFilesDir();if(!dir.exists()&&!dir.mkdirs())throw new IOException("לא ניתן ליצור תיקיית הורדה");
-            File apk=new File(dir,"mishnat-yosef-update.apk");download(APK,apk);if(apk.length()<100000)throw new IOException("קובץ APK קטן מדי או פגום");
+            File apk=new File(dir,"mishnat-yosef-update.apk");download(APK+"?t="+System.currentTimeMillis(),apk);if(apk.length()<100000)throw new IOException("קובץ APK קטן מדי או פגום");
             getSharedPreferences(PREFS,MODE_PRIVATE).edit().putString("app_update_downloaded_path",apk.getAbsolutePath()).putString("app_update_downloaded_version",latest).apply();
             postResult("נמצא עדכון "+latest+" — ההורדה הושלמה. לחצו להתקנה",true);
         }catch(Exception e){if(tellNoUpdate)postResult("בדיקת העדכון נכשלה: "+e.getMessage(),false);}finally{checking=false;}},"mishnat-update-check").start();
