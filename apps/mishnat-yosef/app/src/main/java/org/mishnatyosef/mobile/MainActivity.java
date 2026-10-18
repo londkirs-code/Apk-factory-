@@ -12,6 +12,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
+import android.content.res.Configuration;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
@@ -214,6 +215,14 @@ public class MainActivity extends Activity {
     }
 
     // ======================================================================== lifecycle
+
+    @Override protected void attachBaseContext(Context base) {
+        Configuration config = new Configuration(base.getResources().getConfiguration());
+        Locale hebrew = new Locale("he", "IL");
+        config.setLocale(hebrew);
+        config.setLayoutDirection(hebrew);
+        super.attachBaseContext(base.createConfigurationContext(config));
+    }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -642,7 +651,9 @@ public class MainActivity extends Activity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setBackgroundColor(ORANGE);
-        header.setPadding(dp(8), dp(8), dp(16), dp(8));
+        final int padStart = back != null ? dp(8) : dp(16);
+        final int padEnd = dp(16);
+        header.setPadding(rtlActive() ? padEnd : padStart, dp(8), rtlActive() ? padStart : padEnd, dp(8));
         header.setElevation(dp(3));
         if (back != null) {
             TextView arrow = text("→", 22, true);
@@ -729,7 +740,7 @@ public class MainActivity extends Activity {
         screen.setOnApplyWindowInsetsListener((v, insets) -> {
             if (Build.VERSION.SDK_INT < 30) return insets; // older Android already keeps content inside the system bars
             int[] in = systemInsets(insets);
-            headerFinal.setPadding(dp(8) + in[0], dp(8) + in[1], dp(16) + in[2], dp(8));
+            headerFinal.setPadding((rtlActive() ? padEnd : padStart) + in[0], dp(8) + in[1], (rtlActive() ? padStart : padEnd) + in[2], dp(8));
             if (navFinal != null) {
                 LinearLayout navLayout = (LinearLayout) navFinal;
                 navLayout.setPadding(in[0], 0, in[2], 0);
