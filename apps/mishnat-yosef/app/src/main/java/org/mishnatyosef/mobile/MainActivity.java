@@ -199,14 +199,22 @@ public class MainActivity extends Activity {
             colorDrawable.setColor(remapDrawableColor(colorDrawable.getColor(), old));
             return;
         }
+        if (drawable instanceof AppGradientDrawable) {
+            AppGradientDrawable gradient = (AppGradientDrawable) drawable;
+            gradient.appFillColor = remapDrawableColor(gradient.appFillColor, old);
+            gradient.setColor(gradient.appFillColor);
+            if (gradient.hasAppStroke) {
+                gradient.appStrokeColor = remapPaletteColor(gradient.appStrokeColor, old);
+                gradient.setStroke(gradient.appStrokeWidth, gradient.appStrokeColor);
+            }
+            return;
+        }
         if (Build.VERSION.SDK_INT >= 24 && drawable instanceof GradientDrawable) {
+            // Non-app custom shapes do not retain their original stroke metadata; recolor their fill.
             GradientDrawable gradient = (GradientDrawable) drawable;
             ColorStateList fill = gradient.getColor();
             if (fill != null) gradient.setColor(ColorStateList.valueOf(
                     remapDrawableColor(fill.getDefaultColor(), old)));
-            ColorStateList stroke = gradient.getStrokeColor();
-            if (stroke != null) gradient.setStroke(Math.max(1, gradient.getStrokeWidth()),
-                    remapDrawableColor(stroke.getDefaultColor(), old));
             return;
         }
         if (Build.VERSION.SDK_INT >= 23 && drawable instanceof RippleDrawable) {
@@ -722,11 +730,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    private static final class AppGradientDrawable extends GradientDrawable {
+        int appFillColor;
+        int appStrokeColor;
+        int appStrokeWidth;
+        boolean hasAppStroke;
+    }
+
     private GradientDrawable shape(int fill, float radiusDp, int stroke) {
-        GradientDrawable g = new GradientDrawable();
+        AppGradientDrawable g = new AppGradientDrawable();
+        g.appFillColor = fill;
         g.setColor(fill);
         g.setCornerRadius(dp(radiusDp));
-        if (stroke != 0) g.setStroke(dp(1), stroke);
+        if (stroke != 0) {
+            g.appStrokeColor = stroke;
+            g.appStrokeWidth = dp(1);
+            g.hasAppStroke = true;
+            g.setStroke(g.appStrokeWidth, stroke);
+        }
         return g;
     }
 
