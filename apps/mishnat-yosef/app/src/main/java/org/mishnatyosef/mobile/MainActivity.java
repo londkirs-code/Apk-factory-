@@ -5040,6 +5040,10 @@ public class MainActivity extends Activity {
                         case 8: clearFavQuantities(); break;
                         case 9: confirmDeleteOrder(); break;
                         case 10: showCardSizeDialog(); break;
+                        case 11:
+                            prefs.edit().putBoolean("night_mode", !nightMode).apply();
+                            recreate();
+                            break;
                     }
                 }).show();
     }
@@ -5494,7 +5498,7 @@ public class MainActivity extends Activity {
         LinearLayout inner = new LinearLayout(this);
         inner.setOrientation(LinearLayout.VERTICAL);
         inner.setGravity(Gravity.CENTER);
-        inner.setPadding(dp(2), dp(5), dp(2), dp(5));
+        inner.setPadding(dp(2), dp(2), dp(2), dp(1));
         inner.addView(new IconView(ICON_CHECK, Color.WHITE, 3.8f), new LinearLayout.LayoutParams(dp(46), dp(46)));
         TextView label = text("איסוף", 11, true);
         label.setTextColor(Color.WHITE);
@@ -5506,11 +5510,12 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(dp(24), dp(3));
         barLp.topMargin = dp(2);
         inner.addView(barSpace, barLp);
-        FrameLayout.LayoutParams innerLp = new FrameLayout.LayoutParams(-1, dp(64));
+        // Extra height prevents the label under the enlarged icon from being clipped.
+        FrameLayout.LayoutParams innerLp = new FrameLayout.LayoutParams(-1, dp(72));
         innerLp.gravity = Gravity.BOTTOM;
         finger.addView(inner, innerLp);
 
-        FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(-1, dp(NAV_FINGER_RISE + 64));
+        FrameLayout.LayoutParams fingerLp = new FrameLayout.LayoutParams(-1, dp(NAV_FINGER_RISE + 72));
         fingerLp.gravity = Gravity.BOTTOM;
         fingerLp.topMargin = dp(-12);
         slot.addView(finger, fingerLp);
