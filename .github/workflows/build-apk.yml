@@ -155,8 +155,8 @@ jobs:
             # Preserve each successful build before the latest APK is replaced.
             HISTORY_DIR="downloads/$app/history"
             mkdir -p "$HISTORY_DIR"
-            cp $APK_PATH "$HISTORY_DIR/\${app}-v\${VERSION_NAME}-code\${NEXT_CODE}.apk"
-            printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
+            cp $APK_PATH "$HISTORY_DIR/${app}-v${VERSION_NAME}-code${NEXT_CODE}.apk"
+            printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
                       echo "::endgroup::"
           done
           {
