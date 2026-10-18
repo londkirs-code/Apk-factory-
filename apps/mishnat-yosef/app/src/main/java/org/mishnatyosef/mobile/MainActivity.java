@@ -492,7 +492,8 @@ public class MainActivity extends Activity {
 
     private void styleAppDialog(AlertDialog dialog) {
         if (dialog == null) return;
-        final int panelColor = SURFACE;
+        // Match the Settings screen surface and its light-orange action buttons.
+        final int panelColor = BG;
         final int textColor = INK;
         android.view.Window window = dialog.getWindow();
         if (window != null) {
@@ -522,6 +523,13 @@ public class MainActivity extends Activity {
         }
 
         styleDialogButtons(dialog);
+        View buttonPanel = dialog.findViewById(android.R.id.buttonPanel);
+        if (buttonPanel instanceof ViewGroup) {
+            buttonPanel.setPadding(dp(12), dp(6), dp(12), dp(12));
+            if (buttonPanel instanceof LinearLayout) {
+                ((LinearLayout) buttonPanel).setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+            }
+        }
         ListView choices = dialog.getListView();
         if (choices != null) {
             choices.setBackgroundColor(panelColor);
@@ -549,14 +557,23 @@ public class MainActivity extends Activity {
         for (int id : ids) {
             android.widget.Button button = dialog.getButton(id);
             if (button == null) continue;
-            boolean primary = id == AlertDialog.BUTTON_POSITIVE;
             button.setAllCaps(false);
             button.setTextSize(14);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            button.setMinHeight(dp(42));
-            button.setPadding(dp(14), dp(7), dp(14), dp(7));
-            button.setTextColor(primary ? Color.WHITE : ORANGE_DARK);
-            button.setBackground(ripple(shape(primary ? ORANGE : ORANGE_LIGHT, 12, primary ? 0 : LINE), 12));
+            button.setMinHeight(dp(36));
+            button.setMinWidth(0);
+            button.setPadding(dp(12), dp(5), dp(12), dp(5));
+            button.setTextColor(ORANGE_DARK);
+            button.setBackground(ripple(shape(ORANGE_LIGHT, 12, LINE), 12));
+            ViewGroup.LayoutParams rawParams = button.getLayoutParams();
+            if (rawParams instanceof LinearLayout.LayoutParams) {
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) rawParams;
+                params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+                params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                params.leftMargin = dp(5);
+                params.rightMargin = dp(5);
+                button.setLayoutParams(params);
+            }
         }
     }
 
@@ -4298,7 +4315,9 @@ public class MainActivity extends Activity {
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(text(saleName, 16, true), new LinearLayout.LayoutParams(0, -2, 1));
+        TextView saleLabel = text(saleName, 16, true);
+        saleLabel.setTextColor(ORANGE);
+        top.addView(saleLabel, new LinearLayout.LayoutParams(0, -2, 1));
         if (!total.isEmpty()) {
             TextView tv = text(money(parseMoney(total)), 16, true);
             tv.setTextColor(ORANGE_DARK);
