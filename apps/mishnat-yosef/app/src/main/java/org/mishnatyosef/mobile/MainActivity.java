@@ -4250,6 +4250,33 @@ public class MainActivity extends Activity {
     }
 
 
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleUpdateInstallIntent(intent);
+    }
+    @Override protected void onResume() {
+        super.onResume();
+        handleUpdateInstallIntent(getIntent());
+    }
+    private void handleUpdateInstallIntent(Intent intent) {
+        if (intent == null || !"org.mishnatyosef.mobile.INSTALL_DOWNLOADED_UPDATE".equals(intent.getAction())) return;
+        intent.setAction(null);
+        try {
+            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
+                toast("יש לאשר התקנת אפליקציות ממקור זה ואז ללחוץ שוב על התראת העדכון", true);
+                return;
+            }
+            Uri uri = Uri.parse("content://org.mishnatyosef.mobile.updatefiles/apk");
+            Intent install = new Intent(Intent.ACTION_VIEW);
+            install.setDataAndType(uri, "application/vnd.android.package-archive");
+            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(install);
+        } catch (Exception e) { toast("לא ניתן לפתוח את מתקין העדכון. אפשר להוריד ידנית מהגדרות העדכונים.", true); }
+    }
+
     private void addUpdateSettingsEntry() {
         LinearLayout updateCard = card(14);
         updateCard.addView(sectionTitle("⬇️ עדכוני אפליקציה"));
