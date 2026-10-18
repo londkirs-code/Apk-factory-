@@ -918,8 +918,8 @@ public class MainActivity extends Activity {
         TextView logBtn = btn("📡 יומן תקשורת (לאבחון תקלות)", TONAL);
         logBtn.setOnClickListener(v -> showApiLog());
         root.addView(logBtn, lp(-1, dp(46), 0, 8));
-        TextView itemDiagBtn = btn("🔎 בדיקת פריט 39625438 (מידע מלא מהשרת)", TONAL);
-        itemDiagBtn.setOnClickListener(v -> diagnoseItemFromServer("39625438"));
+        TextView itemDiagBtn = btn("🧾 איסוף כל נתוני JSON מהשרת", TONAL);
+        itemDiagBtn.setOnClickListener(v -> diagnoseAllServerJson());
         root.addView(itemDiagBtn, lp(-1, dp(46), 0, 8));
         TextView cacheBtn = btn("🧹 ניקוי מטמון תמונות", TONAL);
         cacheBtn.setOnClickListener(v -> { imageCache.evictAll(); toast("המטמון נוקה", false); });
@@ -4099,6 +4099,136 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> showTextDialog("שגיאה באבחון פריט " + targetId, error));
             }
         });
+    }
+
+    /**
+     * Collect full response bodies from the authenticated GET endpoints used by the app.
+     * The report stays on-device until the user explicitly copies or shares it.
+     */
+    private void diagnoseAllServerJson() {
+        if (!hasToken()) { toast("צריך להתחבר לפני איסוף נתוני השרת", true); return; }
+        new AlertDialog.Builder(this)
+                .setTitle("איסוף נתוני JSON")
+                .setMessage("הפעולה תשלח בקשות GET לנתיבים שהאפליקציה משתמשת בהם ותאסוף את גופי התשובות המלאים. הדוח עשוי להכיל פרטים אישיים מהחשבון ומההזמנות. הוא לא יישלח אוטומטית; אפשר יהיה להעתיק או לשתף אותו ידנית.")
+                .setNegativeButton("ביטול", null)
+                .setPositiveButton("התחלה", (d, w) -> runAllJsonDiagnostic())
+                .show();
+    }
+
+    private void runAllJsonDiagnostic() {
+        toast("אוסף תשובות JSON מהשרת…", true);
+        executor.execute(() -> {
+            StringBuilder report = new StringBuilder();
+            report.append("אבחון JSON מלא — משנת יוסף\\n")
+                    .append("זמן: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())).append("\\n")
+                    .append("הנתונים הם תשובות GET בלבד; לא נאספו כותרות Authorization או אסימוני התחברות.\\n")
+                    .append("הגבלת בטיחות: עד 80 תשובות ועד 2MB בדוח.\\n\\n");
+            int requests = 0;
+            int totalChars = report.length();
+            final int maxRequests = 80;
+            final int maxTotalChars = 2 * 1024 * 1024;
+            final int maxBodyChars = 300 * 1024;
+            List<String> paths = new ArrayList<>();
+            Collections.addAll(paths,
+                    "/api/profile/open_sales",
+                    "/api/orders/26039956",
+                    "/api/orders?page=1&limit=100",
+                    "/api/orders?page=2&limit=100",
+                    "/api/orders?page=3&limit=100",
+                    "/api/profile/transactions?page=1&limit=100",
+                    "/api/profile/transactions?page=2&limit=100",
+                    "/api/profile/transactions?page=3&limit=100",
+                    "/api/payment_methods/cards",
+                    "/api/get_favourites/",
+                    "/api/get_favourites/null");
+            for (String path : paths) {
+                if (requests >= maxRequests || totalChars >= maxTotalChars) break;
+                try {
+                    HttpResult res = api("GET", path, null);
+                    String body = res.body == null ? "" : res.body;
+                    String entry = jsonDiagnosticEntry("GET", path, res.code, body, maxBodyChars);
+                    if (totalChars + entry.length() > maxTotalChars) {
+                        report.append("\\n[הפסקה: מגבלת גודל הדוח הושגה; תשובה נוספת לא צורפה.]\\n");
+                        break;
+                    }
+                    report.append(entry);
+                    totalChars += entry.length();
+                } catch (Exception e) {
+                    String entry = "\\n========== GET " + path + " ==========\\nשגיאה: " + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()) + "\\n";
+                    if (totalChars + entry.length() <= maxTotalChars) { report.append(entry); totalChars += entry.length(); }
+                }
+                requests++;
+            }
+            // Include all product pages for every open sale, not only the one suspected item.
+            try {
+                HttpResult salesRes = api("GET", "/api/profile/open_sales", null);
+                JSONArray sales = salesRes.code >= 200 && salesRes.code < 300 ? arrayFrom(salesRes.body) : new JSONArray();
+                report.append("\\n========== פירוט כל דפי המוצרים של המכירות הפתוחות ==========\\n")
+                        .append("מכירות פתוחות שנמצאו: ").append(sales.length()).append("\\n");
+                for (int i = 0; i < sales.length() && requests < maxRequests && totalChars < maxTotalChars; i++) {
+                    JSONObject sale = sales.optJSONObject(i);
+                    if (sale == null) continue;
+                    long saleId = sale.optLong("id", -1);
+                    if (saleId <= 0) continue;
+                    boolean more = true;
+                    for (int page = 1; page <= 100 && more && requests < maxRequests && totalChars < maxTotalChars; page++) {
+                        String path = "/api/get_items_for_sale/" + saleId + "/null?page=" + page + "&limit=" + PAGE_LIMIT;
+                        try {
+                            HttpResult res = api("GET", path, null);
+                            String body = res.body == null ? "" : res.body;
+                            String entry = jsonDiagnosticEntry("GET", path, res.code, body, maxBodyChars);
+                            if (totalChars + entry.length() > maxTotalChars) {
+                                report.append("\\n[הפסקה: מגבלת גודל הדוח הושגה.]\\n");
+                                more = false;
+                                break;
+                            }
+                            report.append(entry);
+                            totalChars += entry.length();
+                            requests++;
+                            JSONArray pageItems = res.code >= 200 && res.code < 300 ? arrayFrom(body) : new JSONArray();
+                            more = pageItems.length() >= PAGE_LIMIT;
+                            if (pageItems.length() == 0) more = false;
+                        } catch (Exception e) {
+                            report.append("\\n========== GET ").append(path).append(" ==========\\nשגיאה: ")
+                                    .append(e.getClass().getSimpleName()).append(": ").append(String.valueOf(e.getMessage())).append("\\n");
+                            requests++;
+                            more = false;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                report.append("\\nשגיאה באיסוף המכירות/המוצרים: ").append(String.valueOf(e.getMessage())).append("\\n");
+            }
+            report.append("\\n========== סיכום ==========\\nמספר בקשות שנוסו: ").append(requests)
+                    .append("\\nגודל הדוח בתווים: ").append(report.length())
+                    .append("\\nהערה: זה כולל נתיבי GET מוכרים באפליקציה והמכירות הפתוחות שנחשפו; אין בכך הבטחה שכל נתיב פנימי/לא מתועד של האתר נבדק.\\n");
+            final String result = report.toString();
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("דוח JSON מהשרת")
+                    .setMessage("האיסוף הסתיים. הדוח מכיל " + requests + " בקשות ונשמר זמנית בחלונית. אפשר להעתיק את כולו או לשתף אותו. בדקו פרטים אישיים לפני שיתוף.")
+                    .setPositiveButton("סגירה", null)
+                    .setNeutralButton("העתקת כל הדוח", (d, w) -> {
+                        ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                        if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("דוח JSON מהשרת", result));
+                        toast("דוח ה־JSON הועתק ללוח", true);
+                    })
+                    .setNegativeButton("שיתוף", (d, w) -> shareText("דוח JSON מהשרת", result))
+                    .show());
+        });
+    }
+
+    private String jsonDiagnosticEntry(String method, String path, int code, String body, int maxBodyChars) {
+        String value = body == null ? "" : body;
+        StringBuilder entry = new StringBuilder();
+        entry.append("\\n========== ").append(method).append(" ").append(path)
+                .append(" | HTTP ").append(code).append(" | bytes/chars ").append(value.length()).append(" ==========\\n");
+        if (value.length() > maxBodyChars) {
+            entry.append(value, 0, maxBodyChars)
+                    .append("\\n[התשובה נחתכה בדוח אחרי ").append(maxBodyChars).append(" תווים; התשובה המקורית ארוכה יותר.]\\n");
+        } else {
+            entry.append(value).append("\\n");
+        }
+        return entry.toString();
     }
 
     private boolean jsonHasMatchingItemId(Object value, String targetId) {
