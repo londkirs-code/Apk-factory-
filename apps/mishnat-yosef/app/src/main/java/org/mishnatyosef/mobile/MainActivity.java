@@ -3112,15 +3112,18 @@ public class MainActivity extends Activity {
         head.addView(progressView);
         root.addView(head, lp(-1, -2, 0, 10));
 
-        // mode switch
+        // Mode switch: hide the irrelevant Edit button while collecting.
         LinearLayout modes = new LinearLayout(this);
-        final TextView edit = btn("✏️ עריכה", collectMode ? TONAL : PRIMARY);
-        final TextView collect = btn("☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
+        final TextView edit = btn("✏️ עריכה", PRIMARY);
+        final TextView collect = btn(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
+        edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
         edit.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(edit, collect); });
-        collect.setOnClickListener(v -> { collectMode = true; rebuildSummary(); updateModeButtons(edit, collect); });
-        modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        cp.setMarginStart(dp(8));
+        collect.setOnClickListener(v -> { collectMode = !collectMode; rebuildSummary(); updateModeButtons(edit, collect); });
+        if (!collectMode) {
+            modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
+        }
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), collectMode ? 1 : 1);
+        if (!collectMode) cp.setMarginStart(dp(8));
         modes.addView(collect, cp);
         TextView summaryActions = btn("⋯", TONAL);
         summaryActions.setOnClickListener(v -> showOrderActions());
@@ -3178,8 +3181,10 @@ public class MainActivity extends Activity {
     }
 
     private void updateModeButtons(TextView edit, TextView collect) {
-        edit.setBackground(ripple(shape(collectMode ? ORANGE_LIGHT : ORANGE, 12, 0), 12));
-        edit.setTextColor(collectMode ? ORANGE_DARK : Color.WHITE);
+        edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
+        collect.setText(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף");
+        edit.setBackground(ripple(shape(ORANGE, 12, 0), 12));
+        edit.setTextColor(Color.WHITE);
         collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
         collect.setTextColor(collectMode ? Color.WHITE : ORANGE_DARK);
     }
