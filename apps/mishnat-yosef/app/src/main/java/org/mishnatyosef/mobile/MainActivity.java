@@ -4298,6 +4298,22 @@ public class MainActivity extends Activity {
         updateInfo.setSingleLine(false);
         updateInfo.setMaxLines(6);
         card.addView(updateInfo, lp(-1, -2, 0, 12));
+        final Runnable refreshUpdateInfo = new Runnable() {
+            @Override public void run() {
+                if (updateInfo.getParent() == null) return;
+                String latestNow = prefs.getString("app_update_latest_version", "");
+                if (latestNow.isEmpty()) latestNow = "עדיין לא נבדקה";
+                String statusNow = prefs.getString("app_update_status", "טרם בוצעה בדיקת עדכונים");
+                long checkedNow = prefs.getLong("app_update_last_check_time", 0L);
+                String checkedTextNow = checkedNow > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("he", "IL")).format(new Date(checkedNow)) : "אין עדיין";
+                updateInfo.setText("גרסה מותקנת: " + installedVersion
+                        + "\\nגרסה אחרונה ב-GitHub: " + latestNow
+                        + "\\nמצב: " + statusNow
+                        + "\\nבדיקה אחרונה: " + checkedTextNow);
+                ui.postDelayed(this, 1000);
+            }
+        };
+        ui.postDelayed(refreshUpdateInfo, 1000);
         card.addView(sectionTitle("עדכונים אוטומטיים"));
         card.addView(switchRow("בדיקה אוטומטית", "בדיקה ברקע גם כשמסך ההגדרות סגור", prefs.getBoolean("app_update_auto", false), (b, checked) -> {
             prefs.edit().putBoolean("app_update_auto", checked).apply();
@@ -4355,7 +4371,12 @@ public class MainActivity extends Activity {
         });
         card.addView(save, lp(-1, dp(46), 0, 8));
         TextView manual = btn("🔎 בדיקת עדכון עכשיו", TONAL);
-        manual.setOnClickListener(v -> UpdateService.checkNow(this));
+        manual.setOnClickListener(v -> {
+            updateInfo.setText("מתחיל בדיקת עדכונים מול GitHub…");
+            toast("מתבצעת בדיקת עדכונים. התוצאה תופיע כאן.", false);
+            UpdateService.checkNow(this);
+            ui.postDelayed(refreshUpdateInfo, 500);
+        });
         card.addView(manual, lp(-1, dp(46), 0, 8));
         root.addView(card, lp(-1, -2, 0, 10));
         root.addView(muted("התקנת עדכון עשויה לדרוש אישור Android. יש לאפשר התקנה ממקור זה בהגדרות המערכת אם תתבקשו.", 12), lp(-1, -2, 0, 8));
