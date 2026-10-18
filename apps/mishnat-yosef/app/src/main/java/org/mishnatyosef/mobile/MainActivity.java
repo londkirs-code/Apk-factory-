@@ -271,9 +271,17 @@ public class MainActivity extends Activity {
         rethemeViewTree(currentScreen, old, visited);
         // Other bottom tabs are cached as live view trees too; recolor them now so returning
         // to a previously visited tab cannot bring back the old theme.
+        Set<ProductAdapter> adapters = new HashSet<>();
+        if (productAdapter != null) adapters.add(productAdapter);
         for (TabScreenState state : tabScreenCache.values()) {
-            if (state != null) rethemeViewTree(state.screen, old, visited);
+            if (state != null) {
+                rethemeViewTree(state.screen, old, visited);
+                if (state.productAdapter != null) adapters.add(state.productAdapter);
+            }
         }
+        // ListView keeps detached/recycled product rows outside the visible view tree. Retheme
+        // those holders as well, or scrolling after the switch could reveal stale colors.
+        for (ProductAdapter adapter : adapters) adapter.rethemeCachedRows(old, visited);
         getWindow().setStatusBarColor(nightMode ? BG : ORANGE);
         getWindow().setNavigationBarColor(SURFACE);
         styleSystemBars();
@@ -3840,6 +3848,12 @@ public class MainActivity extends Activity {
     }
 
     private class ProductAdapter extends BaseAdapter {
+        private final Set<RowHolder> cachedRows = new HashSet<>();
+
+        void rethemeCachedRows(PaletteSnapshot old, Set<View> visited) {
+            for (RowHolder holder : cachedRows) rethemeViewTree(holder.row, old, visited);
+        }
+
         @Override public int getCount() { return gridRows.size(); }
         @Override public Object getItem(int i) { return gridRows.get(i); }
         @Override public long getItemId(int i) { return i; }
@@ -3856,6 +3870,7 @@ public class MainActivity extends Activity {
                     tv.setPadding(dp(4), dp(12), dp(4), dp(4));
                 }
                 tv.setText(r.header);
+                tv.setTextColor(ORANGE_DARK);
                 return tv;
             }
             RowHolder h;
@@ -3864,6 +3879,7 @@ public class MainActivity extends Activity {
             } else {
                 h = new RowHolder();
                 h.row.setTag(h);
+                cachedRows.add(h);
             }
             h.first.card.setVisibility(View.VISIBLE);
             h.first.bind(r.a);
