@@ -66,6 +66,42 @@ jobs:
             echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
           echo "Persistent APK signing key configured."
+      - name: Require app change log for every app-folder change
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          BASE="$EVENT_BEFORE"
+          if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="$(git rev-parse "$GITHUB_SHA^" 2>/dev/null || true)"
+          fi
+          if [[ -n "$BASE" ]]; then
+            mapfile -t CHANGED_FILES < <(git diff --name-only "$BASE" "$GITHUB_SHA")
+          else
+            mapfile -t CHANGED_FILES < <(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")
+          fi
+          declare -A CHANGED=()
+          declare -A TOUCHED_APPS=()
+          for path in "${CHANGED_FILES[@]}"; do
+            CHANGED["$path"]=1
+            if [[ "$path" =~ ^apps/([^/]+)/.+ ]]; then
+              TOUCHED_APPS["${BASH_REMATCH[1]}"]=1
+            fi
+          done
+          for app in "${!TOUCHED_APPS[@]}"; do
+            LOG="apps/$app/CHANGELOG.md"
+            if [[ -z "${CHANGED[$LOG]+yes}" ]]; then
+              echo "::error::Documentation required: update $LOG in the same commit as every change under apps/$app/. See docs/APP_CHANGE_DOCUMENTATION.md."
+              exit 1
+            fi
+            if [[ ! -f "$LOG" ]]; then
+              echo "::error::Missing $LOG. Create it from templates/APP_CHANGELOG_TEMPLATE.md."
+              exit 1
+            fi
+          done
+          echo "Documentation check passed for all changed apps."
       - name: Update Mishnat Yosef launcher icon from public Dropbox folder
         shell: bash
         run: |
