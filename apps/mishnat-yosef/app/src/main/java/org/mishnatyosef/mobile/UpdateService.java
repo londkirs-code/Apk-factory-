@@ -219,7 +219,7 @@ public class UpdateService extends Service {
                     String status = "האפליקציה מעודכנת (גרסה " + installed + ")";
                     updateReady = false;
                     saveStatus(status, latest, true);
-                    if (tellNoUpdate || manualCheckPending) postResult(status, false);
+                    if (tellNoUpdate || manualCheckPending || getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) postResult(status, false);
                     return;
                 }
 
@@ -255,7 +255,7 @@ public class UpdateService extends Service {
             } catch (Exception e) {
                 String message = "בדיקת העדכון נכשלה: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
                 saveStatus(message, null, true);
-                if (tellNoUpdate || manualCheckPending) postResult(message, false);
+                if (tellNoUpdate || manualCheckPending || getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) postResult(message, false);
             } finally {
                 checking = false;
                 manualCheckPending = false;
