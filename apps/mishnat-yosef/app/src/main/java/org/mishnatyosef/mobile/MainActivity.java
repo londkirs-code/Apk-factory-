@@ -4294,7 +4294,7 @@ public class MainActivity extends Activity {
             }
             showUpdateSettings();
         }));
-        card.addView(switchRow("התראה קבועה", "הצגת התראה בזמן שהבדיקה האוטומטית פעילה", prefs.getBoolean("app_update_notification", true), (b, checked) -> {
+        card.addView(switchRow("התראה קבועה", "הצגת פירוט מצב הבדיקה. Android מחייב התראת שירות בסיסית בזמן בדיקה ברקע", prefs.getBoolean("app_update_notification", true), (b, checked) -> {
             prefs.edit().putBoolean("app_update_notification", checked).apply();
             if (prefs.getBoolean("app_update_auto", false)) {
                 if (checked) UpdateService.start(this); else UpdateService.refreshNotification(this);
