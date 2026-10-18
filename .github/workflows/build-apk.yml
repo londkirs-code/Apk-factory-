@@ -66,7 +66,7 @@ jobs:
             echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
           echo "Persistent APK signing key configured."
-      - name: Auto-document app changes to prevent avoidable build failures
+      - name: Check app changelog coverage
         if: github.event_name == 'push'
         shell: bash
         env:
@@ -79,10 +79,7 @@ jobs:
           fi
           TARGET="$(git rev-parse HEAD)"
           if [[ -z "$BASE" ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BASE" "$TARGET"; then
-            BASE="$(git rev-parse "$TARGET^" 2>/dev/null || true)"
-          fi
-          if [[ -z "$BASE" ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BASE" "$TARGET"; then
-            echo "::warning::Cannot determine an ancestor base commit; continuing without blocking the build for documentation."
+            echo "::warning::Cannot determine the exact pushed range; skipping changelog coverage check."
             exit 0
           fi
 
@@ -99,60 +96,14 @@ jobs:
             fi
           done
 
-          GENERATED=0
           for app in "${!TOUCHED_APPS[@]}"; do
-            LOG="apps/$app/CHANGELOG.md"
-            if [[ -n "${LOG_CHANGED[$app]+yes}" ]]; then
+            if [[ -z "${LOG_CHANGED[$app]+yes}" ]]; then
+              echo "::warning::No changelog entry was included in this push for $app. Continuing without creating or pushing a fallback commit, to avoid races with a separate changelog update."
+            else
               echo "Found a changelog update for $app in the pushed range."
-              continue
             fi
-
-            # Do not fail the APK build because a separate changelog commit
-            # has not arrived yet. Add an explicit fallback record instead.
-            mkdir -p "apps/$app"
-            if [[ ! -f "$LOG" ]]; then
-              printf '# יומן שינויים — %s\n\n' "$app" > "$LOG"
-            fi
-            TMP="$(mktemp)"
-            cat > "$TMP" <<EOF
-          ## $(date -u +%F) — תיעוד אוטומטי למניעת עצירת בנייה
-
-          - **בקשה/מטרה:** זוהו שינויים תחת apps/$app/ ללא עדכון יומן שינויים בטווח הדחיפה. נוצר תיעוד גיבוי אוטומטי כדי למנוע כשל בנייה בגלל תיעוד חסר.
-          - **קבצים ונקודות בקוד:** יש לעיין בשינויים שנדחפו ל-apps/$app/ ובפרטי ה-commit.
-          - **השינוי בפועל:** רשומת גיבוי אוטומטית בלבד; יש להרחיב אותה ידנית בפרטי השינוי האמיתיים.
-          - **מה נשמר ללא שינוי:** לא נקבע אוטומטית; יש לאמת לפי ה-diff.
-          - **בדיקות שבוצעו:** זוהה חוסר ברשומת תיעוד; בניית האפליקציה תיבדק בשלבים הבאים של הריצה.
-          - **תוצאת בנייה / APK:** תעודכן לאחר סיום הבנייה; אין בכך הצהרה שהבנייה הצליחה.
-
-          EOF
-            cat "$LOG" >> "$TMP"
-            mv "$TMP" "$LOG"
-            echo "::warning::Created fallback changelog entry for $app. Expand it with the actual change details when possible."
-            GENERATED=1
           done
-
-          if [[ "$GENERATED" == "1" ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add apps/*/CHANGELOG.md
-            git commit -m "Docs: auto-record app changes before build"
-            # Retry a fast-forward push if another commit arrives concurrently.
-            for attempt in 1 2 3 4 5; do
-              git fetch origin "$GITHUB_REF_NAME"
-              if git rebase "origin/$GITHUB_REF_NAME"; then
-                if git push origin "HEAD:$GITHUB_REF_NAME"; then
-                  echo "Fallback changelog record committed; continuing with APK build."
-                  exit 0
-                fi
-              else
-                git rebase --abort || true
-              fi
-              echo "Changelog push attempt $attempt failed; retrying."
-              sleep $((attempt * 2))
-            done
-            echo "::warning::Could not push fallback changelog record; continuing so missing documentation alone does not block APK creation."
-          fi
-          echo "App changelog guard completed without making documentation the cause of a failed build."
+          echo "Changelog coverage check completed; it does not modify Git history."
       - name: Update Mishnat Yosef launcher icon from public Dropbox folder
         shell: bash
         run: |
