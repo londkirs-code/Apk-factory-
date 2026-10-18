@@ -2966,15 +2966,19 @@ public class MainActivity extends Activity {
         floatingTopButtonRef[0] = floatingTopButton;
         floatingTopButton.setTextSize(31);
         floatingTopButton.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
-        floatingTopButton.setContentDescription("חזרה לראש הרשימה");
-        floatingTopButton.setBackground(ripple(shape(ORANGE, 12, ORANGE_DARK), 12));
+        floatingTopButton.setGravity(Gravity.CENTER);
+        floatingTopButton.setIncludeFontPadding(false);
+        floatingTopButton.setContentDescription("חזרה מיידית לראש הרשימה");
+        floatingTopButton.setBackground(ripple(shape(ORANGE, 26, ORANGE_DARK), 26));
         floatingTopButton.setElevation(dp(8));
         floatingTopButton.setVisibility(View.GONE);
         floatingTopButton.setOnClickListener(v -> {
             hideKeyboard();
-            productList.smoothScrollToPositionFromTop(0, 0, 850);
+            productList.setSelection(0);
+            productList.setSelectionFromTop(0, 0);
         });
-        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM | Gravity.END);
+        // Keep a clear gap from the screen edge and avoid pinning the control in the left corner.
+        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.BOTTOM | Gravity.RIGHT);
         floatingTopLp.setMargins(0, 0, dp(18), dp(18));
         productArea.addView(floatingTopButton, floatingTopLp);
         ViewGroup parent = (ViewGroup) scrollView.getParent();
