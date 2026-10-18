@@ -1372,11 +1372,12 @@ public class MainActivity extends Activity {
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
         final String whatsNewTitle = "כותרות גדולות יותר ומעבר מהיר למצב לילה";
-        final String whatsNewSummary = "כותרת המסך העליונה הוגדלה ב־50%, ונוסף כפתור מצב לילה קבוע בכותרת.";
+        final String whatsNewSummary = "כותרת המסך הוגדלה ב־50%, נוסף מעבר מהיר למצב לילה, ועיצוב הכפתורים אוחד בכל התפריטים והלוחות.";
         final String whatsNewDetails =
                 "• כותרת המסך העליונה גדלה מ־16sp ל־24sp, כדי שיהיה קל יותר לקרוא אותה.\\n\\n" +
                 "• כפתור שמש/ירח מופיע בכותרת בכל מסך ומאפשר לעבור בין מצב יום למצב לילה.\\n\\n" +
-                "• נשמרו גם שיפורי העיצוב הקודמים: חלונות בצבע רקע ההגדרות, כפתורים כתומים קומפקטיים וסימון מכירות בכתום בהיסטוריה.";
+                "• כפתורי הפעולה בתפריטים, בלוחות ובחלונות משתמשים באותו מלבן מעוגל, מרווחים ומשוב לחיצה כמו בהגדרות.\n\n" +
+                "• נשמרו גם שיפורי העיצוב הקודמים: חלונות בצבע רקע ההגדרות וסימון מכירות בכתום בהיסטוריה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
