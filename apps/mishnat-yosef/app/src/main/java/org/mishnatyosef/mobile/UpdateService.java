@@ -28,6 +28,8 @@ public class UpdateService extends Service {
                 stopSelf();
                 return;
             }
+            // Re-post the foreground notification every cycle so it is restored if Android/OEM software drops it.
+            startForeground(NOTIFICATION_ID, buildNotification("בדיקת עדכונים פעילה ברקע", true));
             checkUpdate(false);
             long sec = Math.max(5, getSharedPreferences(PREFS, MODE_PRIVATE).getInt("app_update_interval_seconds", 300));
             handler.postDelayed(this, sec * 1000L);
@@ -65,6 +67,9 @@ public class UpdateService extends Service {
             return START_NOT_STICKY;
         }
         startForeground(NOTIFICATION_ID, buildNotification("בדיקת עדכונים פעילה ברקע", true));
+        if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) {
+            UpdateBootReceiver.scheduleWatchdog(this);
+        }
         handler.removeCallbacks(loop);
         if (manual) {
             checkUpdate(true);
@@ -272,8 +277,20 @@ public class UpdateService extends Service {
         });
     }
 
+    @Override public void onTaskRemoved(Intent rootIntent) {
+        // Keep a recovery alarm even if the task/service is removed by the system or an OEM task manager.
+        if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) {
+            UpdateBootReceiver.scheduleWatchdog(this);
+        }
+        super.onTaskRemoved(rootIntent);
+    }
+
     @Override public void onDestroy() {
         if (handler != null) handler.removeCallbacks(loop);
+        // START_STICKY is the first recovery path; the watchdog alarm is the second.
+        if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("app_update_auto", false)) {
+            UpdateBootReceiver.scheduleWatchdog(this);
+        }
         super.onDestroy();
     }
 
