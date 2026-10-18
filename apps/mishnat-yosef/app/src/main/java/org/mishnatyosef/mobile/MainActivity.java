@@ -2190,7 +2190,9 @@ public class MainActivity extends Activity {
                     for (OrderLine line : od.lines) saved.put(line.sid, (int) Math.round(line.amount));
                 } catch (AuthException ae) {
                     throw ae;
-                } catch (Exception ignored) { }
+                } catch (Exception orderError) {
+                    if (orderError.getMessage() != null && orderError.getMessage().contains("(404)")) throw orderError;
+                }
                 Set<String> favs = null;
                 try { favs = fetchFavouriteIds(sale.optInt("id", -1)); }
                 catch (AuthException ae) { throw ae; }
@@ -2252,7 +2254,14 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (stale(t)) return;
                     if (e instanceof AuthException) { showLogin(); return; }
-                    if (hadCache) {
+                    if (hadCache && e.getMessage() != null && e.getMessage().contains("(404)")) {
+                        deleteSaleCache(sale.optInt("id", -1));
+                        featureOrderId = -1;
+                        featureProducts.clear();
+                        featureQuantities.clear();
+                        showOpenSales(false);
+                        toast("ההזמנה כבר לא נמצאת בשרת. המטמון נמחק; פתחו מחדש את המכירה.", true);
+                    } else if (hadCache) {
                         setStatus("אין אפשרות לוודא כרגע מול השרת; מוצגים נתונים שמורים. אין לבצע הזמנה ללא חיבור.");
                         toast(errText(e, "לא ניתן לעדכן מול השרת"), true);
                     } else fail(t, e, "פתיחת ההזמנה נכשלה.");
@@ -3800,6 +3809,7 @@ public class MainActivity extends Activity {
             final boolean needLogin = authLost;
             runOnUiThread(() -> {
                 for (PlanItem pi : succeeded) featureQuantities.put(sidOf(pi.p), pi.amount);
+                saveSaleCache();
                 dlg.dismiss();
                 StringBuilder res = new StringBuilder("✅ עודכנו: " + succeeded.size() + " מתוך " + plan.size());
                 if (!failed.isEmpty()) {
