@@ -9,6 +9,10 @@
 - scripts/new-app.sh — יצירת שלד לאפליקציה חדשה מתוך תבנית.
 - templates/android-basic/ — אפליקציית Java מינימלית לשכפול.
 
+## תיעוד חובה בכל יצירה ועדכון
+
+תיעוד הוא חלק קבוע מהתהליך, גם באפליקציה חדשה וגם בכל עדכון. יש להוסיף/לעדכן את `apps/<app-id>/CHANGELOG.md` באותו Commit של שינוי הקוד. GitHub Actions מאמת שהיומן של האפליקציה השתנה יחד עם קבצי האפליקציה, ועוצר בנייה אם התיעוד חסר. הנוהל המלא: [docs/APP_CHANGE_DOCUMENTATION.md](docs/APP_CHANGE_DOCUMENTATION.md).
+
 ## יצירת אפליקציה חדשה
 שכפלו את templates/android-basic לתוך apps/my-app, התאימו את package והקוד, ואז בצעו Commit. אפשר להריץ מקומית scripts/new-app.sh my-app com.example.myapp אחרי שכפול המאגר. הבנייה מתבצעת בענן דרך GitHub Actions.
 
