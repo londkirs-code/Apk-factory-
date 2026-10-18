@@ -4204,18 +4204,55 @@ public class MainActivity extends Activity {
                     .append("\nהערה: זה כולל נתיבי GET מוכרים באפליקציה והמכירות הפתוחות שנחשפו; אין בכך הבטחה שכל נתיב פנימי/לא מתועד של האתר נבדק.\n");
             final String result = report.toString();
             final int requestCount = requests;
-            runOnUiThread(() -> new AlertDialog.Builder(this)
-                    .setTitle("דוח JSON מהשרת")
-                    .setMessage("האיסוף הסתיים. הדוח מכיל " + requestCount + " בקשות ונשמר זמנית בחלונית. אפשר להעתיק את כולו או לשתף אותו. בדקו פרטים אישיים לפני שיתוף.")
-                    .setPositiveButton("סגירה", null)
-                    .setNeutralButton("העתקת כל הדוח", (d, w) -> {
-                        ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                        if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("דוח JSON מהשרת", result));
-                        toast("דוח ה־JSON הועתק ללוח", true);
-                    })
-                    .setNegativeButton("שיתוף", (d, w) -> shareText("דוח JSON מהשרת", result))
-                    .show());
+            runOnUiThread(() -> showJsonReportActions(result, requestCount));
         });
+    }
+
+    private void showJsonReportActions(String report, int requestCount) {
+        new AlertDialog.Builder(this)
+                .setTitle("דוח JSON מהשרת")
+                .setMessage("האיסוף הסתיים: " + requestCount + " בקשות. כדי למנוע קריסה בגלל דוח גדול, השיתוף ישלח קובץ TXT מלא. העתקה ללוח מוגבלת ל־200,000 תווים; אם הדוח ארוך יותר, השתמשו בשיתוף הקובץ. בדקו פרטים אישיים לפני שיתוף.")
+                .setPositiveButton("סגירה", null)
+                .setNeutralButton("העתקה ללוח", (d, w) -> {
+                    try {
+                        int copyLength = Math.min(report.length(), 200000);
+                        ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                        if (cm == null) {
+                            toast("לא ניתן לגשת ללוח ההעתקה", true);
+                            return;
+                        }
+                        cm.setPrimaryClip(ClipData.newPlainText("דוח JSON מהשרת", report.substring(0, copyLength)));
+                        toast(report.length() > copyLength
+                                ? "הועתק חלק מהדוח בלבד. לשיתוף הדוח המלא בחרו שיתוף קובץ."
+                                : "דוח ה־JSON הועתק ללוח", true);
+                    } catch (Exception e) {
+                        toast("ההעתקה נכשלה. נסו לשתף את קובץ הדוח.", true);
+                    }
+                })
+                .setNegativeButton("שיתוף קובץ מלא", (d, w) -> shareJsonReportFile(report))
+                .show();
+    }
+
+    private void shareJsonReportFile(String report) {
+        try {
+            File dir = new File(getCacheDir(), "json-reports");
+            if (!dir.exists() && !dir.mkdirs()) throw new java.io.IOException("לא ניתן ליצור תיקיית דוח");
+            File file = new File(dir, "mishnat-yosef-json-report.txt");
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                out.write(report.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+            }
+            Uri uri = Uri.parse("content://" + getPackageName() + ".jsonreports/" + file.getName());
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_SUBJECT, "דוח JSON מהשרת — משנת יוסף");
+            intent.putExtra(Intent.EXTRA_TEXT, "מצורף דוח JSON מלא מהאפליקציה. בדקו את המידע לפני העברתו הלאה.");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(intent, "שיתוף דוח JSON מלא"));
+        } catch (Exception e) {
+            toast("שיתוף הקובץ נכשל: " + e.getClass().getSimpleName(), true);
+        }
     }
 
     private String jsonDiagnosticEntry(String method, String path, int code, String body, int maxBodyChars) {
