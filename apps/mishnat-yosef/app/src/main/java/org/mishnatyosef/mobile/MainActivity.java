@@ -503,7 +503,7 @@ public class MainActivity extends Activity {
             window.setLayout(Math.max(dp(280), width), -2);
         }
 
-        TextView title = dialog.findViewById(android.R.id.alertTitle);
+        TextView title = dialog.findViewById(getResources().getIdentifier("alertTitle", "id", "android"));
         if (title != null) {
             title.setTextColor(textColor);
             title.setTextSize(19);
