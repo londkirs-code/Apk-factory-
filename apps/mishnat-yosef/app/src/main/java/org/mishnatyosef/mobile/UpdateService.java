@@ -263,7 +263,7 @@ public class UpdateService extends Service {
 
     private PendingIntent installerPendingIntent() {
         Intent target = installerIntent();
-        return PendingIntent.getActivity(this, UPDATE_NOTIFICATION_ID, target,
+        return PendingIntent.getActivity(this, NOTIFICATION_ID, target,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
