@@ -2626,7 +2626,13 @@ public class MainActivity extends Activity {
         search.setGravity(Gravity.CENTER);
         search.setPadding(dp(5), 0, dp(5), 0);
         search.setHint("⌕");
-        final LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(dp(42), dp(40));
+        final LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(dp(filterText.isEmpty() ? 42 : 108), dp(40));
+        if (!filterText.isEmpty()) {
+            search.setHint("חיפוש מוצר…");
+            search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            search.setTextSize(14);
+            search.setPadding(dp(9), 0, dp(9), 0);
+        }
         search.setOnClickListener(v -> {
             searchLp.width = dp(108);
             search.setLayoutParams(searchLp);
@@ -2643,6 +2649,7 @@ public class MainActivity extends Activity {
         search.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
                 searchLp.width = dp(108);
+                search.setLayoutParams(searchLp);
                 search.setHint("חיפוש מוצר…");
                 search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
                 search.setTextSize(14);
