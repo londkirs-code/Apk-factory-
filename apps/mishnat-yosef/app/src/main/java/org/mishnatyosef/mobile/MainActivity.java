@@ -2338,15 +2338,16 @@ public class MainActivity extends Activity {
         boolean closed = truthy(sale.opt("closed_for_orders"));
 
         LinearLayout card = card(14);
-        card.setBackground(ripple(shape(SURFACE, 14, LINE), 14));
+        card.setBackground(ripple(shape(nightMode ? ORANGE : SURFACE, 14, nightMode ? ORANGE_DARK : LINE), 14));
         card.setClickable(true);
         card.setOnClickListener(v -> loadFeatureProducts(sale));
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text(name, 17, true);
+        if (nightMode) title.setTextColor(Color.WHITE);
         titleRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView info = smallChip("פרטים", FLAT);
+        TextView info = smallChip("פרטים", nightMode ? TONAL : FLAT);
         info.setOnClickListener(v -> showSaleDetails(sale));
         titleRow.addView(info);
         card.addView(titleRow);
