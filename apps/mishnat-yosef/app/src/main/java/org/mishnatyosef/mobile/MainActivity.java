@@ -1556,12 +1556,12 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "הסרת כפתור ניקוי מטמון התמונות";
-        final String whatsNewSummary = "הוסר ממסך ההגדרות כפתור ניקוי מטמון התמונות והפעולה הידנית שלו.";
+        final String whatsNewTitle = "העתקת פריטים מהיסטוריית ההזמנות";
+        final String whatsNewSummary = "נוסף כפתור העתקה ליד כל פריט בהזמנה מההיסטוריה, עם שם הפריט, שם המכירה והמחיר.";
         final String whatsNewDetails =
-                "• כפתור „ניקוי מטמון תמונות” הוסר ממסך החשבון וההגדרות.\\n\\n" +
-                "• הוסרה גם פעולת הניקוי הידנית שהכפתור הפעיל.\\n\\n" +
-                "• מנגנון מטמון התמונות הרגיל נשאר, משום שהוא משמש להצגת תמונות מוצרים באפליקציה.";
+                "• בהזמנה שנפתחה מההיסטוריה מופיע ליד כל פריט כפתור „📋 העתקת פריט”.\\n\\n" +
+                "• הטקסט מועתק בפורמט: שם הפריט - שם המכירה - מחיר ליחידה, למשל: שמן קנולה - מכירה בראשית - 6.5₪.\\n\\n" +
+                "• הכפתור זמין גם במצב האיסוף, בלי לשנות את פעולות ההזמנה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -4402,6 +4402,11 @@ public class MainActivity extends Activity {
         lineTotal.setTextColor(ORANGE_DARK);
         bottom.addView(lineTotal);
         col.addView(bottom, lp(-1, -2, 6, 0));
+        if (summaryFromHistory) {
+            TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
+            copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
+            col.addView(copyItem, lp(-2, dp(34), 0, 6));
+        }
         row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
 
         TextView remove = roundBtn("✕", 36, RED_LIGHT, RED);
@@ -4411,6 +4416,15 @@ public class MainActivity extends Activity {
         remove.setOnClickListener(v -> confirmRemove(line, p));
         row.addView(remove, rp);
         return row;
+    }
+
+    /** Format one historical order item for copying, including its sale and unit price. */
+    private String historyItemCopyText(OrderLine line) {
+        String itemName = line == null || line.name == null ? "" : line.name.trim();
+        String saleName = summary == null || summary.saleName == null ? "" : summary.saleName.trim();
+        if (saleName.isEmpty()) saleName = "מכירה " + (summary == null ? "" : summary.saleId);
+        String price = line != null && line.price > 0 ? money(line.price) : "מחיר לא זמין";
+        return itemName + " - " + saleName + " - " + price;
     }
 
     private void confirmRemove(final OrderLine line, final JSONObject p) {
@@ -4449,6 +4463,11 @@ public class MainActivity extends Activity {
         if (isDone) name.setPaintFlags(name.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
         col.addView(name);
         if (!isDone && line.price > 0) col.addView(muted(money(line.price * qty), 12));
+        if (summaryFromHistory) {
+            TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
+            copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
+            col.addView(copyItem, lp(-2, dp(34), 0, 6));
+        }
         row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
 
         TextView q = text(String.valueOf(qty), isDone ? 22 : 30, true);
