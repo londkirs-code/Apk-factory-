@@ -22,7 +22,7 @@ permissions:
 
 # Prevent overlapping builds from racing while committing APKs and versionCode updates.
 concurrency:
-  group: apk-factory-build-${{ github.ref }}
+  group: apk-factory-build-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
