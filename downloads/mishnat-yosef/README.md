@@ -1,1 +1,1 @@
-APK for mishnat-yosef, versionName 1.365, versionCode 203, built from commit 333f5dd57f45f351c86600fda3235df6c676a5f1.
+APK for mishnat-yosef, versionName 1.366, versionCode 204, built from commit 58159adf1517bb1e5160fdf0e3eb017ddd54d765.
