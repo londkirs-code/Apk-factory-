@@ -1,7 +1,5 @@
 package org.londkirs.notifications;
 
-import org.apkfactory.theme.ThemeWorkbench;
-
 import android.Manifest;
 import android.app.*;
 import android.content.*;
@@ -31,7 +29,6 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         scheduledAt.add(Calendar.MINUTE, 5);
         buildUi();
-        ThemeWorkbench.install(this);
         requestNotificationPermission();
         refreshSchedules();
     }
