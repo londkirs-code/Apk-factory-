@@ -4010,8 +4010,9 @@ public class MainActivity extends Activity {
             if ("fav".equals(viewMode) && !favIds.contains(pidOf(p))) continue;
             if ("cart".equals(viewMode)) { Integer qq = featureQuantities.get(sidOf(p)); if (qq == null || qq <= 0) continue; }
             String cat = separateSoldOutCategory() && isSoldOut(p) ? "פריטים שאזלו" : categoryName(p);
-            if (!byCat.containsKey(cat)) { byCat.put(cat, new ArrayList<JSONObject>()); catOrder.put(cat, categoryOrder(p)); }
-            else catOrder.put(cat, Math.min(catOrder.get(cat), categoryOrder(p)));
+            int order = "פריטים שאזלו".equals(cat) ? 10000 : categoryOrder(p);
+            if (!byCat.containsKey(cat)) { byCat.put(cat, new ArrayList<JSONObject>()); catOrder.put(cat, order); }
+            else catOrder.put(cat, Math.min(catOrder.get(cat), order));
             byCat.get(cat).add(p);
         }
         List<String> cats = new ArrayList<>(byCat.keySet());
