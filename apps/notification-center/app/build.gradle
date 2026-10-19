@@ -9,7 +9,6 @@ android {
         versionCode 164
         versionName '1.0'
     }
-    sourceSets { main { java.srcDir rootProject.file('../../shared/android') } }
 }
 
 // Use the same private keystore for every release so Android can update the installed app.
