@@ -135,6 +135,8 @@ public class MainActivity extends Activity {
     private int orderListTopOffset = 0;
     private boolean showingOrderScreen = false;
     private boolean returnToOrderScreenOnSalesTab = false;
+    // Closed orders reuse the regular product grid, but quantity-changing controls stay disabled.
+    private boolean closedOrderReadOnly = false;
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
@@ -1600,11 +1602,12 @@ public class MainActivity extends Activity {
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
         final String whatsNewTitle = "הזמנות סגורות";
-        final String whatsNewSummary = "נוספה רשימה נפרדת של הזמנות סגורות, ללא אפשרות לפתוח אותן.";
+        final String whatsNewSummary = "נוספה רשימת הזמנות סגורות עם אפשרות להציג את המוצרים והכמויות שנשמרו במטמון.";
         final String whatsNewDetails =
                 "• במסך המכירות הפתוחות נוסף כפתור „📦 הזמנות שכבר נסגרו”.\n\n" +
-                "• הרשימה מציגה כותרת, מזהה, סטטוס ותאריך ככל שהשרת מספק אותם; אי אפשר ללחוץ על הזמנה סגורה או לפתוח את מוצריה.\n\n" +
-                "• קובצי המטמון המקומיים לא נמחקים אוטומטית בעת סגירת הזמנה, כדי לא למחוק נתונים מקומיים בלי אימות מהשרת. הרשימה ההיסטורית משתמשת בנתוני /api/orders.";
+                "• בכל הזמנה סגורה אפשר לפתוח תצוגת מוצרים מלאה בסגנון מסך ההזמנה הרגיל, כולל כמויות, מחירים, חיפוש וקטגוריות.\n\n" +
+                "• התצוגה משתמשת במטמון המקומי בלבד והיא לקריאה בלבד: לא ניתן לשנות כמויות או לעדכן הזמנה סגורה. הנתונים עלולים להיות חלקיים או לא עדכניים.\n\n" +
+                "• קובצי המטמון המקומיים לא נמחקים אוטומטית בעת סגירת הזמנה. רשימת ההזמנות הסגורות עצמה משתמשת בנתוני /api/orders.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -2683,6 +2686,7 @@ public class MainActivity extends Activity {
 
     private void showOpenSales(boolean autoEnter) {
         returnToOrderScreenOnSalesTab = false;
+        closedOrderReadOnly = false;
         autoEnterSingle = autoEnter;
         beginScreen("מכירות פתוחות", 0, null);
         showingSalesList = true;
@@ -2799,7 +2803,8 @@ public class MainActivity extends Activity {
                         final int snapshotSaleId = cachedSaleId;
                         TextView cachedItemsButton = btn("📋 הצגת פריטים מהמטמון", TONAL);
                         cachedItemsButton.setEnabled(snapshotSaleId > 0);
-                        cachedItemsButton.setOnClickListener(v -> showCachedClosedOrderItems(item, snapshotSaleId));
+                        cachedItemsButton.setText("📋 הצגת ההזמנה המלאה");
+                        cachedItemsButton.setOnClickListener(v -> openCachedClosedOrder(order, snapshotSaleId));
                         item.addView(cachedItemsButton, lp(-1, dp(42), 0, 8));
                         root.addView(item, lp(-1, -2, 0, 8));
                     }
@@ -2817,58 +2822,74 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Shows a read-only view of the cached sale snapshot. It deliberately does not navigate
-     * into the live order screen and never requests product/order details from the server.
+     * Opens cached products in the same grid used by a regular order.
+     * This mode is strictly read-only: it never fetches a live order or writes quantities.
      */
-    private void showCachedClosedOrderItems(LinearLayout orderCard, int saleId) {
+    private void openCachedClosedOrder(JSONObject order, int saleId) {
         if (saleId <= 0) {
             toast("אין מזהה מכירה מתאים לקובץ המטמון.", true);
             return;
         }
-        View existing = orderCard.findViewWithTag("cachedClosedItems");
-        if (existing != null) {
-            orderCard.removeView(existing);
-            return;
-        }
-        TextView loading = muted("טוען פריטים מהמטמון המקומי…", 13);
-        loading.setTag("cachedClosedItems");
-        orderCard.addView(loading, lp(-1, -2, 0, 6));
+        toast("טוען את ההזמנה מהמטמון המקומי…", false);
         loadExecutor.execute(() -> {
             SaleSnapshot snap = readSnapshot(saleId);
             runOnUiThread(() -> {
-                if (loading.getParent() != orderCard) return;
-                int at = orderCard.indexOfChild(loading);
-                orderCard.removeView(loading);
-                LinearLayout details = new LinearLayout(this);
-                details.setOrientation(LinearLayout.VERTICAL);
-                details.setTag("cachedClosedItems");
                 if (snap == null || snap.products.isEmpty()) {
-                    details.addView(muted("לא נמצא קובץ מטמון קריא למכירה הזאת. ייתכן שהמטמון לא נשמר או שהקובץ חסר.", 13));
-                } else {
-                    details.addView(text("פריטים שנשמרו במטמון", 14, true));
-                    int count = 0;
-                    for (JSONObject product : snap.products) {
-                        if (product == null) continue;
-                        String name = productName(product);
-                        int qty = snap.quantities.containsKey(sidOf(product))
-                                ? snap.quantities.get(sidOf(product)) : Math.max(0, (int) Math.round(num(product.opt("amount"))));
-                        double price = productPrice(product);
-                        LinearLayout line = new LinearLayout(this);
-                        line.setOrientation(LinearLayout.HORIZONTAL);
-                        line.setGravity(Gravity.CENTER_VERTICAL);
-                        TextView productText = text(name, 13, false);
-                        line.addView(productText, new LinearLayout.LayoutParams(0, -2, 1));
-                        line.addView(muted("כמות: " + qty + (price > 0 ? " · " + money(price) + " ליחידה" : ""), 12));
-                        details.addView(line, lp(-1, -2, 0, 5));
-                        count++;
-                    }
-                    details.addView(muted("נשמרו " + count + " פריטים · תאריך שמירת המטמון: " +
-                            (snap.loadedAt > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(snap.loadedAt)) : "לא ידוע"), 11));
-                    details.addView(muted("זהו צילום מצב מקומי שעלול להיות חלקי או לא עדכני; הוא אינו אישור סופי לחשבון ההזמנה.", 11));
+                    toast("לא נמצא מטמון קריא למכירה הזאת.", true);
+                    return;
                 }
-                orderCard.addView(details, Math.max(0, at), lp(-1, -2, 0, 6));
+                JSONObject sale = order == null ? null : order.optJSONObject("sale");
+                JSONObject cachedSale = sale == null ? new JSONObject() : new JSONObject(sale.toString());
+                try {
+                    cachedSale.put("id", saleId);
+                    String name = saleTitle(cachedSale);
+                    if (name.isEmpty()) name = first(order, "sale_name", "saleName", "name", "title");
+                    if (name.isEmpty()) name = "הזמנה סגורה #" + extractOrderId(order);
+                    cachedSale.put("custom_name", name);
+                } catch (Exception ignored) { }
+                closedOrderReadOnly = true;
+                featureSale = cachedSale;
+                summaryFromHistory = false;
+                filterText = "";
+                viewMode = "all";
+                featureProducts.clear();
+                featureProducts.addAll(snap.products);
+                featureQuantities.clear();
+                featureQuantities.putAll(snap.quantities);
+                favIds.clear();
+                favIds.addAll(snap.favs);
+                pending.clear();
+                featureOrderId = -1;
+                currentSaleId = saleId;
+                productsLoadedAt = snap.loadedAt;
+                productsPartial = false;
+                productsLoading = false;
+                orderDirty = false;
+                renderFeatureProducts();
+                setStatus("תצוגת מטמון בלבד · אין אפשרות לשנות את ההזמנה הסגורה");
+                if (barInfo != null) updateOrderBar();
             });
         });
+    }
+
+    private void showCachedClosedOrderSummary() {
+        StringBuilder details = new StringBuilder("תצוגת מטמון מקומית — לקריאה בלבד\\n\\n");
+        int count = 0;
+        for (JSONObject p : featureProducts) {
+            if (p == null) continue;
+            String sid = sidOf(p);
+            int qty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+            if (qty <= 0) continue;
+            details.append(productName(p)).append(" × ").append(qty);
+            double price = productPrice(p);
+            if (price > 0) details.append(" · ").append(money(price)).append(" ליחידה");
+            details.append("\\n");
+            count++;
+        }
+        details.append("\\n").append(count).append(" מוצרים עם כמות שמורה.");
+        details.append("\\nהנתונים עשויים להיות חלקיים או לא עדכניים.");
+        appDialog().setTitle("פריטי ההזמנה הסגורה").setMessage(details.toString())
+                .setPositiveButton("סגירה", null).show();
     }
 
     private View saleCard(final JSONObject sale) {
@@ -3397,6 +3418,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadFeatureProducts(final JSONObject sale) {
+        closedOrderReadOnly = false;
         orderNoticePending = true;
         final int saleId = sale.optInt("id", -1);
         if (currentSaleId > 0 && currentSaleId != saleId) snapshotCurrent(); // keep the sale we are leaving
@@ -3651,7 +3673,8 @@ public class MainActivity extends Activity {
     private void renderFeatureProducts() {
         String title = saleTitle(featureSale);
         Runnable productsBack;
-        if (summaryFromHistory) productsBack = () -> showOrderSummary();
+        if (closedOrderReadOnly) productsBack = () -> showClosedOrders();
+        else if (summaryFromHistory) productsBack = () -> showOrderSummary();
         else productsBack = () -> showOpenSales(false);
         beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? historyTab : 0, productsBack);
         screenKind = 1;
@@ -3749,7 +3772,7 @@ public class MainActivity extends Activity {
         orderBtn.addView(orderTitle, new LinearLayout.LayoutParams(-1, -2));
         orderBtn.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
         orderBtn.addView(barTotal, new LinearLayout.LayoutParams(0, 0));
-        orderBtn.setOnClickListener(v -> showOrderSummary());
+        orderBtn.setOnClickListener(v -> { if (closedOrderReadOnly) showCachedClosedOrderSummary(); else showOrderSummary(); });
         LinearLayout.LayoutParams orderBtnLp = new LinearLayout.LayoutParams(dp(172), dp(44));
         orderBtnLp.setMarginStart(dp(3));
         toolbar.addView(orderBtn, orderBtnLp);
@@ -3764,6 +3787,7 @@ public class MainActivity extends Activity {
 
         TextView optionsBtn = roundBtn("⋯", 32, ORANGE_LIGHT, ORANGE_DARK);
         optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
+        if (closedOrderReadOnly) optionsBtn.setVisibility(View.GONE);
         optionsBtn.setContentDescription("אפשרויות נוספות");
         LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(32), dp(40));
         optionsLp.setMarginStart(dp(3));
@@ -4017,11 +4041,11 @@ public class MainActivity extends Activity {
 
             card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
-            star.setOnClickListener(v -> { if (p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
-            add.setOnClickListener(v -> { if (p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
-            st.plus.setOnClickListener(v -> { if (p != null) changeBy(p, 1, productsRefresh, null); });
-            st.minus.setOnClickListener(v -> { if (p != null) changeBy(p, -1, productsRefresh, null); });
-            st.qty.setOnClickListener(v -> { if (p != null) askQuantity(p, productsRefresh, null); });
+            star.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
+            add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
+            st.plus.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) changeBy(p, 1, productsRefresh, null); });
+            st.minus.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) changeBy(p, -1, productsRefresh, null); });
+            st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) askQuantity(p, productsRefresh, null); });
         }
 
         void adaptCardSize() {
@@ -4070,6 +4094,7 @@ public class MainActivity extends Activity {
             badge.setVisibility(canOrder ? View.GONE : View.VISIBLE);
             badge.setText(disabled ? "לא זמין" : "אזל");
             star.setText(favIds.contains(pid) ? "⭐" : "☆");
+            star.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
             name.setText(productName(prod));
             String packText = packageText(prod);
             pack.setText(packText);
@@ -4090,13 +4115,17 @@ public class MainActivity extends Activity {
             paintButton(add, canOrder ? TONAL : FLAT);
             int q = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
             boolean busyNow = pending.contains(sid);
-            add.setVisibility(q > 0 ? View.GONE : View.VISIBLE);
-            st.view.setVisibility(q > 0 ? View.VISIBLE : View.GONE);
+            add.setVisibility(closedOrderReadOnly || q > 0 ? View.GONE : View.VISIBLE);
+            st.view.setVisibility(closedOrderReadOnly || q > 0 ? View.VISIBLE : View.GONE);
             st.qty.setText(String.valueOf(q));
-            setEnabledLook(st.view, !busyNow);
-            setEnabledLook(st.plus, !busyNow);
-            setEnabledLook(st.minus, !busyNow);
-            setEnabledLook(add, canOrder && !busyNow);
+            st.plus.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            st.minus.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            st.qty.setClickable(!closedOrderReadOnly);
+            st.qty.setFocusable(!closedOrderReadOnly);
+            setEnabledLook(st.view, !closedOrderReadOnly && !busyNow);
+            setEnabledLook(st.plus, !closedOrderReadOnly && !busyNow);
+            setEnabledLook(st.minus, !closedOrderReadOnly && !busyNow);
+            setEnabledLook(add, !closedOrderReadOnly && canOrder && !busyNow);
         }
     }
 
