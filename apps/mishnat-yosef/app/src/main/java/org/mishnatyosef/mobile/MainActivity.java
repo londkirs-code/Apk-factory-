@@ -1600,7 +1600,7 @@ public class MainActivity extends Activity {
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
         final String whatsNewTitle = "כפתורי זיכויים מעודכנים";
-        final String whatsNewSummary = "כפתורי הרשימה בשורה אחת, הסרה באמצעות ✕ בסוף הפריט, וטקסט מעט גדול יותר.";
+        final String whatsNewSummary = "כפתורי הרשימה בשורה אחת, הסרה באמצעות ✕ בסוף הפריט, ומייל זיכויים עם נושא ותוכן מסודרים.";
         final String whatsNewDetails =
                 "• ברשימת הזיכויים אפשר להסיר פריט בודד מיד, ללא חלון אישור. מחיקת הרשימה כולה עדיין דורשת אישור.\n\n" +
                 "• נוסף כפתור „✉ שלח לזיכוי” שפותח את אפליקציית המייל עם הכתובת A0773168080@gmail.com ורשימת הזיכויים מוכנה לשליחה.\n\n" +
@@ -4862,14 +4862,20 @@ public class MainActivity extends Activity {
         sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
         sendCredit.setTextSize(12);
         sendCredit.setOnClickListener(v -> {
-            String body = creditListText();
-            if (body.isEmpty()) {
+            String itemsText = creditListText();
+            if (itemsText.isEmpty()) {
                 toast("רשימת הזיכויים ריקה.", false);
                 return;
             }
             try {
+                String accountEmail = prefs.getString("email", "").trim();
+                String subject = "בקשת זיכויים על הזמנות משנת לחשבון " + accountEmail;
+                String body = "שלום,\\n"
+                        + "נשמח לקבל זיכוי על המוצרים הבאים: \\n"
+                        + itemsText
+                        + "\\n\\nסיבת הזיכוי: חוסרים.";
                 Uri mailUri = Uri.parse("mailto:A0773168080@gmail.com"
-                        + "?subject=" + Uri.encode("רשימת זיכויים")
+                        + "?subject=" + Uri.encode(subject)
                         + "&body=" + Uri.encode(body));
                 Intent mail = new Intent(Intent.ACTION_SENDTO, mailUri);
                 startActivity(Intent.createChooser(mail, "שליחת רשימת הזיכויים"));
