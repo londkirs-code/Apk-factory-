@@ -1,5 +1,10 @@
 # Alfon — Changelog
 
+## 1.2
+- Added Android 15+ edge-to-edge insets so the embedded HTML remains clear of status/navigation bars and display cutouts.
+- Hardened the local WebView by disabling universal file-URL access and mixed content, and enabled Safe Browsing on supported Android versions.
+- Preserved the existing bundled HTML, visual design, contact search, call/SMS, and contact-card sharing behavior.
+
 ## 1.1
 - Keep the app as a minimal Android WebView wrapper that displays the bundled HTML file directly.
 - No native redesign or extra app screens; HTML, styling, search, and contact behavior remain in the embedded HTML.
