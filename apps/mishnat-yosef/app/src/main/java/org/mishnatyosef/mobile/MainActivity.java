@@ -2839,8 +2839,9 @@ public class MainActivity extends Activity {
                     return;
                 }
                 JSONObject sale = order == null ? null : order.optJSONObject("sale");
-                JSONObject cachedSale = sale == null ? new JSONObject() : new JSONObject(sale.toString());
+                JSONObject cachedSale = new JSONObject();
                 try {
+                    if (sale != null) cachedSale = new JSONObject(sale.toString());
                     cachedSale.put("id", saleId);
                     String name = saleTitle(cachedSale);
                     if (name.isEmpty()) name = first(order, "sale_name", "saleName", "name", "title");
