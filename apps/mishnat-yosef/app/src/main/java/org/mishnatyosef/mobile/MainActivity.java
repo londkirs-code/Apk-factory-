@@ -4931,13 +4931,16 @@ public class MainActivity extends Activity {
             }
         });
         clearSearch.setOnClickListener(v -> {
+            boolean wasFiltering = !histSearch.isEmpty();
             search.setText("");
-            histSearch = "";
-            histPage = 0;
-            histList.removeAllViews();
-            histMore.setVisibility(View.GONE);
+            if (wasFiltering) {
+                histSearch = "";
+                histPage = 0;
+                histList.removeAllViews();
+                histMore.setVisibility(View.GONE);
+                loadHistoryPage();
+            }
             hideKeyboard();
-            loadHistoryPage();
         });
 
         root.addView(searchRow, lp(-1, dp(46), 0, 10));
