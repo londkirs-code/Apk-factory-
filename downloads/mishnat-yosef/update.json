@@ -1,9 +1,9 @@
 {
-  "versionCode": 245,
-  "versionName": "1.407",
+  "versionCode": 246,
+  "versionName": "1.408",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "823709f022e0d4a562fecd2bd7fa3f6cc97a60a934ce89ebd0a219718f660a67",
-  "releaseTitle": "שינוי שם כפתור ניהול המלאי",
-  "releaseNotes": "כפתור הכניסה להגדרות המלאי בחשבון ובהגדרות נקרא כעת „ניהול מוצרים שאזלו”. מסך ההגדרות וההתנהגות שלו לא שונו.\n\n**בדיקות:** נדרש לאמת בניית APK ב־GitHub Actions; לא נטען שנבדקה התקנה במכשיר בפועל.",
-  "buildCommit": "7520829496a996d74ae14413607642ebcbf1ff10"
+  "sha256": "36f2731a848ff9fdddb5a6b5d0de5c733b7c791a85ee5a334e99a3f2c18c4986",
+  "releaseTitle": "התקנה אוטומטית של עדכונים",
+  "releaseNotes": "לאחר הורדת APK ואימות SHA-256, האפליקציה פותחת אוטומטית את מתקין Android במקום לדרוש לחיצה נוספת על „התקן”.\n\nנשאר כפתור התקנה ידנית/ניסיון חוזר למקרה שמתקין Android לא נפתח או שהתהליך נתקע.\n\nאם Android דורש הרשאת התקנה ממקור זה, נפתחות הגדרות ההרשאה; לאחר חזרה לאפליקציה עם ההרשאה, ההתקנה נפתחת אוטומטית.\n\nAndroid עדיין דורש את אישור המשתמש במתקין; אין דרך בטוחה או נתמכת לדלג על אישור המערכת.\n\n**בדיקות:** יש לאמת בניית APK ב־GitHub Actions; התקנה בפועל במכשיר אינה מאומתת כאן.",
+  "buildCommit": "3d3931d78c74fd3618bf77fadd59c2946f928266"
 }
