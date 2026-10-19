@@ -4829,11 +4829,14 @@ public class MainActivity extends Activity {
         creditListDirty = false;
         JSONArray items = readCreditList();
         setStatus(items.length() == 0 ? "רשימת הזיכויים ריקה. אפשר להוסיף פריטים מהיסטוריית ההזמנות." : "");
+        // Keep all four list actions on one compact row, including on narrow phones.
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
-        TextView clear = smallChip("🗑 מחיקת הרשימה", DANGER);
+
+        TextView clear = smallChip("🗑 מחיקה", DANGER);
         clear.setEnabled(items.length() > 0);
         clear.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        clear.setTextSize(11);
         clear.setOnClickListener(v -> appDialog()
                 .setTitle("מחיקת רשימת הזיכויים")
                 .setMessage("למחוק את כל " + readCreditList().length() + " הפריטים מהרשימה?")
@@ -4843,24 +4846,20 @@ public class MainActivity extends Activity {
                     showCreditList();
                     toast("רשימת הזיכויים נמחקה.", false);
                 }).show());
-        actions.addView(clear, lp(-2, dp(38), 0, 0));
-        TextView copyAll = smallChip("📋 העתקת הרשימה", TONAL);
+
+        TextView copyAll = smallChip("📋 העתקה", TONAL);
         copyAll.setEnabled(items.length() > 0);
         copyAll.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        copyAll.setTextSize(11);
         copyAll.setOnClickListener(v -> {
             String all = creditListText();
             if (!all.isEmpty()) copyText(all);
         });
-        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(-2, dp(38));
-        copyLp.setMarginStart(dp(8));
-        actions.addView(copyAll, copyLp);
-        root.addView(actions, lp(-1, -2, 0, 8));
 
-        LinearLayout sendActions = new LinearLayout(this);
-        sendActions.setOrientation(LinearLayout.HORIZONTAL);
         TextView sendCredit = smallChip("✉ שלח לזיכוי", PRIMARY);
         sendCredit.setEnabled(items.length() > 0);
         sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        sendCredit.setTextSize(11);
         sendCredit.setOnClickListener(v -> {
             String body = creditListText();
             if (body.isEmpty()) {
@@ -4877,18 +4876,24 @@ public class MainActivity extends Activity {
                 toast("לא נמצאה אפליקציה לשליחת מייל.", true);
             }
         });
-        sendActions.addView(sendCredit, lp(-2, dp(38), 0, 0));
+
         TextView shareCredit = smallChip("📤 שיתוף", TONAL);
         shareCredit.setEnabled(items.length() > 0);
         shareCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        shareCredit.setTextSize(11);
         shareCredit.setOnClickListener(v -> {
             String body = creditListText();
             if (!body.isEmpty()) shareText("רשימת זיכויים", body);
         });
-        LinearLayout.LayoutParams shareCreditLp = new LinearLayout.LayoutParams(-2, dp(38));
-        shareCreditLp.setMarginStart(dp(8));
-        sendActions.addView(shareCredit, shareCreditLp);
-        root.addView(sendActions, lp(-1, -2, 0, 10));
+
+        TextView[] actionButtons = {clear, copyAll, sendCredit, shareCredit};
+        for (int i = 0; i < actionButtons.length; i++) {
+            LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(
+                    0, dp(36), 1f);
+            if (i > 0) actionLp.setMarginStart(dp(4));
+            actions.addView(actionButtons[i], actionLp);
+        }
+        root.addView(actions, lp(-1, -2, 0, 8));
 
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i);
