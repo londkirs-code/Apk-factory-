@@ -5221,41 +5221,69 @@ public class MainActivity extends Activity {
                 new ContactOption("🏢 הנהלה וספקים — admin@m-y.org.il",
                         "admin@m-y.org.il", "פניות ניהוליות וספקים.", true, false)
         };
-        final String[] labels = new String[contacts.length];
-        for (int i = 0; i < contacts.length; i++) {
-            labels[i] = contacts[i].title + "\n" + contacts[i].explanation;
+
+        // Each contact is a non-clickable card. Its action buttons are visible immediately,
+        // so the user never needs to open the contact first to reach an action.
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(12), dp(6), dp(12), dp(8));
+        list.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        for (final ContactOption contact : contacts) {
+            LinearLayout contactCard = card(10);
+            TextView title = text(contact.title, 14, true);
+            title.setTextColor(INK);
+            title.setGravity(Gravity.START);
+            title.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);
+            contactCard.addView(title, lp(-1, -2, 0, 3));
+
+            TextView explanation = muted(contact.explanation, 12);
+            explanation.setGravity(Gravity.START);
+            explanation.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);
+            contactCard.addView(explanation, lp(-1, -2, 0, 8));
+
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            actions.setGravity(Gravity.CENTER);
+            actions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+            if (contact.email) {
+                addContactAction(actions, "✉️ מייל", () -> composeContactEmail(contact));
+                addContactAction(actions, "📋 העתקה", () -> copyText(contact.value));
+                addContactAction(actions, "📤 שיתוף", () -> shareText(contact.title, contact.value));
+            } else if (contact.fax) {
+                addContactAction(actions, "📋 העתקה", () -> copyText(contact.value));
+                addContactAction(actions, "📤 שיתוף", () -> shareText(contact.title, contact.value));
+            } else {
+                addContactAction(actions, "📞 להתקשר", () -> dialContact(contact.value));
+                addContactAction(actions, "📋 העתקה", () -> copyText(contact.value));
+                addContactAction(actions, "📤 שיתוף", () -> shareText(contact.title, contact.value));
+            }
+            contactCard.addView(actions, lp(-1, dp(38), 0, 0));
+            list.addView(contactCard, lp(-1, -2, 0, 8));
         }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.setClipToPadding(false);
+        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
         appDialog().setTitle("יצירת קשר עם משנת יוסף")
-                .setItems(labels, (dialog, which) -> showContactActions(contacts[which]))
-                .setNegativeButton("סגירה", null)
+                .setView(scroll, dp(4), dp(2), dp(4), 0)
+                .setPositiveButton("סגירה", null)
                 .show();
     }
 
-    /** Each contact opens a short list of actions appropriate to its type. */
-    private void showContactActions(final ContactOption contact) {
-        final String[] actions;
-        if (contact.email) {
-            actions = new String[] {"✉️ שליחת מייל", "📋 העתקת כתובת המייל", "📤 שיתוף כתובת המייל"};
-        } else if (contact.fax) {
-            actions = new String[] {"📋 העתקת מספר הפקס", "📤 שיתוף מספר הפקס"};
-        } else {
-            actions = new String[] {"📞 להתקשר", "📋 העתקת המספר", "📤 שיתוף המספר"};
-        }
-        appDialog().setTitle(contact.title + "\n" + contact.explanation)
-                .setItems(actions, (d, which) -> {
-                    if (contact.email) {
-                        if (which == 0) composeContactEmail(contact);
-                        else if (which == 1) copyText(contact.value);
-                        else shareText(contact.title, contact.value);
-                    } else if (contact.fax) {
-                        if (which == 0) copyText(contact.value);
-                        else shareText(contact.title, contact.value);
-                    } else {
-                        if (which == 0) dialContact(contact.value);
-                        else if (which == 1) copyText(contact.value);
-                        else shareText(contact.title, contact.value);
-                    }
-                }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
+    private void addContactAction(LinearLayout row, String label, Runnable action) {
+        TextView button = smallChip(label, TONAL);
+        button.setTextSize(12);
+        button.setMinHeight(dp(34));
+        button.setPadding(dp(3), dp(3), dp(3), dp(3));
+        button.setSingleLine(true);
+        button.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(36), 1f);
+        params.setMargins(dp(3), 0, dp(3), 0);
+        row.addView(button, params);
+        button.setOnClickListener(v -> action.run());
     }
 
     private void dialContact(String phone) {
