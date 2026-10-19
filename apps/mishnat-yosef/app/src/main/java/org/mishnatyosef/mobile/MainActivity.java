@@ -1602,13 +1602,14 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "הזמנות מהמטמון, חיובים ובדיקות API";
-        final String whatsNewSummary = "הזמנות מהמטמון מציגות כעת את שם המכירה בעברית מתוך היסטוריית ההזמנות ב־API.";
+        final String whatsNewTitle = "הפרדת פריטים שאזלו והזמנות מהמטמון";
+        final String whatsNewSummary = "אפשר להפריד פריטים שאזלו לקטגוריה ייעודית דרך ההגדרות.";
         final String whatsNewDetails =
                 "• מסך „הזמנות מהמטמון” מאתר מטמונים מקומיים קריאים, מצרף את שם המכירה בעברית מ־GET /api/orders לפי saleID, ומציג רק את שם המכירה וכפתור פתיחה מהמטמון. השם נשמר גם במטמון המקומי להמשך.\n\n" +
                 "• בכל פתיחה מהמטמון כל כמויות הבחירה מתחילות באפס. הפלוס והמינוס משנים בחירה זמנית לחיוב בלבד ואינם משנים או שולחים את ההזמנה המקורית.\n\n" +
                 "• שם הרשימה הוא „רשימת זיכויים וחיובים”; פריטי זיכוי ישנים נשמרים ומזוהים כזיכויים.\n\n" +
                 "• לכל מוצר יש כפתור „הוסף לחיובים”; אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות. כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן.\\n\\n" +
+                "• בהגדרות אפשר להפעיל „הפרדת פריטים שאזלו”: הם מופיעים בקטגוריה נפרדת ולא בקטגוריה המקורית; כשחוזרים להיות זמינים, הם חוזרים לקטגוריה המקורית. הכיבוי מחזיר את התצוגה הרגילה.\\n\\n" +
                 "• בבדיקת API נוספה בחירה מפורשת של „הזמנות שנסגרו” (GET /api/orders), ואפשר לסנן את פלט הבדיקה לפי מילה או כמה ביטויים כמו grep. רק שורות תואמות מועתקות ללוח, לאחר הסתרת מידע רגיש.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
@@ -4005,10 +4006,10 @@ public class MainActivity extends Activity {
         for (JSONObject p : featureProducts) {
             String name = productName(p);
             if (!filterText.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(filterText)) continue;
-            if (hideSoldOut() && isSoldOut(p)) { Integer inCart = featureQuantities.get(sidOf(p)); if (inCart == null || inCart <= 0) continue; }
+            if (hideSoldOut() && !separateSoldOutCategory() && isSoldOut(p)) { Integer inCart = featureQuantities.get(sidOf(p)); if (inCart == null || inCart <= 0) continue; }
             if ("fav".equals(viewMode) && !favIds.contains(pidOf(p))) continue;
             if ("cart".equals(viewMode)) { Integer qq = featureQuantities.get(sidOf(p)); if (qq == null || qq <= 0) continue; }
-            String cat = categoryName(p);
+            String cat = separateSoldOutCategory() && isSoldOut(p) ? "פריטים שאזלו" : categoryName(p);
             if (!byCat.containsKey(cat)) { byCat.put(cat, new ArrayList<JSONObject>()); catOrder.put(cat, categoryOrder(p)); }
             else catOrder.put(cat, Math.min(catOrder.get(cat), categoryOrder(p)));
             byCat.get(cat).add(p);
@@ -7124,6 +7125,7 @@ public class MainActivity extends Activity {
     private boolean childLockOn() { return prefs.getBoolean("child_lock_enabled", true); }
 
     private boolean hideSoldOut() { return prefs.getBoolean("hide_sold_out", false); }
+    private boolean separateSoldOutCategory() { return prefs.getBoolean("separate_sold_out_category", false); }
 
     private void tintSwitch(Switch sw) {
         int[][] states = {{android.R.attr.state_checked}, {}};
@@ -7317,6 +7319,13 @@ public class MainActivity extends Activity {
         }));
         card.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (b, checked) -> {
             if (checked != nightMode) toggleNightMode();
+        }));
+        card.addView(switchRow("הפרדת פריטים שאזלו", "כשהאפשרות פעילה, כל הפריטים שאזלו מופיעים בקטגוריה נפרדת. כשהם חוזרים למלאי הם חוזרים לקטגוריה המקורית.", separateSoldOutCategory(), (b, checked) -> {
+            SharedPreferences.Editor edit = prefs.edit().putBoolean("separate_sold_out_category", checked);
+            if (checked) edit.putBoolean("hide_sold_out", false);
+            edit.apply();
+            if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
+            toast(checked ? "פריטים שאזלו הועברו לקטגוריה נפרדת" : "החלוקה הרגילה לפי קטגוריות הוחזרה", false);
         }));
         card.addView(switchRow("הסתר פריטים שאזלו", "פריטים שאזלו מהמלאי לא יוצגו ברשימת המוצרים. פריט שכבר בהזמנה ממשיך להופיע", hideSoldOut(), (b, checked) -> {
             prefs.edit().putBoolean("hide_sold_out", checked).apply();
