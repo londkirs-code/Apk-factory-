@@ -6,7 +6,7 @@ android {
         applicationId 'org.londkirs.notifications'
         minSdk 23
         targetSdk 35
-        versionCode 177
+        versionCode 178
         versionName '1.0'
     }
 }
