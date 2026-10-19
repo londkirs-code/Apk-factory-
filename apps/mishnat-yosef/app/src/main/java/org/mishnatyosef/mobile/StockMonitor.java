@@ -27,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -97,7 +98,8 @@ public class StockMonitor extends BroadcastReceiver {
 
     public static void scheduleNextCheck(Context c) {
         SharedPreferences p = c.getSharedPreferences(PREFS, 0);
-        if (!p.getBoolean(ENABLED, true) || loadWatches(c).length() == 0) { cancelCheck(c); return; }
+        boolean globalAlerts = p.getBoolean("stock_global_notify_out", false) || p.getBoolean("stock_global_notify_return", false);
+        if (!p.getBoolean(ENABLED, true) || (loadWatches(c).length() == 0 && !globalAlerts)) { cancelCheck(c); return; }
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         Intent i = new Intent(c, StockMonitor.class).setAction(CHECK);
@@ -116,63 +118,77 @@ public class StockMonitor extends BroadcastReceiver {
     }
 
     private void checkAll(Context c) throws Exception {
-        if (c.getSharedPreferences(PREFS, 0).getString("token", "").isEmpty()) {
-            appendLog(c, "", "", "ממתין להתחברות", "אין התחברות שמורה; לא שונה מצב מלאי."); return;
-        }
-        JSONArray watches = loadWatches(c);
-        if (watches.length() == 0) return;
+        SharedPreferences prefs = c.getSharedPreferences(PREFS, 0);
+        if (prefs.getString("token", "").isEmpty()) { appendLog(c, "", "", "ממתין להתחברות", "אין התחברות שמורה; לא שונה מצב מלאי."); return; }
         JSONArray sales = getSales(c);
         if (sales == null) { appendLog(c, "", "", "בדיקת מלאי נדחתה", "רשימת המכירות לא נטענה באופן תקין."); return; }
-        Map<Long, JSONArray> productCache = new HashMap<>();
-        List<Thread> autoOrderThreads = new ArrayList<>();
-        for (int i = 0; i < watches.length(); i++) {
-            JSONObject w = watches.optJSONObject(i); if (w == null) continue;
-            String key = w.optString("key", ""), name = w.optString("name", "מוצר"), sid = w.optString("sid", "");
-            int saleId = w.optInt("saleId", -1);
-            JSONObject sale = findSale(sales, saleId);
-            if (sale == null) { appendLog(c, key, name, "המכירה אינה פתוחה", "לא נשלחה הזמנה; המעקב נשמר."); continue; }
+        JSONArray watches = loadWatches(c);
+        boolean globalOut = prefs.getBoolean("stock_global_notify_out", false);
+        boolean globalReturn = prefs.getBoolean("stock_global_notify_return", false);
+        if (watches.length() == 0 && !globalOut && !globalReturn) return;
+        Map<String, JSONObject> productsByKey = new HashMap<>();
+        Map<Integer, JSONObject> salesById = new HashMap<>();
+        for (int i=0; i<sales.length(); i++) {
+            JSONObject sale=sales.optJSONObject(i); if(sale==null)continue;
+            int saleId=sale.optInt("id",-1); if(saleId<=0)continue;
+            salesById.put(saleId,sale);
+            long orderId=orderIdFromSale(sale);
             try {
-                long orderId = orderIdFromSale(sale);
-                long queryId = orderId > 0 ? orderId : saleId;
-                JSONArray rows = productCache.get(queryId);
-                if (rows == null) { rows = fetchProducts(c, queryId); productCache.put(queryId, rows); }
-                JSONObject product = findProduct(rows, sid);
-                if (product == null && orderId > 0) {
-                    long fallbackId = saleId;
-                    JSONArray fallback = productCache.get(fallbackId);
-                    if (fallback == null) { fallback = fetchProducts(c, fallbackId); productCache.put(fallbackId, fallback); }
-                    product = findProduct(fallback, sid);
+                JSONArray rows=fetchProducts(c,orderId>0?orderId:saleId);
+                if(orderId>0) {
+                    JSONArray fallback=fetchProducts(c,saleId);
+                    Map<String,JSONObject> merged=new LinkedHashMap<>();
+                    for(int j=0;j<rows.length();j++){JSONObject p=rows.optJSONObject(j);if(p!=null)merged.put(sidOf(p),p);}
+                    for(int j=0;j<fallback.length();j++){JSONObject p=fallback.optJSONObject(j);if(p!=null)merged.putIfAbsent(sidOf(p),p);}
+                    rows=new JSONArray();for(JSONObject p:merged.values())rows.put(p);
                 }
-                if (product == null) { appendLog(c, key, name, "המוצר לא נמצא", "לא שונה מצב המעקב."); continue; }
-                int now = availability(product);
-                if (now < 0) { appendLog(c, key, name, "זמינות לא ידועה", "חסר שדה available תקין; לא נשלחה הזמנה."); continue; }
-                int before = w.optInt("lastAvailability", -1);
-                updateWatch(c, key, new JSONObject().put("lastAvailability", now).put("lastCheck", System.currentTimeMillis()));
-                appendLog(c, key, name, "בדיקת מלאי", now == 1 ? "זמין" : "אזל או אינו זמין");
-                if (before == 1 && now == 0 && c.getSharedPreferences(PREFS, 0).getBoolean("stock_notify_out", true)) {
-                    notifyUser(c, key, "המוצר אזל מהמלאי", name + " אזל במכירה " + w.optString("saleName", "") + ".", false);
-                    appendLog(c, key, name, "נשלחה התראת אזילה", "המוצר עבר מזמין ללא זמין.");
-                }
-                if (now != 1 || before != 0) continue;
-                if (!"auto".equals(w.optString("mode", "alert"))) {
-                    if (c.getSharedPreferences(PREFS, 0).getBoolean("stock_notify_return", true)) {
-                        notifyUser(c, key, "המוצר חזר למלאי", name + " זמין שוב במכירה " + w.optString("saleName", "") + ".", false);
-                        appendLog(c, key, name, "נשלחה התראת חזרה למלאי", "זמינות אושרה בתשובת שרת עדכנית.");
-                    } else appendLog(c, key, name, "התראת חזרה למלאי כבויה", "המעקב זיהה שהמוצר זמין, אך ההתראה כבויה.");
-                } else if ("waiting".equals(w.optString("state", "waiting")) && w.optBoolean("consent", false)) {
-                    updateWatch(c, key, new JSONObject().put("state", "attempting").put("attemptStartedAt", System.currentTimeMillis()));
-                    appendLog(c, key, name, "מתחיל ניסיון הזמנה אוטומטית", "כמות מבוקשת: " + Math.max(1, w.optInt("qty", 1)));
-                    JSONObject sw = new JSONObject(w.toString()), ss = new JSONObject(sale.toString()), sp = new JSONObject(product.toString());
-                    Thread attempt = new Thread(() -> performAutoOrder(c, sw, ss, sp), "mishnat-auto-order-" + saleId + "-" + sid);
-                    autoOrderThreads.add(attempt);
-                    attempt.start();
-                }
-            } catch (Exception e) { appendLog(c, key, name, "בדיקת מוצר נכשלה", safeMessage(e)); }
+                for(int j=0;j<rows.length();j++){JSONObject p=rows.optJSONObject(j);if(p!=null){String sid=sidOf(p);if(!sid.isEmpty())productsByKey.put(keyFor(saleId,sid),p);}}
+            } catch(Exception e) {
+                appendLog(c,"","","בדיקת מלאי נדחתה","לא ניתן לטעון את כל המוצרים של מכירה "+saleId+"; מצב המלאי לא עודכן. "+safeMessage(e)); return;
+            }
         }
-        for (Thread attempt : autoOrderThreads) {
-            try { attempt.join(); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); appendLog(c, "", "", "בדיקת רקע הופסקה", "לא הושלמו כל ניסיונות ההזמנה."); break; }
+        JSONObject oldGlobal;
+        try{oldGlobal=new JSONObject(prefs.getString("stock_global_state","{}"));}catch(Exception e){oldGlobal=new JSONObject();}
+        JSONObject nextGlobal=new JSONObject();
+        for(Map.Entry<String,JSONObject> entry:productsByKey.entrySet()){
+            String key=entry.getKey();JSONObject product=entry.getValue();int now=availability(product);
+            if(now<0){appendLog(c,key,first(product,"full_name","name"),"בדיקת מלאי נדחתה","חסר שדה זמינות תקין; מצב המלאי לא עודכן.");return;}
+            JSONObject old=oldGlobal.optJSONObject(key);int before=old==null?-1:old.optInt("availability",-1);
+            int colon=key.indexOf(':');int saleId=-1;try{saleId=Integer.parseInt(colon<0?"":key.substring(0,colon));}catch(Exception ignored){}
+            JSONObject sale=salesById.get(saleId);String saleName=sale==null?"":first(sale,"name","title","full_name");
+            String name=first(product,"full_name","name");
+            try{nextGlobal.put(key,new JSONObject().put("availability",now).put("name",name).put("saleName",saleName).put("checkedAt",System.currentTimeMillis()));}catch(Exception ignored){}
+            if(before>=0&&before!=now){
+                if(now==0&&globalOut){notifyUser(c,"global:"+key,"מוצר אזל מהמלאי",name+(saleName.isEmpty()?"":" · "+saleName)+" · המוצר אינו זמין.",false);appendLog(c,key,name,"התראה גלובלית: אזל מהמלאי",saleName);}
+                else if(now==1&&globalReturn){notifyUser(c,"global:"+key,"מוצר חזר למלאי",name+(saleName.isEmpty()?"":" · "+saleName)+" · המוצר זמין שוב.",false);appendLog(c,key,name,"התראה גלובלית: חזר למלאי",saleName);}
+            }
         }
+        prefs.edit().putString("stock_global_state",nextGlobal.toString()).apply();
+        List<Thread> attempts=new ArrayList<>();
+        for(int i=0;i<watches.length();i++){
+            JSONObject w=watches.optJSONObject(i);if(w==null)continue;
+            String key=w.optString("key",""),name=w.optString("name","מוצר"),sid=w.optString("sid","");
+            int saleId=w.optInt("saleId",-1);JSONObject sale=salesById.get(saleId);
+            if(sale==null){appendLog(c,key,name,"המכירה אינה פתוחה","לא נשלחה הזמנה; המעקב נשמר.");continue;}
+            JSONObject product=productsByKey.get(keyFor(saleId,sid));
+            if(product==null){appendLog(c,key,name,"המוצר לא נמצא","לא שונה מצב המעקב.");continue;}
+            int now=availability(product);if(now<0){appendLog(c,key,name,"זמינות לא ידועה","לא שונה מצב המעקב.");continue;}
+            int before=w.optInt("lastAvailability",-1);
+            updateWatch(c,key,new JSONObject().put("lastAvailability",now).put("lastCheck",System.currentTimeMillis()));
+            appendLog(c,key,name,"בדיקת מלאי",now==1?"זמין":"אזל או אינו זמין");
+            if(before==1&&now==0&&prefs.getBoolean("stock_notify_out",true)){notifyUser(c,key,"המוצר אזל מהמלאי",name+" אזל במכירה "+w.optString("saleName","")+".",false);appendLog(c,key,name,"נשלחה התראת אזילה","המוצר עבר מזמין ללא זמין.");}
+            if(now!=1||before!=0)continue;
+            if(!"auto".equals(w.optString("mode","alert"))){
+                if(prefs.getBoolean("stock_notify_return",true)){notifyUser(c,key,"המוצר חזר למלאי",name+" זמין שוב במכירה "+w.optString("saleName","")+".",false);appendLog(c,key,name,"נשלחה התראת חזרה למלאי","זמינות אושרה בתשובת שרת עדכנית.");}
+                else appendLog(c,key,name,"התראת חזרה למלאי כבויה","המעקב זיהה שהמוצר זמין, אך ההתראה כבויה.");
+            }else if("waiting".equals(w.optString("state","waiting"))&&w.optBoolean("consent",false)){
+                updateWatch(c,key,new JSONObject().put("state","attempting").put("attemptStartedAt",System.currentTimeMillis()));
+                appendLog(c,key,name,"מתחיל ניסיון הזמנה אוטומטית","כמות מבוקשת: "+Math.max(1,w.optInt("qty",1)));
+                JSONObject sw=new JSONObject(w.toString()),ss=new JSONObject(sale.toString()),sp=new JSONObject(product.toString());
+                Thread t=new Thread(()->performAutoOrder(c,sw,ss,sp),"mishnat-auto-order-"+saleId+"-"+sid);attempts.add(t);t.start();
+            }
+        }
+        for(Thread t:attempts)try{t.join();}catch(InterruptedException e){Thread.currentThread().interrupt();appendLog(c,"","","בדיקת רקע הופסקה","לא הושלמו כל ניסיונות ההזמנה.");break;}
     }
 
     private void performAutoOrder(Context c, JSONObject watch, JSONObject oldSale, JSONObject oldProduct) {
@@ -322,20 +338,22 @@ public class StockMonitor extends BroadcastReceiver {
 
     private JSONArray fetchProducts(Context c, long id) throws Exception {
         JSONArray result = new JSONArray();
-        for (int page = 1; page <= 20; page++) {
+        for (int page = 1; page <= 100; page++) {
             Response r = request(c, "GET", "/api/get_items_for_sale/" + id + "/null?page=" + page + "&limit=100", null);
             if (r.code < 200 || r.code >= 300) throw new Exception("טעינת מוצרים נכשלה (" + r.code + ").");
-            Object parsed = new JSONTokener(r.body).nextValue(); JSONArray rows; int last = 1;
+            Object parsed = new JSONTokener(r.body).nextValue(); JSONArray rows; int last = -1;
             if (parsed instanceof JSONArray) rows = (JSONArray) parsed;
             else if (parsed instanceof JSONObject) {
                 JSONObject o = (JSONObject) parsed; rows = o.optJSONArray("data");
                 if (rows == null) rows = o.optJSONArray("items"); if (rows == null) rows = o.optJSONArray("products");
                 if (rows == null) throw new Exception("תשובת המוצרים אינה מכילה רשימה תקינה.");
-                last = Math.max(last, o.optInt("last_page", 1));
-                JSONObject meta = o.optJSONObject("meta"); if (meta != null) last = Math.max(last, meta.optInt("last_page", 1));
+                if (o.has("last_page")) last = o.optInt("last_page", -1);
+                JSONObject meta = o.optJSONObject("meta"); if (last < 0 && meta != null && meta.has("last_page")) last = meta.optInt("last_page", -1);
             } else throw new Exception("מבנה תשובת המוצרים אינו תקין.");
             for (int i = 0; i < rows.length(); i++) { JSONObject item = rows.optJSONObject(i); if (item != null) result.put(item); }
-            if (page >= last || rows.length() == 0) break;
+            boolean hasMore = last >= 0 ? page < last : rows.length() >= 100;
+            if (!hasMore || rows.length() == 0) return result;
+            if (page == 100) throw new Exception("סריקת המוצרים חרגה ממגבלת 100 עמודים; לא ניתן לאשר שהרשימה מלאה.");
         }
         return result;
     }
