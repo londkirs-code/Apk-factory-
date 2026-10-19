@@ -1601,13 +1601,13 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "הזמנות סגורות";
-        final String whatsNewSummary = "נוספה רשימת הזמנות סגורות עם אפשרות להציג את המוצרים והכמויות שנשמרו במטמון.";
+        final String whatsNewTitle = "חיובים מהזמנות סגורות";
+        final String whatsNewSummary = "נוספה רשימת זיכויים וחיובים משותפת; אפשר לבחור כמות במטמון של הזמנה סגורה ולהוסיף חיוב בלי לשנות את ההזמנה.";
         final String whatsNewDetails =
-                "• במסך המכירות הפתוחות נוסף כפתור „📦 הזמנות שכבר נסגרו”.\n\n" +
-                "• בכל הזמנה סגורה אפשר לפתוח מסך זהה ככל האפשר למסך הזמנה רגיל: כפתורי המוצרים, החיפוש, הקטגוריות, פרטי המוצר, המועדפים, שינוי פריסת הכרטיסים, שיתוף וייצוא.\n\n" +
-                "• כפתורי הוספה/הפחתה מוצגים אך מושבתים, כדי שלא יהיה אפשר להזמין או לשנות כמויות. התצוגה משתמשת במטמון המקומי בלבד והנתונים עלולים להיות חלקיים או לא עדכניים.\n\n" +
-                "• קובצי המטמון המקומיים לא נמחקים אוטומטית בעת סגירת הזמנה. רשימת ההזמנות הסגורות עצמה משתמשת בנתוני /api/orders.";
+                "• שם הרשימה שונה ל„רשימת זיכויים וחיובים”; פריטי זיכוי ישנים נשמרים ומזוהים כזיכויים.\n\n" +
+                "• במסך הזמנה סגורה הכמויות מתחילות תמיד באפס. כפתורי הפלוס והמינוס משנים בחירה זמנית לחיוב בלבד ואינם משנים או שולחים את ההזמנה המקורית.\n\n" +
+                "• לכל מוצר נוסף כפתור „הוסף לחיובים”. אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות; מוצר אחר או מכירה אחרת נשמרים בנפרד.\n\n" +
+                "• כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן: זיכויים, חיובים או שניהם. פרטי המייל כוללים ירידות שורה אמיתיות, וסיבת „חוסר” מופיעה רק בחלק הזיכויים.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -2856,7 +2856,13 @@ public class MainActivity extends Activity {
                 featureProducts.clear();
                 featureProducts.addAll(snap.products);
                 featureQuantities.clear();
-                featureQuantities.putAll(snap.quantities);
+                // This cached order is only a catalogue for preparing charges.
+                // Never seed the temporary selector with quantities from the original order.
+                for (JSONObject cachedProduct : snap.products) {
+                    if (cachedProduct == null) continue;
+                    String cachedSid = sidOf(cachedProduct);
+                    if (!cachedSid.isEmpty()) featureQuantities.put(cachedSid, 0);
+                }
                 favIds.clear();
                 favIds.addAll(snap.favs);
                 pending.clear();
@@ -2867,10 +2873,24 @@ public class MainActivity extends Activity {
                 productsLoading = false;
                 orderDirty = false;
                 renderFeatureProducts();
-                setStatus("תצוגת מטמון בלבד · אין אפשרות לשנות את ההזמנה הסגורה");
+                setStatus("תצוגת מטמון · הכמויות כאן מיועדות לחיובים בלבד ואינן משנות את ההזמנה");
                 if (barInfo != null) updateOrderBar();
             });
         });
+    }
+
+    /** Change only the temporary quantity selector used to prepare a charge from a closed order. */
+    private void changeCachedChargeQuantity(JSONObject product, int delta) {
+        if (!closedOrderReadOnly || product == null) return;
+        String sid = sidOf(product);
+        if (sid.isEmpty()) {
+            toast("לא ניתן לזהות את שורת המוצר במטמון.", true);
+            return;
+        }
+        int current = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+        featureQuantities.put(sid, Math.max(0, current + delta));
+        // Deliberately never call changeBy(), saveQuantities(), writeSnapshot(), or an order API.
+        rebuildGrid();
     }
 
     private String cachedClosedOrderText() {
@@ -3988,6 +4008,7 @@ public class MainActivity extends Activity {
         final FrameLayout controls;
         final TextView badge, star, name, pack, price, maxView, savedView, unitView, add;
         final Stepper st;
+        final TextView chargeButton;
         JSONObject p;
         String boundUrl = "";
 
@@ -4054,13 +4075,25 @@ public class MainActivity extends Activity {
             sp.gravity = Gravity.CENTER;
             controls.addView(st.view, sp);
             card.addView(controls, lp(-1, dp(34), 6, 0));
+            chargeButton = smallChip("הוסף לחיובים", PRIMARY);
+            chargeButton.setTextSize(12);
+            chargeButton.setOnClickListener(v -> { if (closedOrderReadOnly && p != null) addCachedProductCharge(p); });
+            card.addView(chargeButton, lp(-1, dp(34), 5, 0));
 
             card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             star.setOnClickListener(v -> { if (p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
             add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
-            st.plus.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) changeBy(p, 1, productsRefresh, null); });
-            st.minus.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) changeBy(p, -1, productsRefresh, null); });
+            st.plus.setOnClickListener(v -> {
+                if (p == null) return;
+                if (closedOrderReadOnly) changeCachedChargeQuantity(p, 1);
+                else changeBy(p, 1, productsRefresh, null);
+            });
+            st.minus.setOnClickListener(v -> {
+                if (p == null) return;
+                if (closedOrderReadOnly) changeCachedChargeQuantity(p, -1);
+                else changeBy(p, -1, productsRefresh, null);
+            });
             st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) askQuantity(p, productsRefresh, null); });
         }
 
@@ -4131,17 +4164,19 @@ public class MainActivity extends Activity {
             paintButton(add, canOrder ? TONAL : FLAT);
             int q = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
             boolean busyNow = pending.contains(sid);
-            add.setVisibility(q > 0 ? View.GONE : View.VISIBLE);
-            st.view.setVisibility(q > 0 ? View.VISIBLE : View.GONE);
+            add.setVisibility(closedOrderReadOnly || q > 0 ? View.GONE : View.VISIBLE);
+            st.view.setVisibility(closedOrderReadOnly || q > 0 ? View.VISIBLE : View.GONE);
             st.qty.setText(String.valueOf(q));
             st.plus.setVisibility(View.VISIBLE);
             st.minus.setVisibility(View.VISIBLE);
             st.qty.setClickable(!closedOrderReadOnly);
             st.qty.setFocusable(!closedOrderReadOnly);
-            setEnabledLook(st.view, !closedOrderReadOnly && !busyNow);
-            setEnabledLook(st.plus, !closedOrderReadOnly && !busyNow);
-            setEnabledLook(st.minus, !closedOrderReadOnly && !busyNow);
+            setEnabledLook(st.view, closedOrderReadOnly || !busyNow);
+            setEnabledLook(st.plus, closedOrderReadOnly || !busyNow);
+            setEnabledLook(st.minus, closedOrderReadOnly || !busyNow);
             setEnabledLook(add, !closedOrderReadOnly && canOrder && !busyNow);
+            chargeButton.setVisibility(closedOrderReadOnly ? View.VISIBLE : View.GONE);
+            setEnabledLook(chargeButton, closedOrderReadOnly);
         }
     }
 
@@ -4937,7 +4972,18 @@ public class MainActivity extends Activity {
 
     private JSONArray readCreditList() {
         try {
-            return new JSONArray(prefs.getString(CREDIT_LIST_PREF, "[]"));
+            JSONArray items = new JSONArray(prefs.getString(CREDIT_LIST_PREF, "[]"));
+            // Backward-compatible migration: rows saved before the type field are credits.
+            boolean migrated = false;
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item != null && !item.has("type")) {
+                    item.put("type", "credit");
+                    migrated = true;
+                }
+            }
+            if (migrated) prefs.edit().putString(CREDIT_LIST_PREF, items.toString()).apply();
+            return items;
         } catch (Exception ignored) {
             return new JSONArray();
         }
@@ -4979,7 +5025,9 @@ public class MainActivity extends Activity {
         try {
             JSONObject entry = new JSONObject();
             entry.put("key", key);
+            entry.put("type", "credit");
             entry.put("text", historyItemCopyText(line));
+            entry.put("quantity", Math.max(0, (int) Math.round(line.amount)));
             entry.put("saleId", summary.saleId);
             entry.put("saleName", summary.saleName == null ? "" : summary.saleName);
             entry.put("itemId", line.sid == null ? "" : line.sid);
@@ -5001,17 +5049,109 @@ public class MainActivity extends Activity {
             String itemText = item.optString("text", "").trim();
             if (itemText.isEmpty()) continue;
             if (all.length() > 0) all.append("\n");
-            all.append(itemText);
+            all.append("charge".equals(item.optString("type", "credit")) ? "חיוב: " : "זיכוי: ")
+                    .append(itemText);
         }
         return all.toString();
     }
 
+    private String creditListTypedText(String type) {
+        JSONArray current = readCreditList();
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < current.length(); i++) {
+            JSONObject item = current.optJSONObject(i);
+            if (item == null) continue;
+            if (!type.equals(item.optString("type", "credit"))) continue; // old saved rows are credits
+            String itemText = item.optString("text", "").trim();
+            if (itemText.isEmpty()) continue;
+            if (out.length() > 0) out.append("\n");
+            out.append(itemText);
+        }
+        return out.toString();
+    }
+
+    /** Stable key for one product row within one sale; never merges charges across sales. */
+    private String cachedChargeKey(int saleId, JSONObject product) {
+        String itemIdentity = first(product, "item_salesID", "item_sales_id", "id", "itemID");
+        if (itemIdentity.isEmpty()) itemIdentity = pidOf(product);
+        if (itemIdentity.isEmpty()) itemIdentity = productName(product).trim().toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+        return "charge|" + saleId + "|" + itemIdentity;
+    }
+
+    private void addCachedProductCharge(JSONObject product) {
+        if (!closedOrderReadOnly || product == null) return;
+        String sid = sidOf(product);
+        int quantity = sid.isEmpty() || !featureQuantities.containsKey(sid) ? 0 : featureQuantities.get(sid);
+        if (quantity <= 0) {
+            toast("בחר כמות גדולה מאפס לפני הוספת החיוב.", false);
+            return;
+        }
+        int saleId = currentSaleId;
+        if (saleId <= 0) {
+            toast("לא ניתן לזהות את המכירה שממנה נוצר החיוב.", true);
+            return;
+        }
+        String key = cachedChargeKey(saleId, product);
+        String saleName = currentTitle();
+        String itemName = productName(product);
+        double unitPrice = productPrice(product);
+        String priceText = unitPrice > 0 ? money(unitPrice * quantity) : "מחיר כולל לא זמין";
+        String itemText = saleName + " - " + itemName + " - כמות: " + quantity + " - סה״כ: " + priceText;
+        JSONArray items = readCreditList();
+        JSONArray updated = new JSONArray();
+        boolean replaced = false;
+        try {
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject existing = items.optJSONObject(i);
+                if (existing == null) continue;
+                if ("charge".equals(existing.optString("type", "credit"))
+                        && key.equals(existing.optString("key", ""))) {
+                    if (!replaced) {
+                        JSONObject entry = new JSONObject();
+                        entry.put("key", key);
+                        entry.put("type", "charge");
+                        entry.put("text", itemText);
+                        entry.put("quantity", quantity);
+                        entry.put("saleId", saleId);
+                        entry.put("saleName", saleName);
+                        entry.put("itemId", sid.isEmpty() ? pidOf(product) : sid);
+                        entry.put("itemName", itemName);
+                        entry.put("unitPrice", unitPrice);
+                        updated.put(entry);
+                        replaced = true;
+                    }
+                    // Collapse legacy duplicates of this charge only.
+                } else {
+                    updated.put(existing);
+                }
+            }
+            if (!replaced) {
+                JSONObject entry = new JSONObject();
+                entry.put("key", key);
+                entry.put("type", "charge");
+                entry.put("text", itemText);
+                entry.put("quantity", quantity);
+                entry.put("saleId", saleId);
+                entry.put("saleName", saleName);
+                entry.put("itemId", sid.isEmpty() ? pidOf(product) : sid);
+                entry.put("itemName", itemName);
+                entry.put("unitPrice", unitPrice);
+                updated.put(entry);
+            }
+            saveCreditList(updated);
+            toast((replaced ? "עודכן החיוב: " : "נוסף חיוב: ") + itemName + " × " + quantity, false);
+        } catch (Exception e) {
+            toast("לא ניתן לשמור את החיוב.", true);
+        }
+    }
+
     private void showCreditList() {
-        beginScreen("רשימת זיכויים", 2, this::loadFeatureTransactions);
+        beginScreen("רשימת זיכויים וחיובים", 2, this::loadFeatureTransactions);
         creditListScreenView = currentScreen;
         creditListDirty = false;
         JSONArray items = readCreditList();
-        setStatus(items.length() == 0 ? "רשימת הזיכויים ריקה. אפשר להוסיף פריטים מהיסטוריית ההזמנות." : "");
+        setStatus(items.length() == 0 ? "הרשימה ריקה. אפשר להוסיף זיכויים מההיסטוריה וחיובים מהזמנות סגורות." : "");
         // Keep all four list actions on one compact row, including on narrow phones.
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -5039,28 +5179,45 @@ public class MainActivity extends Activity {
             if (!all.isEmpty()) copyText(all);
         });
 
-        TextView sendCredit = smallChip("שלח בקשת זיכוי למשנת יוסף", PRIMARY);
+        TextView sendCredit = smallChip("שלח למשנת יוסף", PRIMARY);
         sendCredit.setEnabled(items.length() > 0);
         sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
         sendCredit.setTextSize(12);
         sendCredit.setOnClickListener(v -> {
-            String itemsText = creditListText();
-            if (itemsText.isEmpty()) {
-                toast("רשימת הזיכויים ריקה.", false);
+            String creditText = creditListTypedText("credit");
+            String chargeText = creditListTypedText("charge");
+            if (creditText.isEmpty() && chargeText.isEmpty()) {
+                toast("רשימת הזיכויים והחיובים ריקה.", false);
                 return;
             }
             try {
                 String accountEmail = prefs.getString("email", "").trim();
-                String subject = "בקשת זיכויים על הזמנות משנת יוסף לחשבון " + accountEmail;
-                String body = "שלום,\n"
-                        + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
-                        + itemsText
-                        + "\n\nסיבת הזיכוי: חוסרים.";
+                String subject;
+                String body;
+                if (!creditText.isEmpty() && !chargeText.isEmpty()) {
+                    subject = "בקשת זיכויים וחיובים על הזמנות משנת יוסף לחשבון " + accountEmail;
+                    body = "שלום,\n"
+                            + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
+                            + creditText
+                            + "\n\nסיבת הזיכוי: חוסרים."
+                            + "\n\nחיובים:\n" + chargeText;
+                } else if (!creditText.isEmpty()) {
+                    subject = "בקשת זיכויים על הזמנות משנת יוסף לחשבון " + accountEmail;
+                    body = "שלום,\n"
+                            + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
+                            + creditText
+                            + "\n\nסיבת הזיכוי: חוסרים.";
+                } else {
+                    subject = "חיובים על הזמנות משנת יוסף לחשבון " + accountEmail;
+                    body = "שלום,\n"
+                            + "פירוט החיובים הבאים:\n"
+                            + chargeText;
+                }
                 Uri mailUri = Uri.parse("mailto:A0773168080@gmail.com"
                         + "?subject=" + Uri.encode(subject)
                         + "&body=" + Uri.encode(body));
                 Intent mail = new Intent(Intent.ACTION_SENDTO, mailUri);
-                startActivity(Intent.createChooser(mail, "שליחת רשימת הזיכויים"));
+                startActivity(Intent.createChooser(mail, "שליחת זיכויים וחיובים למשנת יוסף"));
             } catch (Exception e) {
                 toast("לא נמצאה אפליקציה לשליחת מייל.", true);
             }
@@ -5092,7 +5249,9 @@ public class MainActivity extends Activity {
             LinearLayout itemRow = new LinearLayout(this);
             itemRow.setOrientation(LinearLayout.HORIZONTAL);
             itemRow.setGravity(Gravity.CENTER_VERTICAL);
-            TextView details = text(item.optString("text", ""), 14, true);
+            String itemType = item.optString("type", "credit");
+            TextView details = text(("charge".equals(itemType) ? "חיוב · " : "זיכוי · ")
+                    + item.optString("text", ""), 14, true);
             details.setTextIsSelectable(true);
             LinearLayout.LayoutParams detailsLp = new LinearLayout.LayoutParams(0, -2, 1f);
             detailsLp.setMarginEnd(dp(8));
@@ -5112,7 +5271,7 @@ public class MainActivity extends Activity {
                 }
                 saveCreditList(remaining);
                 showCreditList();
-                toast("הפריט הוסר מרשימת הזיכויים.", false);
+                toast("הפריט הוסר מהרשימה.", false);
             });
             itemRow.addView(remove, new LinearLayout.LayoutParams(dp(36), dp(36)));
             entryCard.addView(itemRow);
@@ -5215,7 +5374,7 @@ public class MainActivity extends Activity {
         });
         root.addView(searchBox, root.indexOfChild(filters), lp(-1, dp(46), 0, 8));
         LinearLayout txTools = new LinearLayout(this);
-        TextView creditListButton = smallChip("🧾 רשימת זיכויים", TONAL);
+        TextView creditListButton = smallChip("🧾 רשימת זיכויים וחיובים", TONAL);
         creditListButton.setOnClickListener(v -> showCreditList());
         txTools.addView(creditListButton);
         TextView bySale = smallChip("📊 לפי מכירה", TONAL);
