@@ -4857,7 +4857,7 @@ public class MainActivity extends Activity {
             if (!all.isEmpty()) copyText(all);
         });
 
-        TextView sendCredit = smallChip("שלח ל\"משנת יוסף\" לבקשת זיכוי", PRIMARY);
+        TextView sendCredit = smallChip("שלח בקשת זיכוי למשנת יוסף", PRIMARY);
         sendCredit.setEnabled(items.length() > 0);
         sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
         sendCredit.setTextSize(12);
