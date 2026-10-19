@@ -40,6 +40,8 @@ public class StockMonitor extends BroadcastReceiver {
     private static final String ALERT_CHANNEL = "stock_return_alerts";
     private static final String ORDER_CHANNEL = "stock_auto_order_results";
     private static final Object LOCK = new Object();
+    private static final Map<Integer, Object> SALE_ORDER_LOCKS = new HashMap<>();
+    private static Object saleOrderLock(int saleId) { synchronized (LOCK) { Object lock = SALE_ORDER_LOCKS.get(saleId); if (lock == null) { lock = new Object(); SALE_ORDER_LOCKS.put(saleId, lock); } return lock; } }
 
     private static final class Response {
         final int code; final String body;
@@ -172,6 +174,10 @@ public class StockMonitor extends BroadcastReceiver {
     }
 
     private void performAutoOrder(Context c, JSONObject watch, JSONObject oldSale, JSONObject oldProduct) {
+        synchronized (saleOrderLock(watch.optInt("saleId", -1))) { performAutoOrderLocked(c, watch, oldSale, oldProduct); }
+    }
+
+    private void performAutoOrderLocked(Context c, JSONObject watch, JSONObject oldSale, JSONObject oldProduct) {
         String key = watch.optString("key", ""), name = watch.optString("name", "מוצר");
         JSONObject active = findWatch(c, key);
         if (active == null || !"auto".equals(active.optString("mode", "")) || !active.optBoolean("consent", false) || !"attempting".equals(active.optString("state", ""))) {
