@@ -5226,7 +5226,10 @@ public class MainActivity extends Activity {
             labels[i] = contacts[i].title + "\n" + contacts[i].explanation;
         }
         appDialog().setTitle("יצירת קשר עם משנת יוסף")
-                .setItems(labels, (dialog, which) -> showContactActions(contacts[which]))
+                .setItems(labels, (dialog, which) -> {
+                    if (contacts[which].email) composeContactEmail(contacts[which]);
+                    else showContactActions(contacts[which]);
+                })
                 .setNegativeButton("סגירה", null)
                 .show();
     }
@@ -5240,7 +5243,7 @@ public class MainActivity extends Activity {
                         else if (which == 1) copyText(contact.value);
                         else if (which == 2) shareText(contact.title, contact.value + "\n" + contact.explanation);
                         else showTextDialog("למה מיועד המייל?", contact.explanation + "\n\nכתובת: " + contact.value);
-                    }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
+                    }).setNegativeButton("סגירה", null).show();
         } else if (contact.fax) {
             final String[] actions = {"📋 העתקת מספר הפקס", "📤 שיתוף מספר הפקס", "ℹ️ למה מיועד הפקס?"};
             appDialog().setTitle(contact.title + "\n" + contact.explanation)
