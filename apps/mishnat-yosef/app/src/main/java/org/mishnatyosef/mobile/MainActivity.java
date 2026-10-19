@@ -5226,43 +5226,36 @@ public class MainActivity extends Activity {
             labels[i] = contacts[i].title + "\n" + contacts[i].explanation;
         }
         appDialog().setTitle("יצירת קשר עם משנת יוסף")
-                .setItems(labels, (dialog, which) -> {
-                    if (contacts[which].email) composeContactEmail(contacts[which]);
-                    else showContactActions(contacts[which]);
-                })
+                .setItems(labels, (dialog, which) -> showContactActions(contacts[which]))
                 .setNegativeButton("סגירה", null)
                 .show();
     }
 
+    /** Each contact opens a short list of actions appropriate to its type. */
     private void showContactActions(final ContactOption contact) {
+        final String[] actions;
         if (contact.email) {
-            final String[] actions = {"✉️ פתיחת הודעת מייל", "📋 העתקת כתובת המייל", "📤 שיתוף פרטי הקשר", "ℹ️ מה אפשר לשלוח?"};
-            appDialog().setTitle(contact.title + "\n" + contact.explanation)
-                    .setItems(actions, (d, which) -> {
+            actions = new String[] {"✉️ שליחת מייל", "📋 העתקת כתובת המייל", "📤 שיתוף כתובת המייל"};
+        } else if (contact.fax) {
+            actions = new String[] {"📋 העתקת מספר הפקס", "📤 שיתוף מספר הפקס"};
+        } else {
+            actions = new String[] {"📞 להתקשר", "📋 העתקת המספר", "📤 שיתוף המספר"};
+        }
+        appDialog().setTitle(contact.title + "\n" + contact.explanation)
+                .setItems(actions, (d, which) -> {
+                    if (contact.email) {
                         if (which == 0) composeContactEmail(contact);
                         else if (which == 1) copyText(contact.value);
-                        else if (which == 2) shareText(contact.title, contact.value + "\n" + contact.explanation);
-                        else showTextDialog("למה מיועד המייל?", contact.explanation + "\n\nכתובת: " + contact.value);
-                    }).setNegativeButton("סגירה", null).show();
-        } else if (contact.fax) {
-            final String[] actions = {"📋 העתקת מספר הפקס", "📤 שיתוף מספר הפקס", "ℹ️ למה מיועד הפקס?"};
-            appDialog().setTitle(contact.title + "\n" + contact.explanation)
-                    .setItems(actions, (d, which) -> {
+                        else shareText(contact.title, contact.value);
+                    } else if (contact.fax) {
                         if (which == 0) copyText(contact.value);
-                        else if (which == 1) shareText(contact.title, contact.value + "\n" + contact.explanation);
-                        else showTextDialog("שימוש בפקס", contact.explanation + "\n\nמספר: " + contact.value);
-                    }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
-        } else {
-            final String[] actions = {"📞 חיוג למספר", "💬 שליחת SMS", "📋 העתקת המספר", "📤 שיתוף המספר", "ℹ️ פרטי השירות"};
-            appDialog().setTitle(contact.title + "\n" + contact.explanation)
-                    .setItems(actions, (d, which) -> {
+                        else shareText(contact.title, contact.value);
+                    } else {
                         if (which == 0) dialContact(contact.value);
-                        else if (which == 1) smsContact(contact.value);
-                        else if (which == 2) copyText(contact.value);
-                        else if (which == 3) shareText(contact.title, contact.value + "\n" + contact.explanation);
-                        else showTextDialog("פרטי השירות", contact.explanation + "\n\nטלפון: " + contact.value);
-                    }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
-        }
+                        else if (which == 1) copyText(contact.value);
+                        else shareText(contact.title, contact.value);
+                    }
+                }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
     }
 
     private void dialContact(String phone) {
