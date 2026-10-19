@@ -1746,7 +1746,7 @@ public class MainActivity extends Activity {
         c.addView(switchRow("התראה כשהמוצר חוזר במעקב אישי","מעקב אישי; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->prefs.edit().putBoolean("stock_notify_return",on).apply()));
         c.addView(text("תדירות בדיקה (דקות)",14,true),lp(-1,-2,0,4)); LinearLayout chips=new LinearLayout(this);
         for(int n:new int[]{1,2,5,10,15,30,60}){TextView ch=pickChip(String.valueOf(n));styleChip(ch,prefs.getInt(StockMonitor.INTERVAL,5)==n);
-            ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showNotificationSettings();});
+            ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showStockSettings();});
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(42),dp(38));cp.setMarginEnd(dp(4));chips.addView(ch,cp);}
         HorizontalScrollView hs=new HorizontalScrollView(this);hs.setHorizontalScrollBarEnabled(false);hs.addView(chips);c.addView(hs,lp(-1,-2,0,4));
         return c;
