@@ -5095,9 +5095,9 @@ public class MainActivity extends Activity {
     private String redactSensitiveText(String text) {
         if (text == null || text.isEmpty()) return "";
         String safe = text;
-        safe = safe.replaceAll("(?i)Bearer\\\\s+[A-Za-z0-9._~+/-]+=*", "Bearer [הוסתר]");
-        safe = safe.replaceAll("eyJ[A-Za-z0-9_\\\\-]{8,}\\\\.[A-Za-z0-9_\\\\-]{8,}\\\\.[A-Za-z0-9_\\\\-]*", "[JWT הוסתר]");
-        safe = safe.replaceAll("(?i)(\\\"?(?:access_token|refresh_token|token|authorization|password|passwd|secret|api_key|apikey|cvv|cvc|card_number|cardnumber|pan|iban|email|phone|mobile)\\\"?\\\\s*[:=]\\\\s*)\\\"?[^\\\",\\\\s}]+\\\"?", "$1\\\"[הוסתר]\\\"");
+        safe = safe.replaceAll("(?i)Bearer\\s+[A-Za-z0-9._~+/-]+=*", "Bearer [הוסתר]");
+        safe = safe.replaceAll("eyJ[A-Za-z0-9_\\-]{8,}\\.[A-Za-z0-9_\\-]{8,}\\.[A-Za-z0-9_\\-]*", "[JWT הוסתר]");
+        safe = safe.replaceAll("(?i)(\\\"?(?:access_token|refresh_token|token|authorization|password|passwd|secret|api_key|apikey|cvv|cvc|card_number|cardnumber|pan|iban|email|phone|mobile)\\\"?\\s*[:=]\\s*)\\\"?[^\\\",\\s}]+\\\"?", "$1\\\"[הוסתר]\\\"");
         // Mask long payment-card-like digit sequences even when the response is not valid JSON.
         safe = safe.replaceAll("(?<![0-9])[0-9](?:[ -]?[0-9]){12,18}(?![0-9])", "[מספר רגיש הוסתר]");
         return safe;
