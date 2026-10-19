@@ -21,6 +21,15 @@
         </activity>
         <provider android:name=".JsonReportProvider" android:authorities="org.mishnatyosef.mobile.jsonreports" android:exported="false" android:grantUriPermissions="true" />
         <receiver
+            android:name=".StockMonitor"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.mishnatyosef.mobile.CHECK_STOCK_WATCHES" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <receiver
             android:name=".SaleMonitor"
             android:enabled="true"
             android:exported="true">
