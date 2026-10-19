@@ -166,6 +166,8 @@ public class StockMonitor extends BroadcastReceiver {
                     updateWatch(c, key, new JSONObject().put("state", "waiting").put("lastAvailability", availability(fresh)));
                     appendLog(c, key, name, "ההזמנה לא נשלחה", "המוצר כבר אינו זמין.");
                     return;
+                } else if (maxPerMan(fresh) > 0 && qty > maxPerMan(fresh)) {
+                    state = "failed"; detail = "הכמות המבוקשת (" + qty + ") חורגת מהמגבלה למוצר (" + maxPerMan(fresh) + "). לא נשלחה הזמנה.";
                 } else {
                     orderId = findExistingOrder(c, sale, saleId);
                     if (orderId <= 0) {
@@ -266,11 +268,12 @@ public class StockMonitor extends BroadcastReceiver {
             if (r.code < 200 || r.code >= 300) return false;
             JSONObject root = new JSONObject(r.body), order = root.optJSONObject("order");
             if (order == null) order = root.optJSONObject("data"); if (order == null) order = root;
-            JSONArray items = orderItems(order);
+            JSONArray items = orderItems(order); double total = 0; boolean found = false;
             for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.optJSONObject(i);
-                if (item != null && sid.equals(sidOf(item))) return Math.round(number(item.opt("amount"))) == qty;
+                if (item != null && sid.equals(sidOf(item))) { total += number(item.opt("amount")); found = true; }
             }
+            return found && Math.round(total) == qty;
         } catch (Exception ignored) { }
         return false;
     }
@@ -308,6 +311,12 @@ public class StockMonitor extends BroadcastReceiver {
         for (int i = 0; i < rows.length(); i++) { JSONObject p = rows.optJSONObject(i); if (p != null && sid.equals(sidOf(p))) return p; }
         return null;
     }
+    private static int maxPerMan(JSONObject p) {
+        double n = number(p == null ? null : p.opt("max_per_man"));
+        JSONObject nested = p == null ? null : p.optJSONObject("product");
+        if (n <= 0 && nested != null) n = number(nested.opt("max_per_man"));
+        return n > 0 ? (int) Math.round(n) : 0;
+    }
     private static int availability(JSONObject p) {
         Object v = p == null ? null : p.opt("available");
         if (v == null || v == JSONObject.NULL) { JSONObject nested = p == null ? null : p.optJSONObject("product"); v = nested == null ? null : nested.opt("available"); }
@@ -315,6 +324,7 @@ public class StockMonitor extends BroadcastReceiver {
         if (v instanceof Number) n = ((Number) v).doubleValue();
         else if (v instanceof String) { try { n = Double.parseDouble(((String) v).trim()); } catch (Exception e) { return -1; } }
         else return -1;
+        if (n < 0) return -1;
         return n > 0 && !truthy(p.opt("disable")) ? 1 : 0;
     }
     private static String sidOf(JSONObject p) {
