@@ -23,6 +23,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -257,7 +259,8 @@ public class StockMonitor extends BroadcastReceiver {
         appendLog(c, key, name, "תוצאת הזמנה: " + state, detail);
         String title = "success".equals(state) ? "✔ ההזמנה האוטומטית אומתה"
                 : ("uncertain".equals(state) ? "⚠ תוצאת ההזמנה אינה ודאית" : "✖ ההזמנה האוטומטית נכשלה");
-        notifyUser(c, key, title, name + " · " + sale + " · כמות " + qty + "\n" + detail, true);
+        String when = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(System.currentTimeMillis()));
+        notifyUser(c, key, title, name + " · " + sale + " · כמות " + qty + " · " + when + "\n" + detail, true);
     }
 
     private static long createOrder(Context c, int saleId) throws Exception {
