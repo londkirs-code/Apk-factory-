@@ -64,6 +64,7 @@ import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -369,6 +370,7 @@ public class MainActivity extends Activity {
     private int updateLatestCode = 0;
     private String updateLatestName = "", updateLatestSha256 = "", updateReleaseNotes = "";
     private boolean updateDownloadVerifying = false;
+    private boolean autoDownloadAfterCheck = false;
     private static final String UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/update.json";
     private static final String UPDATE_APK_URL = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk";
     private boolean busy = false;
@@ -603,6 +605,9 @@ public class MainActivity extends Activity {
         } else {
             showLogin();
         }
+        // Check for a newer release once per app launch; the setting defaults to enabled.
+        if (root != null) root.post(this::checkForUpdatesOnLaunch);
+        else checkForUpdatesOnLaunch();
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -1970,11 +1975,56 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void checkForUpdatesOnLaunch() {
+        if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
+        if (!prefs.getBoolean("update_auto_check_on_launch", true)) return;
+        executor.execute(() -> {
+            try {
+                JSONObject manifest = fetchUpdateManifest();
+                int code = manifest.getInt("versionCode");
+                String name = manifest.getString("versionName");
+                String sha = manifest.getString("sha256");
+                String notes = manifest.optString("releaseNotes", "").trim();
+                int installed = installedVersionCode();
+                prefs.edit().putInt("update_latest_code", code)
+                        .putString("update_latest_name", name)
+                        .putString("update_latest_sha256", sha)
+                        .putString("update_release_notes", notes).apply();
+                if (code <= installed) return;
+                runOnUiThread(() -> {
+                    if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
+                    appDialog()
+                            .setTitle("📲 יצא עדכון חדש")
+                            .setMessage("זמינה גרסה חדשה של משנת יוסף: " + name + " (" + code + ")."
+                                    + (notes.isEmpty() ? "" : "\n\n" + notes)
+                                    + "\n\nרוצה לעבור לעמוד העדכונים ולהתחיל אוטומטית את ההורדה וההתקנה?")
+                            .setNegativeButton("לא עכשיו", null)
+                            .setPositiveButton("כן, לעדכן", (dialog, which) -> {
+                                autoDownloadAfterCheck = true;
+                                showUpdateSettings();
+                                checkForAppUpdate();
+                            })
+                            .show();
+                });
+            } catch (Exception ignored) {
+                // Network or manifest failures must never block app startup or show a false update prompt.
+            }
+        });
+    }
+
     private void showUpdateSettings() {
         beginScreen("עדכוני אפליקציה", 3, this::showAccount);
         screenKind = 7;
         LinearLayout card = card(14);
         card.addView(text("📲 עדכוני אפליקציה", 17, true));
+        Switch autoCheck = new Switch(this);
+        autoCheck.setText("בדיקה אוטומטית בכל פתיחה");
+        autoCheck.setTextSize(14);
+        autoCheck.setChecked(prefs.getBoolean("update_auto_check_on_launch", true));
+        autoCheck.setOnCheckedChangeListener((button, enabled) ->
+                prefs.edit().putBoolean("update_auto_check_on_launch", enabled).apply());
+        card.addView(autoCheck, lp(-1, -2, 0, 4));
+        card.addView(muted("כאשר האפשרות פעילה, תיבדק גרסה חדשה בכל פתיחה. בדיקה והתקנה ידניות נשארות זמינות גם כשהמתג כבוי.", 12), lp(-1, -2, 0, 6));
         card.addView(muted("הגרסה המותקנת: " + installedVersionName() + " (" + installedVersionCode() + ")", 13), lp(-1, -2, 0, 8));
         updateStatusView = muted("לחץ על „בדוק אם יש עדכון” כדי לבדוק מול GitHub.", 14);
         updateStatusView.setPadding(dp(2), dp(8), dp(2), dp(8));
@@ -2065,7 +2115,7 @@ public class MainActivity extends Activity {
                 String notes = manifest.optString("releaseNotes", "").trim();
                 int installed = installedVersionCode();
                 runOnUiThread(() -> {
-                    if (screenKind != 7 || updateStatusView == null) return;
+                    if (screenKind != 7 || updateStatusView == null) { autoDownloadAfterCheck = false; return; }
                     updateLatestCode = code;
                     updateLatestName = name;
                     updateLatestSha256 = sha;
@@ -2079,12 +2129,18 @@ public class MainActivity extends Activity {
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         updateInstallButton.setVisibility(View.GONE);
+                        if (autoDownloadAfterCheck) {
+                            autoDownloadAfterCheck = false;
+                            downloadLatestUpdate();
+                        }
                     } else if (code == installed) {
+                        autoDownloadAfterCheck = false;
                         updateStatusView.setText("האפליקציה מעודכנת. מותקנת הגרסה האחרונה: " + name + " (" + code + ").");
                         updateNotesView.setText(notes.isEmpty() ? "אין פירוט שינויים נוסף." : notes);
                         updateDownloadButton.setEnabled(false);
                         updateInstallButton.setVisibility(View.GONE);
                     } else {
+                        autoDownloadAfterCheck = false;
                         updateStatusView.setText("הגרסה המותקנת חדשה יותר מהמידע שפורסם ב־GitHub. לא תתבצע התקנה לאחור.");
                         updateNotesView.setText(notes);
                         updateDownloadButton.setEnabled(false);
@@ -6090,7 +6146,9 @@ public class MainActivity extends Activity {
         });
         root.addView(searchBox, root.indexOfChild(filters), lp(-1, dp(46), 0, 8));
         LinearLayout txTools = new LinearLayout(this);
-        TextView creditListButton = smallChip("🧾 רשימת זיכויים וחיובים", TONAL);
+        int pendingCreditItems = readCreditList().length();
+        String creditListLabel = "🧾 רשימת זיכויים וחיובים" + (pendingCreditItems > 0 ? " (" + pendingCreditItems + ")" : "");
+        TextView creditListButton = smallChip(creditListLabel, TONAL);
         creditListButton.setOnClickListener(v -> showCreditList());
         txTools.addView(creditListButton);
         TextView bySale = smallChip("📊 לפי מכירה", TONAL);
