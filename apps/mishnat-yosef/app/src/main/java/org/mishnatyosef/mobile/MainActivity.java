@@ -105,15 +105,15 @@ public class MainActivity extends Activity {
     private static final String PREFS = "mishnat_auth";
     private static final long REFRESH_MARGIN_MS = 300000L;
 
-    // ---- palette
-    private int ORANGE = Color.rgb(230, 94, 20);
-    private int ORANGE_DARK = Color.rgb(191, 70, 12);
-    private int ORANGE_LIGHT = Color.rgb(255, 239, 224);
-    private int BG = Color.rgb(255, 249, 244);
+    // ---- palette: midnight indigo + pastel lavender
+    private int PURPLE = Color.rgb(26, 5, 80);       // #1A0550
+    private int PURPLE_DARK = Color.rgb(26, 5, 80);   // #1A0550
+    private int PURPLE_LIGHT = Color.rgb(232, 226, 248); // #E8E2F8
+    private int BG = Color.rgb(232, 226, 248);
     private int SURFACE = Color.WHITE;
     private int INK = Color.rgb(34, 49, 46);
-    private int MUTED = Color.rgb(120, 110, 104);
-    private int LINE = Color.rgb(238, 220, 205);
+    private int MUTED = Color.rgb(112, 108, 128);
+    private int LINE = Color.rgb(232, 226, 248);
     private int GREEN = Color.rgb(20, 130, 70);
     private int GREEN_LIGHT = Color.rgb(228, 245, 234);
     private int RED = Color.rgb(175, 45, 45);
@@ -131,9 +131,10 @@ public class MainActivity extends Activity {
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
         if (nightMode) {
-            ORANGE = Color.rgb(255, 145, 75);
-            ORANGE_DARK = Color.rgb(255, 166, 105);
-            ORANGE_LIGHT = Color.rgb(75, 48, 34);
+            // In dark mode, invert the same two purple brand colors for contrast.
+            PURPLE = Color.rgb(232, 226, 248);       // #E8E2F8
+            PURPLE_DARK = Color.rgb(232, 226, 248);  // #E8E2F8
+            PURPLE_LIGHT = Color.rgb(26, 5, 80);     // #1A0550
             BG = Color.rgb(18, 20, 22);
             SURFACE = Color.rgb(30, 33, 36);
             INK = Color.rgb(240, 240, 238);
@@ -144,14 +145,14 @@ public class MainActivity extends Activity {
             RED = Color.rgb(255, 120, 120);
             RED_LIGHT = Color.rgb(75, 40, 40);
         } else {
-            ORANGE = Color.rgb(230, 94, 20);
-            ORANGE_DARK = Color.rgb(191, 70, 12);
-            ORANGE_LIGHT = Color.rgb(255, 239, 224);
-            BG = Color.rgb(255, 249, 244);
+            PURPLE = Color.rgb(26, 5, 80);             // #1A0550
+            PURPLE_DARK = Color.rgb(26, 5, 80);        // #1A0550
+            PURPLE_LIGHT = Color.rgb(232, 226, 248);  // #E8E2F8
+            BG = Color.rgb(232, 226, 248);
             SURFACE = Color.WHITE;
             INK = Color.rgb(34, 49, 46);
-            MUTED = Color.rgb(120, 110, 104);
-            LINE = Color.rgb(238, 220, 205);
+            MUTED = Color.rgb(112, 108, 128);
+            LINE = Color.rgb(232, 226, 248);
             GREEN = Color.rgb(20, 130, 70);
             GREEN_LIGHT = Color.rgb(228, 245, 234);
             RED = Color.rgb(175, 45, 45);
@@ -164,15 +165,15 @@ public class MainActivity extends Activity {
      * in place so scroll offsets, search text/focus, open tab, and expanded screens stay untouched.
      */
     private final class PaletteSnapshot {
-        final int orange = ORANGE, orangeDark = ORANGE_DARK, orangeLight = ORANGE_LIGHT;
+        final int orange = PURPLE, orangeDark = PURPLE_DARK, orangeLight = PURPLE_LIGHT;
         final int bg = BG, surface = SURFACE, ink = INK, muted = MUTED, line = LINE;
         final int green = GREEN, greenLight = GREEN_LIGHT, red = RED, redLight = RED_LIGHT;
     }
 
     private int remapPaletteColor(int color, PaletteSnapshot old) {
-        if (color == old.orange) return ORANGE;
-        if (color == old.orangeDark) return ORANGE_DARK;
-        if (color == old.orangeLight) return ORANGE_LIGHT;
+        if (color == old.orange) return PURPLE;
+        if (color == old.orangeDark) return PURPLE_DARK;
+        if (color == old.orangeLight) return PURPLE_LIGHT;
         if (color == old.bg) return BG;
         if (color == old.ink) return INK;
         if (color == old.muted) return MUTED;
@@ -181,8 +182,8 @@ public class MainActivity extends Activity {
         if (color == old.greenLight) return GREEN_LIGHT;
         if (color == old.red) return RED;
         if (color == old.redLight) return RED_LIGHT;
-        // The inactive bottom-navigation icons use this dedicated dark-brown color.
-        if (color == Color.rgb(70, 62, 58)) return INK;
+        // The inactive bottom-navigation icons use this dedicated inactive-icon color.
+        if (color == Color.rgb(70, 62, 82)) return INK;
         return color;
     }
 
@@ -220,7 +221,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 23 && drawable instanceof RippleDrawable) {
             RippleDrawable ripple = (RippleDrawable) drawable;
             ripple.setColor(ColorStateList.valueOf(Color.argb(40,
-                    Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE))));
+                    Color.red(PURPLE), Color.green(PURPLE), Color.blue(PURPLE))));
             for (int i = 0; i < ripple.getNumberOfLayers(); i++) {
                 rethemeDrawable(ripple.getDrawable(i), old);
             }
@@ -245,9 +246,9 @@ public class MainActivity extends Activity {
             } else if ("openSaleInfo".equals(textView.getTag())) {
                 // Keep the compact chip's existing height/padding so the theme switch cannot
                 // shift the sales list vertically.
-                textView.setTextColor(ORANGE_DARK);
+                textView.setTextColor(PURPLE_DARK);
                 textView.setBackground(ripple(shape(
-                        nightMode ? ORANGE_LIGHT : Color.TRANSPARENT,
+                        nightMode ? PURPLE_LIGHT : Color.TRANSPARENT,
                         ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
             }
             if ("nightModeToggle".equals(textView.getTag())) {
@@ -290,7 +291,7 @@ public class MainActivity extends Activity {
         // ListView keeps detached/recycled product rows outside the visible view tree. Retheme
         // those holders as well, or scrolling after the switch could reveal stale colors.
         for (ProductAdapter adapter : adapters) adapter.rethemeCachedRows(old, visited);
-        getWindow().setStatusBarColor(nightMode ? BG : ORANGE);
+        getWindow().setStatusBarColor(nightMode ? BG : PURPLE);
         getWindow().setNavigationBarColor(SURFACE);
         styleSystemBars();
     }
@@ -538,7 +539,7 @@ public class MainActivity extends Activity {
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
             @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount() / 1024; }
         };
-        getWindow().setStatusBarColor(nightMode ? BG : ORANGE);
+        getWindow().setStatusBarColor(nightMode ? BG : PURPLE);
         getWindow().setNavigationBarColor(SURFACE);
         pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
@@ -628,7 +629,7 @@ public class MainActivity extends Activity {
 
     private void styleAppDialog(AlertDialog dialog) {
         if (dialog == null) return;
-        // Match the Settings screen surface and its light-orange action buttons.
+        // Match the Settings screen surface and its light-lavender action buttons.
         final int panelColor = BG;
         final int textColor = INK;
         android.view.Window window = dialog.getWindow();
@@ -669,7 +670,7 @@ public class MainActivity extends Activity {
         ListView choices = dialog.getListView();
         if (choices != null) {
             choices.setBackgroundColor(panelColor);
-            // Action-list dialogs use the same white panel and spaced orange rounded
+            // Action-list dialogs use the same white panel and spaced purple rounded
             // buttons as Settings, rather than platform-style flat list rows.
             choices.setDivider(new ColorDrawable(Color.TRANSPARENT));
             // Keep action-list buttons narrower, with generous spacing around each one.
@@ -702,8 +703,8 @@ public class MainActivity extends Activity {
             button.setMinHeight(dp(36));
             button.setMinWidth(0);
             button.setPadding(dp(12), dp(5), dp(12), dp(5));
-            button.setTextColor(ORANGE_DARK);
-            button.setBackground(ripple(shape(ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
+            button.setTextColor(PURPLE_DARK);
+            button.setBackground(ripple(shape(PURPLE_LIGHT, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
             ViewGroup.LayoutParams rawParams = button.getLayoutParams();
             if (rawParams instanceof LinearLayout.LayoutParams) {
                 LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) rawParams;
@@ -719,7 +720,7 @@ public class MainActivity extends Activity {
     private void styleDialogChoice(View view) {
         if (view instanceof TextView) {
             TextView item = (TextView) view;
-            item.setTextColor(ORANGE_DARK);
+            item.setTextColor(PURPLE_DARK);
             item.setTextSize(16);
             item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             item.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
@@ -740,7 +741,7 @@ public class MainActivity extends Activity {
                     item.setLayoutParams(params);
                 }
             }
-            item.setBackground(ripple(shape(ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
+            item.setBackground(ripple(shape(PURPLE_LIGHT, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
         }
     }
 
@@ -800,7 +801,7 @@ public class MainActivity extends Activity {
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
         mask.setCornerRadius(dp(radiusDp));
-        return new RippleDrawable(ColorStateList.valueOf(Color.argb(40, 230, 94, 20)), content, mask);
+        return new RippleDrawable(ColorStateList.valueOf(Color.argb(48, 26, 5, 80)), content, mask);
     }
 
     private TextView text(String value, float size, boolean bold) {
@@ -845,11 +846,11 @@ public class MainActivity extends Activity {
         b.setPadding(dp(16), dp(8), dp(16), dp(8));
         int fill, fg, stroke = 0;
         switch (style) {
-            case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
-            case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
-            case OUTLINE: fill = SURFACE; fg = ORANGE_DARK; stroke = ORANGE; break;
+            case PRIMARY: fill = PURPLE; fg = Color.WHITE; break;
+            case TONAL: fill = PURPLE_LIGHT; fg = PURPLE_DARK; break;
+            case OUTLINE: fill = SURFACE; fg = PURPLE_DARK; stroke = PURPLE; break;
             case DANGER: fill = RED_LIGHT; fg = RED; break;
-            default: fill = Color.TRANSPARENT; fg = ORANGE_DARK; break;
+            default: fill = Color.TRANSPARENT; fg = PURPLE_DARK; break;
         }
         styleActionButton(b, fill, fg, stroke);
         return b;
@@ -879,7 +880,7 @@ public class MainActivity extends Activity {
         GradientDrawable mask = new GradientDrawable();
         mask.setShape(GradientDrawable.OVAL);
         mask.setColor(Color.WHITE);
-        b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(50, 230, 94, 20)), oval, mask));
+        b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(56, 26, 5, 80)), oval, mask));
         b.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
         return b;
     }
@@ -923,9 +924,9 @@ public class MainActivity extends Activity {
         s.view = new LinearLayout(this);
         s.view.setOrientation(LinearLayout.HORIZONTAL);
         s.view.setGravity(Gravity.CENTER);
-        s.view.setBackground(shape(ORANGE_LIGHT, heightDp, 0));
-        s.plus = roundBtn("+", heightDp, ORANGE, Color.WHITE);
-        s.minus = roundBtn("−", heightDp, Color.rgb(255, 218, 190), ORANGE_DARK);
+        s.view.setBackground(shape(PURPLE_LIGHT, heightDp, 0));
+        s.plus = roundBtn("+", heightDp, PURPLE, Color.WHITE);
+        s.minus = roundBtn("−", heightDp, Color.rgb(232, 226, 248), PURPLE_DARK);
         s.qty = new TextView(this);
         s.qty.setTextSize(16);
         s.qty.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -1180,7 +1181,7 @@ public class MainActivity extends Activity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(ORANGE);
+        header.setBackgroundColor(PURPLE);
         final int padStart = back != null ? dp(8) : dp(16);
         final int padEnd = dp(16);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(1), rtlActive() ? padStart : padEnd, dp(1));
@@ -1262,7 +1263,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 boolean active = i == tab;
-                int tint = active ? ORANGE : Color.rgb(70, 62, 58);
+                int tint = active ? PURPLE : Color.rgb(70, 62, 82);
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
@@ -1273,10 +1274,10 @@ public class MainActivity extends Activity {
                 label.setMaxLines(1);
                 label.setEllipsize(TextUtils.TruncateAt.END);
                 label.setGravity(Gravity.CENTER);
-                label.setTextColor(active ? ORANGE_DARK : INK);
+                label.setTextColor(active ? PURPLE_DARK : INK);
                 item.addView(label, new LinearLayout.LayoutParams(-1, -2));
                 View bar = new View(this);
-                bar.setBackground(shape(ORANGE, 2, 0));
+                bar.setBackground(shape(PURPLE, 2, 0));
                 bar.setVisibility(active ? View.VISIBLE : View.INVISIBLE);
                 LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(dp(24), dp(3));
                 barLp.topMargin = dp(2);
@@ -1494,7 +1495,7 @@ public class MainActivity extends Activity {
     private void showLogin() {
         beginScreen("התחברות לחשבון", -1, null);
         TextView hello = text("ברוכים הבאים", 22, true);
-        hello.setTextColor(ORANGE_DARK);
+        hello.setTextColor(PURPLE_DARK);
         root.addView(hello, lp(-1, -2, 24, 2));
         root.addView(muted("התחברו עם החשבון שלכם באתר משנת יוסף", 14), lp(-1, -2, 0, 18));
 
@@ -1710,7 +1711,7 @@ public class MainActivity extends Activity {
 
     private TextView sectionTitle(String title) {
         TextView v = text(title, 16, true);
-        v.setTextColor(ORANGE_DARK);
+        v.setTextColor(PURPLE_DARK);
         return v;
     }
 
@@ -1725,8 +1726,8 @@ public class MainActivity extends Activity {
         row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
         Switch sw = new Switch(this);
         int[][] states = {{android.R.attr.state_checked}, {}};
-        sw.setThumbTintList(new ColorStateList(states, new int[]{ORANGE, Color.rgb(190, 180, 172)}));
-        sw.setTrackTintList(new ColorStateList(states, new int[]{Color.argb(120, 230, 94, 20), Color.rgb(225, 218, 212)}));
+        sw.setThumbTintList(new ColorStateList(states, new int[]{PURPLE, Color.rgb(158, 153, 174)}));
+        sw.setTrackTintList(new ColorStateList(states, new int[]{Color.argb(120, 26, 5, 80), Color.rgb(210, 207, 220)}));
         sw.setChecked(checked);
         sw.setOnCheckedChangeListener(listener);
         row.addView(sw);
@@ -1741,8 +1742,8 @@ public class MainActivity extends Activity {
     }
 
     private void styleChip(TextView chip, boolean on) {
-        chip.setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        chip.setTextColor(on ? Color.WHITE : ORANGE_DARK);
+        chip.setBackground(ripple(shape(on ? PURPLE : PURPLE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+        chip.setTextColor(on ? Color.WHITE : PURPLE_DARK);
     }
 
     private View permissionsCard() {
@@ -1977,7 +1978,7 @@ public class MainActivity extends Activity {
             LinearLayout item = new LinearLayout(this);
             item.setOrientation(LinearLayout.VERTICAL);
             item.setPadding(dp(12), dp(8), dp(12), dp(8));
-            item.setBackground(shape(ORANGE_LIGHT, 12, 0));
+            item.setBackground(shape(PURPLE_LIGHT, 12, 0));
             item.addView(text(e.optString("name", "מכירה"), 14, true));
             item.addView(muted("נסגרת: " + fmtDay(new Date(end), true), 12));
             boolean future = trigger > now;
@@ -2718,7 +2719,7 @@ public class MainActivity extends Activity {
         LinearLayout chips = new LinearLayout(this);
         TextView state = text(hasOrder ? "✔ יש הזמנה" : "טרם נפתחה הזמנה", 12, true);
         state.setTextColor(hasOrder ? GREEN : MUTED);
-        state.setBackground(shape(hasOrder ? GREEN_LIGHT : Color.rgb(242, 238, 234), 8, 0));
+        state.setBackground(shape(hasOrder ? GREEN_LIGHT : Color.rgb(248, 246, 253), 8, 0));
         state.setPadding(dp(10), dp(3), dp(10), dp(3));
         chips.addView(state);
         if (closed) {
@@ -3531,7 +3532,7 @@ public class MainActivity extends Activity {
         openLp.setMarginStart(dp(3));
         toolbar.addView(open, openLp);
 
-        TextView optionsBtn = roundBtn("⋯", 32, ORANGE_LIGHT, ORANGE_DARK);
+        TextView optionsBtn = roundBtn("⋯", 32, PURPLE_LIGHT, PURPLE_DARK);
         optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
         optionsBtn.setContentDescription("אפשרויות נוספות");
         LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(32), dp(40));
@@ -3588,7 +3589,7 @@ public class MainActivity extends Activity {
         };
         floatingTopButtonRef[0] = floatingTopButton;
         floatingTopButton.setContentDescription("חזרה מיידית לראש הרשימה");
-        floatingTopButton.setBackground(ripple(shape(ORANGE, 30, ORANGE_DARK), 30));
+        floatingTopButton.setBackground(ripple(shape(PURPLE, 30, PURPLE_DARK), 30));
         floatingTopButton.setElevation(dp(8));
         floatingTopButton.setVisibility(View.GONE);
         floatingTopButton.setOnClickListener(v -> {
@@ -3699,11 +3700,11 @@ public class MainActivity extends Activity {
     private void paintButton(TextView b, int style) {
         int fill, fg, stroke = 0;
         switch (style) {
-            case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
-            case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
-            case OUTLINE: fill = SURFACE; fg = ORANGE_DARK; stroke = ORANGE; break;
+            case PRIMARY: fill = PURPLE; fg = Color.WHITE; break;
+            case TONAL: fill = PURPLE_LIGHT; fg = PURPLE_DARK; break;
+            case OUTLINE: fill = SURFACE; fg = PURPLE_DARK; stroke = PURPLE; break;
             case DANGER: fill = RED_LIGHT; fg = RED; break;
-            default: fill = Color.TRANSPARENT; fg = ORANGE_DARK; break;
+            default: fill = Color.TRANSPARENT; fg = PURPLE_DARK; break;
         }
         styleActionButton(b, fill, fg, stroke);
     }
@@ -3740,7 +3741,7 @@ public class MainActivity extends Activity {
             star = text("☆", 20, true);
             star.setGravity(Gravity.CENTER);
             star.setPadding(0, 0, 0, 0);
-            star.setTextColor(ORANGE_DARK);
+            star.setTextColor(PURPLE_DARK);
             star.setBackground(shape(Color.argb(220, 255, 255, 255), 16, 0));
             FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(dp(32), dp(32));
             starLp.gravity = Gravity.TOP | Gravity.START;
@@ -3758,10 +3759,10 @@ public class MainActivity extends Activity {
             pack.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(pack);
             price = text("", 14, true);
-            price.setTextColor(ORANGE_DARK);
+            price.setTextColor(PURPLE_DARK);
             card.addView(price);
             maxView = text("", 10, true);
-            maxView.setTextColor(ORANGE_DARK);
+            maxView.setTextColor(PURPLE_DARK);
             card.addView(maxView);
             savedView = muted("", 9);
             card.addView(savedView);
@@ -3909,11 +3910,11 @@ public class MainActivity extends Activity {
                 TextView tv = convert instanceof TextView ? (TextView) convert : null;
                 if (tv == null) {
                     tv = text("", 16, true);
-                    tv.setTextColor(ORANGE_DARK);
+                    tv.setTextColor(PURPLE_DARK);
                     tv.setPadding(dp(4), dp(12), dp(4), dp(4));
                 }
                 tv.setText(r.header);
-                tv.setTextColor(ORANGE_DARK);
+                tv.setTextColor(PURPLE_DARK);
                 return tv;
             }
             RowHolder h;
@@ -4216,7 +4217,7 @@ public class MainActivity extends Activity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         summaryTotal = text("", 17, true);
-        summaryTotal.setTextColor(ORANGE_DARK);
+        summaryTotal.setTextColor(PURPLE_DARK);
         summarySub = muted("", 12);
         texts.addView(summaryTotal);
         texts.addView(summarySub);
@@ -4232,10 +4233,10 @@ public class MainActivity extends Activity {
     private void updateModeButtons(TextView edit, TextView collect) {
         edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
         collect.setText(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף");
-        edit.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+        edit.setBackground(ripple(shape(PURPLE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         edit.setTextColor(Color.WHITE);
-        collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        collect.setTextColor(collectMode ? Color.WHITE : ORANGE_DARK);
+        collect.setBackground(ripple(shape(collectMode ? PURPLE : PURPLE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+        collect.setTextColor(collectMode ? Color.WHITE : PURPLE_DARK);
     }
 
     private void rebuildSummary() {
@@ -4351,7 +4352,7 @@ public class MainActivity extends Activity {
         row.setPadding(dp(10), dp(10), dp(10), dp(10));
         row.setBackground(shape(SURFACE, 14, LINE));
         ImageView iv = imageView(imageDp, imageDp, ImageView.ScaleType.FIT_CENTER);
-        iv.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
+        iv.setBackground(shape(Color.rgb(232, 226, 248), 10, 0));
         iv.setClipToOutline(true);
         LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(imageDp), dp(imageDp));
         ip.setMarginEnd(dp(10));
@@ -4377,7 +4378,7 @@ public class MainActivity extends Activity {
         int mxRow = maxPerMan(p);
         if (showMax() && mxRow > 0) {
             TextView mxView = text("מקסימום " + mxRow, 11, true);
-            mxView.setTextColor(ORANGE_DARK);
+            mxView.setTextColor(PURPLE_DARK);
             col.addView(mxView);
         }
 
@@ -4398,7 +4399,7 @@ public class MainActivity extends Activity {
         }
         bottom.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
         TextView lineTotal = text(line.price > 0 ? money(line.price * qty) : "", 16, true);
-        lineTotal.setTextColor(ORANGE_DARK);
+        lineTotal.setTextColor(PURPLE_DARK);
         bottom.addView(lineTotal);
         col.addView(bottom, lp(-1, -2, 6, 0));
         row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
@@ -4537,11 +4538,11 @@ public class MainActivity extends Activity {
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
         TextView saleLabel = text(saleName, 16, true);
-        saleLabel.setTextColor(ORANGE);
+        saleLabel.setTextColor(PURPLE);
         top.addView(saleLabel, new LinearLayout.LayoutParams(0, -2, 1));
         if (!total.isEmpty()) {
             TextView tv = text(money(parseMoney(total)), 16, true);
-            tv.setTextColor(ORANGE_DARK);
+            tv.setTextColor(PURPLE_DARK);
             top.addView(tv);
         }
         card.addView(top);
@@ -4714,8 +4715,8 @@ public class MainActivity extends Activity {
             String[] keys = {"all", "credit", "charge"};
             for (int i = 0; i < chips.length; i++) {
                 boolean on = keys[i].equals(mode[0]);
-                chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-                chips[i].setTextColor(on ? Color.WHITE : ORANGE_DARK);
+                chips[i].setBackground(ripple(shape(on ? PURPLE : PURPLE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+                chips[i].setTextColor(on ? Color.WHITE : PURPLE_DARK);
             }
             for (JSONObject tx : rows) {
                 double amount = tx.optDouble("skum", 0);
@@ -5716,7 +5717,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(20), dp(12), dp(20), dp(8));
         TextView value = text("", 16, true);
-        value.setTextColor(ORANGE_DARK);
+        value.setTextColor(PURPLE_DARK);
         value.setGravity(Gravity.CENTER);
         box.addView(value, lp(-1, -2, 0, 4));
         SeekBar slider = new SeekBar(this);
@@ -5829,8 +5830,8 @@ public class MainActivity extends Activity {
     private void styleModeChips(TextView[] chips, String[] keys) {
         for (int i = 0; i < chips.length; i++) {
             boolean on = keys[i].equals(viewMode);
-            chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
-            chips[i].setTextColor(on ? Color.WHITE : ORANGE_DARK);
+            chips[i].setBackground(ripple(shape(on ? PURPLE : PURPLE_LIGHT, 12, 0), 12));
+            chips[i].setTextColor(on ? Color.WHITE : PURPLE_DARK);
         }
     }
 
@@ -6134,7 +6135,7 @@ public class MainActivity extends Activity {
         FrameLayout finger = new FrameLayout(this);
         float r = dp(33);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(active ? ORANGE_DARK : ORANGE);
+        bg.setColor(active ? PURPLE_DARK : PURPLE);
         bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
@@ -6320,7 +6321,7 @@ public class MainActivity extends Activity {
         final TextView question = new TextView(this);
         question.setTextSize(34);
         question.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        question.setTextColor(ORANGE_DARK);
+        question.setTextColor(PURPLE_DARK);
         question.setGravity(Gravity.CENTER);
         question.setTextDirection(View.TEXT_DIRECTION_LTR);
         panel.addView(question, lp(-1, -2, 8, 8));
@@ -6329,7 +6330,7 @@ public class MainActivity extends Activity {
         input.setTextSize(24);
         input.setGravity(Gravity.CENTER);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        input.setBackground(shape(SURFACE, 12, ORANGE));
+        input.setBackground(shape(SURFACE, 12, PURPLE));
         panel.addView(input, lp(-1, dp(56), 0, 4));
         final Runnable next = () -> {
             String[] ex = newMathExercise();
@@ -6567,16 +6568,16 @@ public class MainActivity extends Activity {
         return cp;
     }
 
-    /** The active category is drawn with an orange outline so it differs from the filled "mode" chips. */
+    /** The active category is drawn with an purple outline so it differs from the filled "mode" chips. */
     private void styleCategoryChips() {
         for (Map.Entry<String, TextView> e : catChips.entrySet()) {
             boolean on = e.getKey().equals(activeCat);
             GradientDrawable bg = new GradientDrawable();
-            bg.setColor(on ? Color.WHITE : ORANGE_LIGHT);
+            bg.setColor(on ? Color.WHITE : PURPLE_LIGHT);
             bg.setCornerRadius(dp(12));
-            if (on) bg.setStroke(dp(2), ORANGE);
+            if (on) bg.setStroke(dp(2), PURPLE);
             e.getValue().setBackground(ripple(bg, 12));
-            e.getValue().setTextColor(ORANGE_DARK);
+            e.getValue().setTextColor(PURPLE_DARK);
         }
     }
 
