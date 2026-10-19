@@ -4821,8 +4821,20 @@ public class MainActivity extends Activity {
     }
 
     private void logApi(String method, String path, String result, long ms, String errorBody) {
-        String line = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date()) + " " + method + " " + path + " → " + result + " (" + ms + "ms)";
-        if (errorBody != null && !errorBody.isEmpty()) {
+        String displayResult = result;
+        boolean messageShown = false;
+        if (errorBody != null && !errorBody.trim().isEmpty()) {
+            try {
+                JSONObject error = new JSONObject(errorBody);
+                String message = first(error, "message", "error_description", "detail", "error");
+                if (message != null && !message.trim().isEmpty()) {
+                    displayResult = redact(message.trim());
+                    messageShown = true;
+                }
+            } catch (Exception ignored) { }
+        }
+        String line = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date()) + " " + method + " " + path + " → " + displayResult + " (" + ms + "ms)";
+        if (errorBody != null && !errorBody.isEmpty() && !messageShown) {
             String b = redact(errorBody.replace("\n", " "));
             line += "\n    " + (b.length() > 220 ? b.substring(0, 220) : b);
         }
