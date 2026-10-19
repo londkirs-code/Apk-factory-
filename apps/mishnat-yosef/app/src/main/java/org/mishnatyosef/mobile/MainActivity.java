@@ -1599,12 +1599,13 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "שליחה ושיתוף של רשימת הזיכויים";
-        final String whatsNewSummary = "אפשר להסיר פריט בלחיצה אחת ולשלוח או לשתף את הרשימה.";
+        final String whatsNewTitle = "כפתורי רשימת הזיכויים בשורה אחת";
+        final String whatsNewSummary = "כל פעולות הרשימה מופיעות עכשיו בשורה אחת, עם כפתורים קומפקטיים.";
         final String whatsNewDetails =
                 "• ברשימת הזיכויים אפשר להסיר פריט בודד מיד, ללא חלון אישור. מחיקת הרשימה כולה עדיין דורשת אישור.\n\n" +
                 "• נוסף כפתור „✉ שלח לזיכוי” שפותח את אפליקציית המייל עם הכתובת A0773168080@gmail.com ורשימת הזיכויים מוכנה לשליחה.\n\n" +
                 "• נוסף כפתור „📤 שיתוף” לשיתוף הרשימה דרך אפליקציות השיתוף במכשיר.\n\n" +
+                "• כל ארבע הפעולות — מחיקה, העתקה, שליחה ושיתוף — מוצגות בשורה אחת עם כפתורים צרים יותר, כדי לחסוך מקום גם במסכים קטנים.\\n\\n" +
                 "• אפשר עדיין להעתיק את כל הרשימה ללוח; הרשימה נשמרת במכשיר ולא מתווספים פריטים כפולים מאותה מכירה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
