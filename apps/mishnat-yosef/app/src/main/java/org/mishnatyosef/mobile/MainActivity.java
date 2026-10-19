@@ -4891,8 +4891,27 @@ public class MainActivity extends Activity {
 
     private void loadFeatureOrders() {
         beginScreen("היסטוריית הזמנות", 1, null);
+
+        // Search row mirrors the existing clear-X control inside an order.
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        searchRow.setGravity(Gravity.CENTER_VERTICAL);
+
         EditText search = field("חיפוש לפי שם מוצר…", InputType.TYPE_CLASS_TEXT);
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
+        search.setSingleLine(true);
+        LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        searchLp.setMarginEnd(dp(5));
+        searchRow.addView(search, searchLp);
+
+        TextView clearSearch = text("×", 22, true);
+        clearSearch.setGravity(Gravity.CENTER);
+        clearSearch.setTextColor(MUTED);
+        clearSearch.setBackground(ripple(shape(SURFACE, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
+        clearSearch.setContentDescription("מחיקת החיפוש");
+        clearSearch.setVisibility(View.GONE);
+        searchRow.addView(clearSearch, new LinearLayout.LayoutParams(dp(42), dp(42)));
+
         search.setOnEditorActionListener((v, actionId, event) -> {
             histSearch = v.getText().toString().trim();
             histPage = 0;
@@ -4902,7 +4921,24 @@ public class MainActivity extends Activity {
             loadHistoryPage();
             return true;
         });
-        root.addView(search, lp(-1, dp(46), 0, 10));
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable s) {
+                clearSearch.setVisibility(s.length() == 0 ? View.GONE : View.VISIBLE);
+            }
+        });
+        clearSearch.setOnClickListener(v -> {
+            search.setText("");
+            histSearch = "";
+            histPage = 0;
+            histList.removeAllViews();
+            histMore.setVisibility(View.GONE);
+            hideKeyboard();
+            loadHistoryPage();
+        });
+
+        root.addView(searchRow, lp(-1, dp(46), 0, 10));
         histList = new LinearLayout(this);
         histList.setOrientation(LinearLayout.VERTICAL);
         root.addView(histList, new LinearLayout.LayoutParams(-1, -2));
