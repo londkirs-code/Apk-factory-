@@ -1600,7 +1600,7 @@ public class MainActivity extends Activity {
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
         final String whatsNewTitle = "כפתורי זיכויים מעודכנים";
-        final String whatsNewSummary = "הכפתורים נשארו בשורה אחת עם טקסט מעט גדול יותר, ובמקום הוספה כתוב + לזיכוי.";
+        final String whatsNewSummary = "כפתורי הרשימה בשורה אחת, הסרה באמצעות ✕ בסוף הפריט, וטקסט מעט גדול יותר.";
         final String whatsNewDetails =
                 "• ברשימת הזיכויים אפשר להסיר פריט בודד מיד, ללא חלון אישור. מחיקת הרשימה כולה עדיין דורשת אישור.\n\n" +
                 "• נוסף כפתור „✉ שלח לזיכוי” שפותח את אפליקציית המייל עם הכתובת A0773168080@gmail.com ורשימת הזיכויים מוכנה לשליחה.\n\n" +
@@ -4901,10 +4901,18 @@ public class MainActivity extends Activity {
             if (item == null) continue;
             final String key = item.optString("key", "");
             LinearLayout entryCard = card(12);
+            LinearLayout itemRow = new LinearLayout(this);
+            itemRow.setOrientation(LinearLayout.HORIZONTAL);
+            itemRow.setGravity(Gravity.CENTER_VERTICAL);
             TextView details = text(item.optString("text", ""), 14, true);
             details.setTextIsSelectable(true);
-            entryCard.addView(details);
-            TextView remove = smallChip("✕ הסרת הפריט", DANGER);
+            LinearLayout.LayoutParams detailsLp = new LinearLayout.LayoutParams(0, -2, 1f);
+            detailsLp.setMarginEnd(dp(8));
+            itemRow.addView(details, detailsLp);
+            TextView remove = smallChip("✕", DANGER);
+            remove.setContentDescription("הסרת הפריט");
+            remove.setTextSize(16);
+            remove.setMinWidth(dp(36));
             remove.setOnClickListener(v -> {
                 JSONArray current = readCreditList();
                 JSONArray remaining = new JSONArray();
@@ -4918,7 +4926,8 @@ public class MainActivity extends Activity {
                 showCreditList();
                 toast("הפריט הוסר מרשימת הזיכויים.", false);
             });
-            entryCard.addView(remove, lp(-2, dp(36), 0, 8));
+            itemRow.addView(remove, new LinearLayout.LayoutParams(dp(36), dp(36)));
+            entryCard.addView(itemRow);
             root.addView(entryCard, lp(-1, -2, 0, 8));
         }
     }
