@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>עד הזריחה</title>
+<style>
+:root{color-scheme:dark;--bg:#081323;--panel:#12243a;--gold:#f7c96b;--muted:#a9b9cc}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 15%,#1a3857 0,#081323 68%);color:#fff;font-family:Arial,sans-serif;min-height:100vh;display:flex;justify-content:center}
+main{width:100%;max-width:520px;padding:26px 20px 36px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.top{color:var(--gold);font-size:18px;font-weight:700;margin-top:10px}.clock{font-size:clamp(48px,15vw,76px);font-weight:700;letter-spacing:2px;margin:20px 0 4px;font-variant-numeric:tabular-nums}
+.label{font-size:17px;color:var(--muted);margin:0 0 24px}.count{display:flex;direction:ltr;gap:8px;justify-content:center;width:100%;margin:0 0 26px}.unit{background:#12243a;border:1px solid #29425d;border-radius:16px;min-width:0;flex:1;padding:15px 5px}.num{font-size:clamp(27px,8vw,40px);font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums}.unit small{display:block;color:var(--muted);font-size:13px;margin-top:5px}
+.status{display:none;background:#213d54;border:1px solid #3b6079;border-radius:16px;padding:18px;width:100%;font-size:19px;line-height:1.6;margin-bottom:20px}.sun{width:160px;height:160px;border-radius:50%;margin:8px auto 25px;display:grid;place-items:center;background:radial-gradient(circle,#ffe9a2 0,#f8b94c 38%,#d57b36 60%,#16263a 61%);box-shadow:0 0 50px #f6b64c35;font-size:50px}
+button,input{font:inherit}button{border:1px solid #38516b;background:#18324c;color:#fff;padding:13px 17px;border-radius:14px;cursor:pointer;font-weight:700}button:active{transform:scale(.98)}.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:20px}.settings{display:none;width:100%;text-align:right;background:#102139;border:1px solid #2a4560;border-radius:18px;padding:18px;margin-top:10px}.settings h2{margin:0 0 16px;font-size:21px}.field{margin:14px 0}.field label{display:block;color:#d7e2ef;margin-bottom:8px}.field input{width:100%;padding:12px;border-radius:10px;border:1px solid #47617b;background:#081323;color:white}.hint{color:var(--muted);font-size:13px;line-height:1.6;margin-top:12px}.foot{font-size:12px;color:#7f94aa;margin-top:20px}
+</style></head>
+<body><main>
+<div class="top">עד הזריחה</div><div id="clock" class="clock">--:--:--</div><div class="label">נותרו עד הזריחה הקרובה</div>
+<div id="count" class="count"><div class="unit"><div id="sec" class="num">--</div><small>שניות</small></div><div class="unit"><div id="min" class="num">--</div><small>דקות</small></div><div class="unit"><div id="hour" class="num">--</div><small>שעות</small></div></div>
+<div id="status" class="status">השמש זרחה<br><button id="next">לחצו להמשך ספירה לזריחה הבאה</button></div>
+<div class="sun" aria-hidden="true">☀</div>
+<div class="actions"><button id="sound">🔇 צליל: כבוי</button><button id="settingsBtn">⚙️ הגדרות</button></div>
+<section id="settings" class="settings"><h2>הגדרות</h2>
+<div class="field"><label>📍 מיקום</label><button id="locate">📍 המיקום שלי</button><div id="locationText" class="hint">לא הוגדר מיקום — אפשר לקבל את המיקום הנוכחי</div></div>
+<div class="field"><label for="lat">קו רוחב</label><input id="lat" type="number" step="any" value="31.778"></div>
+<div class="field"><label for="lon">קו אורך</label><input id="lon" type="number" step="any" value="35.235"></div>
+<div class="field"><label for="angle">זווית חישוב הזריחה (מעלות)</label><input id="angle" type="number" min="90" max="110" step=".001" value="90.833"></div>
+<div class="field"><label for="offset">תיקון זמן ידני (דקות)</label><input id="offset" type="number" step="1" value="0"></div>
+<div class="actions"><button id="update">עדכון</button><button id="reset">איפוס לברירת מחדל</button></div>
+<div class="hint">90.833° היא ברירת המחדל (כולל שבירת אור אטמוספירית). הזווית והתיקון משפיעים על החישובים ונשמרים אוטומטית במכשיר.</div></section>
+<div class="foot">חישוב מקומי לפי התאריך והמיקום שנבחרו</div>
+</main>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);let sound=false,alarmDone=false,target=null;
+try{for(const id of ['lat','lon','angle','offset']){const v=localStorage.getItem('netz_'+id);if(v!==null)$(id).value=v}}catch(e){}
+function save(){try{for(const id of ['lat','lon','angle','offset'])localStorage.setItem('netz_'+id,$(id).value)}catch(e){}}
+function sunrise(date,lat,lon,zenith){
+ const day=Math.floor((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-Date.UTC(date.getFullYear(),0,0))/86400000);
+ const lngHour=lon/15;let t=day+((6-lngHour)/24);let M=(0.9856*t)-3.289;
+ let L=(M+1.916*Math.sin(M*Math.PI/180)+0.020*Math.sin(2*M*Math.PI/180)+282.634)%360;if(L<0)L+=360;
+ let RA=Math.atan(0.91764*Math.tan(L*Math.PI/180))*180/Math.PI;RA=(RA+360)%360;RA+=(Math.floor(L/90)*90)-(Math.floor(RA/90)*90);RA/=15;
+ const sinDec=0.39782*Math.sin(L*Math.PI/180),cosDec=Math.cos(Math.asin(sinDec));
+ const cosH=(Math.cos(zenith*Math.PI/180)-sinDec*Math.sin(lat*Math.PI/180))/(cosDec*Math.cos(lat*Math.PI/180));
+ if(cosH>1||cosH< -1)return null;
+ const H=(360-Math.acos(cosH)*180/Math.PI)/15;const T=H+RA-(0.06571*t)-6.622;let UT=(T-lngHour)%24;if(UT<0)UT+=24;
+ const utc=Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())+UT*3600000;
+ const localOffset=-new Date(utc).getTimezoneOffset()*60000;
+ return new Date(utc+localOffset);
+}
+function nextSunrise(){const now=new Date(),lat=Number($('lat').value),lon=Number($('lon').value),z=Number($('angle').value),off=Number($('offset').value)||0;
+ if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){target=null;return}
+ for(let n=0;n<3;n++){const d=new Date(now);d.setDate(d.getDate()+n);let s=sunrise(d,lat,lon,z);if(s){s=new Date(s.getTime()+off*60000);if(s>now){target=s;return}}}target=null}
+function tick(){const now=new Date();$('clock').textContent=now.toLocaleTimeString('he-IL',{hour12:false});if(!target||target<=now)nextSunrise();if(!target){$('count').style.display='none';$('status').style.display='block';$('status').innerHTML='לא ניתן לחשב זריחה במיקום זה';return}
+ const ms=target-now;if(ms<=0){if(!alarmDone){alarmDone=true;if(sound){try{const C=window.AudioContext||window.webkitAudioContext,c=new C(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.12;o.start();setTimeout(()=>{o.stop();c.close()},800)}catch(e){}}} $('count').style.display='none';$('status').style.display='block';$('status').innerHTML='השמש זרחה<br><button id="next">לחצו להמשך ספירה לזריחה הבאה</button>';const b=$('next');if(b)b.onclick=()=>{alarmDone=false;target=null;tick()};return}
+ $('count').style.display='flex';$('status').style.display='none';const total=Math.floor(ms/1000);$('hour').textContent=String(Math.floor(total/3600)).padStart(2,'0');$('min').textContent=String(Math.floor(total%3600/60)).padStart(2,'0');$('sec').textContent=String(total%60).padStart(2,'0')}
+$('settingsBtn').onclick=()=>{$('settings').style.display=$('settings').style.display==='block'?'none':'block'};
+$('sound').onclick=()=>{sound=!sound;$('sound').textContent=sound?'🔊 צליל: פעיל':'🔇 צליל: כבוי'};
+$('locate').onclick=()=>{if(!navigator.geolocation){$('locationText').textContent='שירות מיקום אינו זמין';return}navigator.geolocation.getCurrentPosition(p=>{$('lat').value=p.coords.latitude.toFixed(5);$('lon').value=p.coords.longitude.toFixed(5);$('locationText').textContent='המיקום עודכן';save();target=null;tick()},e=>{$('locationText').textContent='לא ניתן לקבל מיקום. אפשר להזין קואורדינטות ידנית.'},{enableHighAccuracy:true,timeout:15000})};
+$('update').onclick=()=>{save();target=null;alarmDone=false;tick();$('settings').style.display='none'};
+$('reset').onclick=()=>{$('lat').value='31.778';$('lon').value='35.235';$('angle').value='90.833';$('offset').value='0';save();target=null;tick()};
+tick();setInterval(tick,1000);
+})();
+</script></body></html>
