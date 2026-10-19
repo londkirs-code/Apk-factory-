@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.AlertDialog;
+import android.app.DownloadManager;
 import android.app.NotificationManager;
 import android.app.TimePickerDialog;
 import android.content.ClipData;
@@ -13,6 +14,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
+import android.database.Cursor;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
@@ -30,6 +32,7 @@ import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -360,6 +363,14 @@ public class MainActivity extends Activity {
     private EditText emailField;
     private EditText passwordField;
     private TextView loginButton;
+    // In-app updater state; download and installation remain user-confirmed.
+    private TextView updateStatusView, updateNotesView, updateCheckButton, updateDownloadButton, updateInstallButton;
+    private long updateDownloadId = -1L;
+    private int updateLatestCode = 0;
+    private String updateLatestName = "", updateLatestSha256 = "", updateReleaseNotes = "";
+    private boolean updateDownloadVerifying = false;
+    private static final String UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/update.json";
+    private static final String UPDATE_APK_URL = "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk";
     private boolean busy = false;
     private Runnable backAction = null;
     private int screenToken = 0;
@@ -1569,6 +1580,7 @@ public class MainActivity extends Activity {
         root.addView(acc, lp(-1, -2, 0, 10));
         addHomeNotificationSettings();
         addHomeStockSettings();
+        addHomeUpdateSettings();
         addWhatsNewEntry();
         addSafetySettings();
         TextView contactBtn = btn("📞 יצירת קשר", TONAL);
@@ -1885,6 +1897,16 @@ public class MainActivity extends Activity {
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
+    private void addHomeUpdateSettings() {
+        LinearLayout card = card(14);
+        card.addView(text("📲 עדכוני אפליקציה", 15, true));
+        card.addView(muted("בדיקת גרסה חדשה, הורדה והתקנה מתוך האפליקציה", 13), lp(-1, -2, 0, 8));
+        TextView settings = btn("⬇️ בדוק עדכונים והתקנה", TONAL);
+        settings.setOnClickListener(v -> showUpdateSettings());
+        card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
+        root.addView(card, lp(-1, -2, 0, 10));
+    }
+
     @Override protected void onResume() {
         super.onResume();
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
@@ -1909,6 +1931,307 @@ public class MainActivity extends Activity {
         TextView log = btn("📋 היסטוריית פעולות מלאי", TONAL);
         log.setOnClickListener(v -> showStockMonitorLog());
         root.addView(log, lp(-1, dp(42), 0, 6));
+    }
+
+    private int installedVersionCode() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            if (Build.VERSION.SDK_INT >= 28) return (int) info.getLongVersionCode();
+            return info.versionCode;
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    private String installedVersionName() {
+        try {
+            String value = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            return value == null || value.trim().isEmpty() ? "לא ידועה" : value.trim();
+        } catch (Exception ignored) {
+            return "לא ידועה";
+        }
+    }
+
+    private void showUpdateSettings() {
+        beginScreen("עדכוני אפליקציה", 3, this::showAccount);
+        screenKind = 7;
+        LinearLayout card = card(14);
+        card.addView(text("📲 עדכוני אפליקציה", 17, true));
+        card.addView(muted("הגרסה המותקנת: " + installedVersionName() + " (" + installedVersionCode() + ")", 13), lp(-1, -2, 0, 8));
+        updateStatusView = muted("לחץ על „בדוק אם יש עדכון” כדי לבדוק מול GitHub.", 14);
+        updateStatusView.setPadding(dp(2), dp(8), dp(2), dp(8));
+        card.addView(updateStatusView, new LinearLayout.LayoutParams(-1, -2));
+        updateNotesView = muted("פרטי השינויים יוצגו לאחר בדיקת הגרסה העדכנית.", 13);
+        updateNotesView.setPadding(dp(2), dp(4), dp(2), dp(10));
+        card.addView(updateNotesView, new LinearLayout.LayoutParams(-1, -2));
+        updateCheckButton = btn("🔄 בדוק אם יש עדכון", PRIMARY);
+        updateCheckButton.setOnClickListener(v -> checkForAppUpdate());
+        card.addView(updateCheckButton, lp(-1, dp(46), 0, 6));
+        updateDownloadButton = btn("⬇️ הורד עדכון", TONAL);
+        updateDownloadButton.setEnabled(false);
+        updateDownloadButton.setOnClickListener(v -> downloadLatestUpdate());
+        card.addView(updateDownloadButton, lp(-1, dp(46), 0, 6));
+        updateInstallButton = btn("📦 התקן עדכון שהורד", TONAL);
+        updateInstallButton.setVisibility(View.GONE);
+        updateInstallButton.setOnClickListener(v -> installDownloadedUpdate());
+        card.addView(updateInstallButton, lp(-1, dp(46), 0, 6));
+        card.addView(muted("ההתקנה נפתחת דרך מערכת Android ועשויה לדרוש אישור. ההורדה נבדקת מול חתימת SHA-256 שפורסמה עם הגרסה.", 12), lp(-1, -2, 0, 4));
+        root.addView(card, lp(-1, -2, 0, 10));
+
+        updateDownloadId = prefs.getLong("update_download_id", -1L);
+        updateLatestCode = prefs.getInt("update_latest_code", 0);
+        updateLatestName = prefs.getString("update_latest_name", "");
+        updateLatestSha256 = prefs.getString("update_latest_sha256", "");
+        updateReleaseNotes = prefs.getString("update_release_notes", "");
+        if (updateLatestCode > 0 && updateLatestCode > installedVersionCode()) {
+            updateStatusView.setText("תוצאת הבדיקה האחרונה: נמצאה גרסה " + updateLatestName + " (" + updateLatestCode + "). אפשר לבדוק שוב לפני ההורדה.");
+            updateNotesView.setText(updateReleaseNotes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : updateReleaseNotes);
+            updateDownloadButton.setEnabled(true);
+        }
+        if (prefs.getBoolean("update_download_verified", false)
+                && prefs.getInt("update_download_verified_code", 0) == updateLatestCode
+                && updateLatestCode > installedVersionCode()) {
+            updateInstallButton.setVisibility(View.VISIBLE);
+        } else if (updateDownloadId > 0) {
+            pollUpdateDownload();
+        }
+    }
+
+    private JSONObject fetchUpdateManifest() throws Exception {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(UPDATE_MANIFEST_URL).openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(15000);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("Cache-Control", "no-cache");
+            connection.setRequestProperty("Accept", "application/json");
+            int status = connection.getResponseCode();
+            if (status != HttpURLConnection.HTTP_OK) throw new java.io.IOException("GitHub החזיר HTTP " + status);
+            try (InputStream input = connection.getInputStream(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[4096];
+                int total = 0, count;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > 131072) throw new java.io.IOException("קובץ מידע הגרסה גדול מדי");
+                    output.write(buffer, 0, count);
+                }
+                JSONObject json = new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
+                int code = json.optInt("versionCode", 0);
+                String name = json.optString("versionName", "").trim();
+                String apkUrl = json.optString("apkUrl", "").trim();
+                String sha = json.optString("sha256", "").trim().toLowerCase(Locale.US);
+                if (code <= 0 || name.isEmpty()) throw new java.io.IOException("מידע הגרסה חסר או לא תקין");
+                if (!UPDATE_APK_URL.equals(apkUrl)) throw new java.io.IOException("כתובת קובץ העדכון אינה מוכרת");
+                if (!sha.matches("[0-9a-f]{64}")) throw new java.io.IOException("חסרה חתימת SHA-256 תקינה לקובץ העדכון");
+                json.put("versionCode", code);
+                json.put("versionName", name);
+                json.put("sha256", sha);
+                return json;
+            }
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private void checkForAppUpdate() {
+        if (updateCheckButton != null) updateCheckButton.setEnabled(false);
+        if (updateStatusView != null) updateStatusView.setText("בודק מול GitHub…");
+        executor.execute(() -> {
+            try {
+                JSONObject manifest = fetchUpdateManifest();
+                int code = manifest.getInt("versionCode");
+                String name = manifest.getString("versionName");
+                String sha = manifest.getString("sha256");
+                String notes = manifest.optString("releaseNotes", "").trim();
+                int installed = installedVersionCode();
+                runOnUiThread(() -> {
+                    if (screenKind != 7 || updateStatusView == null) return;
+                    updateLatestCode = code;
+                    updateLatestName = name;
+                    updateLatestSha256 = sha;
+                    updateReleaseNotes = notes;
+                    prefs.edit().putInt("update_latest_code", code)
+                            .putString("update_latest_name", name)
+                            .putString("update_latest_sha256", sha)
+                            .putString("update_release_notes", notes).apply();
+                    if (code > installed) {
+                        updateStatusView.setText("נמצאה גרסה חדשה: " + name + " (" + code + ").");
+                        updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
+                        updateDownloadButton.setEnabled(true);
+                        updateInstallButton.setVisibility(View.GONE);
+                    } else if (code == installed) {
+                        updateStatusView.setText("האפליקציה מעודכנת. מותקנת הגרסה האחרונה: " + name + " (" + code + ").");
+                        updateNotesView.setText(notes.isEmpty() ? "אין פירוט שינויים נוסף." : notes);
+                        updateDownloadButton.setEnabled(false);
+                        updateInstallButton.setVisibility(View.GONE);
+                    } else {
+                        updateStatusView.setText("הגרסה המותקנת חדשה יותר מהמידע שפורסם ב־GitHub. לא תתבצע התקנה לאחור.");
+                        updateNotesView.setText(notes);
+                        updateDownloadButton.setEnabled(false);
+                        updateInstallButton.setVisibility(View.GONE);
+                    }
+                    if (updateCheckButton != null) updateCheckButton.setEnabled(true);
+                });
+            } catch (Exception error) {
+                String message = error.getMessage();
+                if (message == null || message.trim().isEmpty()) message = error.getClass().getSimpleName();
+                final String shown = message;
+                runOnUiThread(() -> {
+                    if (screenKind != 7 || updateStatusView == null) return;
+                    updateStatusView.setText("בדיקת העדכונים נכשלה: " + shown + ". אפשר לנסות שוב מאוחר יותר.");
+                    if (updateCheckButton != null) updateCheckButton.setEnabled(true);
+                    updateDownloadButton.setEnabled(false);
+                });
+            }
+        });
+    }
+
+    private void downloadLatestUpdate() {
+        if (updateLatestCode <= installedVersionCode() || !updateLatestSha256.matches("[0-9a-f]{64}")) {
+            toast("צריך לבצע בדיקת עדכונים מוצלחת לפני ההורדה.", true);
+            return;
+        }
+        try {
+            DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (manager == null) throw new IllegalStateException("מנהל ההורדות של Android אינו זמין");
+            long oldId = prefs.getLong("update_download_id", -1L);
+            if (oldId > 0) manager.remove(oldId);
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(UPDATE_APK_URL));
+            request.setTitle("משנת יוסף — עדכון " + updateLatestName);
+            request.setDescription("מוריד קובץ עדכון מאומת");
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(false);
+            request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS,
+                    "mishnat-yosef-update-" + updateLatestCode + ".apk");
+            updateDownloadId = manager.enqueue(request);
+            prefs.edit().putLong("update_download_id", updateDownloadId)
+                    .putBoolean("update_download_verified", false)
+                    .remove("update_download_verified_code").apply();
+            if (updateStatusView != null) updateStatusView.setText("ההורדה התחילה. אפשר להשאיר את האפליקציה פתוחה ולעקוב כאן אחרי ההתקדמות.");
+            if (updateInstallButton != null) updateInstallButton.setVisibility(View.GONE);
+            pollUpdateDownload();
+        } catch (Exception error) {
+            String message = error.getMessage();
+            toast("לא ניתן להתחיל הורדה: " + (message == null ? "שגיאה לא ידועה" : message), true);
+        }
+    }
+
+    private void pollUpdateDownload() {
+        if (screenKind != 7 || updateStatusView == null || updateDownloadId <= 0 || updateDownloadVerifying) return;
+        DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        if (manager == null) return;
+        Cursor cursor = null;
+        try {
+            cursor = manager.query(new DownloadManager.Query().setFilterById(updateDownloadId));
+            if (cursor == null || !cursor.moveToFirst()) {
+                updateStatusView.setText("לא נמצאה הורדה פעילה. בדוק שוב או התחל הורדה חדשה.");
+                return;
+            }
+            int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            if (status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PAUSED) {
+                long downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                long total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                String progress = total > 0 ? " (" + Math.max(0, Math.min(100, downloaded * 100L / total)) + "%)" : "";
+                updateStatusView.setText("מוריד עדכון" + progress + "…");
+                ui.postDelayed(this::pollUpdateDownload, 800);
+                return;
+            }
+            if (status == DownloadManager.STATUS_FAILED) {
+                int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                updateStatusView.setText("ההורדה נכשלה (קוד " + reason + "). בדוק חיבור ונסה שוב.");
+                prefs.edit().putBoolean("update_download_verified", false).apply();
+                updateDownloadId = -1L;
+                prefs.edit().remove("update_download_id").apply();
+                return;
+            }
+            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                Uri uri = manager.getUriForDownloadedFile(updateDownloadId);
+                if (uri == null) {
+                    updateStatusView.setText("ההורדה הסתיימה אך הקובץ לא נמצא. נסה להוריד שוב.");
+                    return;
+                }
+                updateDownloadVerifying = true;
+                final String expected = updateLatestSha256;
+                final long completedId = updateDownloadId;
+                executor.execute(() -> {
+                    boolean verified = false;
+                    String failure = "";
+                    try (InputStream input = getContentResolver().openInputStream(uri)) {
+                        if (input == null) throw new java.io.IOException("לא ניתן לקרוא את קובץ ההורדה");
+                        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                        byte[] buffer = new byte[8192];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
+                        StringBuilder hex = new StringBuilder();
+                        for (byte b : digest.digest()) hex.append(String.format(Locale.US, "%02x", b & 0xff));
+                        verified = expected != null && expected.matches("[0-9a-f]{64}") && expected.equals(hex.toString());
+                        if (!verified) failure = "חתימת הקובץ אינה תואמת לגרסה שפורסמה";
+                    } catch (Exception error) {
+                        failure = error.getMessage() == null ? "לא ניתן לאמת את הקובץ" : error.getMessage();
+                    }
+                    final boolean ok = verified;
+                    final String problem = failure;
+                    runOnUiThread(() -> {
+                        updateDownloadVerifying = false;
+                        if (screenKind != 7 || updateStatusView == null || completedId != updateDownloadId) return;
+                        if (ok) {
+                            prefs.edit().putBoolean("update_download_verified", true)
+                                    .putInt("update_download_verified_code", updateLatestCode).apply();
+                            updateStatusView.setText("ההורדה הושלמה והקובץ אומת בהצלחה. אפשר להתקין.");
+                            updateInstallButton.setVisibility(View.VISIBLE);
+                        } else {
+                            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                            if (dm != null) dm.remove(completedId);
+                            prefs.edit().putBoolean("update_download_verified", false).apply();
+                            updateStatusView.setText("הקובץ לא עבר אימות: " + problem + ". ההתקנה נחסמה; הורד שוב.");
+                            updateInstallButton.setVisibility(View.GONE);
+                        }
+                    });
+                });
+            }
+        } catch (Exception error) {
+            updateStatusView.setText("לא ניתן לבדוק את מצב ההורדה. אפשר לנסות שוב.");
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+    }
+
+    private void installDownloadedUpdate() {
+        long id = prefs.getLong("update_download_id", -1L);
+        if (!prefs.getBoolean("update_download_verified", false)
+                || prefs.getInt("update_download_verified_code", 0) != updateLatestCode
+                || updateLatestCode <= installedVersionCode()) {
+            toast("אין קובץ עדכון מאומת להתקנה. בדוק עדכונים והורד מחדש.", true);
+            return;
+        }
+        DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        Uri uri = manager == null ? null : manager.getUriForDownloadedFile(id);
+        if (uri == null) {
+            toast("קובץ העדכון לא נמצא. צריך להוריד אותו מחדש.", true);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName())));
+                toast("אפשר התקנת אפליקציות עבור משנת יוסף, חזור לכאן ולחץ שוב על התקנה.", true);
+            } catch (Exception error) {
+                toast("פתח את הגדרות Android ואפשר התקנת אפליקציות ממקור זה.", true);
+            }
+            return;
+        }
+        try {
+            Intent install = new Intent(Intent.ACTION_VIEW);
+            install.setDataAndType(uri, "application/vnd.android.package-archive");
+            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            install.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(install);
+        } catch (Exception error) {
+            toast("לא ניתן לפתוח את מתקין Android. בדוק הרשאות התקנה ונסה שוב.", true);
+        }
     }
 
     private TextView sectionTitle(String title) {
