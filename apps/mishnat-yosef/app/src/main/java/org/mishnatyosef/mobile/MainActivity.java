@@ -2655,7 +2655,9 @@ public class MainActivity extends Activity {
         executor.execute(() -> {
             try {
                 HttpResult r = api("GET", "/api/profile/open_sales", null);
-                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת המכירות נכשלה (" + r.code + ").");
+                if (r.code < 200 || r.code >= 300) {
+                    throw new Exception(apiErrorMessage(r.body, "טעינת המכירות נכשלה."));
+                }
                 JSONArray rows = arrayFrom(r.body);
                 try { SaleMonitor.scheduleClosingReminders(getApplicationContext(), rows); } catch (Exception ignored) { }
                 runOnUiThread(() -> { if (!stale(t)) renderSales(rows); });
@@ -4820,23 +4822,22 @@ public class MainActivity extends Activity {
                 .replaceAll("(?i)(\"?(?:password|passwd|סיסמה)\"?\\s*[:=]\\s*)\"?[^\",\\s}]+\"?", "$1***");
     }
 
+    private String apiErrorMessage(String body, String fallback) {
+        if (body == null || body.trim().isEmpty()) return fallback;
+        try {
+            JSONObject error = new JSONObject(body);
+            String message = first(error, "message", "error_description", "detail", "error");
+            if (message != null && !message.trim().isEmpty()) return message.trim();
+        } catch (Exception ignored) { }
+        return fallback;
+    }
+
     private void logApi(String method, String path, String result, long ms, String errorBody) {
-        String displayResult = result;
-        boolean messageShown = false;
-        if (errorBody != null && !errorBody.trim().isEmpty()) {
-            try {
-                JSONObject error = new JSONObject(errorBody);
-                String message = first(error, "message", "error_description", "detail", "error");
-                if (message != null && !message.trim().isEmpty()) {
-                    displayResult = redact(message.trim());
-                    messageShown = true;
-                }
-            } catch (Exception ignored) { }
-        }
-        String line = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date()) + " " + method + " " + path + " → " + displayResult + " (" + ms + "ms)";
-        if (errorBody != null && !errorBody.isEmpty() && !messageShown) {
-            String b = redact(errorBody.replace("\n", " "));
-            line += "\n    " + (b.length() > 220 ? b.substring(0, 220) : b);
+        // The diagnostic log intentionally preserves the HTTP result and the complete response body.
+        // redact() still masks sensitive values before anything is displayed or shared.
+        String line = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date()) + " " + method + " " + path + " → " + result + " (" + ms + "ms)";
+        if (errorBody != null && !errorBody.isEmpty()) {
+            line += "\n    " + redact(errorBody.replace("\n", " "));
         }
         synchronized (apiLog) {
             apiLog.add(line);
