@@ -1532,7 +1532,7 @@ public class MainActivity extends Activity {
         TextView logBtn = btn("📡 יומן תקשורת (לאבחון תקלות)", TONAL);
         logBtn.setOnClickListener(v -> showApiLog());
         root.addView(logBtn, lp(-1, dp(46), 0, 8));
-        TextView itemDiagBtn = btn("🔎 סריקת API ואיתור האפונה", TONAL);
+        TextView itemDiagBtn = btn("🔎 בדיקת API", TONAL);
         itemDiagBtn.setOnClickListener(v -> diagnoseAllServerJson());
         root.addView(itemDiagBtn, lp(-1, dp(46), 0, 8));
         TextView cacheBtn = btn("🧹 ניקוי מטמון תמונות", TONAL);
@@ -4990,20 +4990,19 @@ public class MainActivity extends Activity {
     private void diagnoseAllServerJson() {
         if (!hasToken()) { toast("צריך להתחבר לפני בדיקת כתובת", true); return; }
         final JsonEndpointChoice[] endpoints = new JsonEndpointChoice[] {
-                new JsonEndpointChoice("מכירות פתוחות — /api/profile/open_sales", "/api/profile/open_sales"),
-                new JsonEndpointChoice("רשימת הזמנות — /api/orders?page=1&limit=100", "/api/orders?page=1&limit=100"),
-                new JsonEndpointChoice("פרטי הזמנה לדוגמה — /api/orders/26039956", "/api/orders/26039956"),
-                new JsonEndpointChoice("תנועות / זיכויים — /api/profile/transactions?page=1&limit=100", "/api/profile/transactions?page=1&limit=100"),
-                new JsonEndpointChoice("אמצעי תשלום שמורים (יוסתרו פרטים רגישים) — /api/payment_methods/cards", "/api/payment_methods/cards"),
-                new JsonEndpointChoice("מועדפים למכירה לדוגמה — /api/get_favourites/171584", "/api/get_favourites/171584"),
-                new JsonEndpointChoice("פריטי מכירה — /api/get_items_for_sale/171584/null?page=1&limit=100", "/api/get_items_for_sale/171584/null?page=1&limit=100"),
-                new JsonEndpointChoice("נתיב מועדפים כללי — /api/get_favourites/null", "/api/get_favourites/null")
+                new JsonEndpointChoice("מסך מכירות פתוחות — GET /api/profile/open_sales", "/api/profile/open_sales"),
+                new JsonEndpointChoice("מסך ההזמנות — GET /api/orders", "/api/orders"),
+                new JsonEndpointChoice("פרטי הזמנה (מזהה לדוגמה 26039956) — מסך הזמנה", "/api/orders/26039956"),
+                new JsonEndpointChoice("מסך תנועות החשבון — GET /api/profile/transactions?page=1", "/api/profile/transactions?page=1"),
+                new JsonEndpointChoice("פתיחת הזמנה: טעינת אמצעי תשלום — GET /api/payment_methods/cards", "/api/payment_methods/cards"),
+                new JsonEndpointChoice("מסך פרטי מכירה: טעינת מוצרים (מזהה מכירה לדוגמה 171584)", "/api/get_items_for_sale/171584/null?page=1&limit=100"),
+                new JsonEndpointChoice("מסך מוצרים: המועדפים במכירה לדוגמה 171584", "/api/get_favourites/171584")
         };
         final String[] labels = new String[endpoints.length];
         for (int i = 0; i < endpoints.length; i++) labels[i] = endpoints[i].label;
         appDialog()
-                .setTitle("בדיקת כתובת JSON")
-                .setMessage("בחרו כתובת אחת להרצת GET. התשובה לא תוצג במסך: ערכים רגישים יוסתרו והתוצאה תועתק ללוח. הרשימה כוללת נתיבי בדיקה שמופיעים בקוד, עם מזהי דוגמה בחלק מהכתובות.")
+                .setTitle("בדיקת API")
+                .setMessage("בחרו כתובת לפי המסך או הפעולה באפליקציה כדי להריץ בקשת GET אחת. גוף התשובה לא יוצג בחלון; לאחר הסתרת מידע רגיש הוא יועתק ללוח. כתובות עם מזהה מספרי משתמשות במזהה לדוגמה.")
                 .setItems(labels, (dialog, which) -> runSingleJsonEndpoint(endpoints[which]))
                 .setNegativeButton("ביטול", null)
                 .show();
