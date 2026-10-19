@@ -1518,6 +1518,12 @@ public class MainActivity extends Activity {
             screenToken++;
             restoreTabScreenState(cached);
             if (targetTab == 0) returnToOrderScreenOnSalesTab = false;
+            // If another screen changed the saved list, rebuild the cached list instead of
+            // showing the stale view until the app is restarted.
+            if (creditListDirty && cached.screen == creditListScreenView) {
+                showCreditList();
+                return;
+            }
             setContentView(currentScreen);
             currentScreen.requestApplyInsets();
             styleSystemBars();
@@ -4743,6 +4749,9 @@ public class MainActivity extends Activity {
     // ======================================================================== persistent credit list
 
     private static final String CREDIT_LIST_PREF = "history_credit_list_v1";
+    // A tab may keep the credit-list screen cached while another tab changes the list.
+    private View creditListScreenView;
+    private boolean creditListDirty = false;
 
     private JSONArray readCreditList() {
         try {
@@ -4754,6 +4763,7 @@ public class MainActivity extends Activity {
 
     private void saveCreditList(JSONArray items) {
         prefs.edit().putString(CREDIT_LIST_PREF, items == null ? "[]" : items.toString()).apply();
+        creditListDirty = true;
     }
 
     /** Stable identity: a product may be listed once per sale, regardless of its quantity. */
@@ -4802,6 +4812,8 @@ public class MainActivity extends Activity {
 
     private void showCreditList() {
         beginScreen("רשימת זיכויים", 2, this::loadFeatureTransactions);
+        creditListScreenView = currentScreen;
+        creditListDirty = false;
         JSONArray items = readCreditList();
         setStatus(items.length() == 0 ? "רשימת הזיכויים ריקה. אפשר להוסיף פריטים מהיסטוריית ההזמנות." : "");
         LinearLayout actions = new LinearLayout(this);
