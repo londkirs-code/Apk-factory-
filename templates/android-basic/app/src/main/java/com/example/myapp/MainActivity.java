@@ -1,7 +1,5 @@
 package com.example.myapp;
 
-import org.apkfactory.theme.ThemeWorkbench;
-
 import android.app.Activity;
 import android.os.Bundle;
 import android.graphics.Color;
@@ -118,7 +116,6 @@ public class MainActivity extends Activity {
         page.addView(footer, footerLp);
 
         setContentView(scroll);
-        ThemeWorkbench.install(this);
     }
 
     private void addInfoCard(String heading, String description, String number) {
