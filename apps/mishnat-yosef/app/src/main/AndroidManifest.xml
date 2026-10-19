@@ -23,7 +23,7 @@
         <receiver
             android:name=".StockMonitor"
             android:enabled="true"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="org.mishnatyosef.mobile.CHECK_STOCK_WATCHES" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
