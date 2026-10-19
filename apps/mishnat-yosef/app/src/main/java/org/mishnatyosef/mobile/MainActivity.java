@@ -1628,7 +1628,7 @@ public class MainActivity extends Activity {
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
         open.setOnClickListener(v -> appDialog()
                 .setTitle("✨ מה חדש במשנת יוסף")
-                .setMessage(latestTitle[0] + "\\n\\n" +
+                .setMessage(latestTitle[0] + "\n\n" +
                         (latestDetails[0].isEmpty() ? "לא ניתן כרגע לטעון את פרטי העדכון האחרון." : latestDetails[0]))
                 .setPositiveButton("הבנתי", null)
                 .show());
