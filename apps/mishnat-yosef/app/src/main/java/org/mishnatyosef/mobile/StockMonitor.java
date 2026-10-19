@@ -23,6 +23,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class StockMonitor extends BroadcastReceiver {
     public static final String WATCHES = "stock_watch_list";
@@ -115,6 +119,8 @@ public class StockMonitor extends BroadcastReceiver {
         if (watches.length() == 0) return;
         JSONArray sales = getSales(c);
         if (sales == null) { appendLog(c, "", "", "בדיקת מלאי נדחתה", "רשימת המכירות לא נטענה באופן תקין."); return; }
+        Map<Long, JSONArray> productCache = new HashMap<>();
+        List<Thread> autoOrderThreads = new ArrayList<>();
         for (int i = 0; i < watches.length(); i++) {
             JSONObject w = watches.optJSONObject(i); if (w == null) continue;
             String key = w.optString("key", ""), name = w.optString("name", "מוצר"), sid = w.optString("sid", "");
@@ -123,9 +129,16 @@ public class StockMonitor extends BroadcastReceiver {
             if (sale == null) { appendLog(c, key, name, "המכירה אינה פתוחה", "לא נשלחה הזמנה; המעקב נשמר."); continue; }
             try {
                 long orderId = orderIdFromSale(sale);
-                JSONArray rows = fetchProducts(c, orderId > 0 ? orderId : saleId);
+                long queryId = orderId > 0 ? orderId : saleId;
+                JSONArray rows = productCache.get(queryId);
+                if (rows == null) { rows = fetchProducts(c, queryId); productCache.put(queryId, rows); }
                 JSONObject product = findProduct(rows, sid);
-                if (product == null && orderId > 0) product = findProduct(fetchProducts(c, saleId), sid);
+                if (product == null && orderId > 0) {
+                    long fallbackId = saleId;
+                    JSONArray fallback = productCache.get(fallbackId);
+                    if (fallback == null) { fallback = fetchProducts(c, fallbackId); productCache.put(fallbackId, fallback); }
+                    product = findProduct(fallback, sid);
+                }
                 if (product == null) { appendLog(c, key, name, "המוצר לא נמצא", "לא שונה מצב המעקב."); continue; }
                 int now = availability(product);
                 if (now < 0) { appendLog(c, key, name, "זמינות לא ידועה", "חסר שדה available תקין; לא נשלחה הזמנה."); continue; }
@@ -146,9 +159,15 @@ public class StockMonitor extends BroadcastReceiver {
                     updateWatch(c, key, new JSONObject().put("state", "attempting").put("attemptStartedAt", System.currentTimeMillis()));
                     appendLog(c, key, name, "מתחיל ניסיון הזמנה אוטומטית", "כמות מבוקשת: " + Math.max(1, w.optInt("qty", 1)));
                     JSONObject sw = new JSONObject(w.toString()), ss = new JSONObject(sale.toString()), sp = new JSONObject(product.toString());
-                    performAutoOrder(c, sw, ss, sp);
+                    Thread attempt = new Thread(() -> performAutoOrder(c, sw, ss, sp), "mishnat-auto-order-" + saleId + "-" + sid);
+                    autoOrderThreads.add(attempt);
+                    attempt.start();
                 }
             } catch (Exception e) { appendLog(c, key, name, "בדיקת מוצר נכשלה", safeMessage(e)); }
+        }
+        for (Thread attempt : autoOrderThreads) {
+            try { attempt.join(); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); appendLog(c, "", "", "בדיקת רקע הופסקה", "לא הושלמו כל ניסיונות ההזמנה."); break; }
         }
     }
 
