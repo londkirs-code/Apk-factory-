@@ -1602,9 +1602,10 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "ניקוי מהיר של חיפוש היסטוריית ההזמנות";
-        final String whatsNewSummary = "נוסף כפתור × ליד החיפוש בהיסטוריה, שמוחק את הטקסט ומציג מחדש את כל ההזמנות.";
+        final String whatsNewTitle = "מסך הזיכויים זמין מיד בזמן טעינת הנתונים";
+        final String whatsNewSummary = "התפריטים, החיפוש והכלים במסך הזיכויים מופיעים מיד; רק הנתונים עצמם ממתינים לשרת.";
         final String whatsNewDetails =
+                "• מסך „זיכויים וחיובים” מציג מיד את סרגלי הסינון, החיפוש, רשימת הזיכויים, תצוגה לפי מכירה והשיתוף. בזמן ההמתנה מופיע „ממתין לשרת…” במקום נתוני סיכום מטעים; עם הגעת הנתונים המסך מתעדכן, ואם הטעינה נכשלת נשארים הכלים ומוצגת הודעת שגיאה.\n\n" +
                 "• בחיפוש היסטוריית ההזמנות נוסף כפתור × בדומה לכפתור הניקוי שבתוך הזמנה. לחיצה עליו מוחקת את החיפוש, מאפסת את העימוד וטוענת מחדש את רשימת ההזמנות המלאה.\n\n" +
                 "• שאר התנהגות החיפוש, פתיחת ההזמנות וכפתור „טען עוד” נשארו ללא שינוי.\n\n" +
                 "• מסך „הזמנות מהמטמון” מאתר מטמונים מקומיים קריאים, מצרף את שם המכירה בעברית מ־GET /api/orders לפי saleID, ומציג רק את שם המכירה וכפתור פתיחה מהמטמון. השם נשמר גם במטמון המקומי להמשך.\n\n" +
@@ -5488,7 +5489,17 @@ public class MainActivity extends Activity {
                     renderTransactions(rows);
                 });
             } catch (Exception e) {
-                fail(t, e, "טעינת הזיכויים נכשלה.");
+                if (e instanceof AuthException) {
+                    fail(t, e, "טעינת הזיכויים נכשלה.");
+                    return;
+                }
+                runOnUiThread(() -> {
+                    if (stale(t)) return;
+                    // Keep the controls visible on failure too, and replace the waiting state with an error.
+                    beginScreen("זיכויים וחיובים", 2, null);
+                    renderTransactions(Collections.<JSONObject>emptyList());
+                    fail(screenToken, e, "טעינת הזיכויים נכשלה.");
+                });
             }
         });
     }
