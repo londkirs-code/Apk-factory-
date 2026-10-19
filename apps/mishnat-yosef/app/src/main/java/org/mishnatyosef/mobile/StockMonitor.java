@@ -146,7 +146,7 @@ public class StockMonitor extends BroadcastReceiver {
                     updateWatch(c, key, new JSONObject().put("state", "attempting").put("attemptStartedAt", System.currentTimeMillis()));
                     appendLog(c, key, name, "מתחיל ניסיון הזמנה אוטומטית", "כמות מבוקשת: " + Math.max(1, w.optInt("qty", 1)));
                     JSONObject sw = new JSONObject(w.toString()), ss = new JSONObject(sale.toString()), sp = new JSONObject(product.toString());
-                    new Thread(() -> performAutoOrder(c, sw, ss, sp), "mishnat-auto-order").start();
+                    performAutoOrder(c, sw, ss, sp);
                 }
             } catch (Exception e) { appendLog(c, key, name, "בדיקת מוצר נכשלה", safeMessage(e)); }
         }
