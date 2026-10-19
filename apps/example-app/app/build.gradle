@@ -8,7 +8,7 @@ android {
         applicationId 'com.example.apkfactory'
         minSdk 23
         targetSdk 35
-        versionCode 192
+        versionCode 193
         versionName '1.0'
     }
 }
