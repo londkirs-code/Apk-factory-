@@ -207,8 +207,8 @@ jobs:
 
           build_file, apk_file, changelog_file, output_file = map(Path, sys.argv[1:])
           build_text = build_file.read_text(encoding="utf-8")
-          code_match = re.search(r"^\\s*versionCode\\s+(\\d+)", build_text, re.M)
-          name_match = re.search(r"^\\s*versionName\\s+'([^']+)'", build_text, re.M)
+          code_match = re.search(r"^\s*versionCode\s+(\d+)", build_text, re.M)
+          name_match = re.search(r"^\s*versionName\s+'([^']+)'", build_text, re.M)
           if not code_match or not name_match:
               raise SystemExit("Could not read versionCode/versionName for update manifest")
           apk = apk_file.read_bytes()
@@ -222,7 +222,7 @@ jobs:
               if line.startswith("## "):
                   if in_latest:
                       break
-                  title = re.sub(r"^##\\s*(?:\\d{4}-\\d{2}-\\d{2}\\s*[—-]\\s*)?", "", line).strip()
+                  title = re.sub(r"^##\s*(?:\d{4}-\d{2}-\d{2}\s*[—-]\s*)?", "", line).strip()
                   in_latest = True
                   continue
               if in_latest and line.startswith("- "):
@@ -238,10 +238,10 @@ jobs:
               "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
               "sha256": hashlib.sha256(apk).hexdigest(),
               "releaseTitle": title,
-              "releaseNotes": "\\n\\n".join(notes) if notes else title,
+              "releaseNotes": "\n\n".join(notes) if notes else title,
               "buildCommit": commit,
           }
-          output_file.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+          output_file.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
           # Parse the generated JSON again so malformed output fails the build.
           json.loads(output_file.read_text(encoding="utf-8"))
           print(f"Published update metadata for {manifest['versionName']} ({manifest['versionCode']}); SHA-256 {manifest['sha256']}")
