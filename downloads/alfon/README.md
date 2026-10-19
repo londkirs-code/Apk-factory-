@@ -1,1 +1,1 @@
-APK for alfon, versionName 1.0, versionCode 62, built from commit 43c94a49008f3b4c911082aeeb296250924f60f1.
+APK for alfon, versionName 1.0, versionCode 63, built from commit 18f538020d687c969ad17db2d2851add8d986410.
