@@ -4057,7 +4057,7 @@ public class MainActivity extends Activity {
 
             card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
-            star.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
+            star.setOnClickListener(v -> { if (p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
             add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
             st.plus.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) changeBy(p, 1, productsRefresh, null); });
             st.minus.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) changeBy(p, -1, productsRefresh, null); });
