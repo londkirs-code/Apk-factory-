@@ -1,7 +1,5 @@
 package com.londkirs.quickfloat;
 
-import org.apkfactory.theme.ThemeWorkbench;
-
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
@@ -94,7 +92,6 @@ public class MainActivity extends Activity {
         note.setTextColor(Color.GRAY);
         page.addView(note);
         setContentView(scroll);
-        ThemeWorkbench.install(this);
     }
 
     private int dp(int value) { return (int)(value * getResources().getDisplayMetrics().density + 0.5f); }
