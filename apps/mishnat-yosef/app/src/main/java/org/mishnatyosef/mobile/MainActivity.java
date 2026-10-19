@@ -1601,20 +1601,20 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "חיובים מהזמנות סגורות";
-        final String whatsNewSummary = "נוספה רשימת זיכויים וחיובים משותפת; אפשר לבחור כמות במטמון של הזמנה סגורה ולהוסיף חיוב בלי לשנות את ההזמנה.";
+        final String whatsNewTitle = "הזמנות מהמטמון וחיובים";
+        final String whatsNewSummary = "מסך הזמנות מהמטמון מציג רק הזמנות שיש להן מטמון מקומי קריא, בלי לפנות לשרת; פתיחה מהמסך מתחילה בכמות אפס לכל מוצר.";
         final String whatsNewDetails =
-                "• שם הרשימה שונה ל„רשימת זיכויים וחיובים”; פריטי זיכוי ישנים נשמרים ומזוהים כזיכויים.\n\n" +
-                "• במסך הזמנה סגורה הכמויות מתחילות תמיד באפס. כפתורי הפלוס והמינוס משנים בחירה זמנית לחיוב בלבד ואינם משנים או שולחים את ההזמנה המקורית.\n\n" +
-                "• לכל מוצר נוסף כפתור „הוסף לחיובים”. אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות; מוצר אחר או מכירה אחרת נשמרים בנפרד.\n\n" +
-                "• כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן: זיכויים, חיובים או שניהם. פרטי המייל כוללים ירידות שורה אמיתיות, וסיבת „חוסר” מופיעה רק בחלק הזיכויים.";
+                "• מסך „הזמנות מהמטמון” סורק את הקבצים המקומיים, מציג רק מטמונים קריאים ופותח אותם ישירות מהמכשיר בלי לבדוק הזמנות סגורות בשרת.\\n\\n" +
+                "• בכל פתיחה מהמטמון כל כמויות הבחירה מתחילות באפס. הפלוס והמינוס משנים בחירה זמנית לחיוב בלבד ואינם משנים או שולחים את ההזמנה המקורית.\\n\\n" +
+                "• שם הרשימה הוא „רשימת זיכויים וחיובים”; פריטי זיכוי ישנים נשמרים ומזוהים כזיכויים.\\n\\n" +
+                "• לכל מוצר יש כפתור „הוסף לחיובים”; אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות. כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
         open.setOnClickListener(v -> appDialog()
                 .setTitle("✨ מה חדש במשנת יוסף")
-                .setMessage(whatsNewTitle + "\n\n" + whatsNewDetails)
+                .setMessage(whatsNewTitle + "\\n\\n" + whatsNewDetails)
                 .setPositiveButton("הבנתי", null)
                 .show());
         whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
@@ -2725,8 +2725,8 @@ public class MainActivity extends Activity {
         refresh.setOnClickListener(v -> { toast("↻ מרענן את המכירות…", false); showOpenSales(false); });
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
-        TextView closedOrders = btn("📦 הזמנות שכבר נסגרו", TONAL);
-        closedOrders.setOnClickListener(v -> showClosedOrders());
+        TextView cachedOrders = btn("📦 הזמנות מהמטמון", TONAL);
+        cachedOrders.setOnClickListener(v -> showCachedOrders());
         root.addView(closedOrders, lp(-1, dp(46), 0, 10));
         for (int i = 0; i < rows.length(); i++) {
             JSONObject sale = rows.optJSONObject(i);
@@ -2740,84 +2740,74 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Closed orders are listed as read-only summaries. Never attach a click action that
-     * opens products/order details: this screen is intentionally a historical index only.
+     * Shows only readable local sale snapshots. This screen deliberately never queries
+     * the server: the available cache files are the source of truth for this list.
      */
-    private boolean isClosedOrder(JSONObject order) {
-        if (order == null) return false;
-        if (truthy(order.opt("closed")) || truthy(order.opt("is_closed"))
-                || truthy(order.opt("isClosed")) || truthy(order.opt("completed"))
-                || truthy(order.opt("is_completed"))) return true;
-        String status = first(order, "status", "order_status", "state").trim().toLowerCase(java.util.Locale.ROOT);
-        if (status.isEmpty()) return false;
-        return status.equals("closed") || status.equals("complete") || status.equals("completed")
-                || status.equals("finished") || status.equals("finalized") || status.equals("cancelled")
-                || status.equals("canceled") || status.equals("סגור") || status.equals("סגורה")
-                || status.equals("הושלמה") || status.equals("הושלם") || status.equals("בוטלה")
-                || status.equals("בוטל") || status.equals("נסגרה") || status.equals("נסגר");
-    }
-
-    private void showClosedOrders() {
-        beginScreen("הזמנות שכבר נסגרו", 0, null);
+    private void showCachedOrders() {
+        beginScreen("הזמנות מהמטמון", 0, null);
         showingSalesList = false;
         final int t = screenToken;
-        setStatus("טוען רשימת הזמנות סגורות…");
-        executor.execute(() -> {
+        setStatus("טוען הזמנות מהמטמון המקומי…");
+        loadExecutor.execute(() -> {
+            final List<Integer> cachedSaleIds = new ArrayList<>();
+            final Map<Integer, SaleSnapshot> cachedSnapshots = new LinkedHashMap<>();
             try {
-                HttpResult r = api("GET", "/api/orders", null);
-                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת ההזמנות נכשלה (" + r.code + ").");
-                JSONArray all = arrayFrom(r.body);
-                JSONArray closed = new JSONArray();
-                for (int i = 0; i < all.length(); i++) {
-                    JSONObject order = all.optJSONObject(i);
-                    if (isClosedOrder(order)) closed.put(order);
-                }
-                runOnUiThread(() -> {
-                    if (stale(t)) return;
-                    setStatus("");
-                    TextView back = btn("‹ חזרה להזמנות פתוחות", TONAL);
-                    back.setOnClickListener(v -> showOpenSales(false));
-                    root.addView(back, lp(-1, dp(46), 0, 8));
-                    root.addView(muted(closed.length() == 0
-                            ? "לא נמצאו הזמנות שהשרת מסמן כסגורות."
-                            : "נמצאו " + closed.length() + " הזמנות סגורות. הרשימה לצפייה בכותרות בלבד.", 13),
-                            lp(-1, -2, 0, 10));
-                    for (int i = 0; i < closed.length(); i++) {
-                        JSONObject order = closed.optJSONObject(i);
-                        if (order == null) continue;
-                        JSONObject sale = order.optJSONObject("sale");
-                        String name = saleTitle(sale);
-                        if (name.isEmpty()) name = first(order, "sale_name", "saleName", "name");
-                        if (name.isEmpty()) name = "מכירה " + first(order, "saleID", "sale_id");
-                        String status = first(order, "status", "order_status", "state");
-                        String when = fmtWhen(first(order, "time", "created_at", "updated_at"));
-                        LinearLayout item = card(12);
-                        item.addView(text("🔒 " + name, 16, true));
-                        String detail = "הזמנה #" + extractOrderId(order);
-                        if (!status.isEmpty()) detail += " · " + status;
-                        item.addView(muted(detail, 12));
-                        if (!when.isEmpty()) item.addView(muted("תאריך: " + when, 12));
-                        item.addView(muted("הזמנה סגורה — אפשר להציג רק את הפריטים שנשמרו במטמון המקומי.", 12));
-                        int cachedSaleId = order.optInt("saleID", order.optInt("sale_id", -1));
-                        if (cachedSaleId <= 0 && sale != null) cachedSaleId = sale.optInt("id", -1);
-                        final int snapshotSaleId = cachedSaleId;
-                        TextView cachedItemsButton = btn("📋 הצגת פריטים מהמטמון", TONAL);
-                        cachedItemsButton.setEnabled(snapshotSaleId > 0);
-                        cachedItemsButton.setText("📋 הצגת ההזמנה המלאה");
-                        cachedItemsButton.setOnClickListener(v -> openCachedClosedOrder(order, snapshotSaleId));
-                        item.addView(cachedItemsButton, lp(-1, dp(42), 0, 8));
-                        root.addView(item, lp(-1, -2, 0, 8));
+                File dir = new File(getFilesDir(), "cache");
+                File[] files = dir.listFiles((d, name) -> name.matches("sale_[0-9]+\\.json"));
+                if (files != null) {
+                    java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                    for (File file : files) {
+                        String fileName = file.getName();
+                        int saleId;
+                        try {
+                            saleId = Integer.parseInt(fileName.substring("sale_".length(), fileName.length() - ".json".length()));
+                        } catch (Exception ignored) {
+                            continue;
+                        }
+                        if (saleId <= 0) continue;
+                        SaleSnapshot snapshot = readSnapshot(saleId);
+                        if (snapshot == null || snapshot.products.isEmpty()) continue;
+                        cachedSaleIds.add(saleId);
+                        cachedSnapshots.put(saleId, snapshot);
                     }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    if (stale(t)) return;
-                    setStatus(errText(e, "לא ניתן לטעון הזמנות סגורות."), true);
-                    TextView back = btn("‹ חזרה להזמנות פתוחות", TONAL);
-                    back.setOnClickListener(v -> showOpenSales(false));
-                    root.addView(back, lp(-1, dp(46), 0, 8));
-                });
-            }
+                }
+            } catch (Exception ignored) { }
+            runOnUiThread(() -> {
+                if (stale(t)) return;
+                setStatus("");
+                TextView back = btn("‹ חזרה להזמנות פתוחות", TONAL);
+                back.setOnClickListener(v -> showOpenSales(false));
+                root.addView(back, lp(-1, dp(46), 0, 8));
+                root.addView(muted(cachedSaleIds.isEmpty()
+                        ? "לא נמצאו הזמנות עם מטמון מקומי קריא."
+                        : "נמצאו " + cachedSaleIds.size() + " הזמנות שמורות במטמון. ניתן לפתוח כל אחת מהן ללא טעינה מהשרת.", 13),
+                        lp(-1, -2, 0, 10));
+                for (int saleId : cachedSaleIds) {
+                    SaleSnapshot snapshot = cachedSnapshots.get(saleId);
+                    if (snapshot == null) continue;
+                    LinearLayout item = card(12);
+                    item.addView(text("📦 מכירה #" + saleId, 16, true));
+                    String detail = snapshot.products.size() + " מוצרים במטמון";
+                    if (snapshot.orderId > 0) detail += " · הזמנה #" + snapshot.orderId;
+                    item.addView(muted(detail, 12));
+                    if (snapshot.loadedAt > 0) {
+                        String when = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(new Date(snapshot.loadedAt));
+                        item.addView(muted("נשמר במטמון: " + when, 12));
+                    }
+                    item.addView(muted("עותק מקומי בלבד — ייתכן שהנתונים חלקיים או לא עדכניים.", 12));
+                    final int snapshotSaleId = saleId;
+                    final JSONObject cachedOrder = new JSONObject();
+                    try {
+                        cachedOrder.put("saleID", saleId);
+                        cachedOrder.put("sale_name", "מכירה #" + saleId);
+                        cachedOrder.put("id", snapshot.orderId);
+                    } catch (Exception ignored) { }
+                    TextView openButton = btn("📋 פתח מהמטמון", TONAL);
+                    openButton.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
+                    item.addView(openButton, lp(-1, dp(42), 0, 8));
+                    root.addView(item, lp(-1, -2, 0, 8));
+                }
+            });
         });
     }
 
