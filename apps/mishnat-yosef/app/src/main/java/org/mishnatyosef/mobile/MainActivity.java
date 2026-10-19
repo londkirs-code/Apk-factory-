@@ -1599,13 +1599,13 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "כפתורי רשימת הזיכויים בשורה אחת";
-        final String whatsNewSummary = "כל פעולות הרשימה מופיעות עכשיו בשורה אחת, עם כפתורים קומפקטיים.";
+        final String whatsNewTitle = "כפתורי זיכויים מעודכנים";
+        final String whatsNewSummary = "הכפתורים נשארו בשורה אחת עם טקסט מעט גדול יותר, ובמקום הוספה כתוב + לזיכוי.";
         final String whatsNewDetails =
                 "• ברשימת הזיכויים אפשר להסיר פריט בודד מיד, ללא חלון אישור. מחיקת הרשימה כולה עדיין דורשת אישור.\n\n" +
                 "• נוסף כפתור „✉ שלח לזיכוי” שפותח את אפליקציית המייל עם הכתובת A0773168080@gmail.com ורשימת הזיכויים מוכנה לשליחה.\n\n" +
                 "• נוסף כפתור „📤 שיתוף” לשיתוף הרשימה דרך אפליקציות השיתוף במכשיר.\n\n" +
-                "• כל ארבע הפעולות — מחיקה, העתקה, שליחה ושיתוף — מוצגות בשורה אחת עם כפתורים צרים יותר, כדי לחסוך מקום גם במסכים קטנים.\\n\\n" +
+                "• כל ארבע הפעולות — מחיקה, העתקה, שליחה ושיתוף — מוצגות בשורה אחת, עם טקסט מעט גדול יותר.\\n\\n" +
                 "• אפשר עדיין להעתיק את כל הרשימה ללוח; הרשימה נשמרת במכשיר ולא מתווספים פריטים כפולים מאותה מכירה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
@@ -4505,7 +4505,7 @@ public class MainActivity extends Activity {
             TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
             copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
             historyActions.addView(copyItem, lp(-2, dp(34), 0, 0));
-            TextView addCredit = smallChip("＋ הוסף לזיכויים", TONAL);
+            TextView addCredit = smallChip("+ לזיכוי", TONAL);
             addCredit.setOnClickListener(v -> addHistoryItemToCreditList(line));
             LinearLayout.LayoutParams creditLp = new LinearLayout.LayoutParams(-2, dp(34));
             if (narrowHistoryRow) creditLp.topMargin = dp(6);
@@ -4579,7 +4579,7 @@ public class MainActivity extends Activity {
             TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
             copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
             historyActions.addView(copyItem, lp(-2, dp(34), 0, 0));
-            TextView addCredit = smallChip("＋ הוסף לזיכויים", TONAL);
+            TextView addCredit = smallChip("+ לזיכוי", TONAL);
             addCredit.setOnClickListener(v -> addHistoryItemToCreditList(line));
             LinearLayout.LayoutParams creditLp = new LinearLayout.LayoutParams(-2, dp(34));
             if (narrowHistoryRow) creditLp.topMargin = dp(6);
@@ -4837,7 +4837,7 @@ public class MainActivity extends Activity {
         TextView clear = smallChip("🗑 מחיקה", DANGER);
         clear.setEnabled(items.length() > 0);
         clear.setAlpha(items.length() > 0 ? 1f : 0.5f);
-        clear.setTextSize(11);
+        clear.setTextSize(12);
         clear.setOnClickListener(v -> appDialog()
                 .setTitle("מחיקת רשימת הזיכויים")
                 .setMessage("למחוק את כל " + readCreditList().length() + " הפריטים מהרשימה?")
@@ -4851,7 +4851,7 @@ public class MainActivity extends Activity {
         TextView copyAll = smallChip("📋 העתקה", TONAL);
         copyAll.setEnabled(items.length() > 0);
         copyAll.setAlpha(items.length() > 0 ? 1f : 0.5f);
-        copyAll.setTextSize(11);
+        copyAll.setTextSize(12);
         copyAll.setOnClickListener(v -> {
             String all = creditListText();
             if (!all.isEmpty()) copyText(all);
@@ -4860,7 +4860,7 @@ public class MainActivity extends Activity {
         TextView sendCredit = smallChip("✉ שלח לזיכוי", PRIMARY);
         sendCredit.setEnabled(items.length() > 0);
         sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
-        sendCredit.setTextSize(11);
+        sendCredit.setTextSize(12);
         sendCredit.setOnClickListener(v -> {
             String body = creditListText();
             if (body.isEmpty()) {
@@ -4881,7 +4881,7 @@ public class MainActivity extends Activity {
         TextView shareCredit = smallChip("📤 שיתוף", TONAL);
         shareCredit.setEnabled(items.length() > 0);
         shareCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
-        shareCredit.setTextSize(11);
+        shareCredit.setTextSize(12);
         shareCredit.setOnClickListener(v -> {
             String body = creditListText();
             if (!body.isEmpty()) shareText("רשימת זיכויים", body);
