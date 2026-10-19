@@ -1733,7 +1733,7 @@ public class MainActivity extends Activity {
     private View stockMonitorCard() {
         LinearLayout c=card(14); c.addView(sectionTitle("📦 התראות מלאי והזמנות אוטומטיות"));
         c.addView(muted("השמירה מקומית בלבד. הזמנה אוטומטית עשויה לגרום לחיוב כספי.",12));
-        c.addView(switchRow("בדיקת מלאי אוטומטית","בדיקה תקופתית של מוצרים במעקב",prefs.getBoolean(StockMonitor.ENABLED,true),(b,on)->{
+        c.addView(switchRow("בדיקת מלאי אוטומטית","בדיקה משותפת של כל המכירות הפתוחות והמוצרים הרלוונטיים",prefs.getBoolean(StockMonitor.ENABLED,true),(b,on)->{
             prefs.edit().putBoolean(StockMonitor.ENABLED,on).apply();StockMonitor.scheduleNextCheck(this);toast(on?"בדיקת מלאי הופעלה":"בדיקת מלאי כובתה",false);
         }));
         c.addView(switchRow("התראה גלובלית כשהמוצר אוזל","כל המוצרים הרלוונטיים בכל המכירות הפתוחות",prefs.getBoolean("stock_global_notify_out",false),(b,on)->{
