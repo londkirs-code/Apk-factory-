@@ -5267,8 +5267,9 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(false);
         scroll.setClipToPadding(false);
         scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
+        scroll.setPadding(dp(4), dp(2), dp(4), 0);
         appDialog().setTitle("יצירת קשר עם משנת יוסף")
-                .setView(scroll, dp(4), dp(2), dp(4), 0)
+                .setView(scroll)
                 .setPositiveButton("סגירה", null)
                 .show();
     }
