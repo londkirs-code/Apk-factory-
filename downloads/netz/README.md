@@ -1,1 +1,1 @@
-APK for netz, versionName 1.0, versionCode 10, built from commit c990ade765a2346d616be5ab5841af2fd83816b6.
+APK for netz, versionName 1.0, versionCode 11, built from commit 9dc6d45bd695e53aa38794345546fdccc83a618b.
