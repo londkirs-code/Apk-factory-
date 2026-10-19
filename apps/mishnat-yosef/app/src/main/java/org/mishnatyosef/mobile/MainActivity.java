@@ -1604,10 +1604,11 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "התראות מלאי והזמנה אוטומטית";
-        final String whatsNewSummary = "נוספו מעקב אחרי חזרה למלאי, ניהול כמויות והזמנה אוטומטית עם אישור מפורש.";
+        final String whatsNewTitle = "מעקב מלאי גלובלי והזמנה אוטומטית";
+        final String whatsNewSummary = "נוספו התראות גלובליות על שינויי מלאי בכל המכירות הפתוחות, עם תזמון משותף של 5 דקות.";
         final String whatsNewDetails =
-                "• חדש: אפשר לשמור מוצר שאזל להתראה בלבד או להזמנה אוטומטית. הבחירה והכמות נשמרות מקומית ואינן נשלחות לשרת עד שהמוצר חוזר למלאי. הזמנה אוטומטית מחייבת אישור מפורש, מציגה מצב ותוצאת ניסיון, ואינה נשלחת שוב אוטומטית כשהתוצאה אינה ודאית. בהגדרות אפשר לשנות כמות, להחליף סוג מעקב, להסיר מוצרים ולעיין ביומן.\n\n" +
+                "• חדש: מנגנון מלאי משותף סורק את המוצרים בכל המכירות הפתוחות ומאפשר התראות גלובליות על אזילה וחזרה למלאי. התראות נשלחות רק כאשר זוהה שינוי מצב בין סריקות תקינות; תדירות הבדיקה המשותפת היא 5 דקות כברירת מחדל.\n\n" +
+                "• הגדרות המלאי רוכזו באזור נפרד בשם „הגדרות אזל מהמלאי”. אפשר להמשיך לנהל מעקב אישי והזמנות אוטומטיות בנפרד. הזמנה אוטומטית עדיין דורשת אישור מפורש; תוצאה לא ודאית אינה גורמת לניסיון חוזר אוטומטי.\n\n" +
                 "• מסך „זיכויים וחיובים” מציג מיד את סרגלי הסינון, החיפוש, רשימת הזיכויים, תצוגה לפי מכירה והשיתוף. בזמן ההמתנה מופיע „ממתין לשרת…” במקום נתוני סיכום מטעים; עם הגעת הנתונים המסך מתעדכן, ואם הטעינה נכשלת נשארים הכלים ומוצגת הודעת שגיאה.\n\n" +
                 "• בחיפוש היסטוריית ההזמנות נוסף כפתור × בדומה לכפתור הניקוי שבתוך הזמנה. לחיצה עליו מוחקת את החיפוש, מאפסת את העימוד וטוענת מחדש את רשימת ההזמנות המלאה.\n\n" +
                 "• שאר התנהגות החיפוש, פתיחת ההזמנות וכפתור „טען עוד” נשארו ללא שינוי.\n\n" +
@@ -1732,18 +1733,23 @@ public class MainActivity extends Activity {
     private View stockMonitorCard() {
         LinearLayout c=card(14); c.addView(sectionTitle("📦 התראות מלאי והזמנות אוטומטיות"));
         c.addView(muted("השמירה מקומית בלבד. הזמנה אוטומטית עשויה לגרום לחיוב כספי.",12));
-        c.addView(switchRow("בדיקת מלאי אוטומטית","בדיקה תקופתית של מוצרים במעקב",prefs.getBoolean(StockMonitor.ENABLED,true),(b,on)->{
+        c.addView(switchRow("בדיקת מלאי אוטומטית","בדיקה משותפת של כל המכירות הפתוחות והמוצרים הרלוונטיים",prefs.getBoolean(StockMonitor.ENABLED,true),(b,on)->{
             prefs.edit().putBoolean(StockMonitor.ENABLED,on).apply();StockMonitor.scheduleNextCheck(this);toast(on?"בדיקת מלאי הופעלה":"בדיקת מלאי כובתה",false);
         }));
-        c.addView(switchRow("התראה כשהמוצר אוזל","למוצרים שנמצאים ברשימת המעקב",prefs.getBoolean("stock_notify_out",true),(b,on)->prefs.edit().putBoolean("stock_notify_out",on).apply()));
-        c.addView(switchRow("התראה כשהמוצר חוזר למלאי","התראה בלבד; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->prefs.edit().putBoolean("stock_notify_return",on).apply()));
+        c.addView(switchRow("התראה גלובלית כשהמוצר אוזל","כל המוצרים הרלוונטיים בכל המכירות הפתוחות",prefs.getBoolean("stock_global_notify_out",false),(b,on)->{
+            prefs.edit().putBoolean("stock_global_notify_out",on).apply();StockMonitor.scheduleNextCheck(this);
+        }));
+        c.addView(switchRow("התראה גלובלית כשהמוצר חוזר למלאי","כל המוצרים הרלוונטיים; התראה רק בעת שינוי מצב",prefs.getBoolean("stock_global_notify_return",false),(b,on)->{
+            prefs.edit().putBoolean("stock_global_notify_return",on).apply();StockMonitor.scheduleNextCheck(this);
+        }));
+        c.addView(switchRow("התראה כשהמוצר אוזל במעקב אישי","בנוסף להתראות הגלובליות, למוצרים שנבחרו ידנית",prefs.getBoolean("stock_notify_out",true),(b,on)->prefs.edit().putBoolean("stock_notify_out",on).apply()));
+        c.addView(switchRow("התראה כשהמוצר חוזר במעקב אישי","מעקב אישי; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->prefs.edit().putBoolean("stock_notify_return",on).apply()));
         c.addView(text("תדירות בדיקה (דקות)",14,true),lp(-1,-2,0,4)); LinearLayout chips=new LinearLayout(this);
         for(int n:new int[]{1,2,5,10,15,30,60}){TextView ch=pickChip(String.valueOf(n));styleChip(ch,prefs.getInt(StockMonitor.INTERVAL,5)==n);
-            ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showNotificationSettings();});
+            ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showStockSettings();});
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(42),dp(38));cp.setMarginEnd(dp(4));chips.addView(ch,cp);}
         HorizontalScrollView hs=new HorizontalScrollView(this);hs.setHorizontalScrollBarEnabled(false);hs.addView(chips);c.addView(hs,lp(-1,-2,0,4));
-        TextView manage=btn("⚙️ ניהול מוצרים במעקב",PRIMARY);manage.setOnClickListener(v->showStockWatchManagement());c.addView(manage,lp(-1,dp(44),0,8));
-        TextView log=btn("📋 יומן בדיקות וניסיונות הזמנה",TONAL);log.setOnClickListener(v->showStockMonitorLog());c.addView(log,lp(-1,dp(42),0,6));return c;
+        return c;
     }
     private String stockStateLabel(JSONObject w) {
         if(!"auto".equals(w.optString("mode","alert")))return "🔔 התראה בלבד";
@@ -1755,7 +1761,8 @@ public class MainActivity extends Activity {
         return "🛒 הזמנה אוטומטית · ממתין למלאי";
     }
     private void showStockWatchManagement() {
-        beginScreen("ניהול מעקב מלאי",3,this::showNotificationSettings);
+        beginScreen("ניהול מעקב מלאי",3,this::showStockSettings);
+        screenKind = 5;
         root.addView(muted("שנו כמויות, החליפו סוג מעקב או הסירו מוצרים. הזמנה אוטומטית עשויה לגרום לחיוב.",13),lp(-1,-2,0,8));
         JSONArray a=StockMonitor.loadWatches(this);
         if(a.length()==0)root.addView(text("אין מוצרים במעקב כרגע.",15,true),lp(-1,-2,0,12));
@@ -1790,7 +1797,8 @@ public class MainActivity extends Activity {
         StockMonitor.saveWatches(this,kept);StockMonitor.appendLog(this,key,name,"הוסר מהמעקב","המשתמש הסיר את המוצר.");showStockWatchManagement();
     }
     private void showStockMonitorLog() {
-        beginScreen("יומן מעקב מלאי",3,this::showStockWatchManagement);JSONArray a=StockMonitor.loadLog(this);
+        beginScreen("יומן מעקב מלאי",3,this::showStockWatchManagement);
+        screenKind = 6;JSONArray a=StockMonitor.loadLog(this);
         if(a.length()==0)root.addView(text("עדיין אין פעולות ביומן.",14,true));
         for(int i=a.length()-1;i>=0;i--){JSONObject w=a.optJSONObject(i);if(w==null)continue;String time=new SimpleDateFormat("dd/MM HH:mm:ss",Locale.US).format(new Date(w.optLong("time",0)));
             LinearLayout c=card(10);c.addView(text(w.optString("event","פעולה"),14,true));if(!w.optString("product","").isEmpty())c.addView(muted(w.optString("product"),12));c.addView(muted(time,11));if(!w.optString("detail","").isEmpty())c.addView(muted(w.optString("detail"),12));root.addView(c,lp(-1,-2,0,6));}
@@ -1863,21 +1871,38 @@ public class MainActivity extends Activity {
         TextView settings = btn("⚙️ הגדרות התראות", TONAL);
         settings.setOnClickListener(v -> showNotificationSettings());
         card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
+        TextView stockSettings = btn("📦 הגדרות אזל מהמלאי", TONAL);
+        stockSettings.setOnClickListener(v -> showStockSettings());
+        LinearLayout.LayoutParams stockLp = new LinearLayout.LayoutParams(-1, dp(46));
+        stockLp.topMargin = dp(6);
+        card.addView(stockSettings, stockLp);
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
     @Override protected void onResume() {
         super.onResume();
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
+        else if (screenKind == 4 && hasToken()) showStockSettings();
     }
 
     private void showNotificationSettings() {
         beginScreen("הגדרות התראות", 3, this::showAccount);
         screenKind = 3;
         root.addView(permissionsCard(), lp(-1, -2, 0, 10));
-        root.addView(stockMonitorCard(), lp(-1, -2, 0, 10));
         root.addView(newSaleCard(), lp(-1, -2, 0, 10));
         root.addView(closingCard(), lp(-1, -2, 0, 10));
+    }
+
+    private void showStockSettings() {
+        beginScreen("הגדרות אזל מהמלאי", 3, this::showAccount);
+        screenKind = 4;
+        root.addView(stockMonitorCard(), lp(-1, -2, 0, 10));
+        TextView orders = btn("🛒 ניהול הזמנות אוטומטיות ומוצרים במעקב", PRIMARY);
+        orders.setOnClickListener(v -> showStockWatchManagement());
+        root.addView(orders, lp(-1, dp(44), 0, 8));
+        TextView log = btn("📋 היסטוריית פעולות מלאי", TONAL);
+        log.setOnClickListener(v -> showStockMonitorLog());
+        root.addView(log, lp(-1, dp(42), 0, 6));
     }
 
     private TextView sectionTitle(String title) {
