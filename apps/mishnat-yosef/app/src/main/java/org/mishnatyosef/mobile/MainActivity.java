@@ -1602,8 +1602,8 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "חיפוש מוצרים בהיסטוריית ההזמנות";
-        final String whatsNewSummary = "בחיפוש בהיסטוריה מוצגים שמות המוצרים שנמצאו, לצד המכירה והתאריך; לחיצה פותחת את ההזמנה המקורית.";
+        final String whatsNewTitle = "תוצאות חיפוש לפי מוצר בהיסטוריית ההזמנות";
+        final String whatsNewSummary = "תוצאות החיפוש מציגות כל מוצר בנפרד, עם המכירה והתאריך; לחיצה פותחת את ההזמנה המקורית.";
         final String whatsNewDetails =
                 "• מסך „הזמנות מהמטמון” מאתר מטמונים מקומיים קריאים, מצרף את שם המכירה בעברית מ־GET /api/orders לפי saleID, ומציג רק את שם המכירה וכפתור פתיחה מהמטמון. השם נשמר גם במטמון המקומי להמשך.\n\n" +
                 "• בכל פתיחה מהמטמון כל כמויות הבחירה מתחילות באפס. הפלוס והמינוס משנים בחירה זמנית לחיוב בלבד ואינם משנים או שולחים את ההזמנה המקורית.\n\n" +
@@ -1611,7 +1611,7 @@ public class MainActivity extends Activity {
                 "• לכל מוצר יש כפתור „הוסף לחיובים”; אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות. כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן.\\n\\n" +
                 "• בהגדרות אפשר להפעיל „הפרדת פריטים שאזלו”: הם מופיעים בקטגוריה נפרדת ולא בקטגוריה המקורית; כשחוזרים להיות זמינים, הם חוזרים לקטגוריה המקורית. הכיבוי מחזיר את התצוגה הרגילה.\n\n" +
                 "• בבדיקת API נוספה בחירה מפורשת של „הזמנות שנסגרו” (GET /api/orders), סינון פלט לפי מילים ואפשרות להזין נתיב GET מותאם אישית שמתחיל ב־/api/. הנתיב האחרון נשמר לבדיקה הבאה; כתובות חיצוניות נחסמות כדי לא לשלוח אליהן את פרטי ההתחברות. רק פלט שעבר הסתרת מידע רגיש מועתק ללוח.\n\n" +
-                "• חיפוש בהיסטוריית ההזמנות מציג כעת את שמות המוצרים שהשרת מצא בכל הזמנה. אפשר לטעון את כל עמודי התוצאות (20 הזמנות לעמוד לפי תשובת השרת), וללחוץ על הזמנה כדי לפתוח את פרטיה המקוריים כולל כמויות ומחירים.";
+                "• חיפוש בהיסטוריית ההזמנות מציג תוצאה נפרדת לכל מוצר שנמצא, עם שם המוצר בראש הכרטיס, שם המכירה ותאריך ההזמנה. אותו מוצר שנרכש במכירות שונות מופיע בכל מכירה בנפרד. לחיצה על תוצאה פותחת את ההזמנה המקורית עם הכמויות, המחירים ושאר הפריטים. כפתור „טען עוד” ממשיך לטעון את עמודי התוצאות מהשרת. ללא חיפוש, תצוגת ההיסטוריה הרגילה נשארת ללא שינוי.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -4937,7 +4937,27 @@ public class MainActivity extends Activity {
                     histLast = lastPage;
                     for (int i = 0; i < orders.length(); i++) {
                         JSONObject o = orders.optJSONObject(i);
-                        if (o != null) histList.addView(historyCard(o), lp(-1, -2, 0, 8));
+                        if (o == null) continue;
+                        if (!q.trim().isEmpty()) {
+                            JSONArray matched = o.optJSONArray("matched_products");
+                            List<String> names = new ArrayList<>();
+                            if (matched != null) {
+                                for (int j = 0; j < matched.length(); j++) {
+                                    String name = matched.optString(j, "").trim();
+                                    if (!name.isEmpty() && !names.contains(name)) names.add(name);
+                                }
+                            }
+                            if (!names.isEmpty()) {
+                                for (String name : names) {
+                                    histList.addView(historyProductCard(o, name), lp(-1, -2, 0, 8));
+                                }
+                            } else {
+                                // Defensive fallback if the API returns an order without matched_products.
+                                histList.addView(historyCard(o), lp(-1, -2, 0, 8));
+                            }
+                        } else {
+                            histList.addView(historyCard(o), lp(-1, -2, 0, 8));
+                        }
                     }
                     histMore.setVisibility(histPage < histLast ? View.VISIBLE : View.GONE);
                 });
@@ -4974,23 +4994,34 @@ public class MainActivity extends Activity {
         String when = fmtWhen(first(o, "time"));
         card.addView(muted("הזמנה #" + orderId + (when.isEmpty() ? "" : " · " + when), 12));
 
-        // Product search responses include the exact matching line-item names in matched_products.
-        // Keep the regular history card unchanged when the user is browsing without a search.
-        if (!histSearch.trim().isEmpty()) {
-            JSONArray matched = o.optJSONArray("matched_products");
-            if (matched != null && matched.length() > 0) {
-                List<String> names = new ArrayList<>();
-                for (int i = 0; i < matched.length(); i++) {
-                    String name = matched.optString(i, "").trim();
-                    if (!name.isEmpty() && !names.contains(name)) names.add(name);
-                }
-                if (!names.isEmpty()) {
-                    TextView matchedLabel = text("מוצרים שנמצאו: " + TextUtils.join(" · ", names), 14, true);
-                    matchedLabel.setTextColor(INK);
-                    matchedLabel.setPadding(0, dp(6), 0, 0);
-                    card.addView(matchedLabel);
-                }
-            }
+        return card;
+    }
+
+    /** One product-first result per matching product and order; tapping it opens the original order. */
+    private View historyProductCard(JSONObject o, String productName) {
+        JSONObject sale = o.optJSONObject("sale");
+        String saleName = saleTitle(sale);
+        if (saleName.isEmpty()) saleName = "מכירה " + first(o, "saleID", "sale_id");
+        String when = fmtWhen(first(o, "time"));
+        final long orderId = o.optLong("id", -1);
+
+        LinearLayout card = card(12);
+        card.setTag("historyProductCard");
+        card.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, LINE), 14));
+        card.setClickable(orderId > 0);
+        if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId));
+
+        TextView product = text(productName, 18, true);
+        product.setTextColor(INK);
+        card.addView(product);
+
+        TextView saleLabel = text("מכירה: " + saleName, 14, true);
+        saleLabel.setTextColor(ORANGE);
+        saleLabel.setPadding(0, dp(5), 0, 0);
+        card.addView(saleLabel);
+
+        if (!when.isEmpty()) {
+            card.addView(muted("תאריך ההזמנה: " + when, 12));
         }
         return card;
     }
