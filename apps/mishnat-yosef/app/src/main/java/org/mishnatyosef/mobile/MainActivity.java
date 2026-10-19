@@ -1911,6 +1911,10 @@ public class MainActivity extends Activity {
         super.onResume();
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
         else if (screenKind == 4 && hasToken()) showStockSettings();
+        else if (screenKind == 7 && prefs.getBoolean("update_auto_install_pending", false)
+                && Build.VERSION.SDK_INT >= 26 && getPackageManager().canRequestPackageInstalls()) {
+            installDownloadedUpdate();
+        }
     }
 
     private void showNotificationSettings() {
@@ -1971,7 +1975,7 @@ public class MainActivity extends Activity {
         updateDownloadButton.setEnabled(false);
         updateDownloadButton.setOnClickListener(v -> downloadLatestUpdate());
         card.addView(updateDownloadButton, lp(-1, dp(46), 0, 6));
-        updateInstallButton = btn("📦 התקן עדכון שהורד", TONAL);
+        updateInstallButton = btn("📦 התקנה ידנית / ניסיון חוזר", TONAL);
         updateInstallButton.setVisibility(View.GONE);
         updateInstallButton.setOnClickListener(v -> installDownloadedUpdate());
         card.addView(updateInstallButton, lp(-1, dp(46), 0, 6));
@@ -2180,8 +2184,10 @@ public class MainActivity extends Activity {
                         if (ok) {
                             prefs.edit().putBoolean("update_download_verified", true)
                                     .putInt("update_download_verified_code", updateLatestCode).apply();
-                            updateStatusView.setText("ההורדה הושלמה והקובץ אומת בהצלחה. אפשר להתקין.");
                             updateInstallButton.setVisibility(View.VISIBLE);
+                            updateStatusView.setText("ההורדה הושלמה והקובץ אומת. מפעיל כעת את מתקין Android…");
+                            prefs.edit().putBoolean("update_auto_install_pending", true).apply();
+                            installDownloadedUpdate();
                         } else {
                             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                             if (dm != null) dm.remove(completedId);
@@ -2214,10 +2220,12 @@ public class MainActivity extends Activity {
             return;
         }
         if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            prefs.edit().putBoolean("update_auto_install_pending", true).apply();
+            if (updateStatusView != null) updateStatusView.setText("ההורדה אומתה. צריך לאפשר התקנת אפליקציות ממקור זה ב־Android; לאחר החזרה לאפליקציה ההתקנה תיפתח אוטומטית. אפשר גם להשתמש בכפתור ההתקנה הידנית.");
+            if (updateInstallButton != null) updateInstallButton.setVisibility(View.VISIBLE);
             try {
                 startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         Uri.parse("package:" + getPackageName())));
-                toast("אפשר התקנת אפליקציות עבור משנת יוסף, חזור לכאן ולחץ שוב על התקנה.", true);
             } catch (Exception error) {
                 toast("פתח את הגדרות Android ואפשר התקנת אפליקציות ממקור זה.", true);
             }
@@ -2228,9 +2236,13 @@ public class MainActivity extends Activity {
             install.setDataAndType(uri, "application/vnd.android.package-archive");
             install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             install.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            prefs.edit().putBoolean("update_auto_install_pending", false).apply();
             startActivity(install);
         } catch (Exception error) {
-            toast("לא ניתן לפתוח את מתקין Android. בדוק הרשאות התקנה ונסה שוב.", true);
+            prefs.edit().putBoolean("update_auto_install_pending", false).apply();
+            if (updateStatusView != null) updateStatusView.setText("הקובץ אומת, אך מתקין Android לא נפתח. אפשר ללחוץ על התקנה ידנית ולנסות שוב.");
+            if (updateInstallButton != null) updateInstallButton.setVisibility(View.VISIBLE);
+            toast("לא ניתן לפתוח את מתקין Android. אפשר לנסות שוב בכפתור ההתקנה הידנית.", true);
         }
     }
 
