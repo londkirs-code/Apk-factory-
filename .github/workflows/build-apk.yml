@@ -195,6 +195,58 @@ jobs:
             mkdir -p "$HISTORY_DIR"
             cp $APK_PATH "$HISTORY_DIR/${app}-v${VERSION_NAME}-code${NEXT_CODE}.apk"
             printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
+            if [[ "$app" == "mishnat-yosef" ]]; then
+              # Publish version metadata and the exact APK checksum together with every successful build.
+              python3 - "$BUILD_FILE" "downloads/$app/app.apk" "apps/$app/CHANGELOG.md" "downloads/$app/update.json" <<'PY'
+          import hashlib
+          import json
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          build_file, apk_file, changelog_file, output_file = map(Path, sys.argv[1:])
+          build_text = build_file.read_text(encoding="utf-8")
+          code_match = re.search(r"^\\s*versionCode\\s+(\\d+)", build_text, re.M)
+          name_match = re.search(r"^\\s*versionName\\s+'([^']+)'", build_text, re.M)
+          if not code_match or not name_match:
+              raise SystemExit("Could not read versionCode/versionName for update manifest")
+          apk = apk_file.read_bytes()
+          if not apk:
+              raise SystemExit("Refusing to publish update metadata for an empty APK")
+          lines = changelog_file.read_text(encoding="utf-8").splitlines()
+          title = "עדכון אפליקציה"
+          notes = []
+          in_latest = False
+          for line in lines:
+              if line.startswith("## "):
+                  if in_latest:
+                      break
+                  title = re.sub(r"^##\\s*(?:\\d{4}-\\d{2}-\\d{2}\\s*[—-]\\s*)?", "", line).strip()
+                  in_latest = True
+                  continue
+              if in_latest and line.startswith("- "):
+                  notes.append(line[2:].strip())
+              elif in_latest and line.strip() and not line.startswith("#"):
+                  notes.append(line.strip())
+              if len(notes) >= 8:
+                  break
+          commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          manifest = {
+              "versionCode": int(code_match.group(1)),
+              "versionName": name_match.group(1),
+              "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
+              "sha256": hashlib.sha256(apk).hexdigest(),
+              "releaseTitle": title,
+              "releaseNotes": "\\n\\n".join(notes) if notes else title,
+              "buildCommit": commit,
+          }
+          output_file.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+          # Parse the generated JSON again so malformed output fails the build.
+          json.loads(output_file.read_text(encoding="utf-8"))
+          print(f"Published update metadata for {manifest['versionName']} ({manifest['versionCode']}); SHA-256 {manifest['sha256']}")
+          PY
+            fi
                       echo "::endgroup::"
           done
           {
