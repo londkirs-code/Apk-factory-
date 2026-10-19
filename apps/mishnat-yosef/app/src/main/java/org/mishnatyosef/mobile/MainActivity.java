@@ -5657,6 +5657,7 @@ public class MainActivity extends Activity {
         final JsonEndpointChoice[] endpoints = new JsonEndpointChoice[] {
                 new JsonEndpointChoice("מסך מכירות פתוחות — GET /api/profile/open_sales", "/api/profile/open_sales"),
                 new JsonEndpointChoice("מסך ההזמנות — GET /api/orders", "/api/orders"),
+                new JsonEndpointChoice("הזמנות שנסגרו / היסטוריית הזמנות — GET /api/orders", "/api/orders"),
                 new JsonEndpointChoice("פרטי הזמנה (מזהה לדוגמה 26039956) — מסך הזמנה", "/api/orders/26039956"),
                 new JsonEndpointChoice("מסך תנועות החשבון — GET /api/profile/transactions?page=1", "/api/profile/transactions?page=1"),
                 new JsonEndpointChoice("פתיחת הזמנה: טעינת אמצעי תשלום — GET /api/payment_methods/cards", "/api/payment_methods/cards"),
@@ -5670,12 +5671,47 @@ public class MainActivity extends Activity {
         // Keep the list as the dialog content and put the instruction in the title instead.
         appDialog()
                 .setTitle("בחר כתובת לבדיקה • התוצאה תועתק ללוח")
-                .setItems(labels, (dialog, which) -> runSingleJsonEndpoint(endpoints[which]))
+                .setItems(labels, (dialog, which) -> promptApiGrepFilter(endpoints[which]))
                 .setNegativeButton("ביטול", null)
                 .show();
     }
 
-    private void runSingleJsonEndpoint(final JsonEndpointChoice endpoint) {
+    private void promptApiGrepFilter(final JsonEndpointChoice endpoint) {
+        final EditText filter = field("מילים לסינון, מופרדות בפסיק (ריק = הכול)", InputType.TYPE_CLASS_TEXT);
+        filter.setSingleLine(true);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(4), dp(8), dp(4), dp(4));
+        content.addView(muted("אפשר להקליד מילה או כמה ביטויים. יועתקו רק שורות שמכילות לפחות אחד מהם, ללא תלות באותיות גדולות/קטנות.", 13));
+        content.addView(filter, lp(-1, dp(52), 8, 0));
+        appDialog().setTitle("סינון פלט API • " + endpoint.path)
+                .setView(content)
+                .setNegativeButton("ביטול", null)
+                .setNeutralButton("בדיקה ללא סינון", (d, w) -> runSingleJsonEndpoint(endpoint, ""))
+                .setPositiveButton("סנן והריץ", (d, w) -> runSingleJsonEndpoint(endpoint, filter.getText().toString().trim()))
+                .show();
+    }
+
+    private String grepDiagnosticOutput(String safeBody, String filterText) {
+        if (filterText == null || filterText.trim().isEmpty()) return safeBody;
+        String[] terms = filterText.split("[,\\n\\r]+");
+        List<String> matches = new ArrayList<>();
+        String[] lines = safeBody.split("\\r?\\n");
+        for (String line : lines) {
+            String lowerLine = line.toLowerCase(Locale.ROOT);
+            for (String rawTerm : terms) {
+                String term = rawTerm.trim().toLowerCase(Locale.ROOT);
+                if (!term.isEmpty() && lowerLine.contains(term)) {
+                    matches.add(line);
+                    break;
+                }
+            }
+        }
+        if (matches.isEmpty()) return "(grep: לא נמצאו שורות תואמות)";
+        return "grep — שורות תואמות בלבד (" + matches.size() + "):\n" + TextUtils.join("\n", matches);
+    }
+
+    private void runSingleJsonEndpoint(final JsonEndpointChoice endpoint, final String filterText) {
         if (!hasToken()) { toast("צריך להתחבר לפני בדיקת כתובת", true); return; }
         toast("מריץ: " + endpoint.label.split(" — ")[0], false);
         executor.execute(() -> {
@@ -5685,9 +5721,13 @@ public class MainActivity extends Activity {
                 HttpResult response = api("GET", endpoint.path, null);
                 status = response.code;
                 String safeBody = redactSensitiveOutput(response.body == null ? "" : response.body);
+                String filteredBody = grepDiagnosticOutput(safeBody, filterText);
                 clipboardText = "כתובת: " + endpoint.path + "\n"
                         + "שיטה: GET\nHTTP: " + status + "\n"
-                        + "תשובה (לאחר הסתרת מידע רגיש):\n" + safeBody;
+                        + (filterText == null || filterText.trim().isEmpty()
+                            ? "תשובה (לאחר הסתרת מידע רגיש):\n"
+                            : "תשובת grep (לאחר הסתרת מידע רגיש; מונחים: " + filterText + "):\n")
+                        + filteredBody;
             } catch (Exception e) {
                 // Do not put exception messages on screen or clipboard: they may contain request data.
                 clipboardText = "כתובת: " + endpoint.path + "\nשיטה: GET\nהבקשה נכשלה (" + e.getClass().getSimpleName() + ").";
