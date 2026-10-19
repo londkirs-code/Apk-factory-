@@ -4427,7 +4427,7 @@ public class MainActivity extends Activity {
         String quantityText = "כמות: " + quantity;
         String totalPrice = line != null && line.price > 0 && quantity > 0
                 ? money(line.price * quantity) : "מחיר כולל לא זמין";
-        return itemName + " - " + saleName + " - " + quantityText + " - סה״כ: " + totalPrice;
+        return saleName + " - " + itemName + " - " + quantityText + " - סה״כ: " + totalPrice;
     }
 
     private void confirmRemove(final OrderLine line, final JSONObject p) {
