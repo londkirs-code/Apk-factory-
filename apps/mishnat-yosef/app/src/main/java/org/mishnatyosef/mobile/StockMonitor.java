@@ -132,10 +132,16 @@ public class StockMonitor extends BroadcastReceiver {
                 int before = w.optInt("lastAvailability", -1);
                 updateWatch(c, key, new JSONObject().put("lastAvailability", now).put("lastCheck", System.currentTimeMillis()));
                 appendLog(c, key, name, "בדיקת מלאי", now == 1 ? "זמין" : "אזל או אינו זמין");
+                if (before == 1 && now == 0 && c.getSharedPreferences(PREFS, 0).getBoolean("stock_notify_out", true)) {
+                    notifyUser(c, key, "המוצר אזל מהמלאי", name + " אזל במכירה " + w.optString("saleName", "") + ".", false);
+                    appendLog(c, key, name, "נשלחה התראת אזילה", "המוצר עבר מזמין ללא זמין.");
+                }
                 if (now != 1 || before != 0) continue;
                 if (!"auto".equals(w.optString("mode", "alert"))) {
-                    notifyUser(c, key, "המוצר חזר למלאי", name + " זמין שוב במכירה " + w.optString("saleName", "") + ".", false);
-                    appendLog(c, key, name, "נשלחה התראת חזרה למלאי", "זמינות אושרה בתשובת שרת עדכנית.");
+                    if (c.getSharedPreferences(PREFS, 0).getBoolean("stock_notify_return", true)) {
+                        notifyUser(c, key, "המוצר חזר למלאי", name + " זמין שוב במכירה " + w.optString("saleName", "") + ".", false);
+                        appendLog(c, key, name, "נשלחה התראת חזרה למלאי", "זמינות אושרה בתשובת שרת עדכנית.");
+                    } else appendLog(c, key, name, "התראת חזרה למלאי כבויה", "המעקב זיהה שהמוצר זמין, אך ההתראה כבויה.");
                 } else if ("waiting".equals(w.optString("state", "waiting")) && w.optBoolean("consent", false)) {
                     updateWatch(c, key, new JSONObject().put("state", "attempting").put("attemptStartedAt", System.currentTimeMillis()));
                     appendLog(c, key, name, "מתחיל ניסיון הזמנה אוטומטית", "כמות מבוקשת: " + Math.max(1, w.optInt("qty", 1)));
