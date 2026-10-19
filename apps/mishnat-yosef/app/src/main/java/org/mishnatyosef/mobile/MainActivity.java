@@ -118,6 +118,14 @@ public class MainActivity extends Activity {
     private int GREEN_LIGHT = Color.rgb(228, 245, 234);
     private int RED = Color.rgb(175, 45, 45);
     private int RED_LIGHT = Color.rgb(253, 236, 234);
+    private int ON_ORANGE = Color.WHITE;                       // text / icons drawn on orange or red fills
+    private int HEADER_BG = Color.rgb(230, 94, 20);
+    private int HEADER_FG = Color.WHITE;
+    private int MINUS_FILL = Color.rgb(255, 218, 190);
+    private int STAR_BG = Color.argb(220, 255, 255, 255);
+    private int NO_ORDER_BG = Color.rgb(242, 238, 234);
+    private int SWITCH_OFF_THUMB = Color.rgb(190, 180, 172);
+    private int SWITCH_OFF_TRACK = Color.rgb(225, 218, 212);
     private boolean nightMode = false;
     // Preserve the open-sales list position while navigating to other bottom tabs.
     private int salesListScrollY = 0;
@@ -143,6 +151,14 @@ public class MainActivity extends Activity {
             GREEN_LIGHT = Color.rgb(35, 65, 48);
             RED = Color.rgb(255, 120, 120);
             RED_LIGHT = Color.rgb(75, 40, 40);
+            ON_ORANGE = Color.rgb(36, 22, 12);
+            HEADER_BG = Color.rgb(34, 38, 42);
+            HEADER_FG = Color.rgb(255, 166, 105);
+            MINUS_FILL = Color.rgb(110, 68, 40);
+            STAR_BG = Color.argb(220, 30, 33, 36);
+            NO_ORDER_BG = Color.rgb(52, 55, 58);
+            SWITCH_OFF_THUMB = Color.rgb(150, 155, 160);
+            SWITCH_OFF_TRACK = Color.rgb(70, 74, 78);
         } else {
             ORANGE = Color.rgb(230, 94, 20);
             ORANGE_DARK = Color.rgb(191, 70, 12);
@@ -156,6 +172,14 @@ public class MainActivity extends Activity {
             GREEN_LIGHT = Color.rgb(228, 245, 234);
             RED = Color.rgb(175, 45, 45);
             RED_LIGHT = Color.rgb(253, 236, 234);
+            ON_ORANGE = Color.WHITE;
+            HEADER_BG = Color.rgb(230, 94, 20);
+            HEADER_FG = Color.WHITE;
+            MINUS_FILL = Color.rgb(255, 218, 190);
+            STAR_BG = Color.argb(220, 255, 255, 255);
+            NO_ORDER_BG = Color.rgb(242, 238, 234);
+            SWITCH_OFF_THUMB = Color.rgb(190, 180, 172);
+            SWITCH_OFF_TRACK = Color.rgb(225, 218, 212);
         }
     }
 
@@ -167,6 +191,7 @@ public class MainActivity extends Activity {
         final int orange = ORANGE, orangeDark = ORANGE_DARK, orangeLight = ORANGE_LIGHT;
         final int bg = BG, surface = SURFACE, ink = INK, muted = MUTED, line = LINE;
         final int green = GREEN, greenLight = GREEN_LIGHT, red = RED, redLight = RED_LIGHT;
+        final int onOrange = ON_ORANGE, minusFill = MINUS_FILL, starBg = STAR_BG, noOrderBg = NO_ORDER_BG;
     }
 
     private int remapPaletteColor(int color, PaletteSnapshot old) {
@@ -189,6 +214,9 @@ public class MainActivity extends Activity {
     private int remapDrawableColor(int color, PaletteSnapshot old) {
         // White surfaces (including history-sale cards) must become dark surfaces at night.
         if (color == old.surface) return SURFACE;
+        if (color == old.minusFill) return MINUS_FILL;
+        if (color == old.starBg) return STAR_BG;
+        if (color == old.noOrderBg) return NO_ORDER_BG;
         return remapPaletteColor(color, old);
     }
 
@@ -236,9 +264,12 @@ public class MainActivity extends Activity {
             view.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14,
                     nightMode ? Color.BLACK : LINE), 14));
         }
+        if ("appHeader".equals(view.getTag())) view.setBackgroundColor(HEADER_BG);
         if (view instanceof TextView) {
             TextView textView = (TextView) view;
             textView.setTextColor(remapPaletteColor(textView.getCurrentTextColor(), old));
+            if (textView.getCurrentTextColor() == old.onOrange) textView.setTextColor(ON_ORANGE);
+            if ("appHeaderText".equals(textView.getTag())) textView.setTextColor(HEADER_FG);
             textView.setHintTextColor(remapPaletteColor(textView.getHintTextColors().getDefaultColor(), old));
             if ("openSaleTitle".equals(textView.getTag())) {
                 textView.setTextColor(nightMode ? Color.WHITE : INK);
@@ -258,9 +289,11 @@ public class MainActivity extends Activity {
                 textView.setElevation(dp(2));
             }
         }
+        if (view instanceof Switch) tintSwitch((Switch) view);
         if (view instanceof IconView) {
             IconView icon = (IconView) view;
             icon.setIconColor(remapPaletteColor(icon.getIconColor(), old));
+            if (icon.getIconColor() == old.onOrange) icon.setIconColor(ON_ORANGE);
         }
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
@@ -275,6 +308,7 @@ public class MainActivity extends Activity {
         PaletteSnapshot old = new PaletteSnapshot();
         prefs.edit().putBoolean("night_mode", !nightMode).apply();
         applyPalette();
+        setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar); // dialogs follow the mode too
         Set<View> visited = new HashSet<>();
         rethemeViewTree(currentScreen, old, visited);
         // Other bottom tabs are cached as live view trees too; recolor them now so returning
@@ -290,7 +324,7 @@ public class MainActivity extends Activity {
         // ListView keeps detached/recycled product rows outside the visible view tree. Retheme
         // those holders as well, or scrolling after the switch could reveal stale colors.
         for (ProductAdapter adapter : adapters) adapter.rethemeCachedRows(old, visited);
-        getWindow().setStatusBarColor(nightMode ? BG : ORANGE);
+        getWindow().setStatusBarColor(HEADER_BG);
         getWindow().setNavigationBarColor(SURFACE);
         styleSystemBars();
     }
@@ -538,7 +572,7 @@ public class MainActivity extends Activity {
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
             @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount() / 1024; }
         };
-        getWindow().setStatusBarColor(nightMode ? BG : ORANGE);
+        getWindow().setStatusBarColor(HEADER_BG);
         getWindow().setNavigationBarColor(SURFACE);
         pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
@@ -845,7 +879,7 @@ public class MainActivity extends Activity {
         b.setPadding(dp(16), dp(8), dp(16), dp(8));
         int fill, fg, stroke = 0;
         switch (style) {
-            case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
+            case PRIMARY: fill = ORANGE; fg = ON_ORANGE; break;
             case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
             case OUTLINE: fill = SURFACE; fg = ORANGE_DARK; stroke = ORANGE; break;
             case DANGER: fill = RED_LIGHT; fg = RED; break;
@@ -924,8 +958,8 @@ public class MainActivity extends Activity {
         s.view.setOrientation(LinearLayout.HORIZONTAL);
         s.view.setGravity(Gravity.CENTER);
         s.view.setBackground(shape(ORANGE_LIGHT, heightDp, 0));
-        s.plus = roundBtn("+", heightDp, ORANGE, Color.WHITE);
-        s.minus = roundBtn("−", heightDp, Color.rgb(255, 218, 190), ORANGE_DARK);
+        s.plus = roundBtn("+", heightDp, ORANGE, ON_ORANGE);
+        s.minus = roundBtn("−", heightDp, MINUS_FILL, ORANGE_DARK);
         s.qty = new TextView(this);
         s.qty.setTextSize(16);
         s.qty.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -1180,14 +1214,16 @@ public class MainActivity extends Activity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(ORANGE);
+        header.setBackgroundColor(HEADER_BG);
+        header.setTag("appHeader");
         final int padStart = back != null ? dp(8) : dp(16);
         final int padEnd = dp(16);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(1), rtlActive() ? padStart : padEnd, dp(1));
         header.setElevation(dp(3));
         if (back != null) {
             TextView arrow = text("→", 24, true);
-            arrow.setTextColor(Color.WHITE);
+            arrow.setTextColor(HEADER_FG);
+            arrow.setTag("appHeaderText");
             arrow.setGravity(Gravity.CENTER);
             arrow.setPadding(0, 0, 0, 0);
             arrow.setOnClickListener(v -> back.run());
@@ -1196,7 +1232,8 @@ public class MainActivity extends Activity {
         }
         // The current screen title is enlarged by 50% and the night-mode toggle is always available.
         TextView head = text(heading, 24, true);
-        head.setTextColor(Color.WHITE);
+        head.setTextColor(HEADER_FG);
+        head.setTag("appHeaderText");
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
@@ -1262,7 +1299,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 boolean active = i == tab;
-                int tint = active ? ORANGE : Color.rgb(70, 62, 58);
+                int tint = active ? ORANGE : (nightMode ? INK : Color.rgb(70, 62, 58));
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
@@ -1725,9 +1762,7 @@ public class MainActivity extends Activity {
         if (subtitle != null && !subtitle.isEmpty()) texts.addView(muted(subtitle, 12));
         row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1));
         Switch sw = new Switch(this);
-        int[][] states = {{android.R.attr.state_checked}, {}};
-        sw.setThumbTintList(new ColorStateList(states, new int[]{ORANGE, Color.rgb(190, 180, 172)}));
-        sw.setTrackTintList(new ColorStateList(states, new int[]{Color.argb(120, 230, 94, 20), Color.rgb(225, 218, 212)}));
+        tintSwitch(sw);
         sw.setChecked(checked);
         sw.setOnCheckedChangeListener(listener);
         row.addView(sw);
@@ -1743,7 +1778,7 @@ public class MainActivity extends Activity {
 
     private void styleChip(TextView chip, boolean on) {
         chip.setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        chip.setTextColor(on ? Color.WHITE : ORANGE_DARK);
+        chip.setTextColor(on ? ON_ORANGE : ORANGE_DARK);
     }
 
     private View permissionsCard() {
@@ -2721,7 +2756,7 @@ public class MainActivity extends Activity {
         LinearLayout chips = new LinearLayout(this);
         TextView state = text(hasOrder ? "✔ יש הזמנה" : "טרם נפתחה הזמנה", 12, true);
         state.setTextColor(hasOrder ? GREEN : MUTED);
-        state.setBackground(shape(hasOrder ? GREEN_LIGHT : Color.rgb(242, 238, 234), 8, 0));
+        state.setBackground(shape(hasOrder ? GREEN_LIGHT : NO_ORDER_BG, 8, 0));
         state.setPadding(dp(10), dp(3), dp(10), dp(3));
         chips.addView(state);
         if (closed) {
@@ -3371,6 +3406,7 @@ public class MainActivity extends Activity {
             featureQuantities.putAll(quantities);
             featureQuantities.putAll(keep);
             if (favs != null) { favIds.clear(); favIds.addAll(favs); }
+            if (od != null) { summary = od; orderDirty = false; }
             persistQuantities();
             productsLoading = false;
             if (!stale(t) && screenKind == 1) {
@@ -3414,11 +3450,59 @@ public class MainActivity extends Activity {
         return new double[]{lines, units, total};
     }
 
+    private boolean orderDirty = false;
+    private int orderSyncSeq = 0;
+    private Runnable orderSyncTask;
+
+    /** The same figures "my order" shows: server lines and server total once known, an estimate while a change is in flight. */
+    private double[] orderBarStats() {
+        if (summary != null && summary.id == featureOrderId && !orderDirty && pending.isEmpty()) {
+            int lines = 0, units = 0;
+            double local = 0;
+            for (OrderLine line : summary.lines) {
+                int q = lineQty(line);
+                if (q > 0) { lines++; units += q; local += line.price * q; }
+            }
+            boolean server = summary.total >= 0;
+            return new double[]{lines, units, server ? summary.total : local, server ? 0 : 1};
+        }
+        double[] t = orderTotals();
+        return new double[]{t[0], t[1], t[2], 1};
+    }
+
     private void updateOrderBar() {
         if (barInfo == null || barTotal == null) return;
-        double[] t = orderTotals();
-        barInfo.setText((int) t[0] + " פריטים · " + (int) t[1] + " יחידות");
-        barTotal.setText("סה״כ " + money(t[2]));
+        double[] t = orderBarStats();
+        String price = (t[3] > 0 ? "≈ " : "") + money(t[2]);
+        barInfo.setText((int) t[0] + " פריטים · " + price);
+        barTotal.setText("סה״כ " + price);
+    }
+
+    /** After a local change the numbers are estimates until the order is read from the server again. */
+    private void scheduleOrderSync() {
+        orderDirty = true;
+        updateOrderBar();
+        final int seq = ++orderSyncSeq;
+        if (orderSyncTask != null) ui.removeCallbacks(orderSyncTask);
+        orderSyncTask = () -> syncOrderNow(seq);
+        ui.postDelayed(orderSyncTask, 500);
+    }
+
+    private void syncOrderNow(final int seq) {
+        final long orderId = featureOrderId;
+        if (orderId <= 0) return;
+        executor.execute(() -> {
+            try {
+                final OrderData od = fetchOrder(orderId);
+                runOnUiThread(() -> {
+                    if (seq != orderSyncSeq || featureOrderId != orderId) return; // a newer change is on its way
+                    if (!pending.isEmpty()) { ui.postDelayed(() -> syncOrderNow(seq), 400); return; }
+                    syncOrderDataFromServer(od);
+                    if (screenKind == 2) { rebuildSummary(); updateSummaryTotals(); }
+                    else if (productAdapter != null) productAdapter.notifyDataSetChanged();
+                });
+            } catch (Exception ignored) { }
+        });
     }
 
     private void renderFeatureProducts() {
@@ -3498,41 +3582,42 @@ public class MainActivity extends Activity {
         toolbar.addView(search, searchLp);
         toolbar.addView(clearSearch, clearSearchLp);
 
-        LinearLayout orderText = new LinearLayout(this);
-        orderText.setOrientation(LinearLayout.VERTICAL);
-        orderText.setGravity(Gravity.CENTER_VERTICAL);
-        orderText.setPadding(dp(3), 0, dp(3), 0);
-        barInfo = text("", 10, false);
+        // One wide "my order" button; the order details (items and price) are part of the button itself.
+        final TextView orderTitle = text("ההזמנה שלי  ‹", 12, true);
+        orderTitle.setTextColor(ON_ORANGE);
+        orderTitle.setSingleLine(true);
+        orderTitle.setGravity(Gravity.CENTER);
+        orderTitle.setPadding(0, 0, 0, 0);
+        barInfo = text("", 10.5f, false);
+        barInfo.setTextColor(ON_ORANGE);
         barInfo.setSingleLine(true);
         barInfo.setEllipsize(TextUtils.TruncateAt.END);
-        barTotal = text("", 12, true);
-        barTotal.setSingleLine(true);
-        barTotal.setEllipsize(TextUtils.TruncateAt.END);
-        orderText.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
-        orderText.addView(barTotal, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams orderTextLp = new LinearLayout.LayoutParams(dp(168), -2);
-        orderTextLp.setMarginStart(dp(3));
-        toolbar.addView(orderText, orderTextLp);
+        barInfo.setGravity(Gravity.CENTER);
+        barInfo.setPadding(0, 0, 0, 0);
+        barTotal = text("", 10, false); // full "total" text, hidden; kept for accessibility
+        barTotal.setVisibility(View.GONE);
+        final LinearLayout orderBtn = new LinearLayout(this);
+        orderBtn.setOrientation(LinearLayout.VERTICAL);
+        orderBtn.setGravity(Gravity.CENTER);
+        orderBtn.setClickable(true);
+        orderBtn.setFocusable(true);
+        orderBtn.setPadding(dp(8), dp(2), dp(8), dp(2));
+        orderBtn.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+        orderBtn.addView(orderTitle, new LinearLayout.LayoutParams(-1, -2));
+        orderBtn.addView(barInfo, new LinearLayout.LayoutParams(-1, -2));
+        orderBtn.addView(barTotal, new LinearLayout.LayoutParams(0, 0));
+        orderBtn.setOnClickListener(v -> showOrderSummary());
+        LinearLayout.LayoutParams orderBtnLp = new LinearLayout.LayoutParams(dp(172), dp(44));
+        orderBtnLp.setMarginStart(dp(3));
+        toolbar.addView(orderBtn, orderBtnLp);
 
-
-        // When searching, temporarily hide the summary and navigation controls so the field
-        // expands into the entire toolbar row; restore them as soon as search loses focus.
+        // While typing in the search field the button steps aside so the field can use the whole row.
         search.setOnFocusChangeListener((v, hasFocus) -> {
-            int controlsVisibility = hasFocus ? View.GONE : View.VISIBLE;
-            orderText.setVisibility(controlsVisibility);
+            orderBtn.setVisibility(hasFocus ? View.GONE : View.VISIBLE);
             searchLp.width = 0;
             searchLp.weight = 1f;
             search.setLayoutParams(searchLp);
         });
-
-        TextView open = btn("ההזמנה שלי", PRIMARY);
-        open.setTextSize(11);
-        open.setPadding(dp(4), 0, dp(4), 0);
-        open.setMaxLines(1);
-        open.setOnClickListener(v -> showOrderSummary());
-        LinearLayout.LayoutParams openLp = new LinearLayout.LayoutParams(-2, dp(40));
-        openLp.setMarginStart(dp(3));
-        toolbar.addView(open, openLp);
 
         TextView optionsBtn = roundBtn("⋯", 32, ORANGE_LIGHT, ORANGE_DARK);
         optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
@@ -3573,7 +3658,7 @@ public class MainActivity extends Activity {
             private final Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             @Override protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
-                arrowPaint.setColor(Color.WHITE);
+                arrowPaint.setColor(ON_ORANGE);
                 arrowPaint.setStyle(Paint.Style.STROKE);
                 arrowPaint.setStrokeWidth(dp(4.5f));
                 arrowPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -3650,6 +3735,7 @@ public class MainActivity extends Activity {
         for (JSONObject p : featureProducts) {
             String name = productName(p);
             if (!filterText.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(filterText)) continue;
+            if (hideSoldOut() && isSoldOut(p)) { Integer inCart = featureQuantities.get(sidOf(p)); if (inCart == null || inCart <= 0) continue; }
             if ("fav".equals(viewMode) && !favIds.contains(pidOf(p))) continue;
             if ("cart".equals(viewMode)) { Integer qq = featureQuantities.get(sidOf(p)); if (qq == null || qq <= 0) continue; }
             String cat = categoryName(p);
@@ -3702,7 +3788,7 @@ public class MainActivity extends Activity {
     private void paintButton(TextView b, int style) {
         int fill, fg, stroke = 0;
         switch (style) {
-            case PRIMARY: fill = ORANGE; fg = Color.WHITE; break;
+            case PRIMARY: fill = ORANGE; fg = ON_ORANGE; break;
             case TONAL: fill = ORANGE_LIGHT; fg = ORANGE_DARK; break;
             case OUTLINE: fill = SURFACE; fg = ORANGE_DARK; stroke = ORANGE; break;
             case DANGER: fill = RED_LIGHT; fg = RED; break;
@@ -3733,7 +3819,7 @@ public class MainActivity extends Activity {
             image.setBackgroundColor(SURFACE);
             imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(112)));
             badge = text("", 11, true);
-            badge.setTextColor(Color.WHITE);
+            badge.setTextColor(ON_ORANGE);
             badge.setBackground(shape(RED, 8, 0));
             badge.setPadding(dp(8), dp(2), dp(8), dp(2));
             FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-2, -2);
@@ -3744,7 +3830,7 @@ public class MainActivity extends Activity {
             star.setGravity(Gravity.CENTER);
             star.setPadding(0, 0, 0, 0);
             star.setTextColor(ORANGE_DARK);
-            star.setBackground(shape(Color.argb(220, 255, 255, 255), 16, 0));
+            star.setBackground(shape(STAR_BG, 16, 0));
             FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(dp(32), dp(32));
             starLp.gravity = Gravity.TOP | Gravity.START;
             starLp.setMargins(dp(6), dp(6), 0, 0);
@@ -4003,6 +4089,7 @@ public class MainActivity extends Activity {
                     try { p.put("amount", newQty); } catch (Exception ignored) { }
                     featureQuantities.put(sid, newQty);
                     persistQuantities();
+                    scheduleOrderSync();
                     toast(newQty == 0 ? "✔ הוסר: " + pname : (oldQty == 0 ? "✔ נוסף להזמנה: " + pname + " ×" + newQty : "✔ עודכן: " + pname + " ← " + newQty), false);
                 } else {
                     featureQuantities.put(sid, oldQty);
@@ -4236,9 +4323,9 @@ public class MainActivity extends Activity {
         edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
         collect.setText(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף");
         edit.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        edit.setTextColor(Color.WHITE);
+        edit.setTextColor(ON_ORANGE);
         collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        collect.setTextColor(collectMode ? Color.WHITE : ORANGE_DARK);
+        collect.setTextColor(collectMode ? ON_ORANGE : ORANGE_DARK);
     }
 
     private void rebuildSummary() {
@@ -4306,6 +4393,7 @@ public class MainActivity extends Activity {
     private void syncOrderDataFromServer(OrderData od) {
         if (od == null) return;
         summary = od;
+        orderDirty = false;
         featureQuantities.clear();
         for (JSONObject p : featureProducts) {
             try { p.put("amount", 0); } catch (Exception ignored) { }
@@ -4354,7 +4442,7 @@ public class MainActivity extends Activity {
         row.setPadding(dp(10), dp(10), dp(10), dp(10));
         row.setBackground(shape(SURFACE, 14, LINE));
         ImageView iv = imageView(imageDp, imageDp, ImageView.ScaleType.FIT_CENTER);
-        iv.setBackground(shape(Color.rgb(250, 239, 229), 10, 0));
+        iv.setBackground(shape(SURFACE, 10, 0));
         iv.setClipToOutline(true);
         LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(imageDp), dp(imageDp));
         ip.setMarginEnd(dp(10));
@@ -4455,7 +4543,7 @@ public class MainActivity extends Activity {
         LinearLayout row = (LinearLayout) rowShell(line, isDone ? 60 : 88);
         row.setAlpha(isDone ? 0.8f : 1f);
 
-        TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? Color.WHITE : GREEN_LIGHT, GREEN);
+        TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? SURFACE : GREEN_LIGHT, GREEN);
         LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(dp(46), dp(46));
         chkLp.setMarginEnd(dp(10));
         final View.OnClickListener toggle = v -> {
@@ -4892,7 +4980,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < chips.length; i++) {
                 boolean on = keys[i].equals(mode[0]);
                 chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-                chips[i].setTextColor(on ? Color.WHITE : ORANGE_DARK);
+                chips[i].setTextColor(on ? ON_ORANGE : ORANGE_DARK);
             }
             for (JSONObject tx : rows) {
                 double amount = tx.optDouble("skum", 0);
@@ -5863,6 +5951,7 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 for (PlanItem pi : succeeded) featureQuantities.put(sidOf(pi.p), pi.amount);
                 persistQuantities();
+                scheduleOrderSync();
                 dlg.dismiss();
                 StringBuilder res = new StringBuilder("✅ עודכנו: " + succeeded.size() + " מתוך " + plan.size());
                 if (!failed.isEmpty()) {
@@ -6083,7 +6172,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < chips.length; i++) {
             boolean on = keys[i].equals(viewMode);
             chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, 12, 0), 12));
-            chips[i].setTextColor(on ? Color.WHITE : ORANGE_DARK);
+            chips[i].setTextColor(on ? ON_ORANGE : ORANGE_DARK);
         }
     }
 
@@ -6402,9 +6491,9 @@ public class MainActivity extends Activity {
         inner.setOrientation(LinearLayout.VERTICAL);
         inner.setGravity(Gravity.CENTER);
         inner.setPadding(dp(2), dp(2), dp(2), dp(1));
-        inner.addView(new IconView(ICON_CHECK, Color.WHITE, 3.8f), new LinearLayout.LayoutParams(dp(46), dp(46)));
+        inner.addView(new IconView(ICON_CHECK, ON_ORANGE, 3.8f), new LinearLayout.LayoutParams(dp(46), dp(46)));
         TextView label = text("איסוף", 11, true);
-        label.setTextColor(Color.WHITE);
+        label.setTextColor(ON_ORANGE);
         label.setMaxLines(1);
         label.setGravity(Gravity.CENTER);
         inner.addView(label, new LinearLayout.LayoutParams(-1, -2));
@@ -6484,16 +6573,15 @@ public class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= 30) {
                 android.view.WindowInsetsController c = getWindow().getInsetsController();
                 if (c != null) {
-                    int appearance = nightMode ? 0 : android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                    c.setSystemBarsAppearance(appearance,
-                            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+                    int light = nightMode ? 0 : android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                    c.setSystemBarsAppearance(light, android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
                 }
             } else if (Build.VERSION.SDK_INT >= 26) {
-                View decor = getWindow().getDecorView();
-                int flags = decor.getSystemUiVisibility();
+                View d = getWindow().getDecorView();
+                int flags = d.getSystemUiVisibility();
                 if (nightMode) flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
                 else flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-                decor.setSystemUiVisibility(flags);
+                d.setSystemUiVisibility(flags);
             }
         } catch (Exception ignored) { }
     }
@@ -6506,6 +6594,15 @@ public class MainActivity extends Activity {
     private static final long UNLOCK_WINDOW_MS = 5L * 60L * 1000L;
 
     private boolean childLockOn() { return prefs.getBoolean("child_lock_enabled", true); }
+
+    private boolean hideSoldOut() { return prefs.getBoolean("hide_sold_out", false); }
+
+    private void tintSwitch(Switch sw) {
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        int trackOn = Color.argb(120, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE));
+        sw.setThumbTintList(new ColorStateList(states, new int[]{ORANGE, SWITCH_OFF_THUMB}));
+        sw.setTrackTintList(new ColorStateList(states, new int[]{trackOn, SWITCH_OFF_TRACK}));
+    }
 
     private boolean fullImages() { return prefs.getBoolean("full_images", false); }
 
@@ -6690,6 +6787,14 @@ public class MainActivity extends Activity {
                 showMathChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
             }
         }));
+        card.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (b, checked) -> {
+            if (checked != nightMode) toggleNightMode();
+        }));
+        card.addView(switchRow("הסתר פריטים שאזלו", "פריטים שאזלו מהמלאי לא יוצגו ברשימת המוצרים. פריט שכבר בהזמנה ממשיך להופיע", hideSoldOut(), (b, checked) -> {
+            prefs.edit().putBoolean("hide_sold_out", checked).apply();
+            if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
+            toast(checked ? "🙈 פריטים שאזלו מוסתרים" : "פריטים שאזלו מוצגים", false);
+        }));
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
@@ -6825,7 +6930,7 @@ public class MainActivity extends Activity {
         for (Map.Entry<String, TextView> e : catChips.entrySet()) {
             boolean on = e.getKey().equals(activeCat);
             GradientDrawable bg = new GradientDrawable();
-            bg.setColor(on ? Color.WHITE : ORANGE_LIGHT);
+            bg.setColor(on ? SURFACE : ORANGE_LIGHT);
             bg.setCornerRadius(dp(12));
             if (on) bg.setStroke(dp(2), ORANGE);
             e.getValue().setBackground(ripple(bg, 12));
@@ -6877,4 +6982,5 @@ public class MainActivity extends Activity {
         }
     }
 }
+
 
