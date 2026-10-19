@@ -4964,199 +4964,143 @@ public class MainActivity extends Activity {
      * Collect full response bodies from the authenticated GET endpoints used by the app.
      * The report stays on-device until the user explicitly copies or shares it.
      */
+    private static class JsonEndpointChoice {
+        final String label;
+        final String path;
+        JsonEndpointChoice(String label, String path) { this.label = label; this.path = path; }
+    }
+
+    /**
+     * The JSON button now opens a safe, GET-only endpoint picker. Responses are never shown
+     * on screen or shared automatically: sensitive values are redacted before clipboard copy.
+     */
     private void diagnoseAllServerJson() {
-        if (!hasToken()) { toast("צריך להתחבר לפני איסוף נתוני השרת", true); return; }
+        if (!hasToken()) { toast("צריך להתחבר לפני בדיקת כתובת", true); return; }
+        final JsonEndpointChoice[] endpoints = new JsonEndpointChoice[] {
+                new JsonEndpointChoice("מכירות פתוחות — /api/profile/open_sales", "/api/profile/open_sales"),
+                new JsonEndpointChoice("רשימת הזמנות — /api/orders?page=1&limit=100", "/api/orders?page=1&limit=100"),
+                new JsonEndpointChoice("פרטי הזמנה לדוגמה — /api/orders/26039956", "/api/orders/26039956"),
+                new JsonEndpointChoice("תנועות / זיכויים — /api/profile/transactions?page=1&limit=100", "/api/profile/transactions?page=1&limit=100"),
+                new JsonEndpointChoice("אמצעי תשלום שמורים (יוסתרו פרטים רגישים) — /api/payment_methods/cards", "/api/payment_methods/cards"),
+                new JsonEndpointChoice("מועדפים למכירה לדוגמה — /api/get_favourites/171584", "/api/get_favourites/171584"),
+                new JsonEndpointChoice("פריטי מכירה — /api/get_items_for_sale/171584/null?page=1&limit=100", "/api/get_items_for_sale/171584/null?page=1&limit=100"),
+                new JsonEndpointChoice("בדיקת פריט לפי מזהה — /api/items/39625438", "/api/items/39625438"),
+                new JsonEndpointChoice("בדיקת מוצר לפי מזהה — /api/products/39625438", "/api/products/39625438"),
+                new JsonEndpointChoice("חיפוש פריט — /api/search?query=אפונה", "/api/search?query=%D7%90%D7%A4%D7%95%D7%A0%D7%94"),
+                new JsonEndpointChoice("נתיב מועדפים כללי — /api/get_favourites/null", "/api/get_favourites/null")
+        };
+        final String[] labels = new String[endpoints.length];
+        for (int i = 0; i < endpoints.length; i++) labels[i] = endpoints[i].label;
         appDialog()
-                .setTitle("איסוף נתוני JSON")
-                .setMessage("הפעולה תשלח בקשות GET לנתיבים שהאפליקציה משתמשת בהם ותאסוף את גופי התשובות המלאים. הדוח עשוי להכיל פרטים אישיים מהחשבון ומההזמנות. הוא לא יישלח אוטומטית; אפשר יהיה להעתיק או לשתף אותו ידנית.")
+                .setTitle("בדיקת כתובת JSON")
+                .setMessage("בחרו כתובת אחת להרצת GET. התשובה לא תוצג במסך: ערכים רגישים יוסתרו והתוצאה תועתק ללוח. הרשימה כוללת נתיבי בדיקה שמופיעים בקוד, עם מזהי דוגמה בחלק מהכתובות.")
+                .setItems(labels, (dialog, which) -> runSingleJsonEndpoint(endpoints[which]))
                 .setNegativeButton("ביטול", null)
-                .setPositiveButton("התחלה", (d, w) -> runAllJsonDiagnostic())
                 .show();
     }
 
-    private void runAllJsonDiagnostic() {
-        toast("אוסף תשובות JSON מהשרת…", true);
+    private void runSingleJsonEndpoint(final JsonEndpointChoice endpoint) {
+        if (!hasToken()) { toast("צריך להתחבר לפני בדיקת כתובת", true); return; }
+        toast("מריץ: " + endpoint.label.split(" — ")[0], false);
         executor.execute(() -> {
-            StringBuilder report = new StringBuilder();
-            report.append("אבחון JSON מלא — משנת יוסף\n")
-                    .append("זמן: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())).append("\n")
-                    .append("הנתונים הם תשובות GET בלבד; לא נאספו כותרות Authorization או אסימוני התחברות.\n")
-                    .append("הגבלת בטיחות: עד 80 תשובות ועד 2MB בדוח.\n\n");
-            int requests = 0;
-            int totalChars = report.length();
-            final int maxRequests = 80;
-            final int maxTotalChars = 2 * 1024 * 1024;
-            final int maxBodyChars = 300 * 1024;
-            List<String> paths = new ArrayList<>();
-            Collections.addAll(paths,
-                    "/api/profile/open_sales",
-                    "/api/orders/26039956",
-                    "/api/orders?page=1&limit=100",
-                    "/api/orders?page=2&limit=100",
-                    "/api/orders?page=3&limit=100",
-                    "/api/profile/transactions?page=1&limit=100",
-                    "/api/profile/transactions?page=2&limit=100",
-                    "/api/profile/transactions?page=3&limit=100",
-                    "/api/payment_methods/cards",
-                    "/api/get_favourites/",
-                    "/api/get_favourites/null",
-                    // Bounded GET-only hypotheses for the known item. All stay on API.
-                    "/api/get_items_for_sale/26039956/null?page=1&limit=100",
-                    "/api/get_items_for_sale/26039956/null?page=1&limit=20",
-                    "/api/get_items_for_sale/26039956/39625438?page=1&limit=100",
-                    "/api/get_items_for_sale/171584/39625438?page=1&limit=100",
-                    "/api/items/39625438",
-                    "/api/products/39625438",
-                    "/api/item/39625438",
-                    "/api/get_item/39625438",
-                    "/api/items?item_salesID=39625438",
-                    "/api/products?item_salesID=39625438",
-                    "/api/search?query=%D7%90%D7%A4%D7%95%D7%A0%D7%94",
-                    "/api/search?search=%D7%90%D7%A4%D7%95%D7%A0%D7%94");
-            for (String path : paths) {
-                if (requests >= maxRequests || totalChars >= maxTotalChars) break;
-                try {
-                    HttpResult res = api("GET", path, null);
-                    String body = res.body == null ? "" : res.body;
-                    String entry = jsonDiagnosticEntry("GET", path, res.code, body, maxBodyChars);
-                    if (totalChars + entry.length() > maxTotalChars) {
-                        report.append("\n[הפסקה: מגבלת גודל הדוח הושגה; תשובה נוספת לא צורפה.]\n");
-                        break;
-                    }
-                    report.append(entry);
-                    totalChars += entry.length();
-                } catch (Exception e) {
-                    String entry = "\n========== GET " + path + " ==========\nשגיאה: " + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()) + "\n";
-                    if (totalChars + entry.length() <= maxTotalChars) { report.append(entry); totalChars += entry.length(); }
-                }
-                requests++;
-            }
-            // Include all product pages for every open sale, not only the one suspected item.
+            String clipboardText;
+            int status = -1;
             try {
-                HttpResult salesRes = api("GET", "/api/profile/open_sales", null);
-                JSONArray sales = salesRes.code >= 200 && salesRes.code < 300 ? arrayFrom(salesRes.body) : new JSONArray();
-                report.append("\n========== פירוט כל דפי המוצרים של המכירות הפתוחות ==========\n")
-                        .append("מכירות פתוחות שנמצאו: ").append(sales.length()).append("\n");
-                for (int i = 0; i < sales.length() && requests < maxRequests && totalChars < maxTotalChars; i++) {
-                    JSONObject sale = sales.optJSONObject(i);
-                    if (sale == null) continue;
-                    long saleId = sale.optLong("id", -1);
-                    if (saleId <= 0) continue;
-                    boolean more = true;
-                    for (int page = 1; page <= 100 && more && requests < maxRequests && totalChars < maxTotalChars; page++) {
-                        String path = "/api/get_items_for_sale/" + saleId + "/null?page=" + page + "&limit=" + PAGE_LIMIT;
-                        try {
-                            HttpResult res = api("GET", path, null);
-                            String body = res.body == null ? "" : res.body;
-                            String entry = jsonDiagnosticEntry("GET", path, res.code, body, maxBodyChars);
-                            if (totalChars + entry.length() > maxTotalChars) {
-                                report.append("\n[הפסקה: מגבלת גודל הדוח הושגה.]\n");
-                                more = false;
-                                break;
-                            }
-                            report.append(entry);
-                            totalChars += entry.length();
-                            requests++;
-                            JSONArray pageItems = res.code >= 200 && res.code < 300 ? arrayFrom(body) : new JSONArray();
-                            more = pageItems.length() >= PAGE_LIMIT;
-                            if (pageItems.length() == 0) more = false;
-                        } catch (Exception e) {
-                            report.append("\n========== GET ").append(path).append(" ==========\nשגיאה: ")
-                                    .append(e.getClass().getSimpleName()).append(": ").append(String.valueOf(e.getMessage())).append("\n");
-                            requests++;
-                            more = false;
-                        }
-                    }
-                }
+                HttpResult response = api("GET", endpoint.path, null);
+                status = response.code;
+                String safeBody = redactSensitiveOutput(response.body == null ? "" : response.body);
+                clipboardText = "כתובת: " + endpoint.path + "\n"
+                        + "שיטה: GET\nHTTP: " + status + "\n"
+                        + "תשובה (לאחר הסתרת מידע רגיש):\n" + safeBody;
             } catch (Exception e) {
-                report.append("\nשגיאה באיסוף המכירות/המוצרים: ").append(String.valueOf(e.getMessage())).append("\n");
+                // Do not put exception messages on screen or clipboard: they may contain request data.
+                clipboardText = "כתובת: " + endpoint.path + "\nשיטה: GET\nהבקשה נכשלה (" + e.getClass().getSimpleName() + ").";
             }
-            report.append(apiDiscoverySummary());
-            report.append("\n========== סיכום ==========\nמספר בקשות שנוסו בסריקה: ").append(requests)
-                    .append("\nגודל הדוח בתווים לפני הצגה: ").append(report.length())
-                    .append("\nהערה: הסריקה מנסה נתיבי GET מוגבלים באותו API, ובמקביל לומדת ושומרת מקומית נתיבים מכל שימוש רגיל באפליקציה. נתיב שלא נחשף בשימוש או בניחושים המוגבלים עדיין עשוי להתקיים.\n");
-            final String result = report.toString();
-            final int requestCount = requests;
-            runOnUiThread(() -> showJsonReportActions(result, requestCount));
+            final String result = clipboardText;
+            final int httpStatus = status;
+            runOnUiThread(() -> {
+                try {
+                    ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (cm == null) {
+                        toast("הבדיקה הסתיימה, אך הלוח אינו זמין", true);
+                        return;
+                    }
+                    cm.setPrimaryClip(ClipData.newPlainText("תשובת JSON מסוננת", result));
+                    toast(httpStatus < 0 ? "פרטי שגיאה בטוחים הועתקו ללוח" :
+                            "תשובת הכתובת הועתקה ללוח (HTTP " + httpStatus + ")", httpStatus < 200 || httpStatus >= 300);
+                } catch (Exception ignored) {
+                    toast("ההעתקה ללוח נכשלה", true);
+                }
+            });
         });
     }
 
-    private void showJsonReportActions(String report, int requestCount) {
-        appDialog()
-                .setTitle("דוח JSON מהשרת")
-                .setMessage("האיסוף הסתיים: " + requestCount + " בקשות. כדי למנוע קריסה בגלל דוח גדול, השיתוף ישלח קובץ TXT מלא. העתקה ללוח מוגבלת ל־200,000 תווים; אם הדוח ארוך יותר, השתמשו בשיתוף הקובץ. בדקו פרטים אישיים לפני שיתוף.")
-                .setPositiveButton("סגירה", null)
-                .setNeutralButton("העתקה ללוח", (d, w) -> {
-                    try {
-                        int copyLength = Math.min(report.length(), 200000);
-                        ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                        if (cm == null) {
-                            toast("לא ניתן לגשת ללוח ההעתקה", true);
-                            return;
-                        }
-                        cm.setPrimaryClip(ClipData.newPlainText("דוח JSON מהשרת", report.substring(0, copyLength)));
-                        toast(report.length() > copyLength
-                                ? "הועתק חלק מהדוח בלבד. לשיתוף הדוח המלא בחרו שיתוף קובץ."
-                                : "דוח ה־JSON הועתק ללוח", true);
-                    } catch (Exception e) {
-                        toast("ההעתקה נכשלה. נסו לשתף את קובץ הדוח.", true);
-                    }
-                })
-                .setNegativeButton("שיתוף קובץ מלא", (d, w) -> shareJsonReportFile(report))
-                .show();
-    }
-
-    private void shareJsonReportFile(String report) {
+    /**
+     * Recursively removes secret-bearing JSON fields before output. Also filters non-JSON bodies.
+     * This is a best-effort safety filter, not a guarantee that every possible secret format is known.
+     */
+    private String redactSensitiveOutput(String body) {
+        if (body == null || body.isEmpty()) return "(תשובה ריקה)";
         try {
-            if (report == null || report.isEmpty()) {
-                toast("אין נתונים בדוח לשיתוף", true);
-                return;
-            }
-
-            File dir = new File(getCacheDir(), "json-reports");
-            if (!dir.exists() && !dir.mkdirs()) {
-                throw new java.io.IOException("לא ניתן ליצור תיקיית דוח");
-            }
-            File file = new File(dir, "mishnat-yosef-json-report.txt");
-
-            // Persist the entire UTF-8 report before passing its URI to another app.
-            byte[] bytes = report.getBytes(StandardCharsets.UTF_8);
-            try (FileOutputStream out = new FileOutputStream(file, false)) {
-                out.write(bytes);
-                out.flush();
-                out.getFD().sync();
-            }
-            if (!file.isFile() || file.length() != bytes.length || file.length() == 0) {
-                throw new java.io.IOException("קובץ הדוח לא נכתב במלואו");
-            }
-
-            Uri uri = Uri.parse("content://" + getPackageName() + ".jsonreports/" + file.getName());
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.setType("text/plain");
-            intent.putExtra(Intent.EXTRA_SUBJECT, "דוח JSON מהשרת — משנת יוסף");
-            intent.putExtra(Intent.EXTRA_TEXT, "מצורף דוח JSON מלא מהאפליקציה. בדקו את המידע לפני העברתו הלאה.");
-            intent.putExtra(Intent.EXTRA_STREAM, uri);
-            // Some Android share targets only receive URI grants through ClipData.
-            intent.setClipData(android.content.ClipData.newUri(getContentResolver(), file.getName(), uri));
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(intent, "שיתוף דוח JSON מלא"));
-        } catch (Exception e) {
-            toast("שיתוף הקובץ נכשל: " + e.getClass().getSimpleName(), true);
-        }
+            Object parsed = new JSONTokener(body).nextValue();
+            if (parsed instanceof JSONObject) return redactJsonObject((JSONObject) parsed).toString(2);
+            if (parsed instanceof JSONArray) return redactJsonArray((JSONArray) parsed).toString(2);
+        } catch (Exception ignored) { }
+        return redactSensitiveText(body);
     }
 
-    private String jsonDiagnosticEntry(String method, String path, int code, String body, int maxBodyChars) {
-        String value = body == null ? "" : body;
-        StringBuilder entry = new StringBuilder();
-        entry.append("\n========== ").append(method).append(" ").append(path)
-                .append(" | HTTP ").append(code).append(" | bytes/chars ").append(value.length()).append(" ==========\n");
-        if (value.length() > maxBodyChars) {
-            entry.append(value, 0, maxBodyChars)
-                    .append("\n[התשובה נחתכה בדוח אחרי ").append(maxBodyChars).append(" תווים; התשובה המקורית ארוכה יותר.]\n");
-        } else {
-            entry.append(value).append("\n");
+    private JSONObject redactJsonObject(JSONObject source) {
+        JSONObject safe = new JSONObject();
+        java.util.Iterator<String> keys = source.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object value = source.opt(key);
+            if (isSensitiveFieldName(key)) {
+                try { safe.put(key, "[הוסתר]"); } catch (Exception ignored) { }
+            } else {
+                try {
+                    if (value instanceof JSONObject) safe.put(key, redactJsonObject((JSONObject) value));
+                    else if (value instanceof JSONArray) safe.put(key, redactJsonArray((JSONArray) value));
+                    else if (value instanceof String) safe.put(key, redactSensitiveText((String) value));
+                    else safe.put(key, value == null ? JSONObject.NULL : value);
+                } catch (Exception ignored) { }
+            }
         }
-        return entry.toString();
+        return safe;
+    }
+
+    private JSONArray redactJsonArray(JSONArray source) {
+        JSONArray safe = new JSONArray();
+        for (int i = 0; i < source.length(); i++) {
+            Object value = source.opt(i);
+            if (value instanceof JSONObject) safe.put(redactJsonObject((JSONObject) value));
+            else if (value instanceof JSONArray) safe.put(redactJsonArray((JSONArray) value));
+            else if (value instanceof String) safe.put(redactSensitiveText((String) value));
+            else safe.put(value == null ? JSONObject.NULL : value);
+        }
+        return safe;
+    }
+
+    private boolean isSensitiveFieldName(String key) {
+        String k = key == null ? "" : key.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        return k.contains("token") || k.contains("authorization") || k.contains("bearer")
+                || k.contains("password") || k.contains("passwd") || k.contains("secret")
+                || k.contains("cookie") || k.contains("sessionid") || k.contains("apikey")
+                || k.contains("creditcard") || k.equals("card") || k.contains("cardnumber")
+                || k.contains("cardno") || k.equals("pan") || k.contains("cvv") || k.contains("cvc")
+                || k.contains("securitycode") || k.contains("iban") || k.contains("bankaccount")
+                || k.contains("email") || k.contains("phone") || k.contains("mobile");
+    }
+
+    private String redactSensitiveText(String text) {
+        if (text == null || text.isEmpty()) return "";
+        String safe = text;
+        safe = safe.replaceAll("(?i)Bearer\\\\s+[A-Za-z0-9._~+/-]+=*", "Bearer [הוסתר]");
+        safe = safe.replaceAll("eyJ[A-Za-z0-9_\\\\-]{8,}\\\\.[A-Za-z0-9_\\\\-]{8,}\\\\.[A-Za-z0-9_\\\\-]*", "[JWT הוסתר]");
+        safe = safe.replaceAll("(?i)(\\\"?(?:access_token|refresh_token|token|authorization|password|passwd|secret|api_key|apikey|cvv|cvc|card_number|cardnumber|pan|iban|email|phone|mobile)\\\"?\\\\s*[:=]\\\\s*)\\\"?[^\\\",\\\\s}]+\\\"?", "$1\\\"[הוסתר]\\\"");
+        // Mask long payment-card-like digit sequences even when the response is not valid JSON.
+        safe = safe.replaceAll("(?<![0-9])[0-9](?:[ -]?[0-9]){12,18}(?![0-9])", "[מספר רגיש הוסתר]");
+        return safe;
     }
 
     private boolean jsonHasMatchingItemId(Object value, String targetId) {
