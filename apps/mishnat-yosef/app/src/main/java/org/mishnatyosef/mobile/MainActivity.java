@@ -1691,7 +1691,7 @@ public class MainActivity extends Activity {
     }
     private int stockDraftQty(JSONObject p) { Integer q=stockDraftQuantities.get(stockKey(p)); return q==null?1:Math.max(1,q); }
     private void adjustStockDraft(JSONObject p,int delta,Stepper st) {
-        int q=Math.max(1,Math.min(999,stockDraftQty(p)+delta)); stockDraftQuantities.put(stockKey(p),q); st.qty.setText(String.valueOf(q));
+        int q=Math.max(1,Math.min(999,stockDraftQty(p)+delta)); int max=maxPerMan(p); if(max>0)q=Math.min(q,max); stockDraftQuantities.put(stockKey(p),q); st.qty.setText(String.valueOf(q));
     }
     private void saveStockAlert(JSONObject p) {
         if(p==null || featureSale==null)return; String key=stockKey(p); JSONObject old=findStockWatch(StockMonitor.loadWatches(this),key);
@@ -1699,7 +1699,7 @@ public class MainActivity extends Activity {
         upsertStockWatch(p,"alert",1,false);
     }
     private void saveAutoOrder(JSONObject p,int qty) {
-        if(p==null || featureSale==null)return; String key=stockKey(p); JSONObject old=findStockWatch(StockMonitor.loadWatches(this),key);
+        if(p==null || featureSale==null)return; int max=maxPerMan(p); if(max>0&&qty>max){toast("הכמות חורגת מהמקסימום למוצר: "+max,true);return;} String key=stockKey(p); JSONObject old=findStockWatch(StockMonitor.loadWatches(this),key);
         if(old!=null && "auto".equals(old.optString("mode","alert")) && old.optBoolean("consent",false)) {
             JSONArray a=StockMonitor.loadWatches(this);
             for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w!=null&&key.equals(w.optString("key","")))try{w.put("qty",Math.max(1,qty));}catch(Exception ignored){}}
@@ -1717,12 +1717,12 @@ public class MainActivity extends Activity {
         int saleId=featureSale==null?-1:featureSale.optInt("id",-1); String sid=sidOf(p);
         if(saleId<=0||sid.isEmpty()){toast("חסר מזהה מוצר או מכירה.",true);return;}
         String key=StockMonitor.keyFor(saleId,sid); JSONArray a=StockMonitor.loadWatches(this); JSONObject w=findStockWatch(a,key);
-        boolean fresh=w==null; if(fresh)w=new JSONObject();
+        boolean fresh=w==null; String oldMode=fresh?"":w.optString("mode","alert"); if(fresh)w=new JSONObject();
         try {
             w.put("key",key).put("saleId",saleId).put("sid",sid).put("name",productName(p)).put("saleName",saleTitle(featureSale))
              .put("mode",mode).put("qty",Math.max(1,qty)).put("consent",consent);
             if(fresh){w.put("createdAt",System.currentTimeMillis()).put("lastAvailability",0).put("state","waiting");a.put(w);}
-            else if("auto".equals(mode)&&!"auto".equals(w.optString("mode","alert")))w.put("state","waiting").put("lastAvailability",0);
+            else if("auto".equals(mode)&&!"auto".equals(oldMode))w.put("state","waiting").put("lastAvailability",0);
         }catch(Exception e){toast("שמירת המעקב נכשלה.",true);return;}
         StockMonitor.saveWatches(this,a);
         StockMonitor.appendLog(this,key,productName(p),"נוסף למעקב","סוג: "+mode+"; כמות: "+qty);
