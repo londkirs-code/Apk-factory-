@@ -8,8 +8,8 @@ android {
         applicationId 'org.mishnatyosef.mobile'
         minSdk 23
         targetSdk 33
-        versionCode 164
-        versionName '1.326'
+        versionCode 165
+        versionName '1.327'
     }
     sourceSets { main { java.srcDir rootProject.file('../../shared/android') } }
 }
