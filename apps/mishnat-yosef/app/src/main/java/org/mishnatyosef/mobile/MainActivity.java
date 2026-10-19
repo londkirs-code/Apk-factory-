@@ -1773,17 +1773,19 @@ public class MainActivity extends Activity {
         TextView log=btn("📋 פתיחת יומן הפעולות",TONAL);log.setOnClickListener(v->showStockMonitorLog());root.addView(log,lp(-1,dp(44),0,8));
     }
     private void updateStockWatchQuantity(String key,int delta) {
-        JSONArray a=StockMonitor.loadWatches(this);for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w!=null&&key.equals(w.optString("key",""))&&"auto".equals(w.optString("mode","alert"))){int q=Math.max(1,Math.min(999,w.optInt("qty",1)+delta));try{w.put("qty",q);}catch(Exception ignored){}StockMonitor.appendLog(this,key,w.optString("name",""),"עודכנה כמות","כמות: "+q);break;}}
+        JSONArray a=StockMonitor.loadWatches(this);for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w!=null&&key.equals(w.optString("key",""))&&"auto".equals(w.optString("mode","alert"))){if("attempting".equals(w.optString("state",""))){toast("מתבצע ניסיון הזמנה. אפשר לשנות את הכמות לאחר קבלת התוצאה.",false);return;}int q=Math.max(1,Math.min(999,w.optInt("qty",1)+delta));try{w.put("qty",q);}catch(Exception ignored){}StockMonitor.appendLog(this,key,w.optString("name",""),"עודכנה כמות","כמות: "+q);break;}}
         StockMonitor.saveWatches(this,a);showStockWatchManagement();
     }
     private void changeStockWatchMode(String key,String mode) {
         JSONArray a=StockMonitor.loadWatches(this);for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w==null||!key.equals(w.optString("key","")))continue;
+            if("attempting".equals(w.optString("state",""))){toast("מתבצע ניסיון הזמנה; אפשר לשנות את סוג המעקב לאחר קבלת התוצאה.",false);return;}
             try{w.put("mode",mode).put("consent","auto".equals(mode));if("auto".equals(mode))w.put("state","waiting");}catch(Exception ignored){}
             StockMonitor.appendLog(this,key,w.optString("name",""),"שונה סוג המעקב",mode);break;}
         StockMonitor.saveWatches(this,a);showStockWatchManagement();
     }
     private void removeStockWatch(String key) {
         JSONArray a=StockMonitor.loadWatches(this),kept=new JSONArray();String name="";
+        for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w!=null&&key.equals(w.optString("key",""))&&"attempting".equals(w.optString("state",""))){toast("כבר מתבצע ניסיון הזמנה. אי אפשר לבטל בקשה שכבר נשלחה; אפשר להסיר לאחר שהתוצאה תתקבל.",true);return;}}
         for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w==null)continue;if(key.equals(w.optString("key","")))name=w.optString("name","");else kept.put(w);}
         StockMonitor.saveWatches(this,kept);StockMonitor.appendLog(this,key,name,"הוסר מהמעקב","המשתמש הסיר את המוצר.");showStockWatchManagement();
     }
