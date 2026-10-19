@@ -1538,9 +1538,6 @@ public class MainActivity extends Activity {
         TextView itemDiagBtn = btn("🔎 בדיקת API", TONAL);
         itemDiagBtn.setOnClickListener(v -> diagnoseAllServerJson());
         root.addView(itemDiagBtn, lp(-1, dp(46), 0, 8));
-        TextView cacheBtn = btn("🧹 ניקוי מטמון תמונות", TONAL);
-        cacheBtn.setOnClickListener(v -> { imageCache.evictAll(); toast("המטמון נוקה", false); });
-        root.addView(cacheBtn, lp(-1, dp(46), 0, 8));
         TextView logout = btn("התנתקות", DANGER);
         logout.setOnClickListener(v -> {
             prefs.edit().remove("token").remove("expires_at").apply();
@@ -1559,13 +1556,12 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "פעולות יצירת קשר ישירות בכרטיסים";
-        final String whatsNewSummary = "נוספו כפתורי חיוג, העתקה ושיתוף ישירות בתוך כרטיסי אנשי הקשר, בלי לפתוח קודם את הכרטיס.";
+        final String whatsNewTitle = "הסרת כפתור ניקוי מטמון התמונות";
+        final String whatsNewSummary = "הוסר ממסך ההגדרות כפתור ניקוי מטמון התמונות והפעולה הידנית שלו.";
         final String whatsNewDetails =
-                "• בטלפונים: אפשר לחייג, להעתיק את המספר ללוח או לשתף אותו ישירות מהכרטיס.\\n\\n" +
-                "• בדוא״ל: אפשר לפתוח הודעת מייל, להעתיק את הכתובת או לשתף אותה.\\n\\n" +
-                "• בפקס: זמינות פעולות העתקה ושיתוף בלבד, ללא כפתור חיוג.\\n\\n" +
-                "• הכרטיסים עצמם אינם דורשים לחיצה כדי להציג את הפעולות; הכפתורים הקטנים זמינים מיד בתוך כל כרטיס.";
+                "• כפתור „ניקוי מטמון תמונות” הוסר ממסך החשבון וההגדרות.\\n\\n" +
+                "• הוסרה גם פעולת הניקוי הידנית שהכפתור הפעיל.\\n\\n" +
+                "• מנגנון מטמון התמונות הרגיל נשאר, משום שהוא משמש להצגת תמונות מוצרים באפליקציה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
