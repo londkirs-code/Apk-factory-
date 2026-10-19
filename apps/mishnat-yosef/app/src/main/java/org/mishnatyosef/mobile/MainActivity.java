@@ -1559,7 +1559,7 @@ public class MainActivity extends Activity {
         final String whatsNewTitle = "רשימת זיכויים אישית";
         final String whatsNewSummary = "אפשר לאסוף פריטים מהיסטוריית ההזמנות לרשימה קבועה, בלי כפילויות.";
         final String whatsNewDetails =
-                "• בכל פריט בהיסטוריית ההזמנות יש כעת גם כפתור „＋ הוסף לזיכויים”.\\n\\n" +
+                "• בכל פריט בהיסטוריית ההזמנות יש כעת גם כפתור „＋ הוסף לזיכויים”.\n\n" +
                 "• בעמוד „זיכויים וחיובים” נוסף כפתור „🧾 רשימת זיכויים”, שמציג את הפריטים שנאספו.\\n\\n" +
                 "• הרשימה נשמרת במכשיר גם לאחר סגירת האפליקציה; אותו פריט מאותה מכירה לא יתווסף פעמיים.\\n\\n" +
                 "• אפשר להסיר פריט בודד, למחוק את הרשימה כולה או להעתיק את הרשימה ללוח.\\n\\n" +
@@ -4477,9 +4477,17 @@ public class MainActivity extends Activity {
         col.addView(name);
         if (!isDone && line.price > 0) col.addView(muted(money(line.price * qty), 12));
         if (summaryFromHistory) {
+            LinearLayout historyActions = new LinearLayout(this);
+            historyActions.setOrientation(LinearLayout.HORIZONTAL);
             TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
             copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
-            col.addView(copyItem, lp(-2, dp(34), 0, 6));
+            historyActions.addView(copyItem, lp(-2, dp(34), 0, 0));
+            TextView addCredit = smallChip("＋ הוסף לזיכויים", TONAL);
+            addCredit.setOnClickListener(v -> addHistoryItemToCreditList(line));
+            LinearLayout.LayoutParams creditLp = new LinearLayout.LayoutParams(-2, dp(34));
+            creditLp.setMarginStart(dp(6));
+            historyActions.addView(addCredit, creditLp);
+            col.addView(historyActions, lp(-1, -2, 0, 6));
         }
         row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
 
@@ -4728,7 +4736,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < current.length(); i++) {
                 JSONObject item = current.optJSONObject(i);
                 if (item == null) continue;
-                if (all.length() > 0) all.append("\\n");
+                if (all.length() > 0) all.append("\n");
                 all.append(item.optString("text", ""));
             }
             if (all.length() > 0) copyText(all.toString());
