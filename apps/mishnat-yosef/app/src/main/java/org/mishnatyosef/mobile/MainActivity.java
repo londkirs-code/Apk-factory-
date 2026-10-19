@@ -4984,9 +4984,6 @@ public class MainActivity extends Activity {
                 new JsonEndpointChoice("אמצעי תשלום שמורים (יוסתרו פרטים רגישים) — /api/payment_methods/cards", "/api/payment_methods/cards"),
                 new JsonEndpointChoice("מועדפים למכירה לדוגמה — /api/get_favourites/171584", "/api/get_favourites/171584"),
                 new JsonEndpointChoice("פריטי מכירה — /api/get_items_for_sale/171584/null?page=1&limit=100", "/api/get_items_for_sale/171584/null?page=1&limit=100"),
-                new JsonEndpointChoice("בדיקת פריט לפי מזהה — /api/items/39625438", "/api/items/39625438"),
-                new JsonEndpointChoice("בדיקת מוצר לפי מזהה — /api/products/39625438", "/api/products/39625438"),
-                new JsonEndpointChoice("חיפוש פריט — /api/search?query=אפונה", "/api/search?query=%D7%90%D7%A4%D7%95%D7%A0%D7%94"),
                 new JsonEndpointChoice("נתיב מועדפים כללי — /api/get_favourites/null", "/api/get_favourites/null")
         };
         final String[] labels = new String[endpoints.length];
