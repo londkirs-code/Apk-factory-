@@ -5000,9 +5000,11 @@ public class MainActivity extends Activity {
         };
         final String[] labels = new String[endpoints.length];
         for (int i = 0; i < endpoints.length; i++) labels[i] = endpoints[i].label;
+        // Android AlertDialog cannot reliably show setMessage() and setItems() together:
+        // the message can take over the content area and hide the selectable endpoint list.
+        // Keep the list as the dialog content and put the instruction in the title instead.
         appDialog()
-                .setTitle("בדיקת API")
-                .setMessage("בחרו כתובת לפי המסך או הפעולה באפליקציה כדי להריץ בקשת GET אחת. גוף התשובה לא יוצג בחלון; לאחר הסתרת מידע רגיש הוא יועתק ללוח. כתובות עם מזהה מספרי משתמשות במזהה לדוגמה.")
+                .setTitle("בחר כתובת לבדיקה • התוצאה תועתק ללוח")
                 .setItems(labels, (dialog, which) -> runSingleJsonEndpoint(endpoints[which]))
                 .setNegativeButton("ביטול", null)
                 .show();
