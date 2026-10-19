@@ -1610,7 +1610,7 @@ public class MainActivity extends Activity {
                 "• שם הרשימה הוא „רשימת זיכויים וחיובים”; פריטי זיכוי ישנים נשמרים ומזוהים כזיכויים.\n\n" +
                 "• לכל מוצר יש כפתור „הוסף לחיובים”; אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות. כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן.\\n\\n" +
                 "• בהגדרות אפשר להפעיל „הפרדת פריטים שאזלו”: הם מופיעים בקטגוריה נפרדת ולא בקטגוריה המקורית; כשחוזרים להיות זמינים, הם חוזרים לקטגוריה המקורית. הכיבוי מחזיר את התצוגה הרגילה.\n\n" +
-                "• בבדיקת API נוספה בחירה מפורשת של „הזמנות שנסגרו” (GET /api/orders), ואפשר לסנן את פלט הבדיקה לפי מילה או כמה ביטויים כמו grep. רק שורות תואמות מועתקות ללוח, לאחר הסתרת מידע רגיש.";
+                "• בבדיקת API נוספה בחירה מפורשת של „הזמנות שנסגרו” (GET /api/orders), סינון פלט לפי מילים ואפשרות להזין נתיב GET מותאם אישית שמתחיל ב־/api/. הנתיב האחרון נשמר לבדיקה הבאה; כתובות חיצוניות נחסמות כדי לא לשלוח אליהן את פרטי ההתחברות. רק פלט שעבר הסתרת מידע רגיש מועתק ללוח.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -5743,16 +5743,57 @@ public class MainActivity extends Activity {
                 new JsonEndpointChoice("מסך פרטי מכירה: טעינת מוצרים (מזהה מכירה לדוגמה 171584)", "/api/get_items_for_sale/171584/null?page=1&limit=100"),
                 new JsonEndpointChoice("מסך מוצרים: המועדפים במכירה לדוגמה 171584", "/api/get_favourites/171584")
         };
-        final String[] labels = new String[endpoints.length];
+        final String[] labels = new String[endpoints.length + 1];
         for (int i = 0; i < endpoints.length; i++) labels[i] = endpoints[i].label;
-        // Android AlertDialog cannot reliably show setMessage() and setItems() together:
-        // the message can take over the content area and hide the selectable endpoint list.
-        // Keep the list as the dialog content and put the instruction in the title instead.
+        labels[endpoints.length] = "✏️ כתובת API מותאמת אישית…";
         appDialog()
                 .setTitle("בחר כתובת לבדיקה • התוצאה תועתק ללוח")
-                .setItems(labels, (dialog, which) -> promptApiGrepFilter(endpoints[which]))
+                .setItems(labels, (dialog, which) -> {
+                    if (which == endpoints.length) promptCustomApiPath();
+                    else promptApiGrepFilter(endpoints[which]);
+                })
                 .setNegativeButton("ביטול", null)
                 .show();
+    }
+
+    /**
+     * Allows testing authenticated GET routes on this API host only.
+     * Restrict input to relative /api/ paths so credentials are never sent to another host.
+     */
+    private void promptCustomApiPath() {
+        String previous = prefs.getString("api_custom_path", "/api/orders?search=");
+        final EditText pathInput = field("למשל /api/orders?search=שמן", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        pathInput.setSingleLine(true);
+        pathInput.setTextDirection(View.TEXT_DIRECTION_LTR);
+        pathInput.setText(previous);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(4), dp(8), dp(4), dp(4));
+        content.addView(muted("הזן נתיב יחסי של ה־API, כולל פרמטרים אם צריך. מתחילים ב־/api/ ולא מזינים כתובת אתר מלאה. הנתיב האחרון נשמר לשימוש הבא. הבדיקה היא GET בלבד.", 13));
+        content.addView(pathInput, lp(-1, dp(52), 0, 8));
+        appDialog().setTitle("כתובת API מותאמת אישית")
+                .setView(content)
+                .setNegativeButton("ביטול", null)
+                .setNeutralButton("בדיקת כתובת", (d, w) -> {
+                    String path = pathInput.getText().toString().trim();
+                    if (!isValidCustomApiPath(path)) {
+                        toast("כתובת לא תקינה. יש להזין נתיב שמתחיל ב־/api/ ללא רווחים או כתובת אתר מלאה.", true);
+                        return;
+                    }
+                    prefs.edit().putString("api_custom_path", path).apply();
+                    promptApiGrepFilter(new JsonEndpointChoice("כתובת מותאמת אישית", path));
+                })
+                .show();
+    }
+
+    private boolean isValidCustomApiPath(String path) {
+        if (path == null || path.length() < 6 || path.length() > 500) return false;
+        if (!path.startsWith("/api/") || path.startsWith("//")) return false;
+        if (path.contains("://") || path.contains("#") || path.contains("\\\\") || path.contains(" ")) return false;
+        for (int i = 0; i < path.length(); i++) {
+            if (Character.isISOControl(path.charAt(i))) return false;
+        }
+        return true;
     }
 
     private void promptApiGrepFilter(final JsonEndpointChoice endpoint) {
