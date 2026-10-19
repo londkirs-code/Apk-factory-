@@ -4869,11 +4869,11 @@ public class MainActivity extends Activity {
             }
             try {
                 String accountEmail = prefs.getString("email", "").trim();
-                String subject = "בקשת זיכויים על הזמנות משנת לחשבון " + accountEmail;
-                String body = "שלום,\\n"
-                        + "נשמח לקבל זיכוי על המוצרים הבאים: \\n"
+                String subject = "בקשת זיכויים על הזמנות משנת יוסף לחשבון " + accountEmail;
+                String body = "שלום,\n"
+                        + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
                         + itemsText
-                        + "\\n\\nסיבת הזיכוי: חוסרים.";
+                        + "\n\nסיבת הזיכוי: חוסרים.";
                 Uri mailUri = Uri.parse("mailto:A0773168080@gmail.com"
                         + "?subject=" + Uri.encode(subject)
                         + "&body=" + Uri.encode(body));
