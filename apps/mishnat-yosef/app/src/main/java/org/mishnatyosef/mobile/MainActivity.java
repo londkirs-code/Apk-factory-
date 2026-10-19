@@ -1600,7 +1600,7 @@ public class MainActivity extends Activity {
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
         final String whatsNewTitle = "כפתורי זיכויים מעודכנים";
-        final String whatsNewSummary = "כפתורי הרשימה בשורה אחת, הסרה באמצעות ✕ בסוף הפריט, ומייל זיכויים עם נושא ותוכן מסודרים.";
+        final String whatsNewSummary = "כפתור שליחת בקשת הזיכוי עבר לתחתית הרשימה ותופס את כל הרוחב.";
         final String whatsNewDetails =
                 "• ברשימת הזיכויים אפשר להסיר פריט בודד מיד, ללא חלון אישור. מחיקת הרשימה כולה עדיין דורשת אישור.\n\n" +
                 "• נוסף כפתור „✉ שלח לזיכוי” שפותח את אפליקציית המייל עם הכתובת A0773168080@gmail.com ורשימת הזיכויים מוכנה לשליחה.\n\n" +
@@ -4857,7 +4857,7 @@ public class MainActivity extends Activity {
             if (!all.isEmpty()) copyText(all);
         });
 
-        TextView sendCredit = smallChip("✉ שלח לזיכוי", PRIMARY);
+        TextView sendCredit = smallChip("שלח ל\\\"משנת יוסף\\\" לבקשת זיכוי", PRIMARY);
         sendCredit.setEnabled(items.length() > 0);
         sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
         sendCredit.setTextSize(12);
@@ -4893,7 +4893,7 @@ public class MainActivity extends Activity {
             if (!body.isEmpty()) shareText("רשימת זיכויים", body);
         });
 
-        TextView[] actionButtons = {clear, copyAll, sendCredit, shareCredit};
+        TextView[] actionButtons = {clear, copyAll, shareCredit};
         for (int i = 0; i < actionButtons.length; i++) {
             LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(
                     0, dp(36), 1f);
@@ -4936,6 +4936,8 @@ public class MainActivity extends Activity {
             entryCard.addView(itemRow);
             root.addView(entryCard, lp(-1, -2, 0, 8));
         }
+        // Keep the primary email action below every item and stretch it across the screen.
+        root.addView(sendCredit, lp(-1, 48, 0, 12));
     }
 
     // ======================================================================== credits / charges
