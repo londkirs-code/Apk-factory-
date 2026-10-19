@@ -1556,12 +1556,14 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "העתקת פריטים מהיסטוריית ההזמנות";
-        final String whatsNewSummary = "כפתור ההעתקה כולל כעת גם את הכמות ואת המחיר הכולל של הפריט.";
+        final String whatsNewTitle = "רשימת זיכויים אישית";
+        final String whatsNewSummary = "אפשר לאסוף פריטים מהיסטוריית ההזמנות לרשימה קבועה, בלי כפילויות.";
         final String whatsNewDetails =
-                "• בהזמנה שנפתחה מההיסטוריה מופיע ליד כל פריט כפתור „📋 העתקת פריט”.\\n\\n" +
-                "• הטקסט המועתק כולל שם פריט, שם מכירה, כמות וסך מחיר לפריט, למשל: שמן קנולה - מכירה בראשית - כמות: 2 - סה״כ: 13₪.\\n\\n" +
-                "• הכפתור זמין גם במצב האיסוף, בלי לשנות את פעולות ההזמנה.";
+                "• בכל פריט בהיסטוריית ההזמנות יש כעת גם כפתור „＋ הוסף לזיכויים”.\\n\\n" +
+                "• בעמוד „זיכויים וחיובים” נוסף כפתור „🧾 רשימת זיכויים”, שמציג את הפריטים שנאספו.\\n\\n" +
+                "• הרשימה נשמרת במכשיר גם לאחר סגירת האפליקציה; אותו פריט מאותה מכירה לא יתווסף פעמיים.\\n\\n" +
+                "• אפשר להסיר פריט בודד, למחוק את הרשימה כולה או להעתיק את הרשימה ללוח.\\n\\n" +
+                "• כפתור „📋 העתקת פריט” נשאר זמין בנפרד וממשיך להעתיק את שם המכירה, הפריט, הכמות והמחיר הכולל.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -4403,9 +4405,17 @@ public class MainActivity extends Activity {
         bottom.addView(lineTotal);
         col.addView(bottom, lp(-1, -2, 6, 0));
         if (summaryFromHistory) {
+            LinearLayout historyActions = new LinearLayout(this);
+            historyActions.setOrientation(LinearLayout.HORIZONTAL);
             TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
             copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
-            col.addView(copyItem, lp(-2, dp(34), 0, 6));
+            historyActions.addView(copyItem, lp(-2, dp(34), 0, 0));
+            TextView addCredit = smallChip("＋ הוסף לזיכויים", TONAL);
+            addCredit.setOnClickListener(v -> addHistoryItemToCreditList(line));
+            LinearLayout.LayoutParams creditLp = new LinearLayout.LayoutParams(-2, dp(34));
+            creditLp.setMarginStart(dp(6));
+            historyActions.addView(addCredit, creditLp);
+            col.addView(historyActions, lp(-1, -2, 0, 6));
         }
         row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
 
@@ -4630,6 +4640,135 @@ public class MainActivity extends Activity {
         });
     }
 
+    // ======================================================================== persistent credit list
+
+    private static final String CREDIT_LIST_PREF = "history_credit_list_v1";
+
+    private JSONArray readCreditList() {
+        try {
+            return new JSONArray(prefs.getString(CREDIT_LIST_PREF, "[]"));
+        } catch (Exception ignored) {
+            return new JSONArray();
+        }
+    }
+
+    private void saveCreditList(JSONArray items) {
+        prefs.edit().putString(CREDIT_LIST_PREF, items == null ? "[]" : items.toString()).apply();
+    }
+
+    /** Stable identity: a product may be listed once per sale, regardless of its quantity. */
+    private String historyCreditKey(OrderLine line) {
+        String saleIdentity = summary == null ? "" : String.valueOf(summary.saleId);
+        if (saleIdentity.isEmpty() || "0".equals(saleIdentity)) {
+            saleIdentity = summary == null || summary.saleName == null ? "" : summary.saleName.trim();
+        }
+        String itemIdentity = line == null || line.sid == null ? "" : line.sid.trim();
+        if (itemIdentity.isEmpty()) {
+            itemIdentity = line == null || line.name == null ? "" : line.name.trim().toLowerCase(Locale.ROOT)
+                    .replaceAll("\\s+", " ");
+        }
+        return saleIdentity + "|" + itemIdentity;
+    }
+
+    private void addHistoryItemToCreditList(OrderLine line) {
+        if (!summaryFromHistory || summary == null || line == null) {
+            toast("אפשר להוסיף לרשימת הזיכויים רק פריטים מהיסטוריית ההזמנות.", false);
+            return;
+        }
+        String key = historyCreditKey(line);
+        JSONArray items = readCreditList();
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject existing = items.optJSONObject(i);
+            if (existing != null && key.equals(existing.optString("key", ""))) {
+                toast("הפריט כבר נמצא ברשימת הזיכויים.", false);
+                return;
+            }
+        }
+        try {
+            JSONObject entry = new JSONObject();
+            entry.put("key", key);
+            entry.put("text", historyItemCopyText(line));
+            entry.put("saleId", summary.saleId);
+            entry.put("saleName", summary.saleName == null ? "" : summary.saleName);
+            entry.put("itemId", line.sid == null ? "" : line.sid);
+            entry.put("itemName", line.name == null ? "" : line.name);
+            items.put(entry);
+            saveCreditList(items);
+            toast("נוסף לרשימת הזיכויים: " + line.name, false);
+        } catch (Exception e) {
+            toast("לא ניתן לשמור את הפריט ברשימת הזיכויים.", false);
+        }
+    }
+
+    private void showCreditList() {
+        beginScreen("רשימת זיכויים", 2, this::loadFeatureTransactions);
+        JSONArray items = readCreditList();
+        setStatus(items.length() == 0 ? "רשימת הזיכויים ריקה. אפשר להוסיף פריטים מהיסטוריית ההזמנות." : "");
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        TextView clear = smallChip("🗑 מחיקת הרשימה", DANGER);
+        clear.setEnabled(items.length() > 0);
+        clear.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        clear.setOnClickListener(v -> appDialog()
+                .setTitle("מחיקת רשימת הזיכויים")
+                .setMessage("למחוק את כל " + readCreditList().length() + " הפריטים מהרשימה?")
+                .setNegativeButton("ביטול", null)
+                .setPositiveButton("מחק", (dialog, which) -> {
+                    saveCreditList(new JSONArray());
+                    showCreditList();
+                    toast("רשימת הזיכויים נמחקה.", false);
+                }).show());
+        actions.addView(clear, lp(-2, dp(38), 0, 0));
+        TextView copyAll = smallChip("📋 העתקת הרשימה", TONAL);
+        copyAll.setEnabled(items.length() > 0);
+        copyAll.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        copyAll.setOnClickListener(v -> {
+            JSONArray current = readCreditList();
+            StringBuilder all = new StringBuilder();
+            for (int i = 0; i < current.length(); i++) {
+                JSONObject item = current.optJSONObject(i);
+                if (item == null) continue;
+                if (all.length() > 0) all.append("\\n");
+                all.append(item.optString("text", ""));
+            }
+            if (all.length() > 0) copyText(all.toString());
+        });
+        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(-2, dp(38));
+        copyLp.setMarginStart(dp(8));
+        actions.addView(copyAll, copyLp);
+        root.addView(actions, lp(-1, -2, 0, 10));
+
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) continue;
+            final String key = item.optString("key", "");
+            LinearLayout entryCard = card(12);
+            TextView details = text(item.optString("text", ""), 14, true);
+            details.setTextIsSelectable(true);
+            entryCard.addView(details);
+            TextView remove = smallChip("✕ הסרת הפריט", DANGER);
+            remove.setOnClickListener(v -> appDialog()
+                    .setTitle("הסרת פריט")
+                    .setMessage("להסיר את הפריט הזה מרשימת הזיכויים?")
+                    .setNegativeButton("ביטול", null)
+                    .setPositiveButton("הסר", (dialog, which) -> {
+                        JSONArray current = readCreditList();
+                        JSONArray remaining = new JSONArray();
+                        for (int j = 0; j < current.length(); j++) {
+                            JSONObject candidate = current.optJSONObject(j);
+                            if (candidate != null && !key.equals(candidate.optString("key", ""))) {
+                                remaining.put(candidate);
+                            }
+                        }
+                        saveCreditList(remaining);
+                        showCreditList();
+                        toast("הפריט הוסר מרשימת הזיכויים.", false);
+                    }).show());
+            entryCard.addView(remove, lp(-2, dp(36), 0, 8));
+            root.addView(entryCard, lp(-1, -2, 0, 8));
+        }
+    }
+
     // ======================================================================== credits / charges
 
     private void loadFeatureTransactions() {
@@ -4723,6 +4862,9 @@ public class MainActivity extends Activity {
         });
         root.addView(searchBox, root.indexOfChild(filters), lp(-1, dp(46), 0, 8));
         LinearLayout txTools = new LinearLayout(this);
+        TextView creditListButton = smallChip("🧾 רשימת זיכויים", TONAL);
+        creditListButton.setOnClickListener(v -> showCreditList());
+        txTools.addView(creditListButton);
         TextView bySale = smallChip("📊 לפי מכירה", TONAL);
         bySale.setOnClickListener(v -> showCreditsBySale(rows));
         TextView shareTx = smallChip("📤 שיתוף", TONAL);
