@@ -371,6 +371,7 @@ public class MainActivity extends Activity {
     private long featureOrderId = -1;
     private final List<JSONObject> featureProducts = new ArrayList<>();
     private final Map<String, Integer> featureQuantities = new LinkedHashMap<>();
+    private final Map<String, Integer> stockDraftQuantities = new LinkedHashMap<>();
     private final Set<String> pending = new HashSet<>();
     private String filterText = "";
     private ListView productList;
@@ -579,6 +580,7 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(SURFACE);
         pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
+        StockMonitor.scheduleNextCheck(this);
         requestMonitoringPermissions(false);
         if (hasToken()) {
             SaleMonitor.scheduleNextStart(this);
@@ -1677,6 +1679,118 @@ public class MainActivity extends Activity {
         });
     }
 
+    // ======================================================================== stock alerts and automatic ordering
+    private String stockKey(JSONObject p) { return StockMonitor.keyFor(featureSale == null ? -1 : featureSale.optInt("id", -1), sidOf(p)); }
+    private JSONObject findStockWatch(JSONArray a, String key) {
+        for (int i=0;i<a.length();i++) { JSONObject w=a.optJSONObject(i); if(w!=null && key.equals(w.optString("key",""))) return w; } return null;
+    }
+    private boolean stockWatchMode(JSONObject p,String mode) {
+        if(p==null || featureSale==null)return false; JSONObject w=findStockWatch(StockMonitor.loadWatches(this),stockKey(p));
+        return w!=null && mode.equals(w.optString("mode","alert"));
+    }
+    private int stockDraftQty(JSONObject p) { Integer q=stockDraftQuantities.get(stockKey(p)); return q==null?1:Math.max(1,q); }
+    private void adjustStockDraft(JSONObject p,int delta,Stepper st) {
+        int q=Math.max(1,Math.min(999,stockDraftQty(p)+delta)); stockDraftQuantities.put(stockKey(p),q); st.qty.setText(String.valueOf(q));
+    }
+    private void saveStockAlert(JSONObject p) {
+        if(p==null || featureSale==null)return; String key=stockKey(p); JSONObject old=findStockWatch(StockMonitor.loadWatches(this),key);
+        if(old!=null){toast("המעקב כבר קיים. אפשר לנהל אותו בהגדרות.",false);showStockWatchManagement();return;}
+        upsertStockWatch(p,"alert",1,false);
+    }
+    private void saveAutoOrder(JSONObject p,int qty) {
+        if(p==null || featureSale==null)return; String key=stockKey(p); JSONObject old=findStockWatch(StockMonitor.loadWatches(this),key);
+        if(old!=null && "auto".equals(old.optString("mode","alert")) && old.optBoolean("consent",false)) {
+            JSONArray a=StockMonitor.loadWatches(this);
+            for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w!=null&&key.equals(w.optString("key","")))try{w.put("qty",Math.max(1,qty));}catch(Exception ignored){}}
+            StockMonitor.saveWatches(this,a); StockMonitor.appendLog(this,key,productName(p),"עודכנה כמות להזמנה אוטומטית","כמות: "+qty);
+            toast("✔ עודכנה הכמות המבוקשת",false);return;
+        }
+        confirmAutoOrderConsent(productName(p),qty,()->upsertStockWatch(p,"auto",qty,true));
+    }
+    private void confirmAutoOrderConsent(String name,int qty,Runnable confirmed) {
+        appDialog().setTitle("⚠️ אישור הזמנה אוטומטית")
+          .setMessage("המוצר: "+name+"\nכמות: "+qty+"\n\nהמערכת תנסה להזמין את המוצר כשהוא יחזור למלאי. הדבר עשוי לגרום לחיוב כספי בלי פעולה נוספת שלך.\n\nהשמירה כעת מקומית בלבד ואינה שולחת הזמנה לשרת. אם תוצאת בקשה אינה ודאית, לא יישלח ניסיון חוזר אוטומטי.")
+          .setNegativeButton("ביטול",null).setPositiveButton("אני מאשר/ת", (d,w)->confirmed.run()).show();
+    }
+    private void upsertStockWatch(JSONObject p,String mode,int qty,boolean consent) {
+        int saleId=featureSale==null?-1:featureSale.optInt("id",-1); String sid=sidOf(p);
+        if(saleId<=0||sid.isEmpty()){toast("חסר מזהה מוצר או מכירה.",true);return;}
+        String key=StockMonitor.keyFor(saleId,sid); JSONArray a=StockMonitor.loadWatches(this); JSONObject w=findStockWatch(a,key);
+        boolean fresh=w==null; if(fresh)w=new JSONObject();
+        try {
+            w.put("key",key).put("saleId",saleId).put("sid",sid).put("name",productName(p)).put("saleName",saleTitle(featureSale))
+             .put("mode",mode).put("qty",Math.max(1,qty)).put("consent",consent);
+            if(fresh){w.put("createdAt",System.currentTimeMillis()).put("lastAvailability",0).put("state","waiting");a.put(w);}
+            else if("auto".equals(mode)&&!"auto".equals(w.optString("mode","alert")))w.put("state","waiting").put("lastAvailability",0);
+        }catch(Exception e){toast("שמירת המעקב נכשלה.",true);return;}
+        StockMonitor.saveWatches(this,a);
+        StockMonitor.appendLog(this,key,productName(p),"נוסף למעקב","סוג: "+mode+"; כמות: "+qty);
+        toast("auto".equals(mode)?"✔ נשמר להזמנה אוטומטית; לא נשלחה הזמנה לשרת.":"✔ נשמרה התראה לחזרה למלאי.",false);
+        productsRefresh.run();
+    }
+    private View stockMonitorCard() {
+        LinearLayout c=card(14); c.addView(sectionTitle("📦 התראות מלאי והזמנות אוטומטיות"));
+        c.addView(muted("השמירה מקומית בלבד. הזמנה אוטומטית עשויה לגרום לחיוב כספי.",12));
+        c.addView(switchRow("בדיקת מלאי אוטומטית","בדיקה תקופתית של מוצרים במעקב",prefs.getBoolean(StockMonitor.ENABLED,true),(b,on)->{
+            prefs.edit().putBoolean(StockMonitor.ENABLED,on).apply();StockMonitor.scheduleNextCheck(this);toast(on?"בדיקת מלאי הופעלה":"בדיקת מלאי כובתה",false);
+        }));
+        c.addView(text("תדירות בדיקה (דקות)",14,true),lp(-1,-2,0,4)); LinearLayout chips=new LinearLayout(this);
+        for(int n:new int[]{1,2,5,10,15,30,60}){TextView ch=pickChip(String.valueOf(n));styleChip(ch,prefs.getInt(StockMonitor.INTERVAL,5)==n);
+            ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showNotificationSettings();});
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(42),dp(38));cp.setMarginEnd(dp(4));chips.addView(ch,cp);}
+        HorizontalScrollView hs=new HorizontalScrollView(this);hs.setHorizontalScrollBarEnabled(false);hs.addView(chips);c.addView(hs,lp(-1,-2,0,4));
+        TextView manage=btn("⚙️ ניהול מוצרים במעקב",PRIMARY);manage.setOnClickListener(v->showStockWatchManagement());c.addView(manage,lp(-1,dp(44),0,8));
+        TextView log=btn("📋 יומן בדיקות וניסיונות הזמנה",TONAL);log.setOnClickListener(v->showStockMonitorLog());c.addView(log,lp(-1,dp(42),0,6));return c;
+    }
+    private String stockStateLabel(JSONObject w) {
+        if(!"auto".equals(w.optString("mode","alert")))return "🔔 התראה בלבד";
+        String st=w.optString("state","waiting");
+        if("attempting".equals(st))return "⏳ מתבצע ניסיון הזמנה";
+        if("success".equals(st))return "✔ ההזמנה אומתה";
+        if("failed".equals(st))return "✖ ניסיון ההזמנה נכשל";
+        if("uncertain".equals(st))return "⚠ תוצאה לא ודאית — אין ניסיון חוזר אוטומטי";
+        return "🛒 הזמנה אוטומטית · ממתין למלאי";
+    }
+    private void showStockWatchManagement() {
+        beginScreen("ניהול מעקב מלאי",3,this::showNotificationSettings);
+        root.addView(muted("שנו כמויות, החליפו סוג מעקב או הסירו מוצרים. הזמנה אוטומטית עשויה לגרום לחיוב.",13),lp(-1,-2,0,8));
+        JSONArray a=StockMonitor.loadWatches(this);
+        if(a.length()==0)root.addView(text("אין מוצרים במעקב כרגע.",15,true),lp(-1,-2,0,12));
+        for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w==null)continue;final String key=w.optString("key",""),mode=w.optString("mode","alert");
+            LinearLayout c=card(12);c.addView(text(w.optString("name","מוצר"),16,true));c.addView(muted(w.optString("saleName","מכירה"),12));
+            TextView status=text(stockStateLabel(w),13,true);status.setTextColor("success".equals(w.optString("state",""))?GREEN:("failed".equals(w.optString("state",""))||"uncertain".equals(w.optString("state",""))?RED:ORANGE_DARK));c.addView(status,lp(-1,-2,0,5));
+            if("auto".equals(mode)){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.addView(text("כמות להזמנה:",13,true),new LinearLayout.LayoutParams(0,-2,1));
+                Stepper st=stepper(34);st.qty.setText(String.valueOf(Math.max(1,w.optInt("qty",1)));st.plus.setOnClickListener(v->updateStockWatchQuantity(key,1));st.minus.setOnClickListener(v->updateStockWatchQuantity(key,-1));row.addView(st.view);c.addView(row,lp(-1,dp(40),0,4));
+                if(!w.optString("lastResult","").isEmpty())c.addView(muted(w.optString("lastResult"),12));}
+            TextView change=btn("auto".equals(mode)?"שינוי להתראה בלבד":"הפעלה כהזמנה אוטומטית",TONAL);
+            change.setOnClickListener(v->{if("auto".equals(mode))changeStockWatchMode(key,"alert");else confirmAutoOrderConsent(w.optString("name","מוצר"),Math.max(1,w.optInt("qty",1)),()->changeStockWatchMode(key,"auto"));});
+            c.addView(change,lp(-1,dp(40),0,6));
+            TextView remove=btn("הסרת המוצר מהמעקב",DANGER);remove.setOnClickListener(v->appDialog().setTitle("הסרת מוצר מהמעקב").setMessage("להסיר את "+w.optString("name","המוצר")+"? לא תתבצע עבורו התראה או הזמנה נוספת.").setNegativeButton("ביטול",null).setPositiveButton("הסרה",(d,x)->removeStockWatch(key)).show());
+            c.addView(remove,lp(-1,dp(40),0,6));root.addView(c,lp(-1,-2,0,8));}
+        TextView log=btn("📋 פתיחת יומן הפעולות",TONAL);log.setOnClickListener(v->showStockMonitorLog());root.addView(log,lp(-1,dp(44),0,8));
+    }
+    private void updateStockWatchQuantity(String key,int delta) {
+        JSONArray a=StockMonitor.loadWatches(this);for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w!=null&&key.equals(w.optString("key",""))&&"auto".equals(w.optString("mode","alert"))){int q=Math.max(1,Math.min(999,w.optInt("qty",1)+delta));try{w.put("qty",q);}catch(Exception ignored){}StockMonitor.appendLog(this,key,w.optString("name",""),"עודכנה כמות","כמות: "+q);break;}}
+        StockMonitor.saveWatches(this,a);showStockWatchManagement();
+    }
+    private void changeStockWatchMode(String key,String mode) {
+        JSONArray a=StockMonitor.loadWatches(this);for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w==null||!key.equals(w.optString("key","")))continue;
+            try{w.put("mode",mode).put("consent","auto".equals(mode));if("auto".equals(mode))w.put("state","waiting");}catch(Exception ignored){}
+            StockMonitor.appendLog(this,key,w.optString("name",""),"שונה סוג המעקב",mode);break;}
+        StockMonitor.saveWatches(this,a);showStockWatchManagement();
+    }
+    private void removeStockWatch(String key) {
+        JSONArray a=StockMonitor.loadWatches(this),kept=new JSONArray();String name="";
+        for(int i=0;i<a.length();i++){JSONObject w=a.optJSONObject(i);if(w==null)continue;if(key.equals(w.optString("key","")))name=w.optString("name","");else kept.put(w);}
+        StockMonitor.saveWatches(this,kept);StockMonitor.appendLog(this,key,name,"הוסר מהמעקב","המשתמש הסיר את המוצר.");showStockWatchManagement();
+    }
+    private void showStockMonitorLog() {
+        beginScreen("יומן מעקב מלאי",3,this::showStockWatchManagement);JSONArray a=StockMonitor.loadLog(this);
+        if(a.length()==0)root.addView(text("עדיין אין פעולות ביומן.",14,true));
+        for(int i=a.length()-1;i>=0;i--){JSONObject w=a.optJSONObject(i);if(w==null)continue;String time=new SimpleDateFormat("dd/MM HH:mm:ss",Locale.US).format(new Date(w.optLong("time",0)));
+            LinearLayout c=card(10);c.addView(text(w.optString("event","פעולה"),14,true));if(!w.optString("product","").isEmpty())c.addView(muted(w.optString("product"),12));c.addView(muted(time,11));if(!w.optString("detail","").isEmpty())c.addView(muted(w.optString("detail"),12));root.addView(c,lp(-1,-2,0,6));}
+    }
+
     // ======================================================================== notification settings
 
     private void requestMonitoringPermissions(boolean forceExactAlarmSettings) {
@@ -1756,6 +1870,7 @@ public class MainActivity extends Activity {
         beginScreen("הגדרות התראות", 3, this::showAccount);
         screenKind = 3;
         root.addView(permissionsCard(), lp(-1, -2, 0, 10));
+        root.addView(stockMonitorCard(), lp(-1, -2, 0, 10));
         root.addView(newSaleCard(), lp(-1, -2, 0, 10));
         root.addView(closingCard(), lp(-1, -2, 0, 10));
     }
@@ -4082,6 +4197,10 @@ public class MainActivity extends Activity {
         final TextView badge, star, name, pack, price, maxView, savedView, unitView, add;
         final Stepper st;
         final TextView chargeButton;
+        final LinearLayout autoOrderPanel;
+        final Stepper autoOrderStepper;
+        final TextView autoOrderSaveButton;
+        final TextView stockAlertButton;
         JSONObject p;
         String boundUrl = "";
 
@@ -4152,6 +4271,20 @@ public class MainActivity extends Activity {
             chargeButton.setTextSize(12);
             chargeButton.setOnClickListener(v -> { if (closedOrderReadOnly && p != null) addCachedProductCharge(p); });
             card.addView(chargeButton, lp(-1, dp(34), 5, 0));
+            autoOrderPanel = new LinearLayout(MainActivity.this);
+            autoOrderPanel.setOrientation(LinearLayout.VERTICAL); autoOrderPanel.setPadding(dp(5),dp(5),dp(5),dp(5));
+            autoOrderPanel.setBackground(shape(ORANGE_LIGHT,10,ORANGE)); autoOrderPanel.setVisibility(View.GONE);
+            autoOrderPanel.addView(text("שמירה מקומית בלבד — לא נשלחת הזמנה לשרת עד שהמוצר חוזר למלאי.",10,true));
+            LinearLayout autoRow=new LinearLayout(MainActivity.this);autoRow.setGravity(Gravity.CENTER_VERTICAL);
+            autoOrderStepper=stepper(32);autoOrderStepper.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(34),dp(32)));
+            autoRow.addView(autoOrderStepper.view,new LinearLayout.LayoutParams(-2,dp(34)));
+            autoOrderSaveButton=btn("שמירה להזמנה אוטומטית",PRIMARY);LinearLayout.LayoutParams saveLp=new LinearLayout.LayoutParams(0,dp(36),1f);saveLp.setMarginStart(dp(6));autoRow.addView(autoOrderSaveButton,saveLp);
+            autoOrderPanel.addView(autoRow,lp(-1,-2,0,4));card.addView(autoOrderPanel,lp(-1,-2,5,0));
+            stockAlertButton=btn("🔔 התראה כשהמוצר חוזר למלאי",OUTLINE);stockAlertButton.setVisibility(View.GONE);card.addView(stockAlertButton,lp(-1,dp(36),5,0));
+            autoOrderStepper.plus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,1,autoOrderStepper);});
+            autoOrderStepper.minus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,-1,autoOrderStepper);});
+            autoOrderSaveButton.setOnClickListener(v->{if(p!=null)saveAutoOrder(p,stockDraftQty(p));});
+            stockAlertButton.setOnClickListener(v->{if(p!=null)saveStockAlert(p);});
 
             card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
@@ -4250,6 +4383,16 @@ public class MainActivity extends Activity {
             setEnabledLook(add, !closedOrderReadOnly && canOrder && !busyNow);
             chargeButton.setVisibility(closedOrderReadOnly ? View.VISIBLE : View.GONE);
             setEnabledLook(chargeButton, closedOrderReadOnly);
+            boolean localStockAction=!closedOrderReadOnly&&(disabled||soldOut);
+            controls.setVisibility(localStockAction?View.GONE:View.VISIBLE);
+            autoOrderPanel.setVisibility(localStockAction?View.VISIBLE:View.GONE);
+            stockAlertButton.setVisibility(localStockAction?View.VISIBLE:View.GONE);
+            if(localStockAction){
+                autoOrderStepper.qty.setText(String.valueOf(stockDraftQty(prod)));
+                autoOrderSaveButton.setText(stockWatchMode(prod,"auto")?"✓ מנוהל בהזמנה אוטומטית":"שמירה להזמנה אוטומטית");
+                stockAlertButton.setText(stockWatchMode(prod,"alert")?"🔔 ההתראה פעילה · ניהול":"🔔 התראה כשהמוצר חוזר למלאי");
+                autoOrderPanel.setBackground(shape(disabled&&!soldOut?RED_LIGHT:ORANGE_LIGHT,10,disabled&&!soldOut?RED:ORANGE));
+            }
         }
     }
 
