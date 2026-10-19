@@ -1735,6 +1735,8 @@ public class MainActivity extends Activity {
         c.addView(switchRow("בדיקת מלאי אוטומטית","בדיקה תקופתית של מוצרים במעקב",prefs.getBoolean(StockMonitor.ENABLED,true),(b,on)->{
             prefs.edit().putBoolean(StockMonitor.ENABLED,on).apply();StockMonitor.scheduleNextCheck(this);toast(on?"בדיקת מלאי הופעלה":"בדיקת מלאי כובתה",false);
         }));
+        c.addView(switchRow("התראה כשהמוצר אוזל","למוצרים שנמצאים ברשימת המעקב",prefs.getBoolean("stock_notify_out",true),(b,on)->prefs.edit().putBoolean("stock_notify_out",on).apply()));
+        c.addView(switchRow("התראה כשהמוצר חוזר למלאי","התראה בלבד; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->prefs.edit().putBoolean("stock_notify_return",on).apply()));
         c.addView(text("תדירות בדיקה (דקות)",14,true),lp(-1,-2,0,4)); LinearLayout chips=new LinearLayout(this);
         for(int n:new int[]{1,2,5,10,15,30,60}){TextView ch=pickChip(String.valueOf(n));styleChip(ch,prefs.getInt(StockMonitor.INTERVAL,5)==n);
             ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showNotificationSettings();});
