@@ -1557,10 +1557,10 @@ public class MainActivity extends Activity {
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
         final String whatsNewTitle = "העתקת פריטים מהיסטוריית ההזמנות";
-        final String whatsNewSummary = "נוסף כפתור העתקה ליד כל פריט בהזמנה מההיסטוריה, עם שם הפריט, שם המכירה והמחיר.";
+        final String whatsNewSummary = "כפתור ההעתקה כולל כעת גם את הכמות ואת המחיר הכולל של הפריט.";
         final String whatsNewDetails =
                 "• בהזמנה שנפתחה מההיסטוריה מופיע ליד כל פריט כפתור „📋 העתקת פריט”.\\n\\n" +
-                "• הטקסט מועתק בפורמט: שם הפריט - שם המכירה - מחיר ליחידה, למשל: שמן קנולה - מכירה בראשית - 6.5₪.\\n\\n" +
+                "• הטקסט המועתק כולל שם פריט, שם מכירה, כמות וסך מחיר לפריט, למשל: שמן קנולה - מכירה בראשית - כמות: 2 - סה״כ: 13₪.\\n\\n" +
                 "• הכפתור זמין גם במצב האיסוף, בלי לשנות את פעולות ההזמנה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
@@ -4423,8 +4423,11 @@ public class MainActivity extends Activity {
         String itemName = line == null || line.name == null ? "" : line.name.trim();
         String saleName = summary == null || summary.saleName == null ? "" : summary.saleName.trim();
         if (saleName.isEmpty()) saleName = "מכירה " + (summary == null ? "" : summary.saleId);
-        String price = line != null && line.price > 0 ? money(line.price) : "מחיר לא זמין";
-        return itemName + " - " + saleName + " - " + price;
+        int quantity = line == null ? 0 : (int) Math.round(line.amount);
+        String quantityText = "כמות: " + quantity;
+        String totalPrice = line != null && line.price > 0 && quantity > 0
+                ? money(line.price * quantity) : "מחיר כולל לא זמין";
+        return itemName + " - " + saleName + " - " + quantityText + " - סה״כ: " + totalPrice;
     }
 
     private void confirmRemove(final OrderLine line, final JSONObject p) {
