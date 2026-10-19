@@ -11,6 +11,8 @@ android {
     }
 }
 
+sourceSets { main { java.srcDir rootProject.file('../../shared/android') } }
+
 // Use the same private keystore for every release so Android can update the installed app.
 if (System.getenv('APK_SIGNING_STORE_FILE')) {
     android {

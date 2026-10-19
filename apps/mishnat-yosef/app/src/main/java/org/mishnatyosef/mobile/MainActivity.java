@@ -1,5 +1,7 @@
 package org.mishnatyosef.mobile;
 
+import org.apkfactory.theme.ThemeWorkbench;
+
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
@@ -554,6 +556,7 @@ public class MainActivity extends Activity {
         } else {
             showLogin();
         }
+        ThemeWorkbench.install(this);
     }
 
     @Override protected void onNewIntent(Intent intent) {
