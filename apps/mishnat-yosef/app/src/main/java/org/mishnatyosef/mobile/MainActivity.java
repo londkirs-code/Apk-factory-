@@ -1617,32 +1617,46 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "מעקב מלאי גלובלי והזמנה אוטומטית";
-        final String whatsNewSummary = "נוספו התראות גלובליות על שינויי מלאי בכל המכירות הפתוחות, עם תזמון משותף של 5 דקות.";
-        final String whatsNewDetails =
-                "• חדש: מנגנון מלאי משותף סורק את המוצרים בכל המכירות הפתוחות ומאפשר התראות גלובליות על אזילה וחזרה למלאי. התראות נשלחות רק כאשר זוהה שינוי מצב בין סריקות תקינות; תדירות הבדיקה המשותפת היא 5 דקות כברירת מחדל.\n\n" +
-                "• הגדרות המלאי רוכזו באזור נפרד בשם „הגדרות אזל מהמלאי”. אפשר להמשיך לנהל מעקב אישי והזמנות אוטומטיות בנפרד. הזמנה אוטומטית עדיין דורשת אישור מפורש; תוצאה לא ודאית אינה גורמת לניסיון חוזר אוטומטי.\n\n" +
-                "• מסך „זיכויים וחיובים” מציג מיד את סרגלי הסינון, החיפוש, רשימת הזיכויים, תצוגה לפי מכירה והשיתוף. בזמן ההמתנה מופיע „ממתין לשרת…” במקום נתוני סיכום מטעים; עם הגעת הנתונים המסך מתעדכן, ואם הטעינה נכשלת נשארים הכלים ומוצגת הודעת שגיאה.\n\n" +
-                "• בחיפוש היסטוריית ההזמנות נוסף כפתור × בדומה לכפתור הניקוי שבתוך הזמנה. לחיצה עליו מוחקת את החיפוש, מאפסת את העימוד וטוענת מחדש את רשימת ההזמנות המלאה.\n\n" +
-                "• שאר התנהגות החיפוש, פתיחת ההזמנות וכפתור „טען עוד” נשארו ללא שינוי.\n\n" +
-                "• מסך „הזמנות מהמטמון” מאתר מטמונים מקומיים קריאים, מצרף את שם המכירה בעברית מ־GET /api/orders לפי saleID, ומציג רק את שם המכירה וכפתור פתיחה מהמטמון. השם נשמר גם במטמון המקומי להמשך.\n\n" +
-                "• בכל פתיחה מהמטמון כל כמויות הבחירה מתחילות באפס. הפלוס והמינוס משנים בחירה זמנית לחיוב בלבד ואינם משנים או שולחים את ההזמנה המקורית.\n\n" +
-                "• שם הרשימה הוא „רשימת זיכויים וחיובים”; פריטי זיכוי ישנים נשמרים ומזוהים כזיכויים.\n\n" +
-                "• לכל מוצר יש כפתור „הוסף לחיובים”; אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות. כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן.\\n\\n" +
-                "• בהגדרות אפשר להפעיל „הפרדת פריטים שאזלו”: הם מופיעים בקטגוריה נפרדת ולא בקטגוריה המקורית; כשחוזרים להיות זמינים, הם חוזרים לקטגוריה המקורית. הכיבוי מחזיר את התצוגה הרגילה.\n\n" +
-                "• בבדיקת API נוספה בחירה מפורשת של „הזמנות שנסגרו” (GET /api/orders), סינון פלט לפי מילים ואפשרות להזין נתיב GET מותאם אישית שמתחיל ב־/api/. הנתיב האחרון נשמר לבדיקה הבאה; כתובות חיצוניות נחסמות כדי לא לשלוח אליהן את פרטי ההתחברות. רק פלט שעבר הסתרת מידע רגיש מועתק ללוח.\n\n" +
-                "• חיפוש בהיסטוריית ההזמנות מציג תוצאה נפרדת לכל מוצר שנמצא, עם שם המוצר בראש הכרטיס, שם המכירה ותאריך ההזמנה. אותו מוצר שנרכש במכירות שונות מופיע בכל מכירה בנפרד. לחיצה על תוצאה פותחת את ההזמנה המקורית עם הכמויות, המחירים ושאר הפריטים. כפתור „טען עוד” ממשיך לטעון את עמודי התוצאות מהשרת. ללא חיפוש, תצוגת ההיסטוריה הרגילה נשארת ללא שינוי.";
+        final String[] latestTitle = {prefs.getString("whats_new_latest_title", "העדכון האחרון")};
+        final String[] latestDetails = {prefs.getString("whats_new_latest_details", "")};
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
-        whatsNewCard.addView(muted(whatsNewSummary, 13));
+        TextView summary = muted(
+                latestDetails[0].isEmpty() ? "טוען את פרטי העדכון האחרון…" : latestDetails[0].split("\\n\\s*\\n", 2)[0],
+                13);
+        whatsNewCard.addView(summary);
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
         open.setOnClickListener(v -> appDialog()
                 .setTitle("✨ מה חדש במשנת יוסף")
-                .setMessage(whatsNewTitle + "\n\n" + whatsNewDetails)
+                .setMessage(latestTitle[0] + "\\n\\n" +
+                        (latestDetails[0].isEmpty() ? "לא ניתן כרגע לטעון את פרטי העדכון האחרון." : latestDetails[0]))
                 .setPositiveButton("הבנתי", null)
                 .show());
         whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
         root.addView(whatsNewCard, lp(-1, -2, 0, 10));
+
+        // The published update manifest contains only the newest release notes.
+        // Replace the displayed and cached entry instead of accumulating old updates.
+        executor.execute(() -> {
+            try {
+                JSONObject manifest = fetchUpdateManifest();
+                String title = manifest.optString("releaseTitle", "העדכון האחרון").trim();
+                String details = manifest.optString("releaseNotes", "").trim();
+                if (title.isEmpty()) title = "העדכון האחרון";
+                if (details.isEmpty()) details = title;
+                final String loadedTitle = title;
+                final String loadedDetails = details;
+                prefs.edit().putString("whats_new_latest_title", loadedTitle)
+                        .putString("whats_new_latest_details", loadedDetails).apply();
+                runOnUiThread(() -> {
+                    latestTitle[0] = loadedTitle;
+                    latestDetails[0] = loadedDetails;
+                    summary.setText(loadedDetails.split("\\n\\s*\\n", 2)[0]);
+                });
+            } catch (Exception ignored) {
+                // Keep the most recently cached entry when offline.
+            }
+        });
     }
 
     private void setBusy(boolean value, String message) {
