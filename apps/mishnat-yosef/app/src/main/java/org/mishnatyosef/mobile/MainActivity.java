@@ -515,6 +515,7 @@ public class MainActivity extends Activity {
     private static class SaleSnapshot {
         long orderId = -1;
         long loadedAt = 0L;
+        String saleName = "";
         final List<JSONObject> products = new ArrayList<>();
         final Map<String, Integer> quantities = new LinkedHashMap<>();
         final Set<String> favs = new HashSet<>();
@@ -2748,7 +2749,7 @@ public class MainActivity extends Activity {
         beginScreen("הזמנות מהמטמון", 0, null);
         showingSalesList = false;
         final int t = screenToken;
-        setStatus("טוען הזמנות מהמטמון המקומי…");
+        setStatus("טוען הזמנות מהמטמון ושמות מכירות מהשרת…");
         loadExecutor.execute(() -> {
             final List<Integer> cachedSaleIds = new ArrayList<>();
             final Map<Integer, SaleSnapshot> cachedSnapshots = new LinkedHashMap<>();
@@ -2773,34 +2774,43 @@ public class MainActivity extends Activity {
                     }
                 }
             } catch (Exception ignored) { }
+
+            // Match each local saleID with the authenticated order-history API and extract
+            // its Hebrew sale title from the nested sale/custom_name or parent.week fields.
+            Map<Integer, String> saleNames = fetchCachedSaleNames(new HashSet<>(cachedSaleIds));
+            for (Map.Entry<Integer, SaleSnapshot> entry : cachedSnapshots.entrySet()) {
+                String resolved = saleNames.get(entry.getKey());
+                if (resolved != null && !resolved.trim().isEmpty()) {
+                    entry.getValue().saleName = resolved.trim();
+                    persistCachedSaleName(entry.getKey(), resolved.trim());
+                }
+            }
+
             runOnUiThread(() -> {
                 if (stale(t)) return;
                 setStatus("");
                 TextView back = btn("‹ חזרה להזמנות פתוחות", TONAL);
                 back.setOnClickListener(v -> showOpenSales(false));
                 root.addView(back, lp(-1, dp(46), 0, 8));
-                root.addView(muted(cachedSaleIds.isEmpty()
-                        ? "לא נמצאו הזמנות עם מטמון מקומי קריא."
-                        : "נמצאו " + cachedSaleIds.size() + " הזמנות שמורות במטמון. ניתן לפתוח כל אחת מהן ללא טעינה מהשרת.", 13),
-                        lp(-1, -2, 0, 10));
+                if (cachedSaleIds.isEmpty()) {
+                    root.addView(muted("לא נמצאו הזמנות עם מטמון מקומי קריא.", 13), lp(-1, -2, 0, 10));
+                    return;
+                }
+                if (saleNames.isEmpty() && !hasToken()) {
+                    root.addView(muted("כדי להציג את שמות המכירות יש להתחבר לחשבון.", 13), lp(-1, -2, 0, 10));
+                }
                 for (int saleId : cachedSaleIds) {
                     SaleSnapshot snapshot = cachedSnapshots.get(saleId);
                     if (snapshot == null) continue;
+                    String saleName = snapshot.saleName == null ? "" : snapshot.saleName.trim();
+                    if (saleName.isEmpty()) saleName = "שם המכירה לא זמין";
                     LinearLayout item = card(12);
-                    item.addView(text("📦 מכירה #" + saleId, 16, true));
-                    String detail = snapshot.products.size() + " מוצרים במטמון";
-                    if (snapshot.orderId > 0) detail += " · הזמנה #" + snapshot.orderId;
-                    item.addView(muted(detail, 12));
-                    if (snapshot.loadedAt > 0) {
-                        String when = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(new Date(snapshot.loadedAt));
-                        item.addView(muted("נשמר במטמון: " + when, 12));
-                    }
-                    item.addView(muted("עותק מקומי בלבד — ייתכן שהנתונים חלקיים או לא עדכניים.", 12));
+                    item.addView(text(saleName, 16, true));
                     final int snapshotSaleId = saleId;
                     final JSONObject cachedOrder = new JSONObject();
                     try {
                         cachedOrder.put("saleID", saleId);
-                        cachedOrder.put("sale_name", "מכירה #" + saleId);
+                        cachedOrder.put("sale_name", saleName);
                         cachedOrder.put("id", snapshot.orderId);
                     } catch (Exception ignored) { }
                     TextView openButton = btn("📋 פתח מהמטמון", TONAL);
@@ -2810,6 +2820,71 @@ public class MainActivity extends Activity {
                 }
             });
         });
+    }
+
+    private Map<Integer, String> fetchCachedSaleNames(Set<Integer> targetSaleIds) {
+        Map<Integer, String> names = new LinkedHashMap<>();
+        if (targetSaleIds == null || targetSaleIds.isEmpty() || !hasToken()) return names;
+        int page = 1;
+        int lastPage = 1;
+        try {
+            while (page <= lastPage && page <= 100 && names.size() < targetSaleIds.size()) {
+                HttpResult response = api("GET", "/api/orders?page=" + page, null);
+                if (response.code < 200 || response.code >= 300) break;
+                Object parsed = new JSONTokener(response.body == null ? "" : response.body).nextValue();
+                JSONArray rows;
+                JSONObject payload = null;
+                if (parsed instanceof JSONObject) {
+                    payload = (JSONObject) parsed;
+                    rows = arrayFrom(response.body);
+                    JSONObject meta = payload.optJSONObject("meta");
+                    JSONObject dataObject = payload.optJSONObject("data");
+                    lastPage = Math.max(1, payload.optInt("last_page",
+                            meta != null ? meta.optInt("last_page", 1)
+                                    : dataObject != null ? dataObject.optInt("last_page", 1) : 1));
+                } else if (parsed instanceof JSONArray) {
+                    rows = (JSONArray) parsed;
+                    lastPage = 1;
+                } else {
+                    break;
+                }
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject row = rows.optJSONObject(i);
+                    if (row == null) continue;
+                    String rawSaleId = first(row, "saleID", "sale_id", "saleId");
+                    int saleId;
+                    try { saleId = Integer.parseInt(rawSaleId); } catch (Exception ignored) { continue; }
+                    if (!targetSaleIds.contains(saleId) || names.containsKey(saleId)) continue;
+                    String name = saleTitle(row.optJSONObject("sale"));
+                    if (name.isEmpty()) name = saleTitle(row);
+                    if (name.isEmpty()) name = saleTitle(row.optJSONObject("parent"));
+                    if (!name.trim().isEmpty()) names.put(saleId, name.trim());
+                }
+                page++;
+            }
+        } catch (Exception ignored) { }
+        return names;
+    }
+
+    private void persistCachedSaleName(int saleId, String saleName) {
+        if (saleId <= 0 || saleName == null || saleName.trim().isEmpty()) return;
+        try {
+            File f = snapshotFile(saleId);
+            if (!f.exists() || f.length() == 0) return;
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            try (InputStream in = new java.io.FileInputStream(f)) {
+                byte[] buf = new byte[32768];
+                int n;
+                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            }
+            JSONObject o = new JSONObject(new String(bo.toByteArray(), StandardCharsets.UTF_8));
+            o.put("sale_name", saleName.trim());
+            File tmp = new File(f.getPath() + ".tmp");
+            try (FileOutputStream os = new FileOutputStream(tmp)) {
+                os.write(o.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            if (!tmp.renameTo(f)) tmp.delete();
+        } catch (Exception ignored) { }
     }
 
     /**
@@ -3348,6 +3423,7 @@ public class MainActivity extends Activity {
             SaleSnapshot snap = new SaleSnapshot();
             snap.orderId = o.optLong("order_id", -1);
             snap.loadedAt = o.optLong("saved_at", 0L);
+            snap.saleName = o.optString("sale_name", "").trim();
             JSONObject qty = null;
             try { qty = new JSONObject(prefs.getString("qty_" + snap.orderId, "")); } catch (Exception ignored) { }
             for (int i = 0; i < arr.length(); i++) {
