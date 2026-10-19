@@ -1568,6 +1568,7 @@ public class MainActivity extends Activity {
         acc.addView(muted(tokenStatus(), 12));
         root.addView(acc, lp(-1, -2, 0, 10));
         addHomeNotificationSettings();
+        addHomeStockSettings();
         addWhatsNewEntry();
         addSafetySettings();
         TextView contactBtn = btn("📞 יצירת קשר", TONAL);
@@ -1871,11 +1872,16 @@ public class MainActivity extends Activity {
         TextView settings = btn("⚙️ הגדרות התראות", TONAL);
         settings.setOnClickListener(v -> showNotificationSettings());
         card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
-        TextView stockSettings = btn("📦 הגדרות אזל מהמלאי", TONAL);
-        stockSettings.setOnClickListener(v -> showStockSettings());
-        LinearLayout.LayoutParams stockLp = new LinearLayout.LayoutParams(-1, dp(46));
-        stockLp.topMargin = dp(6);
-        card.addView(stockSettings, stockLp);
+        root.addView(card, lp(-1, -2, 0, 10));
+    }
+
+    private void addHomeStockSettings() {
+        LinearLayout card = card(14);
+        card.addView(text("📦 אזל מהמלאי", 15, true));
+        card.addView(muted("התראות מלאי, מעקב מוצרים והזמנות אוטומטיות", 13), lp(-1, -2, 0, 8));
+        TextView settings = btn("⚙️ הגדרות אזל מהמלאי", TONAL);
+        settings.setOnClickListener(v -> showStockSettings());
+        card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
