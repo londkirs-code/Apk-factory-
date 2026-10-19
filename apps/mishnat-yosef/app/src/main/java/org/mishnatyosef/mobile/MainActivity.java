@@ -5251,7 +5251,7 @@ public class MainActivity extends Activity {
                     }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
         } else {
             final String[] actions = {"📞 חיוג למספר", "💬 שליחת SMS", "📋 העתקת המספר", "📤 שיתוף המספר", "ℹ️ פרטי השירות"};
-            appDialog().setTitle(contact.title).setMessage(contact.explanation)
+            appDialog().setTitle(contact.title + "\n" + contact.explanation)
                     .setItems(actions, (d, which) -> {
                         if (which == 0) dialContact(contact.value);
                         else if (which == 1) smsContact(contact.value);
