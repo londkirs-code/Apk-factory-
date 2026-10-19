@@ -4406,14 +4406,16 @@ public class MainActivity extends Activity {
         col.addView(bottom, lp(-1, -2, 6, 0));
         if (summaryFromHistory) {
             LinearLayout historyActions = new LinearLayout(this);
-            historyActions.setOrientation(LinearLayout.HORIZONTAL);
+            boolean narrowHistoryRow = getResources().getConfiguration().screenWidthDp < 390;
+            historyActions.setOrientation(narrowHistoryRow ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
             TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
             copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
             historyActions.addView(copyItem, lp(-2, dp(34), 0, 0));
             TextView addCredit = smallChip("＋ הוסף לזיכויים", TONAL);
             addCredit.setOnClickListener(v -> addHistoryItemToCreditList(line));
             LinearLayout.LayoutParams creditLp = new LinearLayout.LayoutParams(-2, dp(34));
-            creditLp.setMarginStart(dp(6));
+            if (narrowHistoryRow) creditLp.topMargin = dp(6);
+            else creditLp.setMarginStart(dp(6));
             historyActions.addView(addCredit, creditLp);
             col.addView(historyActions, lp(-1, -2, 0, 6));
         }
@@ -4478,14 +4480,16 @@ public class MainActivity extends Activity {
         if (!isDone && line.price > 0) col.addView(muted(money(line.price * qty), 12));
         if (summaryFromHistory) {
             LinearLayout historyActions = new LinearLayout(this);
-            historyActions.setOrientation(LinearLayout.HORIZONTAL);
+            boolean narrowHistoryRow = getResources().getConfiguration().screenWidthDp < 390;
+            historyActions.setOrientation(narrowHistoryRow ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
             TextView copyItem = smallChip("📋 העתקת פריט", TONAL);
             copyItem.setOnClickListener(v -> copyText(historyItemCopyText(line)));
             historyActions.addView(copyItem, lp(-2, dp(34), 0, 0));
             TextView addCredit = smallChip("＋ הוסף לזיכויים", TONAL);
             addCredit.setOnClickListener(v -> addHistoryItemToCreditList(line));
             LinearLayout.LayoutParams creditLp = new LinearLayout.LayoutParams(-2, dp(34));
-            creditLp.setMarginStart(dp(6));
+            if (narrowHistoryRow) creditLp.topMargin = dp(6);
+            else creditLp.setMarginStart(dp(6));
             historyActions.addView(addCredit, creditLp);
             col.addView(historyActions, lp(-1, -2, 0, 6));
         }
