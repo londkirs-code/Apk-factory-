@@ -1,7 +1,5 @@
 package com.example.apkfactory;
 
-import org.apkfactory.theme.ThemeWorkbench;
-
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -16,6 +14,5 @@ public class MainActivity extends Activity {
         title.setTextSize(23);
         title.setGravity(Gravity.CENTER);
         setContentView(title);
-        ThemeWorkbench.install(this);
     }
 }
