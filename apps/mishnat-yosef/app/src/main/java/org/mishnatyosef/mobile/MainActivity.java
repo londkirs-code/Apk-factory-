@@ -5280,7 +5280,7 @@ public class MainActivity extends Activity {
 
     private void composeContactEmail(ContactOption contact) {
         try {
-            Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + Uri.encode(contact.value)));
+            Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + contact.value));
             intent.putExtra(Intent.EXTRA_SUBJECT, "פנייה בנושא: " + contact.explanation);
             intent.putExtra(Intent.EXTRA_TEXT, "\n\nפרטי הפנייה:\n");
             startActivity(Intent.createChooser(intent, "שליחת מייל"));
