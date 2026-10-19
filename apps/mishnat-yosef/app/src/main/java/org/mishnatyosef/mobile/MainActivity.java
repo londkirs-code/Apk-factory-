@@ -165,15 +165,15 @@ public class MainActivity extends Activity {
      * in place so scroll offsets, search text/focus, open tab, and expanded screens stay untouched.
      */
     private final class PaletteSnapshot {
-        final int orange = PURPLE, orangeDark = PURPLE_DARK, orangeLight = PURPLE_LIGHT;
+        final int purple = PURPLE, purpleDark = PURPLE_DARK, purpleLight = PURPLE_LIGHT;
         final int bg = BG, surface = SURFACE, ink = INK, muted = MUTED, line = LINE;
         final int green = GREEN, greenLight = GREEN_LIGHT, red = RED, redLight = RED_LIGHT;
     }
 
     private int remapPaletteColor(int color, PaletteSnapshot old) {
-        if (color == old.orange) return PURPLE;
-        if (color == old.orangeDark) return PURPLE_DARK;
-        if (color == old.orangeLight) return PURPLE_LIGHT;
+        if (color == old.purple) return PURPLE;
+        if (color == old.purpleDark) return PURPLE_DARK;
+        if (color == old.purpleLight) return PURPLE_LIGHT;
         if (color == old.bg) return BG;
         if (color == old.ink) return INK;
         if (color == old.muted) return MUTED;
@@ -1563,7 +1563,7 @@ public class MainActivity extends Activity {
                 "• כותרת המסך העליונה גדלה מ־16sp ל־24sp, כדי שיהיה קל יותר לקרוא אותה.\\n\\n" +
                 "• כפתור שמש/ירח מופיע בכותרת בכל מסך ומאפשר לעבור בין מצב יום למצב לילה.\\n\\n" +
                 "• כפתורי הפעולה בתפריטים, בלוחות ובחלונות משתמשים באותו מלבן מעוגל, מרווחים ומשוב לחיצה כמו בהגדרות.\n\n" +
-                "• נשמרו גם שיפורי העיצוב הקודמים: חלונות בצבע רקע ההגדרות וסימון מכירות בכתום בהיסטוריה.";
+                "• נשמרו גם שיפורי העיצוב הקודמים: חלונות בצבע רקע ההגדרות וסימון מכירות בצבע המותג בהיסטוריה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
