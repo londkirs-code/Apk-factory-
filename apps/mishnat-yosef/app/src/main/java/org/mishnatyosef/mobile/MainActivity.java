@@ -1599,14 +1599,13 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "רשימת זיכויים אישית";
-        final String whatsNewSummary = "אפשר לאסוף פריטים מהיסטוריית ההזמנות לרשימה קבועה, בלי כפילויות.";
+        final String whatsNewTitle = "שליחה ושיתוף של רשימת הזיכויים";
+        final String whatsNewSummary = "אפשר להסיר פריט בלחיצה אחת ולשלוח או לשתף את הרשימה.";
         final String whatsNewDetails =
-                "• בכל פריט בהיסטוריית ההזמנות יש כעת גם כפתור „＋ הוסף לזיכויים”.\n\n" +
-                "• בעמוד „זיכויים וחיובים” נוסף כפתור „🧾 רשימת זיכויים”, שמציג את הפריטים שנאספו.\n\n" +
-                "• הרשימה נשמרת במכשיר גם לאחר סגירת האפליקציה; אותו פריט מאותה מכירה לא יתווסף פעמיים.\n\n" +
-                "• אפשר להסיר פריט בודד, למחוק את הרשימה כולה או להעתיק את הרשימה ללוח.\n\n" +
-                "• כפתור „📋 העתקת פריט” נשאר זמין בנפרד וממשיך להעתיק את שם המכירה, הפריט, הכמות והמחיר הכולל.";
+                "• ברשימת הזיכויים אפשר להסיר פריט בודד מיד, ללא חלון אישור. מחיקת הרשימה כולה עדיין דורשת אישור.\n\n" +
+                "• נוסף כפתור „✉ שלח לזיכוי” שפותח את אפליקציית המייל עם הכתובת A0773168080@gmail.com ורשימת הזיכויים מוכנה לשליחה.\n\n" +
+                "• נוסף כפתור „📤 שיתוף” לשיתוף הרשימה דרך אפליקציות השיתוף במכשיר.\n\n" +
+                "• אפשר עדיין להעתיק את כל הרשימה ללוח; הרשימה נשמרת במכשיר ולא מתווספים פריטים כפולים מאותה מכירה.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -4810,6 +4809,20 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String creditListText() {
+        JSONArray current = readCreditList();
+        StringBuilder all = new StringBuilder();
+        for (int i = 0; i < current.length(); i++) {
+            JSONObject item = current.optJSONObject(i);
+            if (item == null) continue;
+            String itemText = item.optString("text", "").trim();
+            if (itemText.isEmpty()) continue;
+            if (all.length() > 0) all.append("\n");
+            all.append(itemText);
+        }
+        return all.toString();
+    }
+
     private void showCreditList() {
         beginScreen("רשימת זיכויים", 2, this::loadFeatureTransactions);
         creditListScreenView = currentScreen;
@@ -4835,20 +4848,47 @@ public class MainActivity extends Activity {
         copyAll.setEnabled(items.length() > 0);
         copyAll.setAlpha(items.length() > 0 ? 1f : 0.5f);
         copyAll.setOnClickListener(v -> {
-            JSONArray current = readCreditList();
-            StringBuilder all = new StringBuilder();
-            for (int i = 0; i < current.length(); i++) {
-                JSONObject item = current.optJSONObject(i);
-                if (item == null) continue;
-                if (all.length() > 0) all.append("\n");
-                all.append(item.optString("text", ""));
-            }
-            if (all.length() > 0) copyText(all.toString());
+            String all = creditListText();
+            if (!all.isEmpty()) copyText(all);
         });
         LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(-2, dp(38));
         copyLp.setMarginStart(dp(8));
         actions.addView(copyAll, copyLp);
-        root.addView(actions, lp(-1, -2, 0, 10));
+        root.addView(actions, lp(-1, -2, 0, 8));
+
+        LinearLayout sendActions = new LinearLayout(this);
+        sendActions.setOrientation(LinearLayout.HORIZONTAL);
+        TextView sendCredit = smallChip("✉ שלח לזיכוי", PRIMARY);
+        sendCredit.setEnabled(items.length() > 0);
+        sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        sendCredit.setOnClickListener(v -> {
+            String body = creditListText();
+            if (body.isEmpty()) {
+                toast("רשימת הזיכויים ריקה.", false);
+                return;
+            }
+            try {
+                Uri mailUri = Uri.parse("mailto:A0773168080@gmail.com"
+                        + "?subject=" + Uri.encode("רשימת זיכויים")
+                        + "&body=" + Uri.encode(body));
+                Intent mail = new Intent(Intent.ACTION_SENDTO, mailUri);
+                startActivity(Intent.createChooser(mail, "שליחת רשימת הזיכויים"));
+            } catch (Exception e) {
+                toast("לא נמצאה אפליקציה לשליחת מייל.", true);
+            }
+        });
+        sendActions.addView(sendCredit, lp(-2, dp(38), 0, 0));
+        TextView shareCredit = smallChip("📤 שיתוף", TONAL);
+        shareCredit.setEnabled(items.length() > 0);
+        shareCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
+        shareCredit.setOnClickListener(v -> {
+            String body = creditListText();
+            if (!body.isEmpty()) shareText("רשימת זיכויים", body);
+        });
+        LinearLayout.LayoutParams shareCreditLp = new LinearLayout.LayoutParams(-2, dp(38));
+        shareCreditLp.setMarginStart(dp(8));
+        sendActions.addView(shareCredit, shareCreditLp);
+        root.addView(sendActions, lp(-1, -2, 0, 10));
 
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i);
@@ -4859,23 +4899,19 @@ public class MainActivity extends Activity {
             details.setTextIsSelectable(true);
             entryCard.addView(details);
             TextView remove = smallChip("✕ הסרת הפריט", DANGER);
-            remove.setOnClickListener(v -> appDialog()
-                    .setTitle("הסרת פריט")
-                    .setMessage("להסיר את הפריט הזה מרשימת הזיכויים?")
-                    .setNegativeButton("ביטול", null)
-                    .setPositiveButton("הסר", (dialog, which) -> {
-                        JSONArray current = readCreditList();
-                        JSONArray remaining = new JSONArray();
-                        for (int j = 0; j < current.length(); j++) {
-                            JSONObject candidate = current.optJSONObject(j);
-                            if (candidate != null && !key.equals(candidate.optString("key", ""))) {
-                                remaining.put(candidate);
-                            }
-                        }
-                        saveCreditList(remaining);
-                        showCreditList();
-                        toast("הפריט הוסר מרשימת הזיכויים.", false);
-                    }).show());
+            remove.setOnClickListener(v -> {
+                JSONArray current = readCreditList();
+                JSONArray remaining = new JSONArray();
+                for (int j = 0; j < current.length(); j++) {
+                    JSONObject candidate = current.optJSONObject(j);
+                    if (candidate != null && !key.equals(candidate.optString("key", ""))) {
+                        remaining.put(candidate);
+                    }
+                }
+                saveCreditList(remaining);
+                showCreditList();
+                toast("הפריט הוסר מרשימת הזיכויים.", false);
+            });
             entryCard.addView(remove, lp(-2, dp(36), 0, 8));
             root.addView(entryCard, lp(-1, -2, 0, 8));
         }
