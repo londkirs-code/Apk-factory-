@@ -147,6 +147,9 @@ public class StockMonitor extends BroadcastReceiver {
                 appendLog(c,"","","בדיקת מלאי נדחתה","לא ניתן לטעון את כל המוצרים של מכירה "+saleId+"; מצב המלאי לא עודכן. "+safeMessage(e)); return;
             }
         }
+        for (JSONObject product : productsByKey.values()) {
+            if (availability(product) < 0) { appendLog(c, "", first(product, "full_name", "name"), "בדיקת מלאי נדחתה", "חסר שדה זמינות תקין; מצב המלאי לא עודכן."); return; }
+        }
         JSONObject oldGlobal;
         try{oldGlobal=new JSONObject(prefs.getString("stock_global_state","{}"));}catch(Exception e){oldGlobal=new JSONObject();}
         JSONObject nextGlobal=new JSONObject();
