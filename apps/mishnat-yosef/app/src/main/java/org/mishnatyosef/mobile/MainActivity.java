@@ -135,7 +135,7 @@ public class MainActivity extends Activity {
     private int orderListTopOffset = 0;
     private boolean showingOrderScreen = false;
     private boolean returnToOrderScreenOnSalesTab = false;
-    // Closed orders reuse the regular product grid, but quantity-changing controls stay disabled.
+    // Closed orders reuse the regular product grid; order-changing controls are visible but disabled.
     private boolean closedOrderReadOnly = false;
 
     private void applyPalette() {
@@ -1605,8 +1605,8 @@ public class MainActivity extends Activity {
         final String whatsNewSummary = "נוספה רשימת הזמנות סגורות עם אפשרות להציג את המוצרים והכמויות שנשמרו במטמון.";
         final String whatsNewDetails =
                 "• במסך המכירות הפתוחות נוסף כפתור „📦 הזמנות שכבר נסגרו”.\n\n" +
-                "• בכל הזמנה סגורה אפשר לפתוח תצוגת מוצרים מלאה בסגנון מסך ההזמנה הרגיל, כולל כמויות, מחירים, חיפוש וקטגוריות.\n\n" +
-                "• התצוגה משתמשת במטמון המקומי בלבד והיא לקריאה בלבד: לא ניתן לשנות כמויות או לעדכן הזמנה סגורה. הנתונים עלולים להיות חלקיים או לא עדכניים.\n\n" +
+                "• בכל הזמנה סגורה אפשר לפתוח מסך זהה ככל האפשר למסך הזמנה רגיל: כפתורי המוצרים, החיפוש, הקטגוריות, פרטי המוצר, המועדפים, שינוי פריסת הכרטיסים, שיתוף וייצוא.\n\n" +
+                "• כפתורי הוספה/הפחתה מוצגים אך מושבתים, כדי שלא יהיה אפשר להזמין או לשנות כמויות. התצוגה משתמשת במטמון המקומי בלבד והנתונים עלולים להיות חלקיים או לא עדכניים.\n\n" +
                 "• קובצי המטמון המקומיים לא נמחקים אוטומטית בעת סגירת הזמנה. רשימת ההזמנות הסגורות עצמה משתמשת בנתוני /api/orders.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
@@ -2873,6 +2873,22 @@ public class MainActivity extends Activity {
         });
     }
 
+    private String cachedClosedOrderText() {
+        StringBuilder details = new StringBuilder(currentTitle()).append("\\nעותק מקומי של הזמנה סגורה — לקריאה בלבד\\n\\n");
+        int count = 0;
+        double total = 0;
+        for (OrderLine line : currentOrderLines()) {
+            details.append(line.name).append(" × ").append(fmtNum(line.amount));
+            if (line.price > 0) { details.append(" · ").append(money(line.price)).append(" ליחידה"); total += line.price * line.amount; }
+            details.append("\\n");
+            count++;
+        }
+        details.append("\\n").append(count).append(" מוצרים עם כמות שמורה");
+        if (total > 0) details.append(" · סה״כ משוער ").append(money(total));
+        details.append("\\nהנתונים נשמרו במטמון המקומי ועשויים להיות חלקיים או לא עדכניים.");
+        return details.toString();
+    }
+
     private void showCachedClosedOrderSummary() {
         StringBuilder details = new StringBuilder("תצוגת מטמון מקומית — לקריאה בלבד\n\n");
         int count = 0;
@@ -3788,7 +3804,6 @@ public class MainActivity extends Activity {
 
         TextView optionsBtn = roundBtn("⋯", 32, ORANGE_LIGHT, ORANGE_DARK);
         optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
-        if (closedOrderReadOnly) optionsBtn.setVisibility(View.GONE);
         optionsBtn.setContentDescription("אפשרויות נוספות");
         LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(32), dp(40));
         optionsLp.setMarginStart(dp(3));
@@ -4095,7 +4110,7 @@ public class MainActivity extends Activity {
             badge.setVisibility(canOrder ? View.GONE : View.VISIBLE);
             badge.setText(disabled ? "לא זמין" : "אזל");
             star.setText(favIds.contains(pid) ? "⭐" : "☆");
-            star.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            star.setVisibility(View.VISIBLE);
             name.setText(productName(prod));
             String packText = packageText(prod);
             pack.setText(packText);
@@ -4116,11 +4131,11 @@ public class MainActivity extends Activity {
             paintButton(add, canOrder ? TONAL : FLAT);
             int q = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
             boolean busyNow = pending.contains(sid);
-            add.setVisibility(closedOrderReadOnly || q > 0 ? View.GONE : View.VISIBLE);
-            st.view.setVisibility(closedOrderReadOnly || q > 0 ? View.VISIBLE : View.GONE);
+            add.setVisibility(q > 0 ? View.GONE : View.VISIBLE);
+            st.view.setVisibility(q > 0 ? View.VISIBLE : View.GONE);
             st.qty.setText(String.valueOf(q));
-            st.plus.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
-            st.minus.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            st.plus.setVisibility(View.VISIBLE);
+            st.minus.setVisibility(View.VISIBLE);
             st.qty.setClickable(!closedOrderReadOnly);
             st.qty.setFocusable(!closedOrderReadOnly);
             setEnabledLook(st.view, !closedOrderReadOnly && !busyNow);
@@ -4324,7 +4339,7 @@ public class MainActivity extends Activity {
 
         final String pid = pidOf(p);
         final AlertDialog[] dlg = new AlertDialog[1];
-        if (featureOrderId > 0 && findProduct(sidOf(p)) != null && !pid.isEmpty()) {
+        if ((closedOrderReadOnly || featureOrderId > 0) && findProduct(sidOf(p)) != null && !pid.isEmpty()) {
             LinearLayout actionsRow = new LinearLayout(this);
             TextView favBtn = btn(favIds.contains(pid) ? "☆ הסרה ממועדפים" : "⭐ הוספה למועדפים", TONAL);
             favBtn.setOnClickListener(v -> { dlg[0].dismiss(); toggleFavourite(p, () -> rebuildGrid()); });
@@ -6240,6 +6255,12 @@ public class MainActivity extends Activity {
         final List<String> labels = new ArrayList<>();
         final List<Integer> actions = new ArrayList<>();
         labels.add(nightMode ? "☀️ מעבר למצב יום" : "🌙 הפעלת מצב לילה"); actions.add(11);
+        if (closedOrderReadOnly) {
+            labels.add("פרטי המכירה"); actions.add(0);
+            labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);
+            labels.add("📤 שיתוף סיכום ההזמנה השמורה"); actions.add(12);
+            labels.add("📦 ייצוא ההזמנה השמורה לקובץ"); actions.add(13);
+        } else {
         if (!summaryFromHistory) {
             labels.add("פרטי המכירה"); actions.add(0);
             labels.add("רענון מוצרים"); actions.add(1);
@@ -6254,6 +6275,7 @@ public class MainActivity extends Activity {
             labels.add("💾 שמירת כמויות למועדפים"); actions.add(7);
             labels.add("🧹 ניקוי כמויות שמורות"); actions.add(8);
             labels.add("🗑 מחיקת ההזמנה"); actions.add(9);
+        }
         }
         appDialog().setTitle("אפשרויות נוספות")
                 .setItems(labels.toArray(new String[0]), (d, which) -> {
@@ -6273,6 +6295,8 @@ public class MainActivity extends Activity {
                             d.dismiss();
                             toggleNightMode();
                             break;
+                        case 12: showShareMenu(cachedClosedOrderText()); break;
+                        case 13: startExport("הזמנה שמורה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), 0, currentOrderLines())); break;
                     }
                 }).show();
     }
