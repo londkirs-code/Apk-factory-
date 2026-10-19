@@ -5234,8 +5234,7 @@ public class MainActivity extends Activity {
     private void showContactActions(final ContactOption contact) {
         if (contact.email) {
             final String[] actions = {"✉️ פתיחת הודעת מייל", "📋 העתקת כתובת המייל", "📤 שיתוף פרטי הקשר", "ℹ️ מה אפשר לשלוח?"};
-            appDialog().setTitle(contact.title)
-                    .setMessage(contact.explanation)
+            appDialog().setTitle(contact.title + "\n" + contact.explanation)
                     .setItems(actions, (d, which) -> {
                         if (which == 0) composeContactEmail(contact);
                         else if (which == 1) copyText(contact.value);
@@ -5244,7 +5243,7 @@ public class MainActivity extends Activity {
                     }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
         } else if (contact.fax) {
             final String[] actions = {"📋 העתקת מספר הפקס", "📤 שיתוף מספר הפקס", "ℹ️ למה מיועד הפקס?"};
-            appDialog().setTitle(contact.title).setMessage(contact.explanation)
+            appDialog().setTitle(contact.title + "\n" + contact.explanation)
                     .setItems(actions, (d, which) -> {
                         if (which == 0) copyText(contact.value);
                         else if (which == 1) shareText(contact.title, contact.value + "\n" + contact.explanation);
