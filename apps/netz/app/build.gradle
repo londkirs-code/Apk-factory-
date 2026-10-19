@@ -6,7 +6,7 @@ android {
         applicationId 'il.co.londkirs.netz'
         minSdk 21
         targetSdk 35
-        versionCode 72
+        versionCode 73
         versionName '1.0'
     }
 }
