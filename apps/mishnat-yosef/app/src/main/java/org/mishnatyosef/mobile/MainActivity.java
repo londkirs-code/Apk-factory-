@@ -5446,7 +5446,9 @@ public class MainActivity extends Activity {
 
     private void loadFeatureTransactions() {
         beginScreen("זיכויים וחיובים", 2, null);
-        setStatus("טוען את כל התנועות…");
+        setStatus("ממתין לשרת…");
+        // Build the complete screen shell immediately; only transaction data waits for the API.
+        renderTransactions(Collections.<JSONObject>emptyList(), true);
         final int t = screenToken;
         executor.execute(() -> {
             try {
@@ -5479,7 +5481,12 @@ public class MainActivity extends Activity {
                 Collections.sort(rows, new Comparator<JSONObject>() {
                     @Override public int compare(JSONObject a, JSONObject b) { return b.optString("time", "").compareTo(a.optString("time", "")); }
                 });
-                runOnUiThread(() -> { if (!stale(t)) renderTransactions(rows); });
+                runOnUiThread(() -> {
+                    if (stale(t)) return;
+                    // Rebuild the same screen with the completed data, preserving its normal behavior.
+                    beginScreen("זיכויים וחיובים", 2, null);
+                    renderTransactions(rows);
+                });
             } catch (Exception e) {
                 fail(t, e, "טעינת הזיכויים נכשלה.");
             }
@@ -5487,6 +5494,10 @@ public class MainActivity extends Activity {
     }
 
     private void renderTransactions(final List<JSONObject> rows) {
+        renderTransactions(rows, false);
+    }
+
+    private void renderTransactions(final List<JSONObject> rows, final boolean waitingForServer) {
         double creditTotal = 0, chargeTotal = 0;
         int creditCount = 0, chargeCount = 0;
         for (JSONObject tx : rows) {
@@ -5495,16 +5506,21 @@ public class MainActivity extends Activity {
             if (amount < 0) { creditTotal += -amount; creditCount++; }
             if (amount > 0) { chargeTotal += amount; chargeCount++; }
         }
-        setStatus(rows.isEmpty() ? "לא נמצאו תנועות בחשבון." : "");
+        setStatus(waitingForServer ? "ממתין לשרת…" : (rows.isEmpty() ? "לא נמצאו תנועות בחשבון." : ""));
 
         LinearLayout sum = card(14);
-        TextView c1 = text("💚 סך הכל זיכויים: " + money2(creditTotal) + " (" + creditCount + ")", 16, true);
-        c1.setTextColor(GREEN);
-        TextView c2 = text("🔴 סך הכל חיובים: " + money2(chargeTotal) + " (" + chargeCount + ")", 16, true);
-        c2.setTextColor(RED);
-        sum.addView(c1);
-        sum.addView(c2);
-        sum.addView(muted("סה״כ תנועות: " + rows.size(), 12));
+        if (waitingForServer) {
+            sum.addView(text("ממתין לשרת…", 16, true));
+            sum.addView(muted("אפשר להשתמש בתפריטים ובכלי המסך כבר עכשיו.", 12));
+        } else {
+            TextView c1 = text("💚 סך הכל זיכויים: " + money2(creditTotal) + " (" + creditCount + ")", 16, true);
+            c1.setTextColor(GREEN);
+            TextView c2 = text("🔴 סך הכל חיובים: " + money2(chargeTotal) + " (" + chargeCount + ")", 16, true);
+            c2.setTextColor(RED);
+            sum.addView(c1);
+            sum.addView(c2);
+            sum.addView(muted("סה״כ תנועות: " + rows.size(), 12));
+        }
         root.addView(sum, lp(-1, -2, 0, 10));
 
         final String[] mode = {"all"};
