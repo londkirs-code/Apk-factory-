@@ -2873,7 +2873,7 @@ public class MainActivity extends Activity {
     }
 
     private void showCachedClosedOrderSummary() {
-        StringBuilder details = new StringBuilder("תצוגת מטמון מקומית — לקריאה בלבד\\n\\n");
+        StringBuilder details = new StringBuilder("תצוגת מטמון מקומית — לקריאה בלבד\n\n");
         int count = 0;
         for (JSONObject p : featureProducts) {
             if (p == null) continue;
@@ -2883,11 +2883,11 @@ public class MainActivity extends Activity {
             details.append(productName(p)).append(" × ").append(qty);
             double price = productPrice(p);
             if (price > 0) details.append(" · ").append(money(price)).append(" ליחידה");
-            details.append("\\n");
+            details.append("\n");
             count++;
         }
-        details.append("\\n").append(count).append(" מוצרים עם כמות שמורה.");
-        details.append("\\nהנתונים עשויים להיות חלקיים או לא עדכניים.");
+        details.append("\n").append(count).append(" מוצרים עם כמות שמורה.");
+        details.append("\nהנתונים עשויים להיות חלקיים או לא עדכניים.");
         appDialog().setTitle("פריטי ההזמנה הסגורה").setMessage(details.toString())
                 .setPositiveButton("סגירה", null).show();
     }
