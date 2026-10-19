@@ -2727,7 +2727,7 @@ public class MainActivity extends Activity {
         root.addView(top, lp(-1, -2, 0, 8));
         TextView cachedOrders = btn("📦 הזמנות מהמטמון", TONAL);
         cachedOrders.setOnClickListener(v -> showCachedOrders());
-        root.addView(closedOrders, lp(-1, dp(46), 0, 10));
+        root.addView(cachedOrders, lp(-1, dp(46), 0, 10));
         for (int i = 0; i < rows.length(); i++) {
             JSONObject sale = rows.optJSONObject(i);
             if (sale != null) root.addView(saleCard(sale), lp(-1, -2, 0, 10));
@@ -3700,7 +3700,7 @@ public class MainActivity extends Activity {
     private void renderFeatureProducts() {
         String title = saleTitle(featureSale);
         Runnable productsBack;
-        if (closedOrderReadOnly) productsBack = () -> showClosedOrders();
+        if (closedOrderReadOnly) productsBack = () -> showCachedOrders();
         else if (summaryFromHistory) productsBack = () -> showOrderSummary();
         else productsBack = () -> showOpenSales(false);
         beginScreen(title.isEmpty() ? "הזמנה" : title, summaryFromHistory ? historyTab : 0, productsBack);
