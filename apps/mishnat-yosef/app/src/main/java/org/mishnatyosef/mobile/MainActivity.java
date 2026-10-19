@@ -1954,7 +1954,7 @@ public class MainActivity extends Activity {
 
     private void showUpdateSettings() {
         beginScreen("עדכוני אפליקציה", 3, this::showAccount);
-        screenKind = 5;
+        screenKind = 7;
         LinearLayout card = card(14);
         card.addView(text("📲 עדכוני אפליקציה", 17, true));
         card.addView(muted("הגרסה המותקנת: " + installedVersionName() + " (" + installedVersionCode() + ")", 13), lp(-1, -2, 0, 8));
@@ -2047,7 +2047,7 @@ public class MainActivity extends Activity {
                 String notes = manifest.optString("releaseNotes", "").trim();
                 int installed = installedVersionCode();
                 runOnUiThread(() -> {
-                    if (screenKind != 5 || updateStatusView == null) return;
+                    if (screenKind != 7 || updateStatusView == null) return;
                     updateLatestCode = code;
                     updateLatestName = name;
                     updateLatestSha256 = sha;
@@ -2079,7 +2079,7 @@ public class MainActivity extends Activity {
                 if (message == null || message.trim().isEmpty()) message = error.getClass().getSimpleName();
                 final String shown = message;
                 runOnUiThread(() -> {
-                    if (screenKind != 5 || updateStatusView == null) return;
+                    if (screenKind != 7 || updateStatusView == null) return;
                     updateStatusView.setText("בדיקת העדכונים נכשלה: " + shown + ". אפשר לנסות שוב מאוחר יותר.");
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
                     updateDownloadButton.setEnabled(false);
@@ -2120,7 +2120,7 @@ public class MainActivity extends Activity {
     }
 
     private void pollUpdateDownload() {
-        if (screenKind != 5 || updateStatusView == null || updateDownloadId <= 0 || updateDownloadVerifying) return;
+        if (screenKind != 7 || updateStatusView == null || updateDownloadId <= 0 || updateDownloadVerifying) return;
         DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
         if (manager == null) return;
         Cursor cursor = null;
@@ -2176,7 +2176,7 @@ public class MainActivity extends Activity {
                     final String problem = failure;
                     runOnUiThread(() -> {
                         updateDownloadVerifying = false;
-                        if (screenKind != 5 || updateStatusView == null || completedId != updateDownloadId) return;
+                        if (screenKind != 7 || updateStatusView == null || completedId != updateDownloadId) return;
                         if (ok) {
                             prefs.edit().putBoolean("update_download_verified", true)
                                     .putInt("update_download_verified_code", updateLatestCode).apply();
