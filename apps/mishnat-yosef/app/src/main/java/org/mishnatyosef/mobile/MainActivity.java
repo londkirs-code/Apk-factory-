@@ -1522,6 +1522,9 @@ public class MainActivity extends Activity {
         addHomeNotificationSettings();
         addWhatsNewEntry();
         addSafetySettings();
+        TextView contactBtn = btn("📞 יצירת קשר", TONAL);
+        contactBtn.setOnClickListener(v -> showContactOptions());
+        root.addView(contactBtn, lp(-1, dp(46), 0, 8));
         TextView refreshTok = btn("🔁 חידוש התחברות (בלי סיסמה)", TONAL);
         refreshTok.setOnClickListener(v -> executor.execute(() -> {
             String cur = prefs.getString("token", "");
@@ -5186,6 +5189,105 @@ public class MainActivity extends Activity {
         long d = left / 86400, h = (left % 86400) / 3600, m = (left % 3600) / 60;
         String rest = d > 0 ? d + " ימים " + h + " שעות" : (h > 0 ? h + " שעות " + m + " דקות" : m + " דקות");
         return "🔑 תקף עד " + until + " (נותרו " + rest + ")";
+    }
+
+    private static class ContactOption {
+        final String title;
+        final String value;
+        final String explanation;
+        final boolean email;
+        final boolean fax;
+        ContactOption(String title, String value, String explanation, boolean email, boolean fax) {
+            this.title = title;
+            this.value = value;
+            this.explanation = explanation;
+            this.email = email;
+            this.fax = fax;
+        }
+    }
+
+    private void showContactOptions() {
+        final ContactOption[] contacts = new ContactOption[] {
+                new ContactOption("📞 מוקד אוטומטי להזמנות — 077-316-8080",
+                        "077-316-8080", "הזמנות, שינוי תחנה ובדיקת שעות.", false, false),
+                new ContactOption("☎️ מענה אנושי — 08-9798574",
+                        "08-9798574", "בעיות, בירורים ופניות כלליות.", false, false),
+                new ContactOption("📠 פקס — 153-8-9798574",
+                        "153-8-9798574", "שליחת טפסים, אישורים ומסמכים בכתב.", false, true),
+                new ContactOption("✉️ תמיכה טכנית — support@mishnatyosef.org",
+                        "support@mishnatyosef.org", "תמיכה טכנית ובעיות באזור האישי.", true, false),
+                new ContactOption("📷 צילומי מוצרים פגומים וחוסרים — A0773168080@gmail.com",
+                        "A0773168080@gmail.com", "שליחת צילומי מוצרים פגומים ודיווח על חוסרים לצורך זיכוי.", true, false),
+                new ContactOption("🏢 הנהלה וספקים — admin@m-y.org.il",
+                        "admin@m-y.org.il", "פניות ניהוליות וספקים.", true, false)
+        };
+        final String[] labels = new String[contacts.length];
+        for (int i = 0; i < contacts.length; i++) {
+            labels[i] = contacts[i].title + "\n" + contacts[i].explanation;
+        }
+        appDialog().setTitle("יצירת קשר עם משנת יוסף")
+                .setItems(labels, (dialog, which) -> showContactActions(contacts[which]))
+                .setNegativeButton("סגירה", null)
+                .show();
+    }
+
+    private void showContactActions(final ContactOption contact) {
+        if (contact.email) {
+            final String[] actions = {"✉️ פתיחת הודעת מייל", "📋 העתקת כתובת המייל", "📤 שיתוף פרטי הקשר", "ℹ️ מה אפשר לשלוח?"};
+            appDialog().setTitle(contact.title)
+                    .setMessage(contact.explanation)
+                    .setItems(actions, (d, which) -> {
+                        if (which == 0) composeContactEmail(contact);
+                        else if (which == 1) copyText(contact.value);
+                        else if (which == 2) shareText(contact.title, contact.value + "\n" + contact.explanation);
+                        else showTextDialog("למה מיועד המייל?", contact.explanation + "\n\nכתובת: " + contact.value);
+                    }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
+        } else if (contact.fax) {
+            final String[] actions = {"📋 העתקת מספר הפקס", "📤 שיתוף מספר הפקס", "ℹ️ למה מיועד הפקס?"};
+            appDialog().setTitle(contact.title).setMessage(contact.explanation)
+                    .setItems(actions, (d, which) -> {
+                        if (which == 0) copyText(contact.value);
+                        else if (which == 1) shareText(contact.title, contact.value + "\n" + contact.explanation);
+                        else showTextDialog("שימוש בפקס", contact.explanation + "\n\nמספר: " + contact.value);
+                    }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
+        } else {
+            final String[] actions = {"📞 חיוג למספר", "💬 שליחת SMS", "📋 העתקת המספר", "📤 שיתוף המספר", "ℹ️ פרטי השירות"};
+            appDialog().setTitle(contact.title).setMessage(contact.explanation)
+                    .setItems(actions, (d, which) -> {
+                        if (which == 0) dialContact(contact.value);
+                        else if (which == 1) smsContact(contact.value);
+                        else if (which == 2) copyText(contact.value);
+                        else if (which == 3) shareText(contact.title, contact.value + "\n" + contact.explanation);
+                        else showTextDialog("פרטי השירות", contact.explanation + "\n\nטלפון: " + contact.value);
+                    }).setNegativeButton("חזרה", (d, w) -> showContactOptions()).show();
+        }
+    }
+
+    private void dialContact(String phone) {
+        try {
+            startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone.replaceAll("[^0-9+]", ""))));
+        } catch (Exception e) {
+            toast("לא נמצאה אפליקציה לחיוג במכשיר", true);
+        }
+    }
+
+    private void smsContact(String phone) {
+        try {
+            startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + phone.replaceAll("[^0-9+]", ""))));
+        } catch (Exception e) {
+            toast("לא נמצאה אפליקציה לשליחת הודעות", true);
+        }
+    }
+
+    private void composeContactEmail(ContactOption contact) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + Uri.encode(contact.value)));
+            intent.putExtra(Intent.EXTRA_SUBJECT, "פנייה בנושא: " + contact.explanation);
+            intent.putExtra(Intent.EXTRA_TEXT, "\n\nפרטי הפנייה:\n");
+            startActivity(Intent.createChooser(intent, "שליחת מייל"));
+        } catch (Exception e) {
+            toast("לא נמצאה אפליקציית דואר במכשיר", true);
+        }
     }
 
     private void showTextDialog(String title, String message) {
