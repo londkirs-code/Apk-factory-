@@ -1604,9 +1604,10 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "מסך הזיכויים זמין מיד בזמן טעינת הנתונים";
-        final String whatsNewSummary = "התפריטים, החיפוש והכלים במסך הזיכויים מופיעים מיד; רק הנתונים עצמם ממתינים לשרת.";
+        final String whatsNewTitle = "התראות מלאי והזמנה אוטומטית";
+        final String whatsNewSummary = "נוספו מעקב אחרי חזרה למלאי, ניהול כמויות והזמנה אוטומטית עם אישור מפורש.";
         final String whatsNewDetails =
+                "• חדש: אפשר לשמור מוצר שאזל להתראה בלבד או להזמנה אוטומטית. הבחירה והכמות נשמרות מקומית ואינן נשלחות לשרת עד שהמוצר חוזר למלאי. הזמנה אוטומטית מחייבת אישור מפורש, מציגה מצב ותוצאת ניסיון, ואינה נשלחת שוב אוטומטית כשהתוצאה אינה ודאית. בהגדרות אפשר לשנות כמות, להחליף סוג מעקב, להסיר מוצרים ולעיין ביומן.\n\n" +
                 "• מסך „זיכויים וחיובים” מציג מיד את סרגלי הסינון, החיפוש, רשימת הזיכויים, תצוגה לפי מכירה והשיתוף. בזמן ההמתנה מופיע „ממתין לשרת…” במקום נתוני סיכום מטעים; עם הגעת הנתונים המסך מתעדכן, ואם הטעינה נכשלת נשארים הכלים ומוצגת הודעת שגיאה.\n\n" +
                 "• בחיפוש היסטוריית ההזמנות נוסף כפתור × בדומה לכפתור הניקוי שבתוך הזמנה. לחיצה עליו מוחקת את החיפוש, מאפסת את העימוד וטוענת מחדש את רשימת ההזמנות המלאה.\n\n" +
                 "• שאר התנהגות החיפוש, פתיחת ההזמנות וכפתור „טען עוד” נשארו ללא שינוי.\n\n" +
@@ -1760,7 +1761,7 @@ public class MainActivity extends Activity {
             LinearLayout c=card(12);c.addView(text(w.optString("name","מוצר"),16,true));c.addView(muted(w.optString("saleName","מכירה"),12));
             TextView status=text(stockStateLabel(w),13,true);status.setTextColor("success".equals(w.optString("state",""))?GREEN:("failed".equals(w.optString("state",""))||"uncertain".equals(w.optString("state",""))?RED:ORANGE_DARK));c.addView(status,lp(-1,-2,0,5));
             if("auto".equals(mode)){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.addView(text("כמות להזמנה:",13,true),new LinearLayout.LayoutParams(0,-2,1));
-                Stepper st=stepper(34);st.qty.setText(String.valueOf(Math.max(1,w.optInt("qty",1)));st.plus.setOnClickListener(v->updateStockWatchQuantity(key,1));st.minus.setOnClickListener(v->updateStockWatchQuantity(key,-1));row.addView(st.view);c.addView(row,lp(-1,dp(40),0,4));
+                Stepper st=stepper(34);st.qty.setText(String.valueOf(Math.max(1,w.optInt("qty",1))));st.plus.setOnClickListener(v->updateStockWatchQuantity(key,1));st.minus.setOnClickListener(v->updateStockWatchQuantity(key,-1));row.addView(st.view);c.addView(row,lp(-1,dp(40),0,4));
                 if(!w.optString("lastResult","").isEmpty())c.addView(muted(w.optString("lastResult"),12));}
             TextView change=btn("auto".equals(mode)?"שינוי להתראה בלבד":"הפעלה כהזמנה אוטומטית",TONAL);
             change.setOnClickListener(v->{if("auto".equals(mode))changeStockWatchMode(key,"alert");else confirmAutoOrderConsent(w.optString("name","מוצר"),Math.max(1,w.optInt("qty",1)),()->changeStockWatchMode(key,"auto"));});
