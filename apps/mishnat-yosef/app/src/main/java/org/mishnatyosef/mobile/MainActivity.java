@@ -1602,15 +1602,16 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "הפרדת פריטים שאזלו והזמנות מהמטמון";
-        final String whatsNewSummary = "אפשר להפריד פריטים שאזלו לקטגוריה ייעודית דרך ההגדרות.";
+        final String whatsNewTitle = "חיפוש מוצרים בהיסטוריית ההזמנות";
+        final String whatsNewSummary = "בחיפוש בהיסטוריה מוצגים שמות המוצרים שנמצאו, לצד המכירה והתאריך; לחיצה פותחת את ההזמנה המקורית.";
         final String whatsNewDetails =
                 "• מסך „הזמנות מהמטמון” מאתר מטמונים מקומיים קריאים, מצרף את שם המכירה בעברית מ־GET /api/orders לפי saleID, ומציג רק את שם המכירה וכפתור פתיחה מהמטמון. השם נשמר גם במטמון המקומי להמשך.\n\n" +
                 "• בכל פתיחה מהמטמון כל כמויות הבחירה מתחילות באפס. הפלוס והמינוס משנים בחירה זמנית לחיוב בלבד ואינם משנים או שולחים את ההזמנה המקורית.\n\n" +
                 "• שם הרשימה הוא „רשימת זיכויים וחיובים”; פריטי זיכוי ישנים נשמרים ומזוהים כזיכויים.\n\n" +
                 "• לכל מוצר יש כפתור „הוסף לחיובים”; אותו מוצר באותה מכירה מעדכן חיוב קיים במקום ליצור כפילות. כפתור „שלח למשנת יוסף” בונה מייל לפי התוכן.\\n\\n" +
                 "• בהגדרות אפשר להפעיל „הפרדת פריטים שאזלו”: הם מופיעים בקטגוריה נפרדת ולא בקטגוריה המקורית; כשחוזרים להיות זמינים, הם חוזרים לקטגוריה המקורית. הכיבוי מחזיר את התצוגה הרגילה.\n\n" +
-                "• בבדיקת API נוספה בחירה מפורשת של „הזמנות שנסגרו” (GET /api/orders), סינון פלט לפי מילים ואפשרות להזין נתיב GET מותאם אישית שמתחיל ב־/api/. הנתיב האחרון נשמר לבדיקה הבאה; כתובות חיצוניות נחסמות כדי לא לשלוח אליהן את פרטי ההתחברות. רק פלט שעבר הסתרת מידע רגיש מועתק ללוח.";
+                "• בבדיקת API נוספה בחירה מפורשת של „הזמנות שנסגרו” (GET /api/orders), סינון פלט לפי מילים ואפשרות להזין נתיב GET מותאם אישית שמתחיל ב־/api/. הנתיב האחרון נשמר לבדיקה הבאה; כתובות חיצוניות נחסמות כדי לא לשלוח אליהן את פרטי ההתחברות. רק פלט שעבר הסתרת מידע רגיש מועתק ללוח.\n\n" +
+                "• חיפוש בהיסטוריית ההזמנות מציג כעת את שמות המוצרים שהשרת מצא בכל הזמנה. אפשר לטעון את כל עמודי התוצאות (20 הזמנות לעמוד לפי תשובת השרת), וללחוץ על הזמנה כדי לפתוח את פרטיה המקוריים כולל כמויות ומחירים.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
@@ -4972,6 +4973,25 @@ public class MainActivity extends Activity {
         card.addView(top);
         String when = fmtWhen(first(o, "time"));
         card.addView(muted("הזמנה #" + orderId + (when.isEmpty() ? "" : " · " + when), 12));
+
+        // Product search responses include the exact matching line-item names in matched_products.
+        // Keep the regular history card unchanged when the user is browsing without a search.
+        if (!histSearch.trim().isEmpty()) {
+            JSONArray matched = o.optJSONArray("matched_products");
+            if (matched != null && matched.length() > 0) {
+                List<String> names = new ArrayList<>();
+                for (int i = 0; i < matched.length(); i++) {
+                    String name = matched.optString(i, "").trim();
+                    if (!name.isEmpty() && !names.contains(name)) names.add(name);
+                }
+                if (!names.isEmpty()) {
+                    TextView matchedLabel = text("מוצרים שנמצאו: " + TextUtils.join(" · ", names), 14, true);
+                    matchedLabel.setTextColor(INK);
+                    matchedLabel.setPadding(0, dp(6), 0, 0);
+                    card.addView(matchedLabel);
+                }
+            }
+        }
         return card;
     }
 
