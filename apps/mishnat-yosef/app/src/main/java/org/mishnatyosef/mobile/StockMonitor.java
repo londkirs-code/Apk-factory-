@@ -154,6 +154,10 @@ public class StockMonitor extends BroadcastReceiver {
 
     private void performAutoOrder(Context c, JSONObject watch, JSONObject oldSale, JSONObject oldProduct) {
         String key = watch.optString("key", ""), name = watch.optString("name", "מוצר");
+        JSONObject active = findWatch(c, key);
+        if (active == null || !"auto".equals(active.optString("mode", "")) || !active.optBoolean("consent", false) || !"attempting".equals(active.optString("state", ""))) {
+            appendLog(c, key, name, "ניסיון ההזמנה בוטל", "המעקב הוסר או שונה לפני ביצוע הבקשה."); return;
+        }
         int saleId = watch.optInt("saleId", -1), qty = Math.max(1, watch.optInt("qty", 1));
         String sid = watch.optString("sid", "");
         String state = "uncertain", detail = "לא ניתן לאמת את תוצאת ההזמנה.";
@@ -193,6 +197,10 @@ public class StockMonitor extends BroadcastReceiver {
                     JSONObject item = findProduct(fetchProducts(c, orderId), sid);
                     if (item == null) item = fresh;
                     int current = (int) Math.round(number(item.opt("amount")));
+                    active = findWatch(c, key);
+                    if (active == null || !"auto".equals(active.optString("mode", "")) || !active.optBoolean("consent", false) || !"attempting".equals(active.optString("state", ""))) {
+                        appendLog(c, key, name, "ניסיון ההזמנה בוטל לפני שליחה", "המעקב הוסר או שונה לפני בקשת ההזמנה."); return;
+                    }
                     JSONObject body = new JSONObject(item.toString()).put("amount", qty);
                     if (!body.has("selected_subitems") || body.isNull("selected_subitems")) body.put("selected_subitems", new JSONArray());
                     Response mutation = null; Exception transport = null;
@@ -414,6 +422,11 @@ public class StockMonitor extends BroadcastReceiver {
         String m = e == null ? "" : e.getMessage(); return m == null || m.trim().isEmpty() || m.startsWith("{") || m.startsWith("<") ? "לא ניתן להשלים את הפעולה." : m;
     }
     private static String safe(String s) { return s == null ? "" : s; }
+    private static JSONObject findWatch(Context c, String key) {
+        JSONArray a = loadWatches(c);
+        for (int i = 0; i < a.length(); i++) { JSONObject w = a.optJSONObject(i); if (w != null && key.equals(w.optString("key", ""))) return w; }
+        return null;
+    }
     private static void updateWatch(Context c, String key, JSONObject patch) {
         synchronized (LOCK) {
             SharedPreferences p = c.getSharedPreferences(PREFS, 0); JSONArray old;
