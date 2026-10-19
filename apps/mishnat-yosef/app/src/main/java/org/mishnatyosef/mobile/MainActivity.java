@@ -2793,8 +2793,14 @@ public class MainActivity extends Activity {
                         if (!status.isEmpty()) detail += " · " + status;
                         item.addView(muted(detail, 12));
                         if (!when.isEmpty()) item.addView(muted("תאריך: " + when, 12));
-                        item.addView(muted("הזמנה סגורה — אין אפשרות לפתוח או לצפות בפרטים ממסך זה.", 12));
-                        // Intentionally no click listener, product list, or details action.
+                        item.addView(muted("הזמנה סגורה — אפשר להציג רק את הפריטים שנשמרו במטמון המקומי.", 12));
+                        int cachedSaleId = order.optInt("saleID", order.optInt("sale_id", -1));
+                        if (cachedSaleId <= 0 && sale != null) cachedSaleId = sale.optInt("id", -1);
+                        final int snapshotSaleId = cachedSaleId;
+                        TextView cachedItemsButton = btn("📋 הצגת פריטים מהמטמון", TONAL);
+                        cachedItemsButton.setEnabled(snapshotSaleId > 0);
+                        cachedItemsButton.setOnClickListener(v -> showCachedClosedOrderItems(item, snapshotSaleId));
+                        item.addView(cachedItemsButton, lp(-1, dp(42), 0, 8));
                         root.addView(item, lp(-1, -2, 0, 8));
                     }
                 });
@@ -2807,6 +2813,61 @@ public class MainActivity extends Activity {
                     root.addView(back, lp(-1, dp(46), 0, 8));
                 });
             }
+        });
+    }
+
+    /**
+     * Shows a read-only view of the cached sale snapshot. It deliberately does not navigate
+     * into the live order screen and never requests product/order details from the server.
+     */
+    private void showCachedClosedOrderItems(LinearLayout orderCard, int saleId) {
+        if (saleId <= 0) {
+            toast("אין מזהה מכירה מתאים לקובץ המטמון.", true);
+            return;
+        }
+        View existing = orderCard.findViewWithTag("cachedClosedItems");
+        if (existing != null) {
+            orderCard.removeView(existing);
+            return;
+        }
+        TextView loading = muted("טוען פריטים מהמטמון המקומי…", 13);
+        loading.setTag("cachedClosedItems");
+        orderCard.addView(loading, lp(-1, -2, 0, 6));
+        loadExecutor.execute(() -> {
+            SaleSnapshot snap = readSnapshot(saleId);
+            runOnUiThread(() -> {
+                if (loading.getParent() != orderCard) return;
+                int at = orderCard.indexOfChild(loading);
+                orderCard.removeView(loading);
+                LinearLayout details = new LinearLayout(this);
+                details.setOrientation(LinearLayout.VERTICAL);
+                details.setTag("cachedClosedItems");
+                if (snap == null || snap.products.isEmpty()) {
+                    details.addView(muted("לא נמצא קובץ מטמון קריא למכירה הזאת. ייתכן שהמטמון לא נשמר או שהקובץ חסר.", 13));
+                } else {
+                    details.addView(text("פריטים שנשמרו במטמון", 14, true));
+                    int count = 0;
+                    for (JSONObject product : snap.products) {
+                        if (product == null) continue;
+                        String name = productName(product);
+                        int qty = snap.quantities.containsKey(sidOf(product))
+                                ? snap.quantities.get(sidOf(product)) : Math.max(0, (int) Math.round(num(product.opt("amount"))));
+                        double price = productPrice(product);
+                        LinearLayout line = new LinearLayout(this);
+                        line.setOrientation(LinearLayout.HORIZONTAL);
+                        line.setGravity(Gravity.CENTER_VERTICAL);
+                        TextView productText = text(name, 13, false);
+                        line.addView(productText, new LinearLayout.LayoutParams(0, -2, 1));
+                        line.addView(muted("כמות: " + qty + (price > 0 ? " · " + money(price) + " ליחידה" : ""), 12));
+                        details.addView(line, lp(-1, -2, 0, 5));
+                        count++;
+                    }
+                    details.addView(muted("נשמרו " + count + " פריטים · תאריך שמירת המטמון: " +
+                            (snap.loadedAt > 0 ? new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(snap.loadedAt)) : "לא ידוע"), 11));
+                    details.addView(muted("זהו צילום מצב מקומי שעלול להיות חלקי או לא עדכני; הוא אינו אישור סופי לחשבון ההזמנה.", 11));
+                }
+                orderCard.addView(details, Math.max(0, at), lp(-1, -2, 0, 6));
+            });
         });
     }
 
