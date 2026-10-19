@@ -1559,13 +1559,13 @@ public class MainActivity extends Activity {
 
     // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
     private void addWhatsNewEntry() {
-        final String whatsNewTitle = "כותרות גדולות יותר ומעבר מהיר למצב לילה";
-        final String whatsNewSummary = "כותרת המסך הוגדלה ב־50%, נוסף מעבר מהיר למצב לילה, ועיצוב הכפתורים אוחד בכל התפריטים והלוחות.";
+        final String whatsNewTitle = "פעולות יצירת קשר ישירות בכרטיסים";
+        final String whatsNewSummary = "נוספו כפתורי חיוג, העתקה ושיתוף ישירות בתוך כרטיסי אנשי הקשר, בלי לפתוח קודם את הכרטיס.";
         final String whatsNewDetails =
-                "• כותרת המסך העליונה גדלה מ־16sp ל־24sp, כדי שיהיה קל יותר לקרוא אותה.\\n\\n" +
-                "• כפתור שמש/ירח מופיע בכותרת בכל מסך ומאפשר לעבור בין מצב יום למצב לילה.\\n\\n" +
-                "• כפתורי הפעולה בתפריטים, בלוחות ובחלונות משתמשים באותו מלבן מעוגל, מרווחים ומשוב לחיצה כמו בהגדרות.\n\n" +
-                "• נשמרו גם שיפורי העיצוב הקודמים: חלונות בצבע רקע ההגדרות וסימון מכירות בכתום בהיסטוריה.";
+                "• בטלפונים: אפשר לחייג, להעתיק את המספר ללוח או לשתף אותו ישירות מהכרטיס.\\n\\n" +
+                "• בדוא״ל: אפשר לפתוח הודעת מייל, להעתיק את הכתובת או לשתף אותה.\\n\\n" +
+                "• בפקס: זמינות פעולות העתקה ושיתוף בלבד, ללא כפתור חיוג.\\n\\n" +
+                "• הכרטיסים עצמם אינם דורשים לחיצה כדי להציג את הפעולות; הכפתורים הקטנים זמינים מיד בתוך כל כרטיס.";
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
         whatsNewCard.addView(muted(whatsNewSummary, 13));
