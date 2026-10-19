@@ -1,9 +1,9 @@
 {
-  "versionCode": 246,
-  "versionName": "1.408",
+  "versionCode": 247,
+  "versionName": "1.409",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "36f2731a848ff9fdddb5a6b5d0de5c733b7c791a85ee5a334e99a3f2c18c4986",
+  "sha256": "bd68b1ddd34a65d6a4aaead4cf8a2bb96d85ff6921aa011178685a42c8d89815",
   "releaseTitle": "התקנה אוטומטית של עדכונים",
   "releaseNotes": "לאחר הורדת APK ואימות SHA-256, האפליקציה פותחת אוטומטית את מתקין Android במקום לדרוש לחיצה נוספת על „התקן”.\n\nנשאר כפתור התקנה ידנית/ניסיון חוזר למקרה שמתקין Android לא נפתח או שהתהליך נתקע.\n\nאם Android דורש הרשאת התקנה ממקור זה, נפתחות הגדרות ההרשאה; לאחר חזרה לאפליקציה עם ההרשאה, ההתקנה נפתחת אוטומטית.\n\nAndroid עדיין דורש את אישור המשתמש במתקין; אין דרך בטוחה או נתמכת לדלג על אישור המערכת.\n\n**בדיקות:** יש לאמת בניית APK ב־GitHub Actions; התקנה בפועל במכשיר אינה מאומתת כאן.",
-  "buildCommit": "3d3931d78c74fd3618bf77fadd59c2946f928266"
+  "buildCommit": "10c25a80f04eb2b3d2a3a49241e8764faa5e34cf"
 }
