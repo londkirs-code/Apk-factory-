@@ -8,7 +8,7 @@ android {
         applicationId 'com.londkirs.quickfloat'
         minSdk 23
         targetSdk 28
-        versionCode 186
+        versionCode 187
         versionName '1.0'
     }
 }
