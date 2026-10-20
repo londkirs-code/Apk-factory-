@@ -1860,7 +1860,7 @@ public class MainActivity extends Activity {
         final String detailsForDialog = latestDetails;
         open.setOnClickListener(v -> appDialog()
                 .setTitle("✨ מה חדש במשנת יוסף")
-                .setMessage(titleForDialog + "\\n\\n" + detailsForDialog)
+                .setMessage(titleForDialog + "\n\n" + detailsForDialog)
                 .setPositiveButton("הבנתי", null)
                 .show());
         whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
