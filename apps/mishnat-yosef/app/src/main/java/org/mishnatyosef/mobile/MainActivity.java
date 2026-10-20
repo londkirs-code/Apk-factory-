@@ -574,29 +574,29 @@ public class MainActivity extends Activity {
     /** Hardware keypad shortcuts and RTL-aware bottom-tab switching. */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event != null && event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+        if (event != null && event.getAction() == KeyEvent.ACTION_DOWN) {
             View focused = getCurrentFocus();
             boolean editingText = focused instanceof EditText;
             int key = event.getKeyCode();
             // Do not steal number keys while the user is typing in search, login, or another text field.
             if (!editingText) {
-                if (isKeypadKey(key, KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0)) {
+                if (event.getRepeatCount() == 0 && isKeypadKey(key, KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0)) {
                     focusBottomNavigation();
                     return true;
                 }
-                if (hasToken() && (key == KeyEvent.KEYCODE_POUND || key == KeyEvent.KEYCODE_NUMPAD_ADD)) {
+                if (event.getRepeatCount() == 0 && hasToken() && (key == KeyEvent.KEYCODE_POUND || key == KeyEvent.KEYCODE_NUMPAD_ADD)) {
                     moveBottomTabByKey(true);
                     return true;
                 }
-                if (hasToken() && (key == KeyEvent.KEYCODE_STAR || key == KeyEvent.KEYCODE_NUMPAD_MULTIPLY)) {
+                if (event.getRepeatCount() == 0 && hasToken() && (key == KeyEvent.KEYCODE_STAR || key == KeyEvent.KEYCODE_NUMPAD_MULTIPLY)) {
                     moveBottomTabByKey(false);
                     return true;
                 }
-                if (isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
+                if (event.getRepeatCount() == 0 && isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
                     scrollOrderToEdge(false);
                     return true;
                 }
-                if (isKeypadKey(key, KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8)) {
+                if (event.getRepeatCount() == 0 && isKeypadKey(key, KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8)) {
                     scrollOrderToEdge(true);
                     return true;
                 }
@@ -621,13 +621,18 @@ public class MainActivity extends Activity {
     private void scrollOrderByKey(boolean down) {
         hideKeyboard();
         int distance = Math.max(dp(240), (getWindow().getDecorView().getHeight() * 2) / 3);
+        int delta = down ? distance : -distance;
+        // Repeated key-down events must keep advancing instead of restarting the same animation.
+        boolean repeating = false;
+        // Key repeat is reflected by the event in dispatchKeyEvent; scroll steps are deliberately
+        // large enough to make holding 1/3 useful, while each repeat advances another viewport.
         if (showingOrderScreen && productList != null) {
-            productList.smoothScrollBy(down ? distance : -distance, 220);
+            productList.smoothScrollBy(delta, 120);
         } else if (scrollView != null) {
-            scrollView.smoothScrollBy(0, down ? distance : -distance);
+            scrollView.smoothScrollBy(0, delta);
         } else {
             View content = currentScreen;
-            if (content != null) content.scrollBy(0, down ? distance : -distance);
+            if (content != null) content.scrollBy(0, delta);
         }
     }
 
@@ -706,8 +711,10 @@ public class MainActivity extends Activity {
             int progress = bar.getProgress();
             int next = progress;
             switch (keyCode) {
-                case KeyEvent.KEYCODE_DPAD_LEFT: next = progress - 1; break;
-                case KeyEvent.KEYCODE_DPAD_RIGHT: next = progress + 1; break;
+                // SeekBar progress increases toward the visual right in LTR, but Android
+                // mirrors its direction in this Hebrew RTL UI. Keep physical arrows intuitive.
+                case KeyEvent.KEYCODE_DPAD_LEFT: next = progress + 1; break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: next = progress - 1; break;
                 case KeyEvent.KEYCODE_PAGE_UP: next = progress + Math.max(1, (bar.getMax() + 4) / 5); break;
                 case KeyEvent.KEYCODE_PAGE_DOWN: next = progress - Math.max(1, (bar.getMax() + 4) / 5); break;
                 case KeyEvent.KEYCODE_MOVE_HOME: next = 0; break;
