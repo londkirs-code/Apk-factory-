@@ -1153,6 +1153,21 @@ public class MainActivity extends Activity {
         return g;
     }
 
+    private GradientDrawable shape(int fill, float radiusDp, int stroke, int strokeWidthDp) {
+        GradientDrawable drawable = shape(fill, radiusDp, stroke);
+        if (stroke != 0) {
+            int width = dp(Math.max(1, strokeWidthDp));
+            drawable.setStroke(width, stroke);
+            if (drawable instanceof AppGradientDrawable) {
+                AppGradientDrawable appDrawable = (AppGradientDrawable) drawable;
+                appDrawable.appStrokeColor = stroke;
+                appDrawable.appStrokeWidth = width;
+                appDrawable.hasAppStroke = true;
+            }
+        }
+        return drawable;
+    }
+
     private String nightToggleLabel() {
         // The label describes the mode the button will switch TO.
         return nightMode ? "☀️ יום" : "🌙 לילה";
@@ -5866,6 +5881,10 @@ public class MainActivity extends Activity {
             st.plus.setTag("productPlus");
             st.minus.setTag("productMinus");
             card.setTag("productCard:");
+            // Enter/Center is handled explicitly so Android's default focus traversal cannot
+            // move away from +/- when the adapter rebinds the product row after a quantity change.
+            setStepperEnterHandler(st.plus, true);
+            setStepperEnterHandler(st.minus, false);
             add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
             st.plus.setOnClickListener(v -> {
                 if (p == null) return;
@@ -5878,6 +5897,33 @@ public class MainActivity extends Activity {
                 else changeBy(p, -1, productsRefresh, null);
             });
             st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) askQuantity(p, productsRefresh, null); });
+        }
+
+        private void setStepperEnterHandler(TextView button, boolean plus) {
+            button.setOnKeyListener((view, keyCode, event) -> {
+                if (keyCode != KeyEvent.KEYCODE_ENTER
+                        && keyCode != KeyEvent.KEYCODE_NUMPAD_ENTER
+                        && keyCode != KeyEvent.KEYCODE_DPAD_CENTER) return false;
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    // Consume repeats while Enter is held; one physical press changes quantity once.
+                    return true;
+                }
+                if (event.getAction() == KeyEvent.ACTION_UP) {
+                    JSONObject product = p;
+                    if (product == null) return true;
+                    String productId = sidOf(product);
+                    view.performClick();
+                    View screenAtPress = currentScreen;
+                    if (screenAtPress != null) screenAtPress.post(() -> {
+                        if (currentScreen == null || currentScreen != screenAtPress) return;
+                        View cardView = findTaggedView(currentScreen, "productCard:" + productId);
+                        View target = findTaggedView(cardView, plus ? "productPlus" : "productMinus");
+                        if (target != null && target.isShown() && target.isEnabled()) target.requestFocus();
+                    });
+                    return true;
+                }
+                return true;
+            });
         }
 
         void adaptCardSize() {
