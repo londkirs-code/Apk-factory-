@@ -635,9 +635,12 @@ public class MainActivity extends Activity {
         hideKeyboard();
         if (showingOrderScreen && productList != null) {
             int last = Math.max(0, gridRows.size() - 1);
-            productList.setSelectionFromTop(bottom ? last : 0, 0);
+            if (bottom) productList.setSelection(last);
+            else productList.setSelectionFromTop(0, 0);
             productList.post(() -> {
-                if (productList != null) productList.setSelectionFromTop(bottom ? Math.max(0, gridRows.size() - 1) : 0, 0);
+                if (productList == null) return;
+                if (bottom) productList.setSelection(Math.max(0, gridRows.size() - 1));
+                else productList.setSelectionFromTop(0, 0);
             });
         } else if (scrollView != null) {
             scrollView.post(() -> scrollView.fullScroll(bottom ? View.FOCUS_DOWN : View.FOCUS_UP));
