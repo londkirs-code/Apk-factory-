@@ -5531,8 +5531,12 @@ public class MainActivity extends Activity {
         });
     }
 
+    /** Builds the same product information shown in the details card for copy/share. */
     private String productShareText(JSONObject p) {
         if (p == null) return "";
+        JSONObject prod = productOf(p);
+        JSONObject meta = prod.optJSONObject("metadata");
+        JSONObject hechsher = prod.optJSONObject("hechsher");
         StringBuilder out = new StringBuilder(productName(p));
         double price = productPrice(p);
         if (price > 0) out.append("\nמחיר: ").append(money(price));
@@ -5541,9 +5545,23 @@ public class MainActivity extends Activity {
         String unit = unitPriceText(p);
         if (!unit.isEmpty()) out.append("\n").append(unit);
         if (isSoldOut(p)) out.append("\n⛔ אזל מהמלאי");
-        String description = cleanHtml(first(productOf(p), "description"));
-        if (description.isEmpty()) description = cleanHtml(first(p, "description", "note", "details", "badge"));
-        if (!description.isEmpty()) out.append("\n\n").append(description);
+        if (showMax() && maxPerMan(p) > 0) out.append("\nמקסימום ").append(maxPerMan(p));
+
+        String[][] blocks = {
+                {"תיאור", cleanHtml(first(prod, "description"))},
+                {"פרטים נוספים", cleanHtml(first(p, "description", "note", "details", "badge"))},
+                {"הכשר", cleanHtml(first(hechsher, "name"))},
+                {"רכיבים", metaText(meta, "ingredients")},
+                {"אלרגנים", metaText(meta, "allergens")},
+                {"עלול להכיל", metaText(meta, "precautionary_statement")},
+                {"אחסון", metaText(meta, "storage_instructions")}
+        };
+        Set<String> seen = new HashSet<>();
+        for (String[] block : blocks) {
+            String value = block[1] == null ? "" : block[1].trim();
+            if (value.isEmpty() || !seen.add(value)) continue;
+            out.append("\n\n").append(block[0]).append(": ").append(value);
+        }
         return out.toString().trim();
     }
 
@@ -5601,15 +5619,48 @@ public class MainActivity extends Activity {
         // controls appear consistently wherever a product can be opened.
         if ((closedOrderReadOnly || featureOrderId > 0) && findProduct(sidOf(p)) != null && !pid.isEmpty()) {
             if (!closedOrderReadOnly && featureOrderId > 0) {
-                TextView orderBtn = btn("🛒 הוספה / עדכון בהזמנה", PRIMARY);
-                orderBtn.setTextSize(14);
-                orderBtn.setMinHeight(dp(40));
-                orderBtn.setOnClickListener(v -> {
-                    dlg[0].dismiss();
-                    // Reuse the existing quantity picker and order-update flow.
-                    askQuantity(p, productsRefresh, null);
-                });
-                panel.addView(orderBtn, lp(-1, dp(40), 12, 0));
+                LinearLayout orderControls = new LinearLayout(this);
+                orderControls.setOrientation(LinearLayout.HORIZONTAL);
+                orderControls.setGravity(Gravity.CENTER_VERTICAL);
+                orderControls.setPadding(dp(8), dp(4), dp(8), dp(4));
+                orderControls.setBackground(ripple(shape(SURFACE, 12, ORANGE_LIGHT), 12));
+
+                TextView minusBtn = smallChip("−", TONAL);
+                minusBtn.setTextSize(20);
+                minusBtn.setContentDescription("הפחתת כמות");
+                TextView plusBtn = smallChip("+", PRIMARY);
+                plusBtn.setTextSize(20);
+                plusBtn.setContentDescription("הגדלת כמות");
+                TextView currentQty = text(String.valueOf(featureQuantities.containsKey(sidOf(p))
+                        ? featureQuantities.get(sidOf(p)) : 0), 17, true);
+                currentQty.setGravity(Gravity.CENTER);
+                currentQty.setMinWidth(dp(44));
+                currentQty.setContentDescription("כמות בהזמנה");
+                TextView qtyCaption = muted("כמות בהזמנה", 12);
+
+                LinearLayout qtyLabel = new LinearLayout(this);
+                qtyLabel.setOrientation(LinearLayout.VERTICAL);
+                qtyLabel.setGravity(Gravity.CENTER);
+                qtyLabel.addView(qtyCaption);
+                qtyLabel.addView(currentQty);
+
+                minusBtn.setOnClickListener(v -> changeBy(p, -1, () -> {
+                    Integer q = featureQuantities.get(sidOf(p));
+                    currentQty.setText(String.valueOf(q == null ? 0 : q));
+                    rebuildGrid();
+                }, null));
+                plusBtn.setOnClickListener(v -> changeBy(p, 1, () -> {
+                    Integer q = featureQuantities.get(sidOf(p));
+                    currentQty.setText(String.valueOf(q == null ? 0 : q));
+                    rebuildGrid();
+                }, null));
+
+                orderControls.addView(minusBtn, new LinearLayout.LayoutParams(dp(44), dp(38)));
+                LinearLayout.LayoutParams qtyLp = new LinearLayout.LayoutParams(0, dp(38), 1);
+                qtyLp.setMargins(dp(8), 0, dp(8), 0);
+                orderControls.addView(qtyLabel, qtyLp);
+                orderControls.addView(plusBtn, new LinearLayout.LayoutParams(dp(44), dp(38)));
+                panel.addView(orderControls, lp(-1, -2, 12, 0));
             }
 
             LinearLayout savedActionsRow = new LinearLayout(this);
@@ -5632,7 +5683,7 @@ public class MainActivity extends Activity {
         LinearLayout shareActionsRow = new LinearLayout(this);
         shareActionsRow.setOrientation(LinearLayout.HORIZONTAL);
         shareActionsRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView copyBtn = smallChip("📋 העתקה ללוח", OUTLINE);
+        TextView copyBtn = smallChip("📋 העתקה ללוח", TONAL);
         copyBtn.setTextSize(12);
         copyBtn.setOnClickListener(v -> copyText(productShareText(p)));
         TextView shareBtn = smallChip("📤 שיתוף", TONAL);
