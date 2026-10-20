@@ -4770,9 +4770,12 @@ public class MainActivity extends Activity {
         renderFeatureProducts(); // paints at once from memory (empty when nothing is cached yet)
         final int t = screenToken;
         if (inMemory) {
-            // A cached sale may already contain the target card; otherwise the fresh server load will retry.
-            navigateToPendingStockProduct(saleId);
-            if (System.currentTimeMillis() - productsLoadedAt > STALE_MS) refreshProducts(sale, true);
+            // Prefer a fresh server result for restock navigation; stale cached data can have a different order or availability.
+            if (System.currentTimeMillis() - productsLoadedAt > STALE_MS) {
+                refreshProducts(sale, true);
+            } else {
+                navigateToPendingStockProduct(saleId);
+            }
             return;
         }
         productsLoading = true;
