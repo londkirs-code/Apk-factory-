@@ -630,7 +630,7 @@ public class MainActivity extends Activity {
         if (root != null) root.post(() -> {
             boolean showedUpdateSuccess = showPendingInAppUpdateSuccess();
             if (!showedUpdateSuccess) checkForUpdatesOnLaunch();
-            if (reopenActionsAfterScale && hasToken()) showActionsDialog();
+            if (!showedUpdateSuccess && reopenActionsAfterScale && hasToken()) showActionsDialog();
         });
         else if (!showPendingInAppUpdateSuccess()) checkForUpdatesOnLaunch();
     }
