@@ -914,13 +914,11 @@ public class MainActivity extends Activity {
     }
 
     private void changeUiScale(int requestedPercent) {
-        int next = Math.max(80, Math.min(150, requestedPercent));
-        next = Math.max(80, Math.min(150, ((next + 5) / 10) * 10));
+        int bounded = Math.max(70, Math.min(130, requestedPercent));
+        int next = 70 + Math.round((bounded - 70) / 5.0f) * 5;
+        next = Math.max(70, Math.min(130, next));
         int current = prefs.getInt("ui_scale_percent", 100);
-        if (next == current) {
-            toast(next == 100 ? "גודל התצוגה כבר בגודל הרגיל" : "גודל התצוגה לא השתנה", false);
-            return;
-        }
+        if (next == current) return;
         float ratio = next / (float) current;
         prefs.edit().putInt("ui_scale_percent", next).apply();
         uiScale = next / 100.0f;
@@ -932,7 +930,6 @@ public class MainActivity extends Activity {
             }
         }
         if (currentScreen != null) currentScreen.requestLayout();
-        toast("גודל התצוגה עודכן ל־" + next + "%", false);
     }
 
     private void showActionsDialog() {
@@ -986,31 +983,48 @@ public class MainActivity extends Activity {
         hintParams.topMargin = dp(3);
         panel.addView(scaleHint, hintParams);
 
-        LinearLayout scaleRow = new LinearLayout(this);
-        scaleRow.setOrientation(LinearLayout.HORIZONTAL);
-        scaleRow.setGravity(Gravity.CENTER);
-        scaleRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        TextView minus = btn("−", OUTLINE);
-        minus.setTextSize(24);
-        minus.setContentDescription("הקטנת התצוגה");
-        int currentScalePercent = prefs.getInt("ui_scale_percent", 100);
+        int currentScalePercent = Math.max(70, Math.min(130, prefs.getInt("ui_scale_percent", 100)));
         TextView percent = text(currentScalePercent + "%", 21, true);
         percent.setGravity(Gravity.CENTER);
-        percent.setTextColor(INK);
-        TextView plus = btn("+", PRIMARY);
-        plus.setTextSize(24);
-        plus.setContentDescription("הגדלת התצוגה");
-        minus.setEnabled(currentScalePercent > 80);
-        plus.setEnabled(currentScalePercent < 150);
-        scaleRow.addView(minus, new LinearLayout.LayoutParams(dp(62), dp(48)));
-        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(dp(100), dp(48));
-        percentParams.leftMargin = dp(10);
-        percentParams.rightMargin = dp(10);
-        scaleRow.addView(percent, percentParams);
-        scaleRow.addView(plus, new LinearLayout.LayoutParams(dp(62), dp(48)));
-        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
-        rowParams.topMargin = dp(12);
-        panel.addView(scaleRow, rowParams);
+        percent.setTextColor(ORANGE_DARK);
+        percent.setBackground(ripple(shape(ORANGE_LIGHT, 14, LINE), 14));
+        percent.setPadding(dp(18), dp(6), dp(18), dp(6));
+        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(-2, dp(42));
+        percentParams.topMargin = dp(10);
+        percentParams.bottomMargin = dp(4);
+        panel.addView(percent, percentParams);
+
+        SeekBar scaleSlider = new SeekBar(this);
+        scaleSlider.setMax(12);
+        scaleSlider.setProgress((currentScalePercent - 70) / 5);
+        scaleSlider.setContentDescription("גודל התצוגה, מ־70 עד 130 אחוז בקפיצות של 5");
+        if (Build.VERSION.SDK_INT >= 21) {
+            scaleSlider.setProgressTintList(ColorStateList.valueOf(ORANGE));
+            scaleSlider.setThumbTintList(ColorStateList.valueOf(ORANGE));
+            scaleSlider.setProgressBackgroundTintList(ColorStateList.valueOf(LINE));
+        }
+        panel.addView(scaleSlider, new LinearLayout.LayoutParams(-1, dp(42)));
+
+        LinearLayout scaleMarks = new LinearLayout(this);
+        scaleMarks.setOrientation(LinearLayout.HORIZONTAL);
+        scaleMarks.setGravity(Gravity.CENTER);
+        scaleMarks.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        for (int mark : new int[]{70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130}) {
+            TextView label = muted(String.valueOf(mark), 9);
+            label.setGravity(Gravity.CENTER);
+            scaleMarks.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
+        }
+        panel.addView(scaleMarks, new LinearLayout.LayoutParams(-1, -2));
+
+        scaleSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int selected = 70 + progress * 5;
+                percent.setText(selected + "%");
+                if (fromUser) changeUiScale(selected);
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) { }
+            @Override public void onStopTrackingTouch(SeekBar seekBar) { }
+        });
 
         TextView reset = btn("↺  איפוס לגודל הרגיל", OUTLINE);
         reset.setGravity(Gravity.CENTER);
@@ -1029,18 +1043,7 @@ public class MainActivity extends Activity {
             toggleNightMode();
             showActionsDialog();
         });
-        minus.setOnClickListener(v -> {
-            dialog.dismiss();
-            changeUiScale(prefs.getInt("ui_scale_percent", 100) - 10);
-        });
-        plus.setOnClickListener(v -> {
-            dialog.dismiss();
-            changeUiScale(prefs.getInt("ui_scale_percent", 100) + 10);
-        });
-        reset.setOnClickListener(v -> {
-            dialog.dismiss();
-            changeUiScale(100);
-        });
+        reset.setOnClickListener(v -> scaleSlider.setProgress((100 - 70) / 5));
         dialog.setOnShowListener(ignored -> {
             if (dialog.getWindow() != null) {
                 dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
