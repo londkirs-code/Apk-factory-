@@ -628,10 +628,11 @@ public class MainActivity extends Activity {
         }
         // Check for a newer release once per app launch; the setting defaults to enabled.
         if (root != null) root.post(() -> {
-            checkForUpdatesOnLaunch();
+            boolean showedUpdateSuccess = showPendingInAppUpdateSuccess();
+            if (!showedUpdateSuccess) checkForUpdatesOnLaunch();
             if (reopenActionsAfterScale && hasToken()) showActionsDialog();
         });
-        else checkForUpdatesOnLaunch();
+        else if (!showPendingInAppUpdateSuccess()) checkForUpdatesOnLaunch();
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -2301,6 +2302,52 @@ public class MainActivity extends Activity {
         root.addView(log, lp(-1, dp(42), 0, 6));
     }
 
+    /**
+     * Shows a success message only when the installed version actually changed after
+     * the user started an update from this app. Pending details are stored immediately
+     * before opening Android's installer and are cleared on failure/cancellation.
+     */
+    private boolean showPendingInAppUpdateSuccess() {
+        if (!prefs.getBoolean("in_app_update_success_pending", false)) return false;
+
+        int oldCode = prefs.getInt("in_app_update_old_code", 0);
+        String oldName = prefs.getString("in_app_update_old_name", "לא ידועה");
+        int targetCode = prefs.getInt("in_app_update_target_code", 0);
+        String targetName = prefs.getString("in_app_update_target_name", "");
+        String notes = prefs.getString("in_app_update_notes", "").trim();
+        int currentCode = installedVersionCode();
+        String currentName = installedVersionName();
+
+        // No version change means installation was cancelled or did not succeed.
+        if (oldCode <= 0 || currentCode <= oldCode || targetCode <= 0 || currentCode < targetCode) {
+            clearPendingInAppUpdateSuccess();
+            return false;
+        }
+
+        clearPendingInAppUpdateSuccess();
+        String message = "מגרסה " + oldName + " (" + oldCode + ") לגרסה "
+                + currentName + " (" + currentCode + ")."
+                + "\n\nמה חדש?\n"
+                + (notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה זו." : notes);
+        appDialog()
+                .setTitle("✅ האפליקציה עודכנה בהצלחה!")
+                .setMessage(message)
+                .setPositiveButton("מעולה", null)
+                .show();
+        return true;
+    }
+
+    private void clearPendingInAppUpdateSuccess() {
+        prefs.edit()
+                .remove("in_app_update_success_pending")
+                .remove("in_app_update_old_code")
+                .remove("in_app_update_old_name")
+                .remove("in_app_update_target_code")
+                .remove("in_app_update_target_name")
+                .remove("in_app_update_notes")
+                .apply();
+    }
+
     private int installedVersionCode() {
         try {
             android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
@@ -2657,10 +2704,18 @@ public class MainActivity extends Activity {
             install.setDataAndType(uri, "application/vnd.android.package-archive");
             install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             install.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            prefs.edit().putBoolean("update_auto_install_pending", false).apply();
+            prefs.edit().putBoolean("update_auto_install_pending", false)
+                    .putBoolean("in_app_update_success_pending", true)
+                    .putInt("in_app_update_old_code", installedVersionCode())
+                    .putString("in_app_update_old_name", installedVersionName())
+                    .putInt("in_app_update_target_code", updateLatestCode)
+                    .putString("in_app_update_target_name", updateLatestName)
+                    .putString("in_app_update_notes", prefs.getString("update_release_notes", updateReleaseNotes))
+                    .apply();
             startActivity(install);
         } catch (Exception error) {
             prefs.edit().putBoolean("update_auto_install_pending", false).apply();
+            clearPendingInAppUpdateSuccess();
             if (updateStatusView != null) updateStatusView.setText("הקובץ אומת, אך מתקין Android לא נפתח. אפשר ללחוץ על התקנה ידנית ולנסות שוב.");
             if (updateInstallButton != null) updateInstallButton.setVisibility(View.VISIBLE);
             toast("לא ניתן לפתוח את מתקין Android. אפשר לנסות שוב בכפתור ההתקנה הידנית.", true);
