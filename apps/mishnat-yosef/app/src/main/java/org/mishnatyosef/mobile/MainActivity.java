@@ -2095,7 +2095,7 @@ public class MainActivity extends Activity {
         LinearLayout card = card(14);
         card.addView(text("📤 שיתוף האפליקציה", 15, true));
         card.addView(muted("שליחת קובץ ההתקנה של משנת יוסף לחבר", 13), lp(-1, -2, 0, 8));
-        TextView share = btn("📤 שיתוף קובץ APK", PRIMARY);
+        TextView share = btn("📤 שיתוף קובץ APK", TONAL);
         share.setOnClickListener(v -> shareAppToFriend());
         card.addView(share, new LinearLayout.LayoutParams(-1, dp(46)));
         root.addView(card, lp(-1, -2, 0, 10));
