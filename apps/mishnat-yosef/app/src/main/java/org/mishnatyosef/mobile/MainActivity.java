@@ -6028,8 +6028,8 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (requestId != histRequestId) return;
                     histLoading = false;
-                    histMore.setVisibility(View.GONE);
                     if (stale(t) || !q.equals(histSearch)) return;
+                    histMore.setVisibility(View.GONE);
                     setStatus(page == 1 && orders.length() == 0 ? "לא נמצאו הזמנות." : "");
                     histPage = page;
                     histLast = lastPage;
@@ -6067,6 +6067,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (requestId != histRequestId) return;
                     histLoading = false;
+                    if (stale(t)) return;
                     histMore.setVisibility(View.GONE);
                     fail(t, e, "טעינת ההיסטוריה נכשלה.");
                 });
