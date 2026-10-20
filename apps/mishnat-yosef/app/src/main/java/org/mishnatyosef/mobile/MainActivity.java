@@ -2095,7 +2095,7 @@ public class MainActivity extends Activity {
         LinearLayout card = card(14);
         card.addView(text("📤 שיתוף האפליקציה", 15, true));
         card.addView(muted("שליחת קובץ ההתקנה של משנת יוסף לחבר", 13), lp(-1, -2, 0, 8));
-        TextView share = btn("📲 שתף את האפליקציה לחבר", PRIMARY);
+        TextView share = btn("📤 שיתוף קובץ APK", PRIMARY);
         share.setOnClickListener(v -> shareAppToFriend());
         card.addView(share, new LinearLayout.LayoutParams(-1, dp(46)));
         root.addView(card, lp(-1, -2, 0, 10));
@@ -2148,7 +2148,7 @@ public class MainActivity extends Activity {
             toast("קובץ האפליקציה לא נמצא. נסה שוב.", true);
             return;
         }
-        Uri uri = Uri.parse("content://" + getPackageName() + ".jsonreports/mishnat-yosef.apk");
+        Uri uri = Uri.withAppendedPath(Uri.parse("content://" + getPackageName() + ".jsonreports"), apk.getName());
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setType("application/vnd.android.package-archive");
         share.putExtra(Intent.EXTRA_STREAM, uri);
@@ -2157,7 +2157,7 @@ public class MainActivity extends Activity {
         share.setClipData(ClipData.newUri(getContentResolver(), "משנת יוסף.apk", uri));
         share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         try {
-            startActivity(Intent.createChooser(share, "שתף את האפליקציה לחבר"));
+            startActivity(Intent.createChooser(share, "שיתוף קובץ APK"));
         } catch (Exception error) {
             toast("לא ניתן לפתוח את חלון השיתוף.", true);
         }
