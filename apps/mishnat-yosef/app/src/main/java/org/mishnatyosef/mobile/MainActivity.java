@@ -580,23 +580,23 @@ public class MainActivity extends Activity {
             int key = event.getKeyCode();
             // Do not steal number keys while the user is typing in search, login, or another text field.
             if (!editingText) {
-                if (event.getRepeatCount() == 0 && isKeypadKey(key, KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0)) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0)) {
                     focusBottomNavigation();
                     return true;
                 }
-                if (event.getRepeatCount() == 0 && hasToken() && (key == KeyEvent.KEYCODE_POUND || key == KeyEvent.KEYCODE_NUMPAD_ADD)) {
+                if (hasToken() && (key == KeyEvent.KEYCODE_POUND || key == KeyEvent.KEYCODE_NUMPAD_ADD)) {
                     moveBottomTabByKey(true);
                     return true;
                 }
-                if (event.getRepeatCount() == 0 && hasToken() && (key == KeyEvent.KEYCODE_STAR || key == KeyEvent.KEYCODE_NUMPAD_MULTIPLY)) {
+                if (hasToken() && (key == KeyEvent.KEYCODE_STAR || key == KeyEvent.KEYCODE_NUMPAD_MULTIPLY)) {
                     moveBottomTabByKey(false);
                     return true;
                 }
-                if (event.getRepeatCount() == 0 && isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
                     scrollOrderToEdge(false);
                     return true;
                 }
-                if (event.getRepeatCount() == 0 && isKeypadKey(key, KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8)) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8)) {
                     scrollOrderToEdge(true);
                     return true;
                 }
@@ -1399,9 +1399,13 @@ public class MainActivity extends Activity {
         button.setBackground(ripple(
                 shape(fill, ACTION_BUTTON_RADIUS_DP, stroke), ACTION_BUTTON_RADIUS_DP));
         button.setOnFocusChangeListener((view, focused) -> {
-            button.setBackground(ripple(shape(fill, ACTION_BUTTON_RADIUS_DP, focused ? ORANGE_DARK : stroke), ACTION_BUTTON_RADIUS_DP));
-            button.setElevation(focused ? dp(3) : 0);
+            // High-contrast blue focus ring, intentionally distinct from the orange button theme.
+            button.setBackground(ripple(shape(fill, ACTION_BUTTON_RADIUS_DP,
+                    focused ? Color.rgb(0, 105, 210) : stroke, focused ? dp(4) : dp(1)),
+                    ACTION_BUTTON_RADIUS_DP));
+            button.setElevation(focused ? dp(5) : 0);
         });
+        button.setBackground(ripple(shape(fill, ACTION_BUTTON_RADIUS_DP, stroke, dp(1)), ACTION_BUTTON_RADIUS_DP));
         button.setMinHeight(dp(44));
         button.setAllCaps(false);
     }
@@ -1457,7 +1461,7 @@ public class MainActivity extends Activity {
             GradientDrawable focusedOval = new GradientDrawable();
             focusedOval.setShape(GradientDrawable.OVAL);
             focusedOval.setColor(fill);
-            focusedOval.setStroke(dp(focused ? 3 : 0), ORANGE_DARK);
+            focusedOval.setStroke(dp(focused ? 4 : 1), focused ? Color.rgb(0, 105, 210) : LINE);
             GradientDrawable focusedMask = new GradientDrawable();
             focusedMask.setShape(GradientDrawable.OVAL);
             focusedMask.setColor(Color.WHITE);
@@ -3836,36 +3840,19 @@ public class MainActivity extends Activity {
         };
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
+        // Any tap closes the viewer, including taps directly on the photo and on empty bands.
         overlay.setOnClickListener(v -> dialog.dismiss());
-        // The image container also handles empty bands above and below the photo.
-        // The preview touch handler below distinguishes the actual image from FIT_CENTER margins.
         imageContainer.setClickable(true);
         imageContainer.setOnClickListener(v -> dialog.dismiss());
-        // Taps on the visible photo keep it open; taps in the empty space around it dismiss it.
-        preview.setOnTouchListener((v, event) -> {
-            if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
-                if (preview.getDrawable() == null) {
-                    dialog.dismiss();
-                    return true;
-                }
-                int photoWidth = preview.getDrawable().getIntrinsicWidth();
-                int photoHeight = preview.getDrawable().getIntrinsicHeight();
-                if (photoWidth <= 0 || photoHeight <= 0) {
-                    dialog.dismiss();
-                    return true;
-                }
-                float scale = Math.min((float) preview.getWidth() / photoWidth,
-                        (float) preview.getHeight() / photoHeight);
-                float shownWidth = photoWidth * scale;
-                float shownHeight = photoHeight * scale;
-                float left = (preview.getWidth() - shownWidth) / 2f;
-                float top = (preview.getHeight() - shownHeight) / 2f;
-                if (event.getX() < left || event.getX() > left + shownWidth
-                        || event.getY() < top || event.getY() > top + shownHeight) {
-                    dialog.dismiss();
-                }
+        preview.setClickable(true);
+        preview.setOnClickListener(v -> dialog.dismiss());
+        // Any physical key closes the viewer as requested; BACK is still handled by the dialog.
+        dialog.setOnKeyListener((d, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                dialog.dismiss();
+                return true;
             }
-            return true;
+            return false;
         });
         close.setOnClickListener(v -> dialog.dismiss());
         dialog.setCancelable(true);
@@ -9613,6 +9600,8 @@ public class MainActivity extends Activity {
             scaleValue.setText("100%");
             changeUiScale(100);
         });
+        // Keep the reset action directly under the scale control, in the same display settings section.
+        resetScale.setContentDescription("איפוס גודל התצוגה לברירת המחדל, 100 אחוז");
 
         View divider = new View(this);
         divider.setBackgroundColor(LINE);
