@@ -5363,6 +5363,7 @@ public class MainActivity extends Activity {
         productList = new ListView(this);
         productList.setFocusable(true);
         productList.setFocusableInTouchMode(false);
+        productList.setItemsCanFocus(true);
         productList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         productList.setContentDescription("רשימת מוצרי ההזמנה. בחרו כרטיס מוצר והשתמשו בחיצים למעבר בין מוצרים");
         productList.setDivider(null);
