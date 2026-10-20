@@ -407,8 +407,25 @@ public class MainActivity extends Activity {
     private static final long STALE_MS = 5L * 60L * 1000L;
     private static final int PAGE_LIMIT = 100;
     private final Runnable productsRefresh = () -> {
+        View focusedBeforeRefresh = getCurrentFocus();
+        String focusTag = focusedBeforeRefresh == null ? null : (focusedBeforeRefresh.getTag() instanceof String ? (String) focusedBeforeRefresh.getTag() : null);
+        View cardView = focusedBeforeRefresh;
+        while (cardView != null && !(cardView.getTag() instanceof String && ((String) cardView.getTag()).startsWith("productCard:"))) {
+            if (!(cardView.getParent() instanceof View)) { cardView = null; break; }
+            cardView = (View) cardView.getParent();
+        }
+        String productTag = cardView != null && cardView.getTag() instanceof String ? (String) cardView.getTag() : null;
         if (productAdapter != null) productAdapter.notifyDataSetChanged();
         updateOrderBar();
+        if (productTag != null && focusTag != null && currentScreen != null) {
+            final String restoreProductTag = productTag, restoreFocusTag = focusTag;
+            currentScreen.post(() -> {
+                View updatedCard = findTaggedView(currentScreen, restoreProductTag);
+                View updatedFocus = findTaggedView(updatedCard, restoreFocusTag);
+                if (updatedFocus != null && updatedFocus.isShown() && updatedFocus.isEnabled()) updatedFocus.requestFocus();
+                else if (updatedCard != null && updatedCard.isShown()) updatedCard.requestFocus();
+            });
+        }
     };
     private TextView barInfo, barTotal;
 
@@ -575,19 +592,19 @@ public class MainActivity extends Activity {
                     moveBottomTabByKey(false);
                     return true;
                 }
-                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
                     scrollOrderToEdge(false);
                     return true;
                 }
-                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8)) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8)) {
                     scrollOrderToEdge(true);
                     return true;
                 }
-                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_NUMPAD_1)) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_NUMPAD_1)) {
                     scrollOrderByKey(false);
                     return true;
                 }
-                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_3, KeyEvent.KEYCODE_NUMPAD_3)) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_3, KeyEvent.KEYCODE_NUMPAD_3)) {
                     scrollOrderByKey(true);
                     return true;
                 }
@@ -608,6 +625,9 @@ public class MainActivity extends Activity {
             productList.smoothScrollBy(down ? distance : -distance, 220);
         } else if (scrollView != null) {
             scrollView.smoothScrollBy(0, down ? distance : -distance);
+        } else {
+            View content = currentScreen;
+            if (content != null) content.scrollBy(0, down ? distance : -distance);
         }
     }
 
@@ -621,6 +641,8 @@ public class MainActivity extends Activity {
             });
         } else if (scrollView != null) {
             scrollView.post(() -> scrollView.fullScroll(bottom ? View.FOCUS_DOWN : View.FOCUS_UP));
+        } else if (currentScreen != null) {
+            currentScreen.post(() -> currentScreen.scrollTo(0, bottom ? currentScreen.getHeight() : 0));
         }
     }
 
@@ -1366,6 +1388,10 @@ public class MainActivity extends Activity {
         button.setTextColor(foreground);
         button.setBackground(ripple(
                 shape(fill, ACTION_BUTTON_RADIUS_DP, stroke), ACTION_BUTTON_RADIUS_DP));
+        button.setOnFocusChangeListener((view, focused) -> {
+            button.setBackground(ripple(shape(fill, ACTION_BUTTON_RADIUS_DP, focused ? ORANGE_DARK : stroke), ACTION_BUTTON_RADIUS_DP));
+            button.setElevation(focused ? dp(3) : 0);
+        });
         button.setMinHeight(dp(44));
         button.setAllCaps(false);
     }
@@ -1417,6 +1443,17 @@ public class MainActivity extends Activity {
         mask.setShape(GradientDrawable.OVAL);
         mask.setColor(Color.WHITE);
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(50, 230, 94, 20)), oval, mask));
+        b.setOnFocusChangeListener((view, focused) -> {
+            GradientDrawable focusedOval = new GradientDrawable();
+            focusedOval.setShape(GradientDrawable.OVAL);
+            focusedOval.setColor(fill);
+            focusedOval.setStroke(dp(focused ? 3 : 0), ORANGE_DARK);
+            GradientDrawable focusedMask = new GradientDrawable();
+            focusedMask.setShape(GradientDrawable.OVAL);
+            focusedMask.setColor(Color.WHITE);
+            b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(65, 230, 94, 20)), focusedOval, focusedMask));
+            b.setElevation(focused ? dp(4) : 0);
+        });
         b.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
         return b;
     }
@@ -3744,7 +3781,7 @@ public class MainActivity extends Activity {
         int imageWidth = Math.max(dp(180), Math.min((int) (screenWidth * 0.86f), screenWidth - dp(32)));
         int imageHeight = Math.max(dp(180), Math.min((int) (screenHeight * 0.72f), screenHeight - dp(100)));
         FrameLayout.LayoutParams containerLp = new FrameLayout.LayoutParams(
-                imageWidth, imageHeight, Gravity.CENTER);
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER);
         overlay.addView(imageContainer, containerLp);
 
         ImageView preview = new ImageView(this);
@@ -5805,6 +5842,8 @@ public class MainActivity extends Activity {
             autoOrderSaveButton=btn("שמירה להזמנה אוטומטית",PRIMARY);LinearLayout.LayoutParams saveLp=new LinearLayout.LayoutParams(0,dp(36),1f);saveLp.setMarginStart(dp(6));autoRow.addView(autoOrderSaveButton,saveLp);
             autoOrderPanel.addView(autoRow,lp(-1,-2,0,4));card.addView(autoOrderPanel,lp(-1,-2,5,0));
             stockAlertButton=btn("🔔 התראה כשהמוצר חוזר למלאי",OUTLINE);stockAlertButton.setVisibility(View.GONE);card.addView(stockAlertButton,lp(-1,dp(36),5,0));
+            autoOrderStepper.plus.setTag("autoOrderPlus");
+            autoOrderStepper.minus.setTag("autoOrderMinus");
             autoOrderStepper.plus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,1,autoOrderStepper);});
             autoOrderStepper.minus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,-1,autoOrderStepper);});
             autoOrderSaveButton.setOnClickListener(v->{if(p!=null)saveAutoOrder(p,stockDraftQty(p));});
@@ -5813,6 +5852,10 @@ public class MainActivity extends Activity {
             card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             star.setOnClickListener(v -> { if (p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
+            add.setTag("productAdd");
+            st.plus.setTag("productPlus");
+            st.minus.setTag("productMinus");
+            card.setTag("productCard:");
             add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
             st.plus.setOnClickListener(v -> {
                 if (p == null) return;
@@ -5860,6 +5903,7 @@ public class MainActivity extends Activity {
 
         void bind(JSONObject prod) {
             p = prod;
+            card.setTag("productCard:" + sidOf(prod));
             card.setContentDescription(productName(prod) + ". כרטיס מוצר. Enter לפתיחת פרטי המוצר; חיצים למעבר בין מוצרים");
             card.setFocusable(true);
             adaptCardSize();
@@ -9461,12 +9505,13 @@ public class MainActivity extends Activity {
     }
 
     private void addDisplaySettings() {
-        TextView displaySettingsButton = btn("🎨  הגדרות תצוגה", TONAL);
-        displaySettingsButton.setGravity(Gravity.CENTER);
-        displaySettingsButton.setMinHeight(dp(48));
-        displaySettingsButton.setTextSize(15);
-        displaySettingsButton.setOnClickListener(v -> showDisplaySettingsPage());
-        root.addView(displaySettingsButton, lp(-1, dp(48), 0, 10));
+        LinearLayout card = card(14);
+        card.addView(text("🎨 הגדרות תצוגה", 15, true));
+        card.addView(muted("התאמת גודל הטקסט, התצוגה ומספר העמודות בכרטיסי המוצרים", 13), lp(-1, -2, 0, 8));
+        TextView settings = btn("⚙️ פתיחת הגדרות תצוגה", TONAL);
+        settings.setOnClickListener(v -> showDisplaySettingsPage());
+        card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
+        root.addView(card, lp(-1, -2, 0, 10));
     }
 
     private void showDisplaySettingsPage() {
