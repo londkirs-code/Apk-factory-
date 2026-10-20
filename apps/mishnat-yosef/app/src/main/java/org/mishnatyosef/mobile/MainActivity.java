@@ -608,6 +608,32 @@ public class MainActivity extends Activity {
                     moveBottomTabByKey(false);
                     return true;
                 }
+                // Display shortcuts: 4/6 adjust the global UI scale, and 5 cycles
+                // product-card columns. Ignore long-press repeats so one press means one step.
+                if (isKeypadKey(key, KeyEvent.KEYCODE_4, KeyEvent.KEYCODE_NUMPAD_4)) {
+                    if (event.getRepeatCount() == 0) {
+                        int currentScale = Math.max(70, Math.min(130, prefs.getInt("ui_scale_percent", 100)));
+                        changeUiScale(currentScale - 5);
+                        toast("גודל התצוגה: " + Math.max(70, currentScale - 5) + "%", false);
+                    }
+                    return true;
+                }
+                if (isKeypadKey(key, KeyEvent.KEYCODE_6, KeyEvent.KEYCODE_NUMPAD_6)) {
+                    if (event.getRepeatCount() == 0) {
+                        int currentScale = Math.max(70, Math.min(130, prefs.getInt("ui_scale_percent", 100)));
+                        changeUiScale(currentScale + 5);
+                        toast("גודל התצוגה: " + Math.min(130, currentScale + 5) + "%", false);
+                    }
+                    return true;
+                }
+                if (isKeypadKey(key, KeyEvent.KEYCODE_5, KeyEvent.KEYCODE_NUMPAD_5)) {
+                    if (event.getRepeatCount() == 0) {
+                        int nextColumns = cardColumns() % 5 + 1;
+                        commitCardColumns(nextColumns, false);
+                        toast("פריסת המוצרים: " + cardSizeLabel(nextColumns), false);
+                    }
+                    return true;
+                }
                 if (isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
                     scrollOrderToEdge(false);
                     return true;
