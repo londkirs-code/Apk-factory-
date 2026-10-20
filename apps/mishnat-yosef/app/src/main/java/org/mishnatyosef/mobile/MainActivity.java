@@ -1828,12 +1828,12 @@ public class MainActivity extends Activity {
 
     private void showAccount() {
         beginScreen("חשבון והגדרות", 3, null);
-        addDisplaySettings();
         LinearLayout acc = card(14);
         acc.addView(muted("מחובר כ", 12));
         acc.addView(text(prefs.getString("email", ""), 16, true));
         acc.addView(muted(tokenStatus(), 12));
         root.addView(acc, lp(-1, -2, 0, 10));
+        addDisplaySettings();
         addHomeNotificationSettings();
         addHomeStockSettings();
         addHomeUpdateSettings();
@@ -9224,10 +9224,6 @@ public class MainActivity extends Activity {
         controls.setBackground(shape(SURFACE, 16, LINE));
         controls.setVisibility(View.VISIBLE);
 
-        controls.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (button, checked) -> {
-            if (checked != nightMode) toggleNightMode();
-        }));
-        controls.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(1)));
         TextView scaleTitle = text("Aa  גודל טקסט ותצוגה", 15, true);
         scaleTitle.setTextColor(INK);
         LinearLayout.LayoutParams scaleTitleLp = new LinearLayout.LayoutParams(-1, -2);
@@ -9367,6 +9363,15 @@ public class MainActivity extends Activity {
             prefs.edit().putBoolean("hide_sold_out", checked).apply();
             if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
             toast(checked ? "🙈 פריטים שאזלו מוסתרים" : "פריטים שאזלו מוצגים", false);
+        }));
+        View stockDisplayDivider = new View(this);
+        stockDisplayDivider.setBackgroundColor(LINE);
+        LinearLayout.LayoutParams stockDisplayDividerLp = new LinearLayout.LayoutParams(-1, dp(1));
+        stockDisplayDividerLp.topMargin = dp(12);
+        stockDisplayDividerLp.bottomMargin = dp(8);
+        controls.addView(stockDisplayDivider, stockDisplayDividerLp);
+        controls.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (button, checked) -> {
+            if (checked != nightMode) toggleNightMode();
         }));
         card.addView(controls, lp(-1, -2, 0, 0));
         root.addView(card, lp(-1, -2, 0, 10));
