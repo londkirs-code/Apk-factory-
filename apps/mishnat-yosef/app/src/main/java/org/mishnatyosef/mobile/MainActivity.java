@@ -677,6 +677,29 @@ public class MainActivity extends Activity {
         return null;
     }
 
+    // Restore the exact product action after ListView rows are rebound. A single post is not
+    // reliable here: notifyDataSetChanged can recycle/rebind the row again after the first frame.
+    private void restoreProductActionFocus(String productId, String actionTag) {
+        if (productId == null || productId.isEmpty() || actionTag == null) return;
+        final View screenAtRequest = currentScreen;
+        final String cardTag = "productCard:" + productId;
+        final int[] attempts = {0};
+        Runnable restore = new Runnable() {
+            @Override public void run() {
+                if (currentScreen != screenAtRequest || !showingOrderScreen || productList == null) return;
+                View cardView = findTaggedView(productList, cardTag);
+                View target = findTaggedView(cardView, actionTag);
+                if (target != null && target.isShown() && target.isEnabled() && target.isFocusable()) {
+                    target.requestFocus();
+                    if (getCurrentFocus() == target) return;
+                }
+                if (++attempts[0] < 8) productList.postOnAnimation(this);
+            }
+        };
+        if (productList != null) productList.post(restore);
+        else if (currentScreen != null) currentScreen.post(restore);
+    }
+
     /** '#' moves visually right in RTL; '*' moves visually left and opens the destination immediately. */
     private void moveBottomTabByKey(boolean visuallyRight) {
         final int[] visualRtlOrder = {0, 1, TAB_COLLECT, 2, 3};
@@ -5893,6 +5916,7 @@ public class MainActivity extends Activity {
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             star.setOnClickListener(v -> { if (p != null) toggleFavourite(p, () -> { if ("fav".equals(viewMode)) rebuildGrid(); else productsRefresh.run(); }); });
             add.setTag("productAdd");
+            setProductActionEnterHandler(add, "productAdd");
             st.plus.setTag("productPlus");
             st.minus.setTag("productMinus");
             // Include the stable product identifier so focus can be restored after adapter rebinding.
@@ -5916,12 +5940,16 @@ public class MainActivity extends Activity {
         }
 
         private void setStepperEnterHandler(TextView button, boolean plus) {
+            setProductActionEnterHandler(button, plus ? "productPlus" : "productMinus");
+        }
+
+        private void setProductActionEnterHandler(TextView button, String actionTag) {
             button.setOnKeyListener((view, keyCode, event) -> {
                 if (keyCode != KeyEvent.KEYCODE_ENTER
                         && keyCode != KeyEvent.KEYCODE_NUMPAD_ENTER
                         && keyCode != KeyEvent.KEYCODE_DPAD_CENTER) return false;
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    // Consume repeats while Enter is held; one physical press changes quantity once.
+                    // Consume the entire key press so Android cannot move focus after clicking.
                     return true;
                 }
                 if (event.getAction() == KeyEvent.ACTION_UP) {
@@ -5929,13 +5957,7 @@ public class MainActivity extends Activity {
                     if (product == null) return true;
                     String productId = sidOf(product);
                     view.performClick();
-                    View screenAtPress = currentScreen;
-                    if (screenAtPress != null) screenAtPress.post(() -> {
-                        if (currentScreen == null || currentScreen != screenAtPress) return;
-                        View cardView = findTaggedView(currentScreen, "productCard:" + productId);
-                        View target = findTaggedView(cardView, plus ? "productPlus" : "productMinus");
-                        if (target != null && target.isShown() && target.isEnabled()) target.requestFocus();
-                    });
+                    restoreProductActionFocus(productId, actionTag);
                     return true;
                 }
                 return true;
