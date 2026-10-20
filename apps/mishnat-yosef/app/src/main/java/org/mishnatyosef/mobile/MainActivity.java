@@ -551,6 +551,10 @@ public class MainActivity extends Activity {
         Locale hebrew = new Locale("he", "IL");
         config.setLocale(hebrew);
         config.setLayoutDirection(hebrew);
+        int percent = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getInt("ui_scale_percent", 100);
+        percent = Math.max(80, Math.min(150, percent));
+        config.fontScale = config.fontScale * (percent / 100.0f);
         super.attachBaseContext(base.createConfigurationContext(config));
     }
 
@@ -577,15 +581,6 @@ public class MainActivity extends Activity {
         float y = event.getRawY();
         return x >= location[0] && x < location[0] + view.getWidth()
                 && y >= location[1] && y < location[1] + view.getHeight();
-    }
-
-    @Override protected void attachBaseContext(Context newBase) {
-        int percent = newBase.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getInt("ui_scale_percent", 100);
-        percent = Math.max(80, Math.min(150, percent));
-        Configuration configuration = new Configuration(newBase.getResources().getConfiguration());
-        configuration.fontScale = configuration.fontScale * (percent / 100.0f);
-        super.attachBaseContext(newBase.createConfigurationContext(configuration));
     }
 
     @Override public void onCreate(Bundle state) {
@@ -966,7 +961,7 @@ public class MainActivity extends Activity {
         percentParams.leftMargin = dp(10);
         percentParams.rightMargin = dp(10);
         scaleRow.addView(percent, percentParams);
-        scaleRow.addView(plus, controlParams);
+        scaleRow.addView(plus, new LinearLayout.LayoutParams(dp(62), dp(48)));
         LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
         rowParams.topMargin = dp(12);
         panel.addView(scaleRow, rowParams);
