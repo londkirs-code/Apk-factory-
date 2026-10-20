@@ -1,9 +1,9 @@
 {
-  "versionCode": 296,
-  "versionName": "1.458",
+  "versionCode": 297,
+  "versionName": "1.459",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "b0c3a4934915d2b3b6cfc8a1ac0fa328af55d07b24988f7032fa7be01876327e",
+  "sha256": "13976a7455aed2f64c99603f507fe5e6e670956e9920b4bbaf74f2f278f918f4",
   "releaseTitle": "ניווט מהיר בין קטגוריות",
   "releaseNotes": "- מקש 7 עובר לקטגוריה הקודמת בעמוד ההזמנה.\n- מקש 9 עובר לקטגוריה הבאה בעמוד ההזמנה.\n- המעבר גולל מיד לקטגוריה שנבחרה — אין צורך ללחוץ על Enter.\n- המעבר בין הקטגוריות מעגלי: אחרי האחרונה חוזרים לראשונה ולהפך.\n- הקיצורים פועלים גם במקשי הספרות הרגילים וגם בלוח הספרות, בלי לשנות את שאר קיצורי המקשים.",
-  "buildCommit": "8d6e8b2a2c566f3087b12a3caa228e931f60c4e5"
+  "buildCommit": "70509f2ec78ef6b3681d234b75b9bddbc5417506"
 }
