@@ -1,9 +1,9 @@
 {
-  "versionCode": 253,
-  "versionName": "1.415",
+  "versionCode": 254,
+  "versionName": "1.416",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "ffdbe52cef96f698478a792c612a17e81f6a487192fdf4ea986816b9c5f6523a",
+  "sha256": "05b5606bddd19747f9c6c238e62e66bc9e9cab107c7cff25f7dab54885488a0f",
   "releaseTitle": "התאמת צבע כפתור שיתוף APK",
   "releaseNotes": "צבע כפתור „שיתוף קובץ APK” הותאם לסגנון הכתום הבהיר של כפתורי הפעולות האחרים במסך, במקום צבע ההדגשה הראשי.",
-  "buildCommit": "fc6fa88ff0fcd97fbe9ca6b179dd70c8ec0bc49c"
+  "buildCommit": "02a383993766821d190dbe849abd17a7d7015de7"
 }
