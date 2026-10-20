@@ -3534,7 +3534,6 @@ public class MainActivity extends Activity {
         loading.setBackground(shape(Color.argb(185, 30, 33, 36), 14, 0));
         FrameLayout.LayoutParams loadingLp = new FrameLayout.LayoutParams(-2, dp(48), Gravity.CENTER);
         imageContainer.addView(loading, loadingLp);
-        loading.setOnClickListener(v -> { });
 
         // The close button sits directly over the photo, with no separate card or frame.
         TextView close = text("×", 27, true);
