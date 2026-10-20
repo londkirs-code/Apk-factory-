@@ -420,7 +420,7 @@ public class MainActivity extends Activity {
             cardView = (View) cardView.getParent();
         }
         String productTag = cardView != null && cardView.getTag() instanceof String ? (String) cardView.getTag() : null;
-        if (productAdapter != null) productAdapter.notifyDataSetChanged();
+        refreshVisibleProductRows();
         updateOrderBar();
         if (pendingProductFocusId != null && pendingProductFocusAction != null) {
             restoreProductActionFocus(pendingProductFocusId, pendingProductFocusAction);
@@ -469,9 +469,6 @@ public class MainActivity extends Activity {
     private final Map<String, TextView> catChips = new LinkedHashMap<>();
     private final Map<String, Integer> catCounts = new LinkedHashMap<>();
     private String activeCat = "";
-    // Keep keypad navigation independent of asynchronous ListView scroll callbacks.
-    private String keyboardCategoryTarget = "";
-    private String pendingCategoryJump = "";
 
     // ======================================================================== data classes
 
@@ -599,6 +596,24 @@ public class MainActivity extends Activity {
             int key = event.getKeyCode();
             // Do not steal number keys while the user is typing in search, login, or another text field.
             if (!editingText) {
+                if (showingOrderScreen && productList != null) {
+                    if (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN
+                            || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (handleOrderGridDpad(key)) return true;
+                    } else if (event.getRepeatCount() == 0 && key == KeyEvent.KEYCODE_SOFT_RIGHT) {
+                        // Right soft key = "my order" (summary / checkout).
+                        if (closedOrderReadOnly) showCachedClosedOrderSummary(); else showOrderSummary();
+                        return true;
+                    } else if (event.getRepeatCount() == 0
+                            && (key == KeyEvent.KEYCODE_SOFT_LEFT || key == KeyEvent.KEYCODE_MENU)) {
+                        // Left soft key / Menu = details of the focused product, otherwise the options menu.
+                        View softCard = enclosingProductCard(getCurrentFocus());
+                        JSONObject softProduct = softCard == null ? null
+                                : findProductBySid(((String) softCard.getTag()).substring("productCard:".length()));
+                        if (softProduct != null) showProductDetails(softProduct); else showOrderQuickMenu();
+                        return true;
+                    }
+                }
                 if (isKeypadKey(key, KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0)) {
                     if (event.getRepeatCount() == 0) {
                         // One-key display reset: restore the normal scale, three-column grid,
@@ -673,6 +688,234 @@ public class MainActivity extends Activity {
         return super.dispatchKeyEvent(event);
     }
 
+
+    // ======================================================================== keypad grid navigation (order screen)
+
+    /** Re-binds the rows currently on screen in place. Unlike notifyDataSetChanged() this never makes the
+     *  ListView re-take focus, so the focused +/- button keeps focus and the list does not jump. */
+    private void refreshVisibleProductRows() {
+        if (productList == null || productAdapter == null) return;
+        int first = productList.getFirstVisiblePosition();
+        int count = productList.getChildCount();
+        for (int i = 0; i < count; i++) {
+            View rowView = productList.getChildAt(i);
+            int position = first + i;
+            if (rowView == null || position < 0 || position >= gridRows.size()) continue;
+            if (!(rowView.getTag() instanceof RowHolder)) continue;
+            if (productAdapter.getItemViewType(position) != 1) continue;
+            productAdapter.getView(position, rowView, productList);
+        }
+    }
+
+    private View enclosingProductCard(View v) {
+        View cur = v;
+        while (cur != null) {
+            Object tag = cur.getTag();
+            if (tag instanceof String && ((String) tag).startsWith("productCard:")) return cur;
+            Object parent = cur.getParent();
+            cur = parent instanceof View ? (View) parent : null;
+        }
+        return null;
+    }
+
+    private View rowViewOf(View v) {
+        View cur = v;
+        while (cur != null && cur.getParent() != productList) {
+            Object parent = cur.getParent();
+            cur = parent instanceof View ? (View) parent : null;
+        }
+        return cur;
+    }
+
+    private void collectCardControls(View root, View card, List<View> out) {
+        if (root == null || root.getVisibility() != View.VISIBLE) return;
+        if (root != card && root.isFocusable() && root.isEnabled() && root.isShown()) out.add(root);
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) collectCardControls(group.getChildAt(i), card, out);
+        }
+    }
+
+    private int[] centerOnScreen(View v) {
+        int[] loc = new int[2];
+        v.getLocationOnScreen(loc);
+        return new int[]{loc[0] + v.getWidth() / 2, loc[1] + v.getHeight() / 2};
+    }
+
+    /** Closest control inside the same card in the pressed direction (e.g. + -> qty -> - on one line). */
+    private View nearestControlInCard(View current, List<View> controls, int keyCode) {
+        int[] c = centerOnScreen(current);
+        int band = Math.max(dp(10), current.getHeight() / 2);
+        View best = null;
+        long bestScore = Long.MAX_VALUE;
+        for (View v : controls) {
+            if (v == current) continue;
+            int[] vc = centerOnScreen(v);
+            int dx = vc[0] - c[0], dy = vc[1] - c[1];
+            boolean ok;
+            long primary, secondary;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) { ok = dx < -dp(2) && Math.abs(dy) <= band; primary = -dx; secondary = Math.abs(dy); }
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) { ok = dx > dp(2) && Math.abs(dy) <= band; primary = dx; secondary = Math.abs(dy); }
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) { ok = dy < -band; primary = -dy; secondary = Math.abs(dx); }
+            else { ok = dy > band; primary = dy; secondary = Math.abs(dx); }
+            if (!ok) continue;
+            long score = primary * 4 + secondary;
+            if (score < bestScore) { bestScore = score; best = v; }
+        }
+        return best;
+    }
+
+    /** Which control of a card to land on when arriving from another card. */
+    private View entryControl(List<View> controls, int keyCode, int refX, int refY) {
+        View best = null;
+        long bestScore = Long.MAX_VALUE;
+        for (View v : controls) {
+            int[] c = centerOnScreen(v);
+            long score;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) score = (long) c[1] * 10000L + Math.abs(c[0] - refX);
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) score = (long) -c[1] * 10000L + Math.abs(c[0] - refX);
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) score = (long) Math.abs(c[1] - refY) * 10000L - c[0];
+            else score = (long) Math.abs(c[1] - refY) * 10000L + c[0];
+            if (score < bestScore) { bestScore = score; best = v; }
+        }
+        return best;
+    }
+
+    private int[] productGridPos(String sid) {
+        if (sid == null) return null;
+        for (int i = 0; i < gridRows.size(); i++) {
+            GridRow row = gridRows.get(i);
+            if (row.header != null) continue;
+            JSONObject[] ps = {row.a, row.b, row.c, row.d, row.e};
+            for (int c = 0; c < ps.length; c++) if (ps[c] != null && sid.equals(sidOf(ps[c]))) return new int[]{i, c};
+        }
+        return null;
+    }
+
+    private JSONObject productAtGrid(int rowIndex, int col) {
+        if (rowIndex < 0 || rowIndex >= gridRows.size() || col < 0) return null;
+        GridRow row = gridRows.get(rowIndex);
+        if (row.header != null) return null;
+        JSONObject[] ps = {row.a, row.b, row.c, row.d, row.e};
+        return col < ps.length && col < cardColumns() ? ps[col] : null;
+    }
+
+    private void ensureRowVisible(View rowView) {
+        if (productList == null || rowView == null) return;
+        int top = rowView.getTop(), bottom = rowView.getBottom();
+        int viewTop = productList.getPaddingTop();
+        int viewBottom = productList.getHeight() - productList.getPaddingBottom();
+        int margin = dp(6);
+        if (bottom - top > viewBottom - viewTop || top < viewTop + margin) {
+            if (top != viewTop + margin) productList.smoothScrollBy(top - viewTop - margin, 80);
+        } else if (bottom > viewBottom - margin) {
+            productList.smoothScrollBy(bottom - viewBottom + margin, 80);
+        }
+    }
+
+    /** Scrolls the target product row into view if needed, then puts focus on the right control inside it. */
+    private void focusProductControl(final String sid, final int keyCode, final int refX, final int refY) {
+        if (productList == null) return;
+        final int[] pos = productGridPos(sid);
+        if (pos == null) return;
+        final int position = pos[0];
+        int first = productList.getFirstVisiblePosition(), last = productList.getLastVisiblePosition();
+        if (position < first || position > last) {
+            View anyRow = productList.getChildAt(0);
+            int rowHeight = anyRow == null ? dp(200) : anyRow.getHeight();
+            int top = keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                    ? Math.max(dp(8), productList.getHeight() - rowHeight - dp(24)) : dp(8);
+            productList.setSelectionFromTop(position, top);
+        }
+        final int[] attempts = {0};
+        Runnable tryFocus = new Runnable() {
+            @Override public void run() {
+                if (productList == null || !showingOrderScreen) return;
+                int firstNow = productList.getFirstVisiblePosition();
+                View rowView = position >= firstNow && position <= productList.getLastVisiblePosition()
+                        ? productList.getChildAt(position - firstNow) : null;
+                View card = rowView == null ? null : findTaggedView(rowView, "productCard:" + sid);
+                if (card != null && card.isShown()) {
+                    List<View> controls = new ArrayList<>();
+                    collectCardControls(card, card, controls);
+                    View target = controls.isEmpty() ? card : entryControl(controls, keyCode, refX, refY);
+                    if (target != null && target.requestFocus()) { ensureRowVisible(rowView); return; }
+                }
+                if (++attempts[0] < 8) productList.postDelayed(this, 30);
+            }
+        };
+        productList.post(tryFocus);
+    }
+
+    private boolean focusFirstVisibleProduct() {
+        if (productList == null) return false;
+        for (int i = 0; i < productList.getChildCount(); i++) {
+            View rowView = productList.getChildAt(i);
+            if (rowView == null || !(rowView.getTag() instanceof RowHolder)) continue;
+            RowHolder h = (RowHolder) rowView.getTag();
+            for (CardHolder ch : new CardHolder[]{h.first, h.second, h.third, h.fourth, h.fifth}) {
+                if (ch.p != null && ch.card.isShown()) {
+                    focusProductControl(sidOf(ch.p), KeyEvent.KEYCODE_DPAD_DOWN, 0, 0);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Keypad-only navigation of the order grid: arrows move between the controls of one product
+     * (+ / quantity / -) and then between products, always landing on a control and never on a title.
+     * Returns false when the key should keep its default behaviour (e.g. UP from the first row).
+     */
+    private boolean handleOrderGridDpad(int keyCode) {
+        if (productList == null || gridRows.isEmpty()) return false;
+        View focused = getCurrentFocus();
+        View card = enclosingProductCard(focused);
+        if (card == null) {
+            // Nothing (or only the list itself) has focus: the first press lands on the first visible product.
+            if (focused == null || focused == productList) return focusFirstVisibleProduct();
+            return false;
+        }
+        String sid = ((String) card.getTag()).substring("productCard:".length());
+        List<View> controls = new ArrayList<>();
+        collectCardControls(card, card, controls);
+        boolean onControl = controls.contains(focused);
+        if (!onControl && keyCode == KeyEvent.KEYCODE_DPAD_DOWN && !controls.isEmpty()) {
+            View entry = entryControl(controls, keyCode, 0, 0);
+            if (entry != null && entry.requestFocus()) { ensureRowVisible(rowViewOf(card)); return true; }
+        }
+        View reference = onControl ? focused : card;
+        if (onControl) {
+            View inCard = nearestControlInCard(focused, controls, keyCode);
+            if (inCard != null && inCard.requestFocus()) { ensureRowVisible(rowViewOf(card)); return true; }
+        }
+        int[] pos = productGridPos(sid);
+        if (pos == null) return false;
+        JSONObject target = null;
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            Object rowParent = card.getParent();
+            boolean firstCardOnRight = !rtlActive()
+                    || (rowParent instanceof View && ((View) rowParent).getLayoutDirection() == View.LAYOUT_DIRECTION_RTL);
+            boolean wantVisualLeft = keyCode == KeyEvent.KEYCODE_DPAD_LEFT;
+            int step = wantVisualLeft == firstCardOnRight ? 1 : -1;
+            target = productAtGrid(pos[0], pos[1] + step);
+        } else {
+            int step = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1;
+            int rowIndex = pos[0] + step;
+            while (rowIndex >= 0 && rowIndex < gridRows.size() && gridRows.get(rowIndex).header != null) rowIndex += step;
+            if (rowIndex >= 0 && rowIndex < gridRows.size()) {
+                for (int col = Math.min(pos[1], cardColumns() - 1); col >= 0 && target == null; col--) {
+                    target = productAtGrid(rowIndex, col);
+                }
+            }
+        }
+        if (target == null) return keyCode != KeyEvent.KEYCODE_DPAD_UP;
+        int[] center = centerOnScreen(reference);
+        focusProductControl(sidOf(target), keyCode, center[0], center[1]);
+        return true;
+    }
+
     private boolean isKeypadKey(int key, int regularKey, int numpadKey) {
         return key == regularKey || key == numpadKey;
     }
@@ -737,23 +980,31 @@ public class MainActivity extends Activity {
         return null;
     }
 
-    // Restore the exact product action after ListView rows are rebound. A single post is not
-    // reliable here: notifyDataSetChanged can recycle/rebind the row again after the first frame.
-    private void restoreProductActionFocus(String productId, String actionTag) {
+    // Restore the keyboard focus to the product action the user just pressed. If that control no longer
+    // exists (Add became the +/- stepper, or the quantity dropped to 0), focus the control that replaced it.
+    private void restoreProductActionFocus(final String productId, final String actionTag) {
         if (productId == null || productId.isEmpty() || actionTag == null) return;
         final View screenAtRequest = currentScreen;
         final String cardTag = "productCard:" + productId;
+        final String[] candidates;
+        if ("productAdd".equals(actionTag)) candidates = new String[]{"productAdd", "productPlus", ""};
+        else candidates = new String[]{actionTag, "productAdd", "productPlus", ""};
         final int[] attempts = {0};
         Runnable restore = new Runnable() {
             @Override public void run() {
                 if (currentScreen != screenAtRequest || !showingOrderScreen || productList == null) return;
+                // The user pressed another key meanwhile: never pull focus back.
+                if (!productId.equals(pendingProductFocusId)) return;
                 View cardView = findTaggedView(productList, cardTag);
-                View target = findTaggedView(cardView, actionTag);
-                if (target != null && target.isShown() && target.isEnabled() && target.isFocusable()) {
-                    target.requestFocus();
-                    if (getCurrentFocus() == target) return;
+                if (cardView != null && cardView.isShown()) {
+                    for (String tag : candidates) {                        View target = tag.isEmpty() ? cardView : findTaggedView(cardView, tag);
+                        if (target != null && target.isShown() && target.isEnabled() && target.isFocusable()) {
+                            if (getCurrentFocus() != target) target.requestFocus();
+                            if (getCurrentFocus() == target) return;
+                        }
+                    }
                 }
-                if (++attempts[0] < 8) productList.postOnAnimation(this);
+                if (++attempts[0] < 20) productList.postDelayed(this, 40);
             }
         };
         if (productList != null) productList.post(restore);
@@ -1745,8 +1996,7 @@ public class MainActivity extends Activity {
                         else if (v instanceof String) detail = (String) v;
                     }
                 }
-                if (!detail.isEmpty()) return detail;
-                if (!msg.isEmpty()) return msg;
+                if (!detail.isEmpty()) return detail;                if (!msg.isEmpty()) return msg;
             } catch (Exception ignored) { }
         }
         return httpMessage(r.code);
@@ -2745,8 +2995,7 @@ public class MainActivity extends Activity {
      * the user started an update from this app. Pending details are stored immediately
      * before opening Android's installer and are cleared on failure/cancellation.
      */
-    private boolean showPendingInAppUpdateSuccess() {
-        if (!prefs.getBoolean("in_app_update_success_pending", false)) return false;
+    private boolean showPendingInAppUpdateSuccess() {        if (!prefs.getBoolean("in_app_update_success_pending", false)) return false;
 
         int oldCode = prefs.getInt("in_app_update_old_code", 0);
         String oldName = prefs.getString("in_app_update_old_name", "לא ידועה");
@@ -3745,8 +3994,7 @@ public class MainActivity extends Activity {
                     .append("נשמרו ").append(matches.length()).append(" התאמות אחרונות.\n");
             for (int i = 0; i < matches.length(); i++) {
                 JSONObject m = matches.optJSONObject(i);
-                if (m == null) continue;
-                out.append("\n--- התאמה ").append(i + 1).append(" ---\n")
+                if (m == null) continue;                out.append("\n--- התאמה ").append(i + 1).append(" ---\n")
                         .append("URL: ").append(m.optString("url", "")).append("\n")
                         .append("הקשר: ").append(m.optString("context", "")).append("\n")
                         .append("HTTP: ").append(m.optInt("http", -1))
@@ -4745,8 +4993,7 @@ public class MainActivity extends Activity {
         if (hours.isEmpty() && !first(sale, "startHour").isEmpty()) hours = first(sale, "startHour") + "-" + first(sale, "endHour");
         if (!hours.isEmpty()) lines.add("    שעה: " + hours);
         if (site != null) {
-            String street = first(site, "street"), city = first(site, "city");
-            String addr = street.isEmpty() ? city : (city.isEmpty() ? street : street + ", " + city);
+            String street = first(site, "street"), city = first(site, "city");            String addr = street.isEmpty() ? city : (city.isEmpty() ? street : street + ", " + city);
             if (!addr.isEmpty()) lines.add("📍 מיקום: " + addr);
             if (!first(site, "name").isEmpty()) lines.add("    תחנה: " + first(site, "name"));
             if (!first(site, "address_description").isEmpty()) lines.add("    " + first(site, "address_description"));
@@ -5500,7 +5747,7 @@ public class MainActivity extends Activity {
                     if (!pending.isEmpty()) { ui.postDelayed(() -> syncOrderNow(seq), 400); return; }
                     syncOrderDataFromServer(od);
                     if (screenKind == 2) { rebuildSummary(); updateSummaryTotals(); }
-                    else if (productAdapter != null) productAdapter.notifyDataSetChanged();
+                    else refreshVisibleProductRows();
                 });
             } catch (Exception ignored) { }
         });
@@ -5745,8 +5992,7 @@ public class MainActivity extends Activity {
             if (row.header != null) continue;
             if (rowContainsProduct(row, targetSid)) { targetPosition = i; break; }
         }
-        if (targetPosition < 0) {
-            // A target absent from fresh product data must not send the user to a random card.
+        if (targetPosition < 0) {            // A target absent from fresh product data must not send the user to a random card.
             clearPendingStockNavigation();
             toast("המוצר כבר לא מופיע במכירה. הצגתי את ההזמנה כדי שתוכל לבדוק את המוצרים.", true);
             return;
@@ -5890,7 +6136,7 @@ public class MainActivity extends Activity {
             image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             image.setBackgroundColor(SURFACE);
             image.setClickable(true);
-            image.setFocusable(true);
+            image.setFocusable(false);
             image.setOnClickListener(v -> {
                 Object full = image.getContentDescription();
                 String previewUrl = full instanceof CharSequence ? full.toString() : "";
@@ -6064,6 +6310,9 @@ public class MainActivity extends Activity {
         }
 
         void bind(JSONObject prod) {
+            final boolean sameProductAsBefore = p != null && prod != null && sidOf(p).equals(sidOf(prod));
+            final boolean addHadFocus = add.hasFocus();
+            final boolean stepperHadFocus = st.plus.hasFocus() || st.minus.hasFocus() || st.qty.hasFocus();
             p = prod;
             card.setTag("productCard:" + sidOf(prod));
             card.setContentDescription(productName(prod) + ". כרטיס מוצר. Enter לפתיחת פרטי המוצר; חיצים למעבר בין מוצרים");
@@ -6111,10 +6360,22 @@ public class MainActivity extends Activity {
             st.minus.setVisibility(View.VISIBLE);
             st.qty.setClickable(!closedOrderReadOnly);
             st.qty.setFocusable(!closedOrderReadOnly);
-            setEnabledLook(st.view, closedOrderReadOnly || !busyNow);
-            setEnabledLook(st.plus, closedOrderReadOnly || !busyNow);
-            setEnabledLook(st.minus, closedOrderReadOnly || !busyNow);
-            setEnabledLook(add, !closedOrderReadOnly && canOrder && !busyNow);
+            // IMPORTANT: a request in flight only dims the buttons. They stay enabled, because a focused
+            // view that becomes disabled loses keyboard focus and Android then hands it to another view
+            // (this was the jump to the category title). Repeated presses are queued in changeBy().
+            boolean dimNow = !closedOrderReadOnly && busyNow;
+            st.view.setAlpha(dimNow ? 0.6f : 1f);
+            st.plus.setEnabled(true);
+            st.minus.setEnabled(true);
+            st.plus.setAlpha(dimNow ? 0.6f : 1f);
+            st.minus.setAlpha(dimNow ? 0.6f : 1f);
+            add.setEnabled(!closedOrderReadOnly && canOrder);
+            add.setAlpha(add.isEnabled() && !busyNow ? 1f : 0.45f);
+            // Add <-> stepper swap: move keyboard focus to the control that replaces the focused one.
+            if (sameProductAsBefore && !closedOrderReadOnly) {
+                if (addHadFocus && q > 0) st.plus.requestFocus();
+                else if (stepperHadFocus && q <= 0 && add.isEnabled()) add.requestFocus();
+            }
             chargeButton.setVisibility(closedOrderReadOnly ? View.VISIBLE : View.GONE);
             setEnabledLook(chargeButton, closedOrderReadOnly);
             boolean localStockAction=!closedOrderReadOnly&&(disabled||soldOut);
@@ -6172,7 +6433,8 @@ public class MainActivity extends Activity {
                 if (tv == null) {
                     tv = text("", 16, true);
                     tv.setTextColor(ORANGE_DARK);
-                    tv.setFocusable(true);
+                    // Headers are display-only: if they could take focus, any focus loss would land here.
+                    tv.setFocusable(false);
                     tv.setContentDescription("כותרת קטגוריית מוצרים");
                     tv.setPadding(dp(4), dp(12), dp(4), dp(4));
                 }
@@ -6209,8 +6471,16 @@ public class MainActivity extends Activity {
         }
     }
 
+    // Presses made while the previous request for the same product is still running (fast +,+,+ on a keypad).
+    private final Map<String, Integer> queuedDeltas = new LinkedHashMap<>();
+
     private void changeBy(JSONObject p, int delta, Runnable refresh, Runnable onSuccess) {
         String sid = sidOf(p);
+        if (pending.contains(sid)) {
+            Integer queued = queuedDeltas.get(sid);
+            queuedDeltas.put(sid, (queued == null ? 0 : queued) + delta);
+            return;
+        }
         int current = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
         int next = Math.max(0, current + delta);
         if (delta > 0) {
@@ -6272,6 +6542,8 @@ public class MainActivity extends Activity {
                     toast(err, true);
                 }
                 refresh.run();
+                Integer queuedDelta = queuedDeltas.remove(sid);
+                if (err == null && queuedDelta != null && queuedDelta != 0) changeBy(p, queuedDelta, refresh, onSuccess);
                 if (err == null && onSuccess != null) onSuccess.run();
                 if (login) showLogin();
             });
@@ -6719,8 +6991,7 @@ public class MainActivity extends Activity {
         ImageView iv = imageView(imageDp, imageDp, ImageView.ScaleType.FIT_CENTER);
         iv.setBackground(shape(SURFACE, 10, 0));
         iv.setClipToOutline(true);
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(imageDp), dp(imageDp));
-        ip.setMarginEnd(dp(10));
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(imageDp), dp(imageDp));        ip.setMarginEnd(dp(10));
         row.addView(iv, ip);
         JSONObject known = findProduct(line.sid);
         JSONObject imageProduct = known != null ? known : line.raw;
@@ -7719,8 +7990,7 @@ public class MainActivity extends Activity {
             String message = first(error, "message", "error_description", "detail", "error");
             if (message != null && !message.trim().isEmpty()) return message.trim();
         } catch (Exception ignored) { }
-        return fallback;
-    }
+        return fallback;    }
 
     private void logApi(String method, String path, String result, long ms, String errorBody) {
         // The diagnostic log intentionally preserves the HTTP result and the complete response body.
@@ -8719,8 +8989,7 @@ public class MainActivity extends Activity {
         if (!summaryFromHistory) {
             labels.add("פרטי המכירה"); actions.add(0);
             labels.add("רענון מוצרים"); actions.add(1);
-            labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);
-        }
+            labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);        }
         if (featureOrderId > 0) {
             labels.add("📤 שיתוף סיכום ההזמנה"); actions.add(2);
             labels.add("📦 ייצוא הזמנה לקובץ"); actions.add(3);
@@ -9719,8 +9988,7 @@ public class MainActivity extends Activity {
         }
         controls.addView(scaleSlider, new LinearLayout.LayoutParams(-1, dp(42)));
         LinearLayout scaleMarks = new LinearLayout(this);
-        scaleMarks.setOrientation(LinearLayout.HORIZONTAL);
-        scaleMarks.setGravity(Gravity.CENTER);
+        scaleMarks.setOrientation(LinearLayout.HORIZONTAL);        scaleMarks.setGravity(Gravity.CENTER);
         scaleMarks.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         for (int mark : new int[]{130, 120, 110, 100, 90, 80, 70}) {
             TextView label = muted(String.valueOf(mark), 10);
@@ -9937,10 +10205,6 @@ public class MainActivity extends Activity {
         catStripRow.removeAllViews();
         catChips.clear();
         if (activeCat.isEmpty() || !cats.contains(activeCat)) activeCat = cats.isEmpty() ? "" : cats.get(0);
-        if (keyboardCategoryTarget.isEmpty() || !cats.contains(keyboardCategoryTarget)) {
-            keyboardCategoryTarget = activeCat;
-        }
-        if (!pendingCategoryJump.isEmpty() && !cats.contains(pendingCategoryJump)) pendingCategoryJump = "";
         List<View> cells = new ArrayList<>();
         TextView menu = pickChip("☰ קטגוריות");
         styleChip(menu, true);
@@ -9994,51 +10258,19 @@ public class MainActivity extends Activity {
         if (index == null || productList == null) return;
         hideKeyboard();
         final int position = index;
-        // Set the target before posting the ListView jump. Rapid 7/9 presses must advance
-        // from the last requested category, not an intermediate scroll position.
-        keyboardCategoryTarget = cat;
-        pendingCategoryJump = cat;
+        productList.post(() -> productList.setSelectionFromTop(position, 0));
         activeCat = cat;
         styleCategoryChips();
-        // Keep the selected category button visible in the horizontal chip row as well.
-        if (catStripScroll != null) catStripScroll.post(() -> {
-            if (catStripScroll == null || !cat.equals(keyboardCategoryTarget)) return;
-            TextView selectedChip = catChips.get(cat);
-            if (selectedChip == null) return;
-            int horizontalTarget = selectedChip.getLeft()
-                    - (catStripScroll.getWidth() - selectedChip.getWidth()) / 2;
-            catStripScroll.smoothScrollTo(Math.max(0, horizontalTarget), 0);
-        });
-        productList.post(() -> {
-            if (productList == null || !showingOrderScreen || !catHeaders.containsKey(cat)) {
-                if (cat.equals(pendingCategoryJump)) pendingCategoryJump = "";
-                return;
-            }
-            productList.setSelectionFromTop(position, 0);
-            // Let ListView finish its selection/scroll callbacks before releasing the guard.
-            productList.post(() -> {
-                if (productList == null || !cat.equals(pendingCategoryJump)) return;
-                pendingCategoryJump = "";
-                activeCat = cat;
-                keyboardCategoryTarget = cat;
-                styleCategoryChips();
-            });
-        });
     }
 
     /**
      * Keypad 7/9 moves immediately between the currently visible category sections.
      * Category order follows the same ordered map used to build the product list.
      */
-    /**
-     * Keypad 7/9 moves immediately between the actual category chips and activates each
-     * category without requiring Enter. The requested target is stable during async scrolling.
-     */
     private void moveCategoryByKey(boolean next) {
         if (!showingOrderScreen || productList == null || catHeaders.isEmpty()) return;
         List<String> names = new ArrayList<>(catHeaders.keySet());
-        int current = names.indexOf(keyboardCategoryTarget);
-        if (current < 0) current = names.indexOf(activeCat);
+        int current = names.indexOf(activeCat);
         int target;
         if (current < 0) target = next ? 0 : names.size() - 1;
         else target = (current + (next ? 1 : names.size() - 1)) % names.size();
@@ -10064,12 +10296,8 @@ public class MainActivity extends Activity {
     }
 
     /** Highlights the category at the top of the list and keeps its chip in view. */
-    /** Highlights the category at the top of the list and keeps its chip in view. */
     private void updateActiveCategory(int firstVisible) {
         if (catHeaders.isEmpty()) return;
-        // A posted category jump is in progress. Ignore intermediate scroll callbacks so
-        // they cannot replace the target before the next 7/9 press.
-        if (!pendingCategoryJump.isEmpty()) return;
         String found = "";
         for (Map.Entry<String, Integer> e : catHeaders.entrySet()) {
             if (found.isEmpty()) found = e.getKey();
@@ -10078,7 +10306,6 @@ public class MainActivity extends Activity {
         }
         if (found.isEmpty() || found.equals(activeCat)) return;
         activeCat = found;
-        keyboardCategoryTarget = found;
         styleCategoryChips();
         TextView chip = catChips.get(found);
         if (chip != null && catStripScroll != null) {
@@ -10087,5 +10314,4 @@ public class MainActivity extends Activity {
         }
     }
 }
-
 
