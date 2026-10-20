@@ -372,7 +372,7 @@ public class MainActivity extends Activity {
     private TextView loginButton;
     // In-app updater state; download and installation remain user-confirmed.
     private TextView updateStatusView, updateNotesView, updateCheckButton, updateDownloadButton, updateInstallButton;
-    private long updateDownloadId = -1L;
+    private boolean updateDownloadInProgress = false;
     private int updateLatestCode = 0;
     private String updateLatestName = "", updateLatestSha256 = "", updateReleaseNotes = "";
     private boolean updateDownloadVerifying = false;
@@ -2269,17 +2269,27 @@ public class MainActivity extends Activity {
                 String knownSha = prefs.getString("update_latest_sha256", "");
                 boolean savedVerified = prefs.getBoolean("update_download_verified", false);
                 int installedCode = installedVersionCode();
+                String savedPath = prefs.getString("update_download_file", "");
+                File savedFile = savedPath == null || savedPath.trim().isEmpty() ? null : new File(savedPath);
                 if (savedVerified && savedCode > 0 && savedCode == knownLatestCode
-                        && savedCode >= installedCode && savedId > 0
-                        && knownSha.matches("[0-9a-fA-F]{64}")) {
-                    DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                    Uri savedUri = dm == null ? null : dm.getUriForDownloadedFile(savedId);
-                    if (savedUri != null) {
-                        try (InputStream in = getContentResolver().openInputStream(savedUri)) {
-                            copyVerifiedApk(in, target, prefs.getString("update_latest_sha256", ""));
+                        && savedCode >= installedCode && knownSha.matches("[0-9a-fA-F]{64}")) {
+                    if (savedFile != null && savedFile.isFile() && savedFile.canRead()) {
+                        try (InputStream in = new java.io.FileInputStream(savedFile)) {
+                            copyVerifiedApk(in, target, knownSha);
                         }
                         runOnUiThread(() -> shareVerifiedApk(target));
                         return;
+                    }
+                    if (savedId > 0) {
+                        DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                        Uri savedUri = dm == null ? null : dm.getUriForDownloadedFile(savedId);
+                        if (savedUri != null) {
+                            try (InputStream in = getContentResolver().openInputStream(savedUri)) {
+                                copyVerifiedApk(in, target, knownSha);
+                            }
+                            runOnUiThread(() -> shareVerifiedApk(target));
+                            return;
+                        }
                     }
                 }
 
@@ -2484,7 +2494,6 @@ public class MainActivity extends Activity {
         card.addView(muted("ההתקנה נפתחת דרך מערכת Android ועשויה לדרוש אישור. ההורדה נבדקת מול חתימת SHA-256 שפורסמה עם הגרסה.", 12), lp(-1, -2, 0, 4));
         root.addView(card, lp(-1, -2, 0, 10));
 
-        updateDownloadId = prefs.getLong("update_download_id", -1L);
         updateLatestCode = prefs.getInt("update_latest_code", 0);
         updateLatestName = prefs.getString("update_latest_name", "");
         updateLatestSha256 = prefs.getString("update_latest_sha256", "");
@@ -2495,12 +2504,14 @@ public class MainActivity extends Activity {
             updateDownloadButton.setEnabled(true);
             styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
         }
+        File savedUpdateFile = savedVerifiedUpdateFile();
         if (prefs.getBoolean("update_download_verified", false)
                 && prefs.getInt("update_download_verified_code", 0) == updateLatestCode
-                && updateLatestCode > installedVersionCode()) {
+                && updateLatestCode > installedVersionCode() && savedUpdateFile != null) {
+            updateStatusView.setText("ההורדה הושלמה והקובץ אומת. אפשר להתקין.");
             updateInstallButton.setVisibility(View.VISIBLE);
-        } else if (updateDownloadId > 0) {
-            pollUpdateDownload();
+        } else if (prefs.getBoolean("update_download_verified", false)) {
+            prefs.edit().putBoolean("update_download_verified", false).apply();
         }
     }
 
@@ -2605,131 +2616,169 @@ public class MainActivity extends Activity {
         });
     }
 
+    private File updateApkFile(int versionCode) {
+        File directory = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (directory == null) directory = new File(getFilesDir(), "updates");
+        if (!directory.exists() && !directory.mkdirs()) return null;
+        return new File(directory, "mishnat-yosef-update-" + versionCode + ".apk");
+    }
+
+    private File savedVerifiedUpdateFile() {
+        String path = prefs.getString("update_download_file", "");
+        if (path == null || path.trim().isEmpty()) return null;
+        File file = new File(path);
+        return file.isFile() && file.canRead() && file.length() > 0 ? file : null;
+    }
+
     private void downloadLatestUpdate() {
         if (updateLatestCode <= installedVersionCode() || !updateLatestSha256.matches("[0-9a-f]{64}")) {
             toast("צריך לבצע בדיקת עדכונים מוצלחת לפני ההורדה.", true);
             return;
         }
-        try {
-            DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            if (manager == null) throw new IllegalStateException("מנהל ההורדות של Android אינו זמין");
-            long oldId = prefs.getLong("update_download_id", -1L);
-            if (oldId > 0) manager.remove(oldId);
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(UPDATE_APK_URL));
-            request.setTitle("משנת יוסף — עדכון " + updateLatestName);
-            request.setDescription("מוריד קובץ עדכון מאומת");
-            // Hidden visibility (2) may be rejected unless DOWNLOAD_WITHOUT_NOTIFICATION is granted.
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setAllowedOverMetered(true);
-            request.setAllowedOverRoaming(false);
-            request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS,
-                    "mishnat-yosef-update-" + updateLatestCode + ".apk");
-            updateDownloadId = manager.enqueue(request);
-            prefs.edit().putLong("update_download_id", updateDownloadId)
-                    .putBoolean("update_download_verified", false)
-                    .remove("update_download_verified_code").apply();
-            if (updateStatusView != null) updateStatusView.setText("ההורדה התחילה. אפשר להשאיר את האפליקציה פתוחה ולעקוב כאן אחרי ההתקדמות.");
-            if (updateInstallButton != null) updateInstallButton.setVisibility(View.GONE);
-            pollUpdateDownload();
-        } catch (Exception error) {
-            String message = error.getMessage();
-            toast("לא ניתן להתחיל הורדה: " + (message == null ? "שגיאה לא ידועה" : message), true);
+        if (updateDownloadInProgress) {
+            toast("ההורדה כבר מתבצעת. אפשר לעקוב אחר ההתקדמות בעמוד העדכונים.", false);
+            return;
         }
+        final int targetCode = updateLatestCode;
+        final String targetName = updateLatestName;
+        final String expectedSha = updateLatestSha256;
+        final File target = updateApkFile(targetCode);
+        if (target == null) {
+            toast("לא ניתן ליצור תיקיית הורדה פרטית לאפליקציה.", true);
+            return;
+        }
+        final File partial = new File(target.getAbsolutePath() + ".part");
+        updateDownloadInProgress = true;
+        updateDownloadButton.setEnabled(false);
+        updateInstallButton.setVisibility(View.GONE);
+        updateStatusView.setText("מתחיל הורדה מאובטחת…");
+        prefs.edit().putBoolean("update_download_verified", false)
+                .remove("update_download_verified_code").remove("update_download_file").apply();
+
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            boolean verified = false;
+            String failure = "";
+            try {
+                if (partial.exists() && !partial.delete())
+                    throw new java.io.IOException("לא ניתן לנקות קובץ הורדה חלקי קודם");
+                connection = (HttpURLConnection) new URL(UPDATE_APK_URL).openConnection();
+                connection.setConnectTimeout(20000);
+                connection.setReadTimeout(60000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Cache-Control", "no-cache");
+                connection.setRequestProperty("Accept", "application/vnd.android.package-archive");
+                int status = connection.getResponseCode();
+                if (status < 200 || status >= 300)
+                    throw new java.io.IOException("שרת ההורדה החזיר שגיאה " + status);
+                long total = connection.getContentLength();
+                long downloaded = 0L;
+                long lastUiUpdate = 0L;
+                try (InputStream input = connection.getInputStream();
+                     FileOutputStream output = new FileOutputStream(partial)) {
+                    byte[] buffer = new byte[16384];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        downloaded += count;
+                        if (downloaded > 200L * 1024L * 1024L)
+                            throw new java.io.IOException("קובץ העדכון גדול מהגודל המרבי המותר");
+                        output.write(buffer, 0, count);
+                        long now = System.currentTimeMillis();
+                        if (now - lastUiUpdate >= 350L) {
+                            lastUiUpdate = now;
+                            final long currentBytes = downloaded;
+                            final long totalBytes = total;
+                            runOnUiThread(() -> {
+                                if (screenKind == 7 && updateStatusView != null) {
+                                    String progress = totalBytes > 0
+                                            ? " (" + Math.min(100, currentBytes * 100L / totalBytes) + "%)"
+                                            : " (" + formatBytes(currentBytes) + ")";
+                                    updateStatusView.setText("מוריד עדכון באופן פרטי" + progress + "…");
+                                }
+                            });
+                        }
+                    }
+                    output.flush();
+                }
+                if (partial.length() <= 0) throw new java.io.IOException("שרת ההורדה החזיר קובץ ריק");
+                if (target.exists() && !target.delete())
+                    throw new java.io.IOException("לא ניתן להחליף קובץ עדכון קודם");
+                if (!partial.renameTo(target))
+                    throw new java.io.IOException("לא ניתן לשמור את קובץ העדכון שהורד");
+                try (InputStream input = new java.io.FileInputStream(target)) {
+                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                    byte[] buffer = new byte[16384];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
+                    StringBuilder hex = new StringBuilder();
+                    for (byte b : digest.digest()) hex.append(String.format(Locale.US, "%02x", b & 0xff));
+                    verified = expectedSha.equals(hex.toString());
+                }
+                if (!verified) {
+                    target.delete();
+                    throw new java.io.IOException("חתימת הקובץ אינה תואמת לגרסה שפורסמה");
+                }
+            } catch (Exception error) {
+                failure = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            } finally {
+                if (connection != null) connection.disconnect();
+                if (partial.exists()) partial.delete();
+            }
+            final boolean success = verified;
+            final String problem = failure;
+            runOnUiThread(() -> {
+                updateDownloadInProgress = false;
+                if (success) {
+                    prefs.edit().putBoolean("update_download_verified", true)
+                            .putInt("update_download_verified_code", targetCode)
+                            .putString("update_download_file", target.getAbsolutePath())
+                            .putBoolean("update_auto_install_pending", true).apply();
+                    if (screenKind == 7 && updateStatusView != null) {
+                        updateStatusView.setText("ההורדה הושלמה והקובץ אומת בהצלחה. פותח את מתקין Android…");
+                        updateInstallButton.setVisibility(View.VISIBLE);
+                    }
+                    installDownloadedUpdate();
+                } else {
+                    prefs.edit().putBoolean("update_download_verified", false)
+                            .remove("update_download_verified_code").remove("update_download_file")
+                            .putBoolean("update_auto_install_pending", false).apply();
+                    if (screenKind == 7 && updateStatusView != null) {
+                        updateStatusView.setText("ההורדה לא הושלמה או שהקובץ לא עבר אימות: " + problem + ". אפשר לנסות שוב.");
+                        updateDownloadButton.setEnabled(true);
+                    }
+                    toast("הורדת העדכון נכשלה: " + problem, true);
+                }
+            });
+        });
     }
 
-    private void pollUpdateDownload() {
-        if (screenKind != 7 || updateStatusView == null || updateDownloadId <= 0 || updateDownloadVerifying) return;
-        DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-        if (manager == null) return;
-        Cursor cursor = null;
-        try {
-            cursor = manager.query(new DownloadManager.Query().setFilterById(updateDownloadId));
-            if (cursor == null || !cursor.moveToFirst()) {
-                updateStatusView.setText("לא נמצאה הורדה פעילה. בדוק שוב או התחל הורדה חדשה.");
-                return;
-            }
-            int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-            if (status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PAUSED) {
-                long downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-                long total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
-                String progress = total > 0 ? " (" + Math.max(0, Math.min(100, downloaded * 100L / total)) + "%)" : "";
-                updateStatusView.setText("מוריד עדכון" + progress + "…");
-                ui.postDelayed(this::pollUpdateDownload, 800);
-                return;
-            }
-            if (status == DownloadManager.STATUS_FAILED) {
-                int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
-                updateStatusView.setText("ההורדה נכשלה (קוד " + reason + "). בדוק חיבור ונסה שוב.");
-                prefs.edit().putBoolean("update_download_verified", false).apply();
-                updateDownloadId = -1L;
-                prefs.edit().remove("update_download_id").apply();
-                return;
-            }
-            if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                Uri uri = manager.getUriForDownloadedFile(updateDownloadId);
-                if (uri == null) {
-                    updateStatusView.setText("ההורדה הסתיימה אך הקובץ לא נמצא. נסה להוריד שוב.");
-                    return;
-                }
-                updateDownloadVerifying = true;
-                final String expected = updateLatestSha256;
-                final long completedId = updateDownloadId;
-                executor.execute(() -> {
-                    boolean verified = false;
-                    String failure = "";
-                    try (InputStream input = getContentResolver().openInputStream(uri)) {
-                        if (input == null) throw new java.io.IOException("לא ניתן לקרוא את קובץ ההורדה");
-                        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                        byte[] buffer = new byte[8192];
-                        int count;
-                        while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
-                        StringBuilder hex = new StringBuilder();
-                        for (byte b : digest.digest()) hex.append(String.format(Locale.US, "%02x", b & 0xff));
-                        verified = expected != null && expected.matches("[0-9a-f]{64}") && expected.equals(hex.toString());
-                        if (!verified) failure = "חתימת הקובץ אינה תואמת לגרסה שפורסמה";
-                    } catch (Exception error) {
-                        failure = error.getMessage() == null ? "לא ניתן לאמת את הקובץ" : error.getMessage();
-                    }
-                    final boolean ok = verified;
-                    final String problem = failure;
-                    runOnUiThread(() -> {
-                        updateDownloadVerifying = false;
-                        if (screenKind != 7 || updateStatusView == null || completedId != updateDownloadId) return;
-                        if (ok) {
-                            prefs.edit().putBoolean("update_download_verified", true)
-                                    .putInt("update_download_verified_code", updateLatestCode).apply();
-                            updateInstallButton.setVisibility(View.VISIBLE);
-                            updateStatusView.setText("ההורדה הושלמה והקובץ אומת. מפעיל כעת את מתקין Android…");
-                            prefs.edit().putBoolean("update_auto_install_pending", true).apply();
-                            installDownloadedUpdate();
-                        } else {
-                            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                            if (dm != null) dm.remove(completedId);
-                            prefs.edit().putBoolean("update_download_verified", false).apply();
-                            updateStatusView.setText("הקובץ לא עבר אימות: " + problem + ". ההתקנה נחסמה; הורד שוב.");
-                            updateInstallButton.setVisibility(View.GONE);
-                        }
-                    });
-                });
-            }
-        } catch (Exception error) {
-            updateStatusView.setText("לא ניתן לבדוק את מצב ההורדה. אפשר לנסות שוב.");
-        } finally {
-            if (cursor != null) cursor.close();
-        }
+    private String formatBytes(long bytes) {
+        if (bytes < 1024L) return bytes + " B";
+        if (bytes < 1024L * 1024L) return String.format(Locale.US, "%.1f KB", bytes / 1024.0);
+        return String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0));
     }
 
     private void installDownloadedUpdate() {
-        long id = prefs.getLong("update_download_id", -1L);
+        int verifiedCode = prefs.getInt("update_download_verified_code", 0);
+        File verifiedFile = savedVerifiedUpdateFile();
         if (!prefs.getBoolean("update_download_verified", false)
-                || prefs.getInt("update_download_verified_code", 0) != updateLatestCode
+                || verifiedCode != updateLatestCode
                 || updateLatestCode <= installedVersionCode()) {
             toast("אין קובץ עדכון מאומת להתקנה. בדוק עדכונים והורד מחדש.", true);
             return;
         }
-        DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-        Uri uri = manager == null ? null : manager.getUriForDownloadedFile(id);
+        Uri uri = null;
+        if (verifiedFile != null) {
+            uri = Uri.parse("content://org.mishnatyosef.mobile.jsonreports/" + Uri.encode(verifiedFile.getName()));
+        } else {
+            // Compatibility with an update download started by an older app version.
+            long oldId = prefs.getLong("update_download_id", -1L);
+            DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (oldId > 0 && manager != null) uri = manager.getUriForDownloadedFile(oldId);
+        }
         if (uri == null) {
+            prefs.edit().putBoolean("update_download_verified", false).apply();
             toast("קובץ העדכון לא נמצא. צריך להוריד אותו מחדש.", true);
             return;
         }
