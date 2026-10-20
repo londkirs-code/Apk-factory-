@@ -11,7 +11,7 @@ import java.io.FileNotFoundException;
 public class JsonReportProvider extends ContentProvider {
     @Override public boolean onCreate() { return true; }
     @Override public String getType(Uri uri) {
-        return "משנת יוסף.apk".equals(uri.getLastPathSegment())
+        return ("mishnat-yosef.apk".equals(uri.getLastPathSegment()) || "משנת יוסף.apk".equals(uri.getLastPathSegment()))
                 ? "application/vnd.android.package-archive" : "text/plain";
     }
     @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
@@ -20,7 +20,7 @@ public class JsonReportProvider extends ContentProvider {
         File file;
         if ("mishnat-yosef-json-report.txt".equals(name)) {
             file = new File(new File(getContext().getCacheDir(), "json-reports"), name);
-        } else if ("משנת יוסף.apk".equals(name)) {
+        } else if ("mishnat-yosef.apk".equals(name) || "משנת יוסף.apk".equals(name)) {
             file = new File(new File(getContext().getCacheDir(), "shared_apk"), name);
         } else {
             throw new FileNotFoundException("Unknown file");
