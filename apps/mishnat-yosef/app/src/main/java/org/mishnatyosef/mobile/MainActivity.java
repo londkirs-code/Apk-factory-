@@ -1317,6 +1317,16 @@ public class MainActivity extends Activity {
         configureKeyboardSeekBar(scaleBar, () -> changeUiScale(70 + scaleBar.getProgress() * 5),
                 "גודל התצוגה, 70 עד 130 אחוז. חיצים לשינוי, Home ו-End לקצוות");
 
+        TextView resetScaleButton = btn("↺ איפוס לגודל מקורי (100%)", TONAL);
+        resetScaleButton.setContentDescription("איפוס גודל התצוגה למאה אחוז");
+        resetScaleButton.setOnClickListener(v -> {
+            scaleBar.setProgress((100 - 70) / 5);
+            scaleValue.setText("100%");
+            changeUiScale(100);
+            toast("גודל התצוגה אופס ל־100%", false);
+        });
+        panel.addView(resetScaleButton, new LinearLayout.LayoutParams(-1, dp(42)));
+
         TextView columnsLabel = text("▦  מספר עמודות בהזמנות", 14, true);
         columnsLabel.setTextColor(INK);
         LinearLayout.LayoutParams columnsLabelLp = new LinearLayout.LayoutParams(-1, -2);
@@ -4259,7 +4269,12 @@ public class MainActivity extends Activity {
         notificationSettingsButton.setGravity(Gravity.CENTER);
         notificationSettingsButton.setMinHeight(dp(78));
         notificationSettingsButton.setPadding(dp(12), dp(10), dp(12), dp(10));
-        notificationSettingsButton.setOnClickListener(v -> showNotificationSettings());
+        notificationSettingsButton.setOnClickListener(v -> {
+            // The shortcut lives on Open Sales, but notification settings belong to Account.
+            // Switch the active bottom tab first so the Account tab is selected and Back returns there.
+            navigateTab(3, this::showAccount);
+            showNotificationSettings();
+        });
         notificationShortcut.addView(notificationSettingsButton, lp(-1, -2, 0, 8));
         root.addView(notificationShortcut, lp(-1, -2, 0, 10));
 
@@ -5880,7 +5895,8 @@ public class MainActivity extends Activity {
             add.setTag("productAdd");
             st.plus.setTag("productPlus");
             st.minus.setTag("productMinus");
-            card.setTag("productCard:");
+            // Include the stable product identifier so focus can be restored after adapter rebinding.
+            card.setTag("productCard:" + sidOf(p));
             // Enter/Center is handled explicitly so Android's default focus traversal cannot
             // move away from +/- when the adapter rebinds the product row after a quantity change.
             setStepperEnterHandler(st.plus, true);
