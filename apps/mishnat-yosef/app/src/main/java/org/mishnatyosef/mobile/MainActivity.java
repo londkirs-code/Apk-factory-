@@ -4507,7 +4507,20 @@ public class MainActivity extends Activity {
         int current = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
         featureQuantities.put(sid, Math.max(0, current + delta));
         // Deliberately never call changeBy(), saveQuantities(), writeSnapshot(), or an order API.
+        // Keep the row and its keyboard focus stable when rebuilding the local-only charge grid.
+        final int first = productList == null ? 0 : productList.getFirstVisiblePosition();
+        View firstChild = productList == null ? null : productList.getChildAt(0);
+        final int top = firstChild == null ? 0 : firstChild.getTop();
+        final String targetTag = delta >= 0 ? "productPlus" : "productMinus";
         rebuildGrid();
+        if (productList != null) productList.post(() -> {
+            if (productList == null || !showingOrderScreen) return;
+            productList.setSelectionFromTop(first, top);
+            View targetCard = findTaggedView(currentScreen, "productCard:" + sid);
+            View targetControl = findTaggedView(targetCard, targetTag);
+            if (targetControl != null && targetControl.isShown() && targetControl.isEnabled()) targetControl.requestFocus();
+            else if (targetCard != null && targetCard.isShown()) targetCard.requestFocus();
+        });
     }
 
     private String cachedClosedOrderText() {
