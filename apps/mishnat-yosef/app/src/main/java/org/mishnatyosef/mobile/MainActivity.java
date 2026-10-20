@@ -131,6 +131,8 @@ public class MainActivity extends Activity {
     private int SWITCH_OFF_THUMB = Color.rgb(190, 180, 172);
     private int SWITCH_OFF_TRACK = Color.rgb(225, 218, 212);
     private boolean nightMode = false;
+    // Global UI scale: text follows Android fontScale; dp-based layout metrics scale in dp().
+    private float uiScale = 1.0f;
     // Preserve the open-sales list position while navigating to other bottom tabs.
     private int salesListScrollY = 0;
     private boolean showingSalesList = false;
@@ -577,9 +579,24 @@ public class MainActivity extends Activity {
                 && y >= location[1] && y < location[1] + view.getHeight();
     }
 
+    @Override protected void attachBaseContext(Context newBase) {
+        int percent = newBase.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getInt("ui_scale_percent", 100);
+        percent = Math.max(80, Math.min(150, percent));
+        Configuration configuration = new Configuration(newBase.getResources().getConfiguration());
+        configuration.fontScale = percent / 100.0f;
+        super.attachBaseContext(newBase.createConfigurationContext(configuration));
+    }
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        uiScale = Math.max(0.80f, Math.min(1.50f, prefs.getInt("ui_scale_percent", 100) / 100.0f));
+        boolean reopenActionsAfterScale = prefs.getBoolean("reopen_actions_after_scale", false);
+        int restoreTabAfterScale = prefs.getInt("actions_restore_tab", -1);
+        if (reopenActionsAfterScale) {
+            prefs.edit().remove("reopen_actions_after_scale").remove("actions_restore_tab").apply();
+        }
         nightMode = prefs.getBoolean("night_mode", false);
         setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
         applyPalette();
@@ -599,6 +616,13 @@ public class MainActivity extends Activity {
             SaleMonitor.scheduleNextStart(this);
             if (getIntent() != null && getIntent().hasExtra("sale_id")) {
                 openSaleFromNotification(getIntent().getIntExtra("sale_id", -1));
+            } else if (reopenActionsAfterScale && restoreTabAfterScale >= 0) {
+                switch (restoreTabAfterScale) {
+                    case 1: loadFeatureOrders(); break;
+                    case 2: loadFeatureTransactions(); break;
+                    case 3: showAccount(); break;
+                    default: showOpenSales(); break;
+                }
             } else {
                 showOpenSales();
             }
@@ -606,7 +630,10 @@ public class MainActivity extends Activity {
             showLogin();
         }
         // Check for a newer release once per app launch; the setting defaults to enabled.
-        if (root != null) root.post(this::checkForUpdatesOnLaunch);
+        if (root != null) root.post(() -> {
+            checkForUpdatesOnLaunch();
+            if (reopenActionsAfterScale && hasToken()) showActionsDialog();
+        });
         else checkForUpdatesOnLaunch();
     }
 
@@ -635,7 +662,7 @@ public class MainActivity extends Activity {
     // ======================================================================== small helpers
 
     private int dp(float n) {
-        return (int) (n * getResources().getDisplayMetrics().density + 0.5f);
+        return (int) (n * uiScale * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     private boolean stale(int token) { return token != screenToken; }
@@ -849,6 +876,149 @@ public class MainActivity extends Activity {
         background.setCornerRadius(dp(18));
         background.setStroke(dp(3), Color.BLACK);
         return background;
+    }
+
+    private void changeUiScale(int requestedPercent) {
+        int next = Math.max(80, Math.min(150, requestedPercent));
+        next = Math.max(80, Math.min(150, ((next + 5) / 10) * 10));
+        int current = prefs.getInt("ui_scale_percent", 100);
+        if (next == current) {
+            toast(next == 100 ? "גודל התצוגה כבר בגודל הרגיל" : "גודל התצוגה לא השתנה", false);
+            return;
+        }
+        prefs.edit()
+                .putInt("ui_scale_percent", next)
+                .putInt("actions_restore_tab", activeBottomTab)
+                .putBoolean("reopen_actions_after_scale", true)
+                .apply();
+        recreate();
+    }
+
+    private void showActionsDialog() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(Gravity.CENTER_HORIZONTAL);
+        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        panel.setPadding(dp(18), dp(16), dp(18), dp(18));
+        panel.setBackground(shape(SURFACE, 24, LINE));
+        panel.setElevation(dp(12));
+
+        LinearLayout headingRow = new LinearLayout(this);
+        headingRow.setOrientation(LinearLayout.HORIZONTAL);
+        headingRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView heading = text("פעולות", 22, true);
+        heading.setTextColor(INK);
+        heading.setGravity(Gravity.CENTER);
+        headingRow.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView close = btn("✕", FLAT);
+        close.setContentDescription("סגירת חלון הפעולות");
+        close.setMinHeight(dp(40));
+        close.setPadding(dp(10), dp(4), dp(10), dp(4));
+        headingRow.addView(close, new LinearLayout.LayoutParams(dp(44), dp(40)));
+        panel.addView(headingRow, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView subtitle = muted("התאמה אישית של מראה האפליקציה", 13);
+        subtitle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(-1, -2);
+        subtitleParams.topMargin = dp(2);
+        subtitleParams.bottomMargin = dp(14);
+        panel.addView(subtitle, subtitleParams);
+
+        TextView nightTitle = text("☾  מצב תצוגה", 16, true);
+        nightTitle.setGravity(Gravity.CENTER);
+        panel.addView(nightTitle, new LinearLayout.LayoutParams(-1, -2));
+        TextView nightButton = btn(nightMode ? "☀️  מעבר למצב יום" : "🌙  הפעלת מצב לילה",
+                nightMode ? OUTLINE : TONAL);
+        nightButton.setGravity(Gravity.CENTER);
+        nightButton.setMinHeight(dp(48));
+        LinearLayout.LayoutParams nightParams = new LinearLayout.LayoutParams(-1, -2);
+        nightParams.topMargin = dp(8);
+        nightParams.bottomMargin = dp(16);
+        panel.addView(nightButton, nightParams);
+
+        TextView scaleTitle = text("Aa  גודל התצוגה", 16, true);
+        scaleTitle.setGravity(Gravity.CENTER);
+        panel.addView(scaleTitle, new LinearLayout.LayoutParams(-1, -2));
+        TextView scaleHint = muted("הטקסט, הכפתורים והמרווחים משתנים יחד", 12);
+        scaleHint.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(-1, -2);
+        hintParams.topMargin = dp(3);
+        panel.addView(scaleHint, hintParams);
+
+        LinearLayout scaleRow = new LinearLayout(this);
+        scaleRow.setOrientation(LinearLayout.HORIZONTAL);
+        scaleRow.setGravity(Gravity.CENTER);
+        scaleRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        TextView minus = btn("−", OUTLINE);
+        minus.setTextSize(24);
+        minus.setContentDescription("הקטנת התצוגה");
+        TextView percent = text(prefs.getInt("ui_scale_percent", 100) + "%", 21, true);
+        percent.setGravity(Gravity.CENTER);
+        percent.setTextColor(INK);
+        TextView plus = btn("+", PRIMARY);
+        plus.setTextSize(24);
+        plus.setContentDescription("הגדלת התצוגה");
+        LinearLayout.LayoutParams controlParams = new LinearLayout.LayoutParams(dp(62), dp(48));
+        scaleRow.addView(minus, new LinearLayout.LayoutParams(dp(62), dp(48)));
+        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(dp(100), dp(48));
+        percentParams.leftMargin = dp(10);
+        percentParams.rightMargin = dp(10);
+        scaleRow.addView(percent, percentParams);
+        scaleRow.addView(plus, controlParams);
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
+        rowParams.topMargin = dp(12);
+        panel.addView(scaleRow, rowParams);
+
+        TextView reset = btn("↺  איפוס לגודל הרגיל", OUTLINE);
+        reset.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams resetParams = new LinearLayout.LayoutParams(-1, -2);
+        resetParams.topMargin = dp(12);
+        panel.addView(reset, resetParams);
+
+        AlertDialog dialog = new AlertDialog.Builder(this,
+                nightMode ? android.R.style.Theme_Material_Dialog_Alert
+                        : android.R.style.Theme_Material_Light_Dialog_Alert)
+                .setView(panel)
+                .create();
+        close.setOnClickListener(v -> dialog.dismiss());
+        nightButton.setOnClickListener(v -> {
+            dialog.dismiss();
+            toggleNightMode();
+            showActionsDialog();
+        });
+        minus.setOnClickListener(v -> {
+            dialog.dismiss();
+            changeUiScale(prefs.getInt("ui_scale_percent", 100) - 10);
+        });
+        plus.setOnClickListener(v -> {
+            dialog.dismiss();
+            changeUiScale(prefs.getInt("ui_scale_percent", 100) + 10);
+        });
+        reset.setOnClickListener(v -> {
+            dialog.dismiss();
+            changeUiScale(100);
+        });
+        dialog.setOnShowListener(ignored -> {
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                WindowManager.LayoutParams windowParams = dialog.getWindow().getAttributes();
+                windowParams.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440));
+                windowParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                windowParams.gravity = Gravity.CENTER;
+                windowParams.dimAmount = 0.48f;
+                dialog.getWindow().setAttributes(windowParams);
+                dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            }
+        });
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            dialog.getWindow().setLayout(
+                    Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440)),
+                    WindowManager.LayoutParams.WRAP_CONTENT);
+            dialog.getWindow().setGravity(Gravity.CENTER);
+        }
     }
 
     private Drawable ripple(Drawable content, float radiusDp) {
@@ -1258,22 +1428,19 @@ public class MainActivity extends Activity {
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView nightToggle = text(nightToggleLabel(), 13, true);
-        nightToggle.setTextColor(Color.WHITE);
-        nightToggle.setGravity(Gravity.CENTER);
-        nightToggle.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
-        nightToggle.setTag("nightModeToggle");
-        // High-contrast capsule: icon + explicit target mode, with a bold outline.
-        nightToggle.setTextColor(Color.BLACK);
-        nightToggle.setSingleLine(true);
-        nightToggle.setIncludeFontPadding(false);
-        nightToggle.setPadding(dp(7), 0, dp(7), 0);
-        nightToggle.setBackground(ripple(nightToggleBackground(), 18));
-        nightToggle.setElevation(dp(4));
-        nightToggle.setOnClickListener(v -> toggleNightMode());
-        LinearLayout.LayoutParams nightToggleParams = new LinearLayout.LayoutParams(dp(78), dp(36));
-        nightToggleParams.leftMargin = dp(8);
-        header.addView(nightToggle, nightToggleParams);
+        TextView actionsButton = text("☷ פעולות", 14, true);
+        actionsButton.setTextColor(nightMode ? INK : ORANGE_DARK);
+        actionsButton.setGravity(Gravity.CENTER);
+        actionsButton.setSingleLine(true);
+        actionsButton.setIncludeFontPadding(false);
+        actionsButton.setPadding(dp(12), 0, dp(12), 0);
+        actionsButton.setBackground(ripple(shape(SURFACE, 18, nightMode ? LINE : Color.WHITE), 18));
+        actionsButton.setElevation(dp(3));
+        actionsButton.setContentDescription("פתיחת פעולות והתאמת תצוגה");
+        actionsButton.setOnClickListener(v -> showActionsDialog());
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(94), dp(38));
+        actionsParams.leftMargin = dp(8);
+        header.addView(actionsButton, actionsParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
         topHolder = new FrameLayout(this);
