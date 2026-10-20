@@ -107,6 +107,7 @@ public class MainActivity extends Activity {
     private static final String API = "https://v2.mishnatyosef.org";
     private static final String IMG_BASE = "https://images.mishnatyosef.org/images/items/";
     private static final String PREFS = "mishnat_auth";
+    private static final String PREF_PENDING_NOTIFICATION_SALE_ID = "pending_notification_sale_id";
     private static final long REFRESH_MARGIN_MS = 300000L;
 
     // ---- palette
@@ -614,10 +615,15 @@ public class MainActivity extends Activity {
         SaleMonitor.ensureNotificationChannel(this);
         StockMonitor.scheduleNextCheck(this);
         requestMonitoringPermissions(false);
+        if (getIntent() != null && getIntent().hasExtra("sale_id")) {
+            int notifiedSaleId = getIntent().getIntExtra("sale_id", -1);
+            if (notifiedSaleId > 0) prefs.edit().putInt(PREF_PENDING_NOTIFICATION_SALE_ID, notifiedSaleId).apply();
+        }
         if (hasToken()) {
             SaleMonitor.scheduleNextStart(this);
-            if (getIntent() != null && getIntent().hasExtra("sale_id")) {
-                openSaleFromNotification(getIntent().getIntExtra("sale_id", -1));
+            int pendingSaleId = prefs.getInt(PREF_PENDING_NOTIFICATION_SALE_ID, -1);
+            if (pendingSaleId > 0) {
+                openSaleFromNotification(pendingSaleId);
             } else if (reopenActionsAfterScale && restoreTabAfterScale >= 0) {
                 switch (restoreTabAfterScale) {
                     case 1: loadFeatureOrders(); break;
@@ -643,8 +649,11 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (hasToken() && intent != null && intent.hasExtra("sale_id")) {
-            openSaleFromNotification(intent.getIntExtra("sale_id", -1));
+        if (intent != null && intent.hasExtra("sale_id")) {
+            int notifiedSaleId = intent.getIntExtra("sale_id", -1);
+            if (notifiedSaleId > 0) prefs.edit().putInt(PREF_PENDING_NOTIFICATION_SALE_ID, notifiedSaleId).apply();
+            if (hasToken() && notifiedSaleId > 0) openSaleFromNotification(notifiedSaleId);
+            else if (!hasToken()) showLogin();
         }
     }
 
@@ -1919,7 +1928,9 @@ public class MainActivity extends Activity {
                     loginButton = null;
                     toast("✔ התחברת בהצלחה", false);
                     SaleMonitor.scheduleNextStart(this);
-                    showOpenSales();
+                    int pendingSaleId = prefs.getInt(PREF_PENDING_NOTIFICATION_SALE_ID, -1);
+                    if (pendingSaleId > 0) openSaleFromNotification(pendingSaleId);
+                    else showOpenSales();
                 });
             } catch (Exception e) {
                 String message = errText(e, "ההתחברות נכשלה.");
@@ -4224,8 +4235,11 @@ public class MainActivity extends Activity {
                 }
                 final JSONObject selected = found;
                 runOnUiThread(() -> {
-                    if (selected != null) loadFeatureProducts(selected);
-                    else {
+                    if (selected != null) {
+                        prefs.edit().remove(PREF_PENDING_NOTIFICATION_SALE_ID).apply();
+                        loadFeatureProducts(selected);
+                    } else {
+                        prefs.edit().remove(PREF_PENDING_NOTIFICATION_SALE_ID).apply();
                         showOpenSales(false);
                         toast("המכירה כבר לא פתוחה. מציג את המכירות העדכניות.", true);
                     }
@@ -4233,6 +4247,7 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     if (e instanceof AuthException) { showLogin(); return; }
+                    prefs.edit().remove(PREF_PENDING_NOTIFICATION_SALE_ID).apply();
                     showOpenSales(false);
                     toast(errText(e, "טעינת המכירה נכשלה."), true);
                 });
