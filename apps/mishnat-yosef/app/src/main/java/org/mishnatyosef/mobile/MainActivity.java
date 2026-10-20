@@ -597,7 +597,14 @@ public class MainActivity extends Activity {
             // Do not steal number keys while the user is typing in search, login, or another text field.
             if (!editingText) {
                 if (isKeypadKey(key, KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0)) {
-                    focusBottomNavigation();
+                    if (event.getRepeatCount() == 0) {
+                        // One-key display reset: restore the normal scale, three-column grid,
+                        // and light palette without recreating the Activity or changing tabs.
+                        changeUiScale(100);
+                        commitCardColumns(3, false);
+                        if (nightMode) toggleNightMode();
+                        toast("התצוגה אופסה: 100% · 3 עמודות · מצב יום", false);
+                    }
                     return true;
                 }
                 if (hasToken() && (key == KeyEvent.KEYCODE_POUND || key == KeyEvent.KEYCODE_NUMPAD_ADD)) {
