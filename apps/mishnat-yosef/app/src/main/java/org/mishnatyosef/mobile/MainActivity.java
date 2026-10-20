@@ -469,6 +469,9 @@ public class MainActivity extends Activity {
     private final Map<String, TextView> catChips = new LinkedHashMap<>();
     private final Map<String, Integer> catCounts = new LinkedHashMap<>();
     private String activeCat = "";
+    // Keep keypad navigation independent of asynchronous ListView scroll callbacks.
+    private String keyboardCategoryTarget = "";
+    private String pendingCategoryJump = "";
 
     // ======================================================================== data classes
 
@@ -9934,6 +9937,10 @@ public class MainActivity extends Activity {
         catStripRow.removeAllViews();
         catChips.clear();
         if (activeCat.isEmpty() || !cats.contains(activeCat)) activeCat = cats.isEmpty() ? "" : cats.get(0);
+        if (keyboardCategoryTarget.isEmpty() || !cats.contains(keyboardCategoryTarget)) {
+            keyboardCategoryTarget = activeCat;
+        }
+        if (!pendingCategoryJump.isEmpty() && !cats.contains(pendingCategoryJump)) pendingCategoryJump = "";
         List<View> cells = new ArrayList<>();
         TextView menu = pickChip("☰ קטגוריות");
         styleChip(menu, true);
@@ -9987,19 +9994,51 @@ public class MainActivity extends Activity {
         if (index == null || productList == null) return;
         hideKeyboard();
         final int position = index;
-        productList.post(() -> productList.setSelectionFromTop(position, 0));
+        // Set the target before posting the ListView jump. Rapid 7/9 presses must advance
+        // from the last requested category, not an intermediate scroll position.
+        keyboardCategoryTarget = cat;
+        pendingCategoryJump = cat;
         activeCat = cat;
         styleCategoryChips();
+        // Keep the selected category button visible in the horizontal chip row as well.
+        if (catStripScroll != null) catStripScroll.post(() -> {
+            if (catStripScroll == null || !cat.equals(keyboardCategoryTarget)) return;
+            TextView selectedChip = catChips.get(cat);
+            if (selectedChip == null) return;
+            int horizontalTarget = selectedChip.getLeft()
+                    - (catStripScroll.getWidth() - selectedChip.getWidth()) / 2;
+            catStripScroll.smoothScrollTo(Math.max(0, horizontalTarget), 0);
+        });
+        productList.post(() -> {
+            if (productList == null || !showingOrderScreen || !catHeaders.containsKey(cat)) {
+                if (cat.equals(pendingCategoryJump)) pendingCategoryJump = "";
+                return;
+            }
+            productList.setSelectionFromTop(position, 0);
+            // Let ListView finish its selection/scroll callbacks before releasing the guard.
+            productList.post(() -> {
+                if (productList == null || !cat.equals(pendingCategoryJump)) return;
+                pendingCategoryJump = "";
+                activeCat = cat;
+                keyboardCategoryTarget = cat;
+                styleCategoryChips();
+            });
+        });
     }
 
     /**
      * Keypad 7/9 moves immediately between the currently visible category sections.
      * Category order follows the same ordered map used to build the product list.
      */
+    /**
+     * Keypad 7/9 moves immediately between the actual category chips and activates each
+     * category without requiring Enter. The requested target is stable during async scrolling.
+     */
     private void moveCategoryByKey(boolean next) {
         if (!showingOrderScreen || productList == null || catHeaders.isEmpty()) return;
         List<String> names = new ArrayList<>(catHeaders.keySet());
-        int current = names.indexOf(activeCat);
+        int current = names.indexOf(keyboardCategoryTarget);
+        if (current < 0) current = names.indexOf(activeCat);
         int target;
         if (current < 0) target = next ? 0 : names.size() - 1;
         else target = (current + (next ? 1 : names.size() - 1)) % names.size();
@@ -10025,8 +10064,12 @@ public class MainActivity extends Activity {
     }
 
     /** Highlights the category at the top of the list and keeps its chip in view. */
+    /** Highlights the category at the top of the list and keeps its chip in view. */
     private void updateActiveCategory(int firstVisible) {
         if (catHeaders.isEmpty()) return;
+        // A posted category jump is in progress. Ignore intermediate scroll callbacks so
+        // they cannot replace the target before the next 7/9 press.
+        if (!pendingCategoryJump.isEmpty()) return;
         String found = "";
         for (Map.Entry<String, Integer> e : catHeaders.entrySet()) {
             if (found.isEmpty()) found = e.getKey();
@@ -10035,6 +10078,7 @@ public class MainActivity extends Activity {
         }
         if (found.isEmpty() || found.equals(activeCat)) return;
         activeCat = found;
+        keyboardCategoryTarget = found;
         styleCategoryChips();
         TextView chip = catChips.get(found);
         if (chip != null && catStripScroll != null) {
