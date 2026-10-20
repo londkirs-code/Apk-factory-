@@ -3457,6 +3457,7 @@ public class MainActivity extends Activity {
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setAdjustViewBounds(true);
         preview.setContentDescription("תצוגה מוגדלת של התמונה");
+        preview.setAdjustViewBounds(false);
         imageContainer.addView(preview, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
@@ -3495,6 +3496,10 @@ public class MainActivity extends Activity {
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
         overlay.setOnClickListener(v -> dialog.dismiss());
+        // The image container also handles empty bands above and below the photo.
+        // The preview touch handler below distinguishes the actual image from FIT_CENTER margins.
+        imageContainer.setClickable(true);
+        imageContainer.setOnClickListener(v -> dialog.dismiss());
         // Taps on the visible photo keep it open; taps in the empty space around it dismiss it.
         preview.setOnTouchListener((v, event) -> {
             if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
