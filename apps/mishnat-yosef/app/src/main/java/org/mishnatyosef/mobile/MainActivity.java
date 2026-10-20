@@ -1843,48 +1843,28 @@ public class MainActivity extends Activity {
         root.addView(versionView, lp(-1, -2, 0, 16));
     }
 
-    // Keep this summary and dialog synchronized with the newest entry in CHANGELOG.md.
+    // Release notes are embedded in this APK at build time. This screen does not
+    // fetch its content from GitHub and remains available offline.
     private void addWhatsNewEntry() {
-        final String[] latestTitle = {prefs.getString("whats_new_latest_title", "העדכון האחרון")};
-        final String[] latestDetails = {prefs.getString("whats_new_latest_details", "")};
+        String latestTitle = getString(R.string.release_notes_title).trim();
+        String latestDetails = getString(R.string.release_notes_details).trim();
+        if (latestTitle.isEmpty()) latestTitle = "העדכון האחרון";
+        if (latestDetails.isEmpty()) latestDetails = latestTitle;
+
         LinearLayout whatsNewCard = card(14);
         whatsNewCard.addView(sectionTitle("✨ מה חדש"));
-        TextView summary = muted(
-                latestDetails[0].isEmpty() ? "טוען את פרטי העדכון האחרון…" : latestDetails[0].split("\\n\\s*\\n", 2)[0],
-                13);
+        TextView summary = muted(latestDetails.split("\\n\\s*\\n", 2)[0], 13);
         whatsNewCard.addView(summary);
         TextView open = btn("✨ מה חדש באפליקציה", TONAL);
+        final String titleForDialog = latestTitle;
+        final String detailsForDialog = latestDetails;
         open.setOnClickListener(v -> appDialog()
                 .setTitle("✨ מה חדש במשנת יוסף")
-                .setMessage(latestTitle[0] + "\n\n" +
-                        (latestDetails[0].isEmpty() ? "לא ניתן כרגע לטעון את פרטי העדכון האחרון." : latestDetails[0]))
+                .setMessage(titleForDialog + "\\n\\n" + detailsForDialog)
                 .setPositiveButton("הבנתי", null)
                 .show());
         whatsNewCard.addView(open, lp(-1, dp(46), 0, 8));
         root.addView(whatsNewCard, lp(-1, -2, 0, 10));
-
-        // The published update manifest contains only the newest release notes.
-        // Replace the displayed and cached entry instead of accumulating old updates.
-        executor.execute(() -> {
-            try {
-                JSONObject manifest = fetchUpdateManifest();
-                String title = manifest.optString("releaseTitle", "העדכון האחרון").trim();
-                String details = manifest.optString("releaseNotes", "").trim();
-                if (title.isEmpty()) title = "העדכון האחרון";
-                if (details.isEmpty()) details = title;
-                final String loadedTitle = title;
-                final String loadedDetails = details;
-                prefs.edit().putString("whats_new_latest_title", loadedTitle)
-                        .putString("whats_new_latest_details", loadedDetails).apply();
-                runOnUiThread(() -> {
-                    latestTitle[0] = loadedTitle;
-                    latestDetails[0] = loadedDetails;
-                    summary.setText(loadedDetails.split("\\n\\s*\\n", 2)[0]);
-                });
-            } catch (Exception ignored) {
-                // Keep the most recently cached entry when offline.
-            }
-        });
     }
 
     private void setBusy(boolean value, String message) {
@@ -2324,7 +2304,10 @@ public class MainActivity extends Activity {
         String oldName = prefs.getString("in_app_update_old_name", "לא ידועה");
         int targetCode = prefs.getInt("in_app_update_target_code", 0);
         String targetName = prefs.getString("in_app_update_target_name", "");
-        String notes = prefs.getString("in_app_update_notes", "").trim();
+        // The newly installed APK contains its own release notes, so the success
+        // message does not depend on the remote GitHub manifest being reachable.
+        String notes = getString(R.string.release_notes_details).trim();
+        if (notes.isEmpty()) notes = getString(R.string.release_notes_title).trim();
         int currentCode = installedVersionCode();
         String currentName = installedVersionName();
 
