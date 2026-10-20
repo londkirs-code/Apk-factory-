@@ -406,6 +406,11 @@ public class MainActivity extends Activity {
     private JSONObject favQtyCache = null;
     private static final long STALE_MS = 5L * 60L * 1000L;
     private static final int PAGE_LIMIT = 100;
+    // Last keyboard action is retained across optimistic and server-confirmed list refreshes.
+    // It is cleared as soon as the user deliberately navigates with another key.
+    private String pendingProductFocusId = null;
+    private String pendingProductFocusAction = null;
+
     private final Runnable productsRefresh = () -> {
         View focusedBeforeRefresh = getCurrentFocus();
         String focusTag = focusedBeforeRefresh == null ? null : (focusedBeforeRefresh.getTag() instanceof String ? (String) focusedBeforeRefresh.getTag() : null);
@@ -417,7 +422,9 @@ public class MainActivity extends Activity {
         String productTag = cardView != null && cardView.getTag() instanceof String ? (String) cardView.getTag() : null;
         if (productAdapter != null) productAdapter.notifyDataSetChanged();
         updateOrderBar();
-        if (productTag != null && focusTag != null && currentScreen != null) {
+        if (pendingProductFocusId != null && pendingProductFocusAction != null) {
+            restoreProductActionFocus(pendingProductFocusId, pendingProductFocusAction);
+        } else if (productTag != null && focusTag != null && currentScreen != null) {
             final String restoreProductTag = productTag, restoreFocusTag = focusTag;
             currentScreen.post(() -> {
                 View updatedCard = findTaggedView(currentScreen, restoreProductTag);
@@ -575,6 +582,15 @@ public class MainActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event != null && event.getAction() == KeyEvent.ACTION_DOWN) {
+            int incomingKey = event.getKeyCode();
+            boolean enterKey = incomingKey == KeyEvent.KEYCODE_ENTER
+                    || incomingKey == KeyEvent.KEYCODE_NUMPAD_ENTER
+                    || incomingKey == KeyEvent.KEYCODE_DPAD_CENTER;
+            if (!enterKey) {
+                // The user intentionally moved on; do not force focus back to the previous product action.
+                pendingProductFocusId = null;
+                pendingProductFocusAction = null;
+            }
             View focused = getCurrentFocus();
             boolean editingText = focused instanceof EditText;
             int key = event.getKeyCode();
@@ -5956,6 +5972,8 @@ public class MainActivity extends Activity {
                     JSONObject product = p;
                     if (product == null) return true;
                     String productId = sidOf(product);
+                    pendingProductFocusId = productId;
+                    pendingProductFocusAction = actionTag;
                     view.performClick();
                     restoreProductActionFocus(productId, actionTag);
                     return true;
