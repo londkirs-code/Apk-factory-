@@ -9200,6 +9200,20 @@ public class MainActivity extends Activity {
     }
 
     private void addDisplaySettings() {
+        TextView displaySettingsButton = btn("🎨  הגדרות תצוגה", TONAL);
+        displaySettingsButton.setGravity(Gravity.CENTER);
+        displaySettingsButton.setMinHeight(dp(48));
+        displaySettingsButton.setTextSize(15);
+        displaySettingsButton.setOnClickListener(v -> showDisplaySettingsPage());
+        root.addView(displaySettingsButton, lp(-1, dp(48), 0, 10));
+    }
+
+    private void showDisplaySettingsPage() {
+        beginScreen("הגדרות תצוגה", 3, () -> showAccount());
+        buildDisplaySettingsPage();
+    }
+
+    private void buildDisplaySettingsPage() {
         LinearLayout card = card(14);
         card.addView(sectionTitle("🎨 תצוגה"));
 
@@ -9209,61 +9223,6 @@ public class MainActivity extends Activity {
         controls.setPadding(dp(12), dp(8), dp(12), dp(12));
         controls.setBackground(shape(SURFACE, 16, LINE));
         controls.setVisibility(View.VISIBLE);
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        header.setPadding(dp(12), dp(10), dp(12), dp(10));
-        header.setBackground(ripple(shape(SURFACE, 14, LINE), 14));
-        header.setClickable(true);
-        header.setFocusable(true);
-        header.setMinimumHeight(dp(72));
-
-        TextView icon = text("Aa", 22, true);
-        icon.setTextColor(ORANGE_DARK);
-        icon.setGravity(Gravity.CENTER);
-        icon.setBackground(shape(ORANGE_LIGHT, 13, LINE));
-        header.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
-
-        LinearLayout labels = new LinearLayout(this);
-        labels.setOrientation(LinearLayout.VERTICAL);
-        labels.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(0, -2, 1);
-        labelsLp.setMargins(dp(12), 0, dp(10), 0);
-        header.addView(labels, labelsLp);
-        labels.addView(text("הגדרות תצוגה", 16, true), new LinearLayout.LayoutParams(-1, -2));
-        TextView subtitle = muted("גודל התצוגה, עמודות, מצב לילה והצגת מלאי", 12);
-        labels.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
-
-        TextView arrow = text("‹", 28, false);
-        arrow.setTextColor(MUTED);
-        arrow.setGravity(Gravity.CENTER);
-        header.addView(arrow, new LinearLayout.LayoutParams(dp(28), dp(40)));
-        header.setOnClickListener(v -> {
-            if (controls.getParent() instanceof ViewGroup) ((ViewGroup) controls.getParent()).removeView(controls);
-            ScrollView settingsScroll = new ScrollView(this);
-            settingsScroll.setFillViewport(true);
-            settingsScroll.setClipToPadding(false);
-            settingsScroll.setPadding(0, dp(4), 0, dp(4));
-            settingsScroll.addView(controls, new ScrollView.LayoutParams(-1, -2));
-            AlertDialog settingsDialog = new AlertDialog.Builder(this,
-                    nightMode ? android.R.style.Theme_Material_Dialog_Alert
-                            : android.R.style.Theme_Material_Light_Dialog_Alert)
-                    .setTitle("🎨 הגדרות תצוגה")
-                    .setView(settingsScroll)
-                    .setPositiveButton("סיום", (d, which) -> d.dismiss())
-                    .create();
-            settingsDialog.setCanceledOnTouchOutside(true);
-            settingsDialog.show();
-            if (settingsDialog.getWindow() != null) {
-                settingsDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-                settingsDialog.getWindow().setLayout(
-                        Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(480)),
-                        Math.min(getResources().getDisplayMetrics().heightPixels - dp(100), dp(760)));
-            }
-        });
-        card.addView(header, lp(-1, -2, 0, 6));
 
         controls.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (button, checked) -> {
             if (checked != nightMode) toggleNightMode();
@@ -9409,6 +9368,7 @@ public class MainActivity extends Activity {
             if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
             toast(checked ? "🙈 פריטים שאזלו מוסתרים" : "פריטים שאזלו מוצגים", false);
         }));
+        card.addView(controls, lp(-1, -2, 0, 0));
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
