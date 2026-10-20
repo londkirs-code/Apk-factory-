@@ -43,6 +43,7 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.LruCache;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewGroup;
@@ -552,6 +553,111 @@ public class MainActivity extends Activity {
 
     // ======================================================================== lifecycle
 
+
+    /**
+     * Makes a SeekBar usable without touch. Android's native thumb movement is retained,
+     * while common hardware-key adjustments explicitly commit the value as well.
+     */
+    private void configureKeyboardSeekBar(SeekBar bar, Runnable commit, String description) {
+        if (bar == null) return;
+        bar.setFocusable(true);
+        bar.setFocusableInTouchMode(false);
+        bar.setClickable(true);
+        if (description != null && !description.trim().isEmpty()) bar.setContentDescription(description);
+        bar.setOnKeyListener((view, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            int progress = bar.getProgress();
+            int next = progress;
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_LEFT: next = progress - 1; break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: next = progress + 1; break;
+                case KeyEvent.KEYCODE_PAGE_UP: next = progress + Math.max(1, (bar.getMax() + 4) / 5); break;
+                case KeyEvent.KEYCODE_PAGE_DOWN: next = progress - Math.max(1, (bar.getMax() + 4) / 5); break;
+                case KeyEvent.KEYCODE_MOVE_HOME: next = 0; break;
+                case KeyEvent.KEYCODE_MOVE_END: next = bar.getMax(); break;
+                default: return false;
+            }
+            next = Math.max(0, Math.min(bar.getMax(), next));
+            if (next != progress) {
+                bar.setProgress(next);
+                if (commit != null) commit.run();
+            }
+            return true;
+        });
+    }
+
+    /** Keeps keyboard focus on the intended product when navigating the multi-column order list. */
+    private boolean moveProductCardFocus(JSONObject current, int keyCode) {
+        if (current == null || productList == null || gridRows.isEmpty()) return false;
+        String sid = sidOf(current);
+        int rowIndex = -1, columnIndex = -1;
+        for (int i = 0; i < gridRows.size(); i++) {
+            GridRow row = gridRows.get(i);
+            if (row.header != null) continue;
+            JSONObject[] products = {row.a, row.b, row.c, row.d, row.e};
+            for (int c = 0; c < products.length; c++) {
+                if (products[c] != null && sid.equals(sidOf(products[c]))) {
+                    rowIndex = i;
+                    columnIndex = c;
+                    break;
+                }
+            }
+            if (rowIndex >= 0) break;
+        }
+        if (rowIndex < 0) return false;
+        GridRow currentRow = gridRows.get(rowIndex);
+        int targetColumn = columnIndex;
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            // The first product is displayed on the visual right in the Hebrew layout.
+            int step = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? 1 : -1;
+            int candidate = columnIndex + step;
+            JSONObject[] products = {currentRow.a, currentRow.b, currentRow.c, currentRow.d, currentRow.e};
+            if (candidate < 0 || candidate >= cardColumns() || products[candidate] == null) return false;
+            return focusProductBySid(sidOf(products[candidate]));
+        }
+        int step = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1;
+        int candidateRow = rowIndex;
+        JSONObject target = null;
+        while (true) {
+            candidateRow += step;
+            if (candidateRow < 0 || candidateRow >= gridRows.size()) break;
+            GridRow row = gridRows.get(candidateRow);
+            if (row.header != null) continue;
+            JSONObject[] products = {row.a, row.b, row.c, row.d, row.e};
+            if (targetColumn < products.length && products[targetColumn] != null) target = products[targetColumn];
+            else {
+                for (JSONObject product : products) if (product != null) { target = product; break; }
+            }
+            if (target != null) break;
+        }
+        return target != null && focusProductBySid(sidOf(target));
+    }
+
+    private boolean focusProductBySid(String sid) {
+        if (sid == null || sid.isEmpty() || productList == null) return false;
+        int targetPosition = -1;
+        for (int i = 0; i < gridRows.size(); i++) {
+            if (rowContainsProduct(gridRows.get(i), sid)) { targetPosition = i; break; }
+        }
+        if (targetPosition < 0) return false;
+        final int position = targetPosition;
+        productList.setSelection(position);
+        productList.post(() -> productList.post(() -> {
+            if (productList == null || position < productList.getFirstVisiblePosition()
+                    || position > productList.getLastVisiblePosition()) return;
+            View rowView = productList.getChildAt(position - productList.getFirstVisiblePosition());
+            if (rowView == null || !(rowView.getTag() instanceof RowHolder)) return;
+            RowHolder holder = (RowHolder) rowView.getTag();
+            for (CardHolder card : new CardHolder[]{holder.first, holder.second, holder.third, holder.fourth, holder.fifth}) {
+                if (card.p != null && sid.equals(sidOf(card.p)) && card.card.getVisibility() == View.VISIBLE) {
+                    card.card.requestFocus();
+                    return;
+                }
+            }
+        }));
+        return true;
+    }
+
     @Override protected void attachBaseContext(Context base) {
         Configuration config = new Configuration(base.getResources().getConfiguration());
         Locale hebrew = new Locale("he", "IL");
@@ -972,6 +1078,15 @@ public class MainActivity extends Activity {
         if (currentScreen != null) currentScreen.requestLayout();
     }
 
+    private void commitCardColumns(int requestedColumns, boolean showConfirmation) {
+        int columns = Math.max(1, Math.min(5, requestedColumns));
+        int previous = cardColumns();
+        if (previous == columns) return;
+        prefs.edit().putInt("product_card_columns", columns).apply();
+        if (showingOrderScreen && productAdapter != null) rebuildGrid(false);
+        if (showConfirmation) toast("פריסת הכרטיסיות נשמרה", false);
+    }
+
     private void showActionsDialog() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
@@ -1039,6 +1154,8 @@ public class MainActivity extends Activity {
                 changeUiScale(70 + bar.getProgress() * 5);
             }
         });
+        configureKeyboardSeekBar(scaleBar, () -> changeUiScale(70 + scaleBar.getProgress() * 5),
+                "גודל התצוגה, 70 עד 130 אחוז. חיצים לשינוי, Home ו-End לקצוות");
 
         TextView columnsLabel = text("▦  מספר עמודות בהזמנות", 14, true);
         columnsLabel.setTextColor(INK);
@@ -1066,12 +1183,11 @@ public class MainActivity extends Activity {
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { }
             @Override public void onStopTrackingTouch(SeekBar bar) {
-                int count = bar.getProgress() + 1;
-                prefs.edit().putInt("product_card_columns", count).apply();
-                if (showingOrderScreen && productAdapter != null) rebuildGrid(false);
-                toast("פריסת הכרטיסיות נשמרה", false);
+                commitCardColumns(columnsBar.getProgress() + 1, true);
             }
         });
+        configureKeyboardSeekBar(columnsBar, () -> commitCardColumns(columnsBar.getProgress() + 1, false),
+                "מספר עמודות בכרטיסי המוצרים, 1 עד 5. חיצים לשינוי");
 
         AlertDialog dialog = new AlertDialog.Builder(this,
                 nightMode ? android.R.style.Theme_Material_Dialog_Alert
@@ -5245,6 +5361,10 @@ public class MainActivity extends Activity {
 
         // the product list: only the rows on screen exist as views, and they are recycled while scrolling
         productList = new ListView(this);
+        productList.setFocusable(true);
+        productList.setFocusableInTouchMode(false);
+        productList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        productList.setContentDescription("רשימת מוצרי ההזמנה. בחרו כרטיס מוצר והשתמשו בחיצים למעבר בין מוצרים");
         productList.setDivider(null);
         productList.setDividerHeight(0);
         productList.setSelector(new ColorDrawable(Color.TRANSPARENT));
@@ -5471,6 +5591,19 @@ public class MainActivity extends Activity {
         CardHolder() {
             card.setOrientation(LinearLayout.VERTICAL);
             card.setBackground(shape(SURFACE, 14, LINE));
+            card.setClickable(true);
+            card.setFocusable(true);
+            card.setFocusableInTouchMode(false);
+            card.setOnFocusChangeListener((view, focused) ->
+                    card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE)));
+            card.setOnKeyListener((view, keyCode, event) -> {
+                if (event.getAction() != KeyEvent.ACTION_DOWN || p == null) return false;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                        || keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    return moveProductCardFocus(p, keyCode);
+                }
+                return false;
+            });
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
             imageBox = new FrameLayout(MainActivity.this);
@@ -5608,6 +5741,8 @@ public class MainActivity extends Activity {
 
         void bind(JSONObject prod) {
             p = prod;
+            card.setContentDescription(productName(prod) + ". כרטיס מוצר. Enter לפתיחת פרטי המוצר; חיצים למעבר בין מוצרים");
+            card.setFocusable(true);
             adaptCardSize();
             String sid = sidOf(prod), pid = pidOf(prod);
             boolean disabled = truthy(prod.opt("disable")), soldOut = isSoldOut(prod), canOrder = !disabled && !soldOut;
@@ -5712,6 +5847,8 @@ public class MainActivity extends Activity {
                 if (tv == null) {
                     tv = text("", 16, true);
                     tv.setTextColor(ORANGE_DARK);
+                    tv.setFocusable(true);
+                    tv.setContentDescription("כותרת קטגוריית מוצרים");
                     tv.setPadding(dp(4), dp(12), dp(4), dp(4));
                 }
                 tv.setText(r.header);
@@ -8396,6 +8533,8 @@ public class MainActivity extends Activity {
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) { }
         });
+        configureKeyboardSeekBar(slider, null,
+                "מספר עמודות בכרטיסי המוצרים, 1 עד 5. חיצים לשינוי, Enter לשמירת הבחירה");
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -9272,6 +9411,8 @@ public class MainActivity extends Activity {
                 changeUiScale(70 + seekBar.getProgress() * 5);
             }
         });
+        configureKeyboardSeekBar(scaleSlider, () -> changeUiScale(70 + scaleSlider.getProgress() * 5),
+                "גודל התצוגה, מ־70 עד 130 אחוז בקפיצות של 5. חיצים לשינוי");
         TextView resetScale = btn("↺  איפוס גודל התצוגה", OUTLINE);
         resetScale.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(-1, dp(42));
@@ -9339,12 +9480,11 @@ public class MainActivity extends Activity {
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
-                int columns = seekBar.getProgress() + 1;
-                prefs.edit().putInt("product_card_columns", columns).apply();
-                if (showingOrderScreen && productAdapter != null) rebuildGrid(false);
-                toast("פריסת הכרטיסיות נשמרה", false);
+                commitCardColumns(columnsSlider.getProgress() + 1, true);
             }
         });
+        configureKeyboardSeekBar(columnsSlider, () -> commitCardColumns(columnsSlider.getProgress() + 1, false),
+                "מספר עמודות בכרטיסי המוצרים, בין עמודה אחת לחמש. חיצים לשינוי");
 
         TextView soldOutHeading = text("📦 הצגת פריטים שאזלו", 15, true);
         soldOutHeading.setTextColor(INK);
