@@ -5595,6 +5595,7 @@ public class MainActivity extends Activity {
             card.setClickable(true);
             card.setFocusable(true);
             card.setFocusableInTouchMode(false);
+            card.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
             card.setOnFocusChangeListener((view, focused) ->
                     card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE)));
             card.setOnKeyListener((view, keyCode, event) -> {
