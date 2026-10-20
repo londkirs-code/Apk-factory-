@@ -108,6 +108,8 @@ public class MainActivity extends Activity {
     private static final String IMG_BASE = "https://images.mishnatyosef.org/images/items/";
     private static final String PREFS = "mishnat_auth";
     private static final String PREF_PENDING_NOTIFICATION_SALE_ID = "pending_notification_sale_id";
+    private static final String PREF_PENDING_STOCK_SALE_ID = "pending_stock_sale_id";
+    private static final String PREF_PENDING_STOCK_SID = "pending_stock_product_sid";
     private static final long REFRESH_MARGIN_MS = 300000L;
 
     // ---- palette
@@ -615,14 +617,27 @@ public class MainActivity extends Activity {
         SaleMonitor.ensureNotificationChannel(this);
         StockMonitor.scheduleNextCheck(this);
         requestMonitoringPermissions(false);
+        if (getIntent() != null && getIntent().hasExtra("stock_sale_id") && getIntent().hasExtra("stock_product_sid")) {
+            int stockSaleId = getIntent().getIntExtra("stock_sale_id", -1);
+            String stockSid = getIntent().getStringExtra("stock_product_sid");
+            if (stockSaleId > 0 && stockSid != null && !stockSid.trim().isEmpty()) {
+                prefs.edit().putInt(PREF_PENDING_STOCK_SALE_ID, stockSaleId)
+                        .putString(PREF_PENDING_STOCK_SID, stockSid).remove(PREF_PENDING_NOTIFICATION_SALE_ID).apply();
+            }
+        }
         if (getIntent() != null && getIntent().hasExtra("sale_id")) {
             int notifiedSaleId = getIntent().getIntExtra("sale_id", -1);
-            if (notifiedSaleId > 0) prefs.edit().putInt(PREF_PENDING_NOTIFICATION_SALE_ID, notifiedSaleId).apply();
+            if (notifiedSaleId > 0 && !prefs.contains(PREF_PENDING_STOCK_SALE_ID))
+                prefs.edit().putInt(PREF_PENDING_NOTIFICATION_SALE_ID, notifiedSaleId).apply();
         }
         if (hasToken()) {
             SaleMonitor.scheduleNextStart(this);
+            int pendingStockSaleId = prefs.getInt(PREF_PENDING_STOCK_SALE_ID, -1);
+            String pendingStockSid = prefs.getString(PREF_PENDING_STOCK_SID, "");
             int pendingSaleId = prefs.getInt(PREF_PENDING_NOTIFICATION_SALE_ID, -1);
-            if (pendingSaleId > 0) {
+            if (pendingStockSaleId > 0 && !pendingStockSid.isEmpty()) {
+                openSaleFromStockNotification(pendingStockSaleId, pendingStockSid);
+            } else if (pendingSaleId > 0) {
                 openSaleFromNotification(pendingSaleId);
             } else if (reopenActionsAfterScale && restoreTabAfterScale >= 0) {
                 switch (restoreTabAfterScale) {
@@ -649,6 +664,17 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (intent != null && intent.hasExtra("stock_sale_id") && intent.hasExtra("stock_product_sid")) {
+            int stockSaleId = intent.getIntExtra("stock_sale_id", -1);
+            String stockSid = intent.getStringExtra("stock_product_sid");
+            if (stockSaleId > 0 && stockSid != null && !stockSid.trim().isEmpty()) {
+                prefs.edit().putInt(PREF_PENDING_STOCK_SALE_ID, stockSaleId)
+                        .putString(PREF_PENDING_STOCK_SID, stockSid).remove(PREF_PENDING_NOTIFICATION_SALE_ID).apply();
+                if (hasToken()) openSaleFromStockNotification(stockSaleId, stockSid);
+                else showLogin();
+            }
+            return;
+        }
         if (intent != null && intent.hasExtra("sale_id")) {
             int notifiedSaleId = intent.getIntExtra("sale_id", -1);
             if (notifiedSaleId > 0) prefs.edit().putInt(PREF_PENDING_NOTIFICATION_SALE_ID, notifiedSaleId).apply();
@@ -1928,8 +1954,12 @@ public class MainActivity extends Activity {
                     loginButton = null;
                     toast("✔ התחברת בהצלחה", false);
                     SaleMonitor.scheduleNextStart(this);
+                    int pendingStockSaleId = prefs.getInt(PREF_PENDING_STOCK_SALE_ID, -1);
+                    String pendingStockSid = prefs.getString(PREF_PENDING_STOCK_SID, "");
                     int pendingSaleId = prefs.getInt(PREF_PENDING_NOTIFICATION_SALE_ID, -1);
-                    if (pendingSaleId > 0) openSaleFromNotification(pendingSaleId);
+                    if (pendingStockSaleId > 0 && !pendingStockSid.isEmpty())
+                        openSaleFromStockNotification(pendingStockSaleId, pendingStockSid);
+                    else if (pendingSaleId > 0) openSaleFromNotification(pendingSaleId);
                     else showOpenSales();
                 });
             } catch (Exception e) {
@@ -4234,6 +4264,54 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private void clearPendingStockNavigation() {
+        prefs.edit().remove(PREF_PENDING_STOCK_SALE_ID).remove(PREF_PENDING_STOCK_SID).apply();
+    }
+
+    /** Opens the sale linked to a restock notification, then scrolls to its real product card. */
+    private void openSaleFromStockNotification(int saleId, String productSid) {
+        if (saleId <= 0 || productSid == null || productSid.trim().isEmpty()) {
+            clearPendingStockNavigation();
+            showOpenSales(false);
+            return;
+        }
+        prefs.edit().putInt(PREF_PENDING_STOCK_SALE_ID, saleId)
+                .putString(PREF_PENDING_STOCK_SID, productSid).remove(PREF_PENDING_NOTIFICATION_SALE_ID).apply();
+        beginScreen("פתיחת המוצר שחזר למלאי…", 0, null);
+        setStatus("טוען את המכירה ואת פרטי המוצר…");
+        final int t = screenToken;
+        executor.execute(() -> {
+            try {
+                HttpResult r = api("GET", "/api/profile/open_sales", null);
+                if (r.code < 200 || r.code >= 300) throw new Exception("לא ניתן לטעון את המכירה. נסו שוב.");
+                JSONArray sales = arrayFrom(r.body);
+                JSONObject found = null;
+                for (int i = 0; i < sales.length(); i++) {
+                    JSONObject sale = sales.optJSONObject(i);
+                    if (sale != null && sale.optInt("id", -1) == saleId) { found = sale; break; }
+                }
+                final JSONObject selected = found;
+                runOnUiThread(() -> {
+                    if (stale(t)) return;
+                    if (selected != null) {
+                        loadFeatureProducts(selected);
+                    } else {
+                        clearPendingStockNavigation();
+                        showOpenSales(false);
+                        toast("המכירה כבר אינה פתוחה, ולכן לא ניתן לפתוח את כרטיס המוצר. מציג את המכירות הפתוחות.", true);
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    if (e instanceof AuthException) { showLogin(); return; }
+                    // Keep the target for a retry; never silently redirect to a different product.
+                    showOpenSales(false);
+                    toast(errText(e, "טעינת המוצר נכשלה. אפשר לנסות שוב מההתראה הבאה."), true);
+                });
+            }
+        });
+    }
+
     private void openSaleFromNotification(int saleId) {
         if (saleId < 0) { showOpenSales(false); return; }
         beginScreen("פתיחת המכירה החדשה…", 0, null);
@@ -4692,6 +4770,8 @@ public class MainActivity extends Activity {
         renderFeatureProducts(); // paints at once from memory (empty when nothing is cached yet)
         final int t = screenToken;
         if (inMemory) {
+            // A cached sale may already contain the target card; otherwise the fresh server load will retry.
+            navigateToPendingStockProduct(saleId);
             if (System.currentTimeMillis() - productsLoadedAt > STALE_MS) refreshProducts(sale, true);
             return;
         }
@@ -4824,6 +4904,7 @@ public class MainActivity extends Activity {
                 setStatus("");
                 rebuildGrid();
                 updateOrderBar();
+                navigateToPendingStockProduct(saleId);
                 if (!silent) toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
             }
         }
@@ -5136,6 +5217,47 @@ public class MainActivity extends Activity {
 
     private void rebuildGrid() { rebuildGrid(false); }
 
+    /** Scrolls to the requested stock-restock product only after its real card is in the adapter. */
+    private void navigateToPendingStockProduct(int saleId) {
+        if (prefs == null || productList == null || productAdapter == null || featureSale == null) return;
+        int targetSaleId = prefs.getInt(PREF_PENDING_STOCK_SALE_ID, -1);
+        String targetSid = prefs.getString(PREF_PENDING_STOCK_SID, "");
+        if (targetSaleId != saleId || targetSid.isEmpty() || currentSaleId != saleId
+                || featureSale.optInt("id", -1) != saleId || productsPartial || productsLoading) return;
+        // Ensure the target remains visible even if the user's sold-out filter would otherwise hide it.
+        int targetPosition = -1;
+        for (int i = 0; i < gridRows.size(); i++) {
+            GridRow row = gridRows.get(i);
+            if (row.header != null) continue;
+            if (rowContainsProduct(row, targetSid)) { targetPosition = i; break; }
+        }
+        if (targetPosition < 0) {
+            // A target absent from fresh product data must not send the user to a random card.
+            clearPendingStockNavigation();
+            toast("המוצר כבר לא מופיע במכירה. הצגתי את ההזמנה כדי שתוכל לבדוק את המוצרים.", true);
+            return;
+        }
+        final int position = targetPosition;
+        final String name = productName(findProductBySid(targetSid));
+        productList.post(() -> {
+            if (productList == null || productAdapter == null || currentSaleId != saleId) return;
+            productList.setSelectionFromTop(position, dp(12));
+            productList.smoothScrollToPosition(position);
+            clearPendingStockNavigation();
+            toast("📍 הגעת לכרטיס: " + (name.isEmpty() ? "המוצר שחזר למלאי" : name), false);
+        });
+    }
+
+    private boolean rowContainsProduct(GridRow row, String sid) {
+        return row != null && (sid.equals(sidOf(row.a)) || sid.equals(sidOf(row.b))
+                || sid.equals(sidOf(row.c)) || sid.equals(sidOf(row.d)) || sid.equals(sidOf(row.e)));
+    }
+
+    private JSONObject findProductBySid(String sid) {
+        for (JSONObject product : featureProducts) if (sid.equals(sidOf(product))) return product;
+        return null;
+    }
+
     private void rebuildGrid(boolean toTop) {
         if (productAdapter == null) return;
         gridRows.clear();
@@ -5147,7 +5269,10 @@ public class MainActivity extends Activity {
         for (JSONObject p : featureProducts) {
             String name = productName(p);
             if (!filterText.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(filterText)) continue;
-            if (hideSoldOut() && !separateSoldOutCategory() && isSoldOut(p)) { Integer inCart = featureQuantities.get(sidOf(p)); if (inCart == null || inCart <= 0) continue; }
+            boolean isPendingStockTarget = prefs != null
+                    && prefs.getInt(PREF_PENDING_STOCK_SALE_ID, -1) == currentSaleId
+                    && sidOf(p).equals(prefs.getString(PREF_PENDING_STOCK_SID, ""));
+            if (hideSoldOut() && !separateSoldOutCategory() && isSoldOut(p) && !isPendingStockTarget) { Integer inCart = featureQuantities.get(sidOf(p)); if (inCart == null || inCart <= 0) continue; }
             if ("fav".equals(viewMode) && !favIds.contains(pidOf(p))) continue;
             if ("cart".equals(viewMode)) { Integer qq = featureQuantities.get(sidOf(p)); if (qq == null || qq <= 0) continue; }
             String cat = separateSoldOutCategory() && isSoldOut(p) ? "פריטים שאזלו" : categoryName(p);
