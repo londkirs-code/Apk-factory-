@@ -2204,9 +2204,12 @@ public class MainActivity extends Activity {
         share.setClipData(ClipData.newUri(getContentResolver(), "משנת יוסף.apk", uri));
         share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         try {
-            startActivity(Intent.createChooser(share, "שיתוף קובץ APK"));
+            Intent chooser = Intent.createChooser(share, "שיתוף קובץ APK");
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(chooser);
         } catch (Exception error) {
-            toast("לא ניתן לפתוח את חלון השיתוף.", true);
+            String detail = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            toast("לא ניתן לפתוח את חלון השיתוף: " + detail, true);
         }
     }
 
@@ -2517,7 +2520,8 @@ public class MainActivity extends Activity {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(UPDATE_APK_URL));
             request.setTitle("משנת יוסף — עדכון " + updateLatestName);
             request.setDescription("מוריד קובץ עדכון מאומת");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN);
+            // Hidden visibility (2) may be rejected unless DOWNLOAD_WITHOUT_NOTIFICATION is granted.
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setAllowedOverMetered(true);
             request.setAllowedOverRoaming(false);
             request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS,
