@@ -2505,12 +2505,18 @@ public class MainActivity extends Activity {
             styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
         }
         File savedUpdateFile = savedVerifiedUpdateFile();
+        boolean legacyDownloadAvailable = prefs.getLong("update_download_id", -1L) > 0;
+        if (updateDownloadInProgress) {
+            updateDownloadButton.setEnabled(false);
+            updateStatusView.setText("ההורדה מתבצעת ברקע באופן פרטי. אפשר לעקוב אחר ההתקדמות כאן.");
+        }
         if (prefs.getBoolean("update_download_verified", false)
                 && prefs.getInt("update_download_verified_code", 0) == updateLatestCode
-                && updateLatestCode > installedVersionCode() && savedUpdateFile != null) {
+                && updateLatestCode > installedVersionCode()
+                && (savedUpdateFile != null || legacyDownloadAvailable)) {
             updateStatusView.setText("ההורדה הושלמה והקובץ אומת. אפשר להתקין.");
             updateInstallButton.setVisibility(View.VISIBLE);
-        } else if (prefs.getBoolean("update_download_verified", false)) {
+        } else if (prefs.getBoolean("update_download_verified", false) && !legacyDownloadAvailable) {
             prefs.edit().putBoolean("update_download_verified", false).apply();
         }
     }
