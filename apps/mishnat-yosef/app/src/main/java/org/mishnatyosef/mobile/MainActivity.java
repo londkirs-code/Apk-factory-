@@ -657,6 +657,14 @@ public class MainActivity extends Activity {
                     scrollOrderByKey(true);
                     return true;
                 }
+                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_7, KeyEvent.KEYCODE_NUMPAD_7)) {
+                    if (event.getRepeatCount() == 0) moveCategoryByKey(false);
+                    return true;
+                }
+                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_9, KeyEvent.KEYCODE_NUMPAD_9)) {
+                    if (event.getRepeatCount() == 0) moveCategoryByKey(true);
+                    return true;
+                }
             }
         }
         return super.dispatchKeyEvent(event);
@@ -9982,6 +9990,23 @@ public class MainActivity extends Activity {
         productList.post(() -> productList.setSelectionFromTop(position, 0));
         activeCat = cat;
         styleCategoryChips();
+    }
+
+    /**
+     * Keypad 7/9 moves immediately between the currently visible category sections.
+     * Category order follows the same ordered map used to build the product list.
+     */
+    private void moveCategoryByKey(boolean next) {
+        if (!showingOrderScreen || productList == null || catHeaders.isEmpty()) return;
+        List<String> names = new ArrayList<>(catHeaders.keySet());
+        int current = names.indexOf(activeCat);
+        int target;
+        if (current < 0) target = next ? 0 : names.size() - 1;
+        else target = (current + (next ? 1 : names.size() - 1)) % names.size();
+        String category = names.get(target);
+        jumpToCategory(category);
+        TextView chip = catChips.get(category);
+        if (chip != null) chip.announceForAccessibility(category);
     }
 
     private void showCategoryMenu() {
