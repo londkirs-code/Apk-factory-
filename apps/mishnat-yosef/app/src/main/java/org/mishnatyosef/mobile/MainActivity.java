@@ -3385,6 +3385,16 @@ public class MainActivity extends Activity {
     private void loadImage(final ImageView iv, final String url) {
         if (url == null || url.isEmpty()) return;
         iv.setTag(url);
+        if (TextUtils.isEmpty(iv.getContentDescription())) iv.setContentDescription(url);
+        iv.setOnClickListener(v -> {
+            Object full = iv.getContentDescription();
+            Object tagged = iv.getTag();
+            String previewUrl = full instanceof CharSequence ? full.toString() : "";
+            if (previewUrl.isEmpty() && tagged instanceof String) previewUrl = (String) tagged;
+            showImagePreview(previewUrl);
+        });
+        iv.setClickable(true);
+        iv.setFocusable(true);
         Bitmap cached = imageCache.get(url);
         if (cached != null) { iv.setImageBitmap(cached); return; }
         try {
@@ -3395,6 +3405,95 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> { if (url.equals(iv.getTag())) iv.setImageBitmap(bmp); });
             });
         } catch (Exception ignored) { }
+    }
+
+    /**
+     * Opens the original product image in a dark, tap-outside-to-close viewer.
+     * The source URL is kept separate from the thumbnail URL so this always asks
+     * for the full image when the app has a smaller thumbnail configured.
+     */
+    private void showImagePreview(String url) {
+        if (url == null || url.trim().isEmpty() || isFinishing()) return;
+
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setPadding(dp(12), dp(12), dp(12), dp(12));
+        overlay.setBackground(shape(Color.argb(246, 20, 23, 26), 22, Color.argb(110, 255, 255, 255)));
+        overlay.setClickable(true);
+
+        ImageView preview = new ImageView(this);
+        preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        preview.setAdjustViewBounds(true);
+        preview.setContentDescription("תצוגה מוגדלת של התמונה");
+        FrameLayout.LayoutParams imageLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+        imageLp.setMargins(dp(4), dp(56), dp(4), dp(8));
+        overlay.addView(preview, imageLp);
+        preview.setOnClickListener(v -> { /* Keep taps on the image from closing the viewer. */ });
+
+        TextView loading = text("טוען תמונה מלאה…", 14, true);
+        loading.setTextColor(Color.WHITE);
+        loading.setGravity(Gravity.CENTER);
+        loading.setBackground(shape(Color.argb(180, 45, 48, 51), 14, Color.argb(90, 255, 255, 255)));
+        FrameLayout.LayoutParams loadingLp = new FrameLayout.LayoutParams(-2, dp(48), Gravity.CENTER);
+        overlay.addView(loading, loadingLp);
+        loading.setOnClickListener(v -> { });
+
+        TextView close = text("×", 30, true);
+        close.setTextColor(INK);
+        close.setGravity(Gravity.CENTER);
+        close.setBackground(shape(BG, 22, LINE));
+        close.setElevation(dp(5));
+        FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.END);
+        closeLp.setMargins(0, dp(2), dp(2), 0);
+        overlay.addView(close, closeLp);
+
+        AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
+        overlay.setOnClickListener(v -> dialog.dismiss());
+        close.setOnClickListener(v -> dialog.dismiss());
+        dialog.setCancelable(true);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.setOnShowListener(d -> {
+            android.view.Window window = dialog.getWindow();
+            if (window != null) {
+                window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                WindowManager.LayoutParams attrs = window.getAttributes();
+                attrs.dimAmount = 0.82f;
+                window.setAttributes(attrs);
+                window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
+            }
+        });
+        dialog.show();
+        // Apply full-screen sizing after show(), when the window is available.
+        android.view.Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams attrs = window.getAttributes();
+            attrs.dimAmount = 0.82f;
+            window.setAttributes(attrs);
+            window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
+        }
+
+        final int decodeSize = Math.max(getResources().getDisplayMetrics().widthPixels,
+                getResources().getDisplayMetrics().heightPixels) * 2;
+        try {
+            imageExecutor.execute(() -> {
+                Bitmap bmp = downloadBitmap(url, decodeSize);
+                runOnUiThread(() -> {
+                    if (!dialog.isShowing()) return;
+                    loading.setVisibility(View.GONE);
+                    if (bmp != null) {
+                        preview.setImageBitmap(bmp);
+                    } else {
+                        loading.setText("לא ניתן לטעון את התמונה. אפשר לסגור ולנסות שוב.");
+                        loading.setVisibility(View.VISIBLE);
+                    }
+                });
+            });
+        } catch (Exception e) {
+            loading.setText("לא ניתן לטעון את התמונה.");
+        }
     }
 
     // ---- images are kept on disk, so they open instantly and also work offline
@@ -3545,6 +3644,15 @@ public class MainActivity extends Activity {
         iv.setScaleType(scale);
         iv.setBackgroundColor(SURFACE);
         iv.setLayoutParams(new LinearLayout.LayoutParams(widthDp < 0 ? widthDp : dp(widthDp), dp(heightDp)));
+        iv.setOnClickListener(v -> {
+            Object full = iv.getContentDescription();
+            Object tagged = iv.getTag();
+            String previewUrl = full instanceof CharSequence ? full.toString() : "";
+            if (previewUrl.isEmpty() && tagged instanceof String) previewUrl = (String) tagged;
+            showImagePreview(previewUrl);
+        });
+        iv.setClickable(true);
+        iv.setFocusable(true);
         return iv;
     }
 
@@ -5093,6 +5201,14 @@ public class MainActivity extends Activity {
             image = new ImageView(MainActivity.this);
             image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             image.setBackgroundColor(SURFACE);
+            image.setClickable(true);
+            image.setFocusable(true);
+            image.setOnClickListener(v -> {
+                Object full = image.getContentDescription();
+                String previewUrl = full instanceof CharSequence ? full.toString() : "";
+                if (previewUrl.isEmpty() && image.getTag() instanceof String) previewUrl = (String) image.getTag();
+                showImagePreview(previewUrl);
+            });
             imageBox.addView(image, new FrameLayout.LayoutParams(-1, dp(112)));
             badge = text("", 11, true);
             badge.setTextColor(ON_ORANGE);
@@ -5225,6 +5341,8 @@ public class MainActivity extends Activity {
                 image.setImageDrawable(null);
                 loadImage(image, url);
             }
+            // Keep the full-size URL even when the card itself uses a thumbnail.
+            image.setContentDescription(imageUrl(prod, false));
             image.setAlpha(canOrder ? 1f : 0.45f);
             badge.setVisibility(canOrder ? View.GONE : View.VISIBLE);
             badge.setText(disabled ? "לא זמין" : "אזל");
@@ -5439,6 +5557,7 @@ public class MainActivity extends Activity {
             panel.addView(iv);
             final String full = url;
             iv.setTag(full);
+            iv.setContentDescription(full);
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(full, 900);
                 if (bmp != null) runOnUiThread(() -> { if (full.equals(iv.getTag())) iv.setImageBitmap(bmp); });
@@ -5767,7 +5886,9 @@ public class MainActivity extends Activity {
         ip.setMarginEnd(dp(10));
         row.addView(iv, ip);
         JSONObject known = findProduct(line.sid);
-        loadImage(iv, imageUrl(known != null ? known : line.raw, !fullImages()));
+        JSONObject imageProduct = known != null ? known : line.raw;
+        loadImage(iv, imageUrl(imageProduct, !fullImages()));
+        iv.setContentDescription(imageUrl(imageProduct, false));
         return row;
     }
 
