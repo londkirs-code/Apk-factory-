@@ -2380,7 +2380,7 @@ public class MainActivity extends Activity {
         updateCheckButton = btn("🔄 בדוק אם יש עדכון", PRIMARY);
         updateCheckButton.setOnClickListener(v -> checkForAppUpdate());
         card.addView(updateCheckButton, lp(-1, dp(46), 0, 6));
-        updateDownloadButton = btn("⬇️ הורד עדכון", TONAL);
+        updateDownloadButton = btn("⬇️ הורד ועדכן", TONAL);
         updateDownloadButton.setEnabled(false);
         updateDownloadButton.setOnClickListener(v -> downloadLatestUpdate());
         card.addView(updateDownloadButton, lp(-1, dp(46), 0, 6));
