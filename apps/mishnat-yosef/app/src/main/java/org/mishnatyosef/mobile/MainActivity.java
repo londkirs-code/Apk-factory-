@@ -6668,7 +6668,8 @@ public class MainActivity extends Activity {
         sendCredit.setEnabled(items.length() > 0);
         sendCredit.setAlpha(items.length() > 0 ? 1f : 0.5f);
         sendCredit.setTextSize(12);
-        sendCredit.setOnClickListener(v -> {
+        // Sending the credit/charge request is a protected action when child lock is enabled.
+        sendCredit.setOnClickListener(v -> requireUnlock(() -> {
             String creditText = creditListTypedText("credit");
             String chargeText = creditListTypedText("charge");
             if (creditText.isEmpty() && chargeText.isEmpty()) {
@@ -6706,7 +6707,7 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 toast("לא נמצאה אפליקציה לשליחת מייל.", true);
             }
-        });
+        }));
 
         TextView shareCredit = smallChip("📤 שיתוף", TONAL);
         shareCredit.setEnabled(items.length() > 0);
@@ -8794,7 +8795,7 @@ public class MainActivity extends Activity {
     private void addSafetySettings() {
         LinearLayout card = card(14);
         card.addView(sectionTitle("🛡️ בטיחות ותצוגה"));
-        card.addView(switchRow("נעילת ילדים", "תרגיל חשבון לפני הוספה, שינוי או מחיקה בהזמנה. אחרי פתרון הנעילה פתוחה 5 דקות", childLockOn(), (b, checked) -> {
+        card.addView(switchRow("נעילת ילדים", "תרגיל חשבון לפני פעולות בהזמנה וגם לפני שליחת זיכויים וחיובים למשנת יוסף. אחרי פתרון הנעילה פתוחה 5 דקות", childLockOn(), (b, checked) -> {
             if (checked) {
                 prefs.edit().putBoolean("child_lock_enabled", true).apply();
                 unlockExpiry = 0L;
