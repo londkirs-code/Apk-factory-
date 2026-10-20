@@ -2007,9 +2007,13 @@ public class MainActivity extends Activity {
                 if (target == null) throw new java.io.IOException("לא ניתן ליצור קובץ שיתוף");
                 long savedId = prefs.getLong("update_download_id", -1L);
                 int savedCode = prefs.getInt("update_download_verified_code", -1);
+                int knownLatestCode = prefs.getInt("update_latest_code", -1);
+                String knownSha = prefs.getString("update_latest_sha256", "");
                 boolean savedVerified = prefs.getBoolean("update_download_verified", false);
                 int installedCode = installedVersionCode();
-                if (savedVerified && savedCode > 0 && savedCode >= installedCode && savedId > 0) {
+                if (savedVerified && savedCode > 0 && savedCode == knownLatestCode
+                        && savedCode >= installedCode && savedId > 0
+                        && knownSha.matches("[0-9a-fA-F]{64}")) {
                     DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                     Uri savedUri = dm == null ? null : dm.getUriForDownloadedFile(savedId);
                     if (savedUri != null) {
@@ -2024,9 +2028,11 @@ public class MainActivity extends Activity {
                 JSONObject manifest = fetchUpdateManifest();
                 String apkUrl = manifest.optString("apkUrl", UPDATE_APK_URL).trim();
                 String sha = manifest.optString("sha256", "").trim();
-                if (!UPDATE_APK_URL.equals(apkUrl)) throw new java.io.IOException("כתובת ה־APK במידע העדכון אינה צפויה");
+                boolean expectedUrl = UPDATE_APK_URL.equals(apkUrl)
+                        || "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk".equals(apkUrl);
+                if (!expectedUrl) throw new java.io.IOException("כתובת ה־APK במידע העדכון אינה צפויה");
                 if (!sha.matches("[0-9a-fA-F]{64}")) throw new java.io.IOException("מידע האימות של הגרסה חסר או לא תקין");
-                HttpURLConnection connection = (HttpURLConnection) new URL(UPDATE_APK_URL).openConnection();
+                HttpURLConnection connection = (HttpURLConnection) new URL(apkUrl).openConnection();
                 connection.setConnectTimeout(20000);
                 connection.setReadTimeout(60000);
                 connection.setInstanceFollowRedirects(true);
