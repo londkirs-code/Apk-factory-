@@ -3527,7 +3527,6 @@ public class MainActivity extends Activity {
         preview.setContentDescription("תצוגה מוגדלת של התמונה");
         imageContainer.addView(preview, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        preview.setOnClickListener(v -> { /* Taps on the photo keep it open. */ });
 
         TextView loading = text("טוען תמונה מלאה…", 14, true);
         loading.setTextColor(Color.WHITE);
@@ -3544,13 +3543,53 @@ public class MainActivity extends Activity {
         close.setBackground(shape(Color.argb(190, 24, 27, 30), 22, 0));
         close.setElevation(dp(6));
         close.setContentDescription("סגירת התמונה המוגדלת");
-        FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.END);
-        closeLp.setMargins(0, dp(6), dp(6), 0);
+        FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.LEFT);
         imageContainer.addView(close, closeLp);
+
+        // Position the close control over the actual photo, not over an empty FIT_CENTER margin.
+        Runnable positionCloseOnPhoto = () -> {
+            if (preview.getDrawable() == null || preview.getWidth() <= 0 || preview.getHeight() <= 0) return;
+            int photoWidth = preview.getDrawable().getIntrinsicWidth();
+            int photoHeight = preview.getDrawable().getIntrinsicHeight();
+            if (photoWidth <= 0 || photoHeight <= 0) return;
+            float scale = Math.min((float) preview.getWidth() / photoWidth,
+                    (float) preview.getHeight() / photoHeight);
+            int shownWidth = Math.round(photoWidth * scale);
+            int shownHeight = Math.round(photoHeight * scale);
+            closeLp.leftMargin = (preview.getWidth() - shownWidth) / 2
+                    + shownWidth - dp(42) - dp(8);
+            closeLp.topMargin = (preview.getHeight() - shownHeight) / 2 + dp(8);
+            close.setLayoutParams(closeLp);
+        };
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
         overlay.setOnClickListener(v -> dialog.dismiss());
-        imageContainer.setOnClickListener(v -> { /* Keep the photo area open. */ });
+        // Taps on the visible photo keep it open; taps in the empty space around it dismiss it.
+        preview.setOnTouchListener((v, event) -> {
+            if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+                if (preview.getDrawable() == null) {
+                    dialog.dismiss();
+                    return true;
+                }
+                int photoWidth = preview.getDrawable().getIntrinsicWidth();
+                int photoHeight = preview.getDrawable().getIntrinsicHeight();
+                if (photoWidth <= 0 || photoHeight <= 0) {
+                    dialog.dismiss();
+                    return true;
+                }
+                float scale = Math.min((float) preview.getWidth() / photoWidth,
+                        (float) preview.getHeight() / photoHeight);
+                float shownWidth = photoWidth * scale;
+                float shownHeight = photoHeight * scale;
+                float left = (preview.getWidth() - shownWidth) / 2f;
+                float top = (preview.getHeight() - shownHeight) / 2f;
+                if (event.getX() < left || event.getX() > left + shownWidth
+                        || event.getY() < top || event.getY() > top + shownHeight) {
+                    dialog.dismiss();
+                }
+            }
+            return true;
+        });
         close.setOnClickListener(v -> dialog.dismiss());
         dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(true);
@@ -3585,6 +3624,7 @@ public class MainActivity extends Activity {
                     loading.setVisibility(View.GONE);
                     if (bmp != null) {
                         preview.setImageBitmap(bmp);
+                        preview.post(positionCloseOnPhoto);
                     } else {
                         loading.setText("לא ניתן לטעון את התמונה. אפשר לסגור ולנסות שוב.");
                         loading.setVisibility(View.VISIBLE);
