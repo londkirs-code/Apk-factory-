@@ -1,9 +1,9 @@
 {
-  "versionCode": 269,
-  "versionName": "1.431",
+  "versionCode": 270,
+  "versionName": "1.432",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "35d6ebd98316f58c17bc186df3be69aff88b3d82ce9a62b22971e1d33fc32588",
-  "releaseTitle": "קיצור דרך להגדרות התראות",
-  "releaseNotes": "- נוסף בעמוד ״מכירות פתוחות״ כפתור בולט ובטקסט גדול להגדרת התראות על פתיחת מכירה ועל התקרבות מועד סגירת מכירה.\n- לחיצה על הכפתור פותחת ישירות את ״הגדרות התראות״, שבהן אפשר להפעיל ולהגדיר את ההתראות.",
-  "buildCommit": "19bda7a10cf7b118c3ad99f526a90ed5a7c7bdf6"
+  "sha256": "9f0465cc688c3bb5bc60275998d17d704efdd69385333035d4d1b16eb9b4319b",
+  "releaseTitle": "נעילת ילדים גם בשליחת זיכויים וחיובים",
+  "releaseNotes": "- כאשר נעילת הילדים מופעלת, לפני פתיחת שליחת המייל ״שלח למשנת יוסף״ ברשימת הזיכויים והחיובים צריך לפתור תרגיל חשבון.\n- עודכן גם ההסבר בהגדרות נעילת הילדים כדי לציין שההגנה חלה על שליחת הזיכויים והחיובים למשנת יוסף.",
+  "buildCommit": "834abad116f5479db5d1ed7cfab4f0ac39105fa0"
 }
