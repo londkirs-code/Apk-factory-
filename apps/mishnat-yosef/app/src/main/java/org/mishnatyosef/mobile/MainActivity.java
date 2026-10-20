@@ -8301,35 +8301,140 @@ public class MainActivity extends Activity {
     }
 
     private void showCardSizeDialog() {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(20), dp(12), dp(20), dp(8));
-        TextView value = text("", 16, true);
-        value.setTextColor(ORANGE_DARK);
-        value.setGravity(Gravity.CENTER);
-        box.addView(value, lp(-1, -2, 0, 4));
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(Gravity.CENTER_HORIZONTAL);
+        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        panel.setPadding(dp(18), dp(16), dp(18), dp(18));
+        panel.setBackground(shape(SURFACE, 24, LINE));
+        panel.setElevation(dp(12));
+
+        LinearLayout headingRow = new LinearLayout(this);
+        headingRow.setOrientation(LinearLayout.HORIZONTAL);
+        headingRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView heading = text("▦  פריסת כרטיסי מוצרים", 20, true);
+        heading.setTextColor(INK);
+        heading.setGravity(Gravity.CENTER);
+        headingRow.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView close = btn("✕", FLAT);
+        close.setContentDescription("סגירת הגדרות מספר העמודות");
+        close.setMinHeight(dp(40));
+        close.setPadding(dp(10), dp(4), dp(10), dp(4));
+        headingRow.addView(close, new LinearLayout.LayoutParams(dp(44), dp(40)));
+        panel.addView(headingRow, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView subtitle = muted("בחרו כמה כרטיסי מוצרים יוצגו בכל שורה", 13);
+        subtitle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(-1, -2);
+        subtitleParams.topMargin = dp(3);
+        subtitleParams.bottomMargin = dp(14);
+        panel.addView(subtitle, subtitleParams);
+
+        int initialColumns = cardColumns();
+        TextView count = text(initialColumns + (initialColumns == 1 ? " עמודה" : " עמודות"), 22, true);
+        count.setGravity(Gravity.CENTER);
+        count.setTextColor(ORANGE_DARK);
+        count.setBackground(ripple(shape(ORANGE_LIGHT, 14, LINE), 14));
+        count.setPadding(dp(18), dp(7), dp(18), dp(7));
+        LinearLayout.LayoutParams countParams = new LinearLayout.LayoutParams(-2, dp(46));
+        countParams.topMargin = dp(2);
+        countParams.bottomMargin = dp(5);
+        panel.addView(count, countParams);
+
+        TextView sizeLabel = muted(cardSizeLabel(initialColumns), 13);
+        sizeLabel.setGravity(Gravity.CENTER);
+        panel.addView(sizeLabel, new LinearLayout.LayoutParams(-1, -2));
+
         SeekBar slider = new SeekBar(this);
         slider.setMax(4);
-        slider.setProgress(cardColumns() - 1);
-        box.addView(slider, lp(-1, -2, 0, 4));
-        box.addView(muted("אפשר לבחור 1–5 עמודות. התמונות, הטקסטים וכפתורי הכמות משתנים יחד עם רוחב הכרטיס; בעמודה אחת או שתיים הכרטיסים מנצלים את כל רוחב המסך.", 12), lp(-1, -2, 0, 0));
+        slider.setProgress(initialColumns - 1);
+        slider.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        slider.setContentDescription("מספר עמודות בכרטיסי המוצרים, בין עמודה אחת לחמש");
+        if (Build.VERSION.SDK_INT >= 21) {
+            slider.setProgressTintList(ColorStateList.valueOf(ORANGE));
+            slider.setThumbTintList(ColorStateList.valueOf(ORANGE));
+            slider.setProgressBackgroundTintList(ColorStateList.valueOf(LINE));
+        }
+        LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(-1, dp(48));
+        sliderParams.topMargin = dp(8);
+        panel.addView(slider, sliderParams);
+
+        LinearLayout marks = new LinearLayout(this);
+        marks.setOrientation(LinearLayout.HORIZONTAL);
+        marks.setGravity(Gravity.CENTER);
+        marks.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        for (int columns = 1; columns <= 5; columns++) {
+            TextView mark = muted(String.valueOf(columns), 12);
+            mark.setGravity(Gravity.CENTER);
+            marks.addView(mark, new LinearLayout.LayoutParams(0, -2, 1));
+        }
+        panel.addView(marks, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView hint = muted("פחות עמודות מציגות כרטיסים גדולים יותר. ההגדרה נשמרת ומשמשת בעמודי ההזמנה.", 12);
+        hint.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(-1, -2);
+        hintParams.topMargin = dp(10);
+        panel.addView(hint, hintParams);
+
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                int c = progress + 1;
-                value.setText(cardSizeLabel(c));
+                int columns = progress + 1;
+                count.setText(columns + (columns == 1 ? " עמודה" : " עמודות"));
+                sizeLabel.setText(cardSizeLabel(columns));
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) { }
         });
-        int initial = slider.getProgress();
-        value.setText(cardSizeLabel(initial + 1));
-        appDialog().setTitle("גודל כרטיסי המוצרים").setView(box)
-                .setNegativeButton("ביטול", null)
-                .setPositiveButton("שמירה", (d, w) -> {
-                    prefs.edit().putInt("product_card_columns", slider.getProgress() + 1).apply();
-                    rebuildGrid(false);
-                    toast("גודל הכרטיסים נשמר", false);
-                }).show();
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(Gravity.CENTER);
+        buttons.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        LinearLayout.LayoutParams buttonsParams = new LinearLayout.LayoutParams(-1, -2);
+        buttonsParams.topMargin = dp(16);
+        panel.addView(buttons, buttonsParams);
+
+        TextView save = btn("✓  שמירת הבחירה", PRIMARY);
+        TextView cancel = btn("ביטול", OUTLINE);
+        buttons.addView(save, new LinearLayout.LayoutParams(0, dp(48), 1));
+        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0, dp(48), 1);
+        cancelParams.setMargins(dp(8), 0, 0, 0);
+        buttons.addView(cancel, cancelParams);
+
+        AlertDialog dialog = new AlertDialog.Builder(this,
+                nightMode ? android.R.style.Theme_Material_Dialog_Alert
+                        : android.R.style.Theme_Material_Light_Dialog_Alert)
+                .setView(panel)
+                .create();
+        close.setOnClickListener(v -> dialog.dismiss());
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        save.setOnClickListener(v -> {
+            prefs.edit().putInt("product_card_columns", slider.getProgress() + 1).apply();
+            rebuildGrid(false);
+            toast("מספר העמודות נשמר", false);
+            dialog.dismiss();
+        });
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.setOnShowListener(ignored -> {
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                WindowManager.LayoutParams windowParams = dialog.getWindow().getAttributes();
+                windowParams.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440));
+                windowParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                windowParams.gravity = Gravity.CENTER;
+                windowParams.dimAmount = 0.48f;
+                dialog.getWindow().setAttributes(windowParams);
+                dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            }
+        });
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            dialog.getWindow().setLayout(
+                    Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440)),
+                    WindowManager.LayoutParams.WRAP_CONTENT);
+            dialog.getWindow().setGravity(Gravity.CENTER);
+        }
     }
 
     private void showPasteWishlist() {
@@ -9023,6 +9128,51 @@ public class MainActivity extends Activity {
                 .apply();
     }
 
+    private View displaySettingTile(String icon, String title, String subtitle, Runnable action) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.HORIZONTAL);
+        tile.setGravity(Gravity.CENTER_VERTICAL);
+        tile.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        tile.setPadding(dp(12), dp(10), dp(12), dp(10));
+        tile.setBackground(ripple(shape(SURFACE, 14, LINE), 14));
+        tile.setClickable(true);
+        tile.setFocusable(true);
+        tile.setMinimumHeight(dp(72));
+
+        TextView iconView = text(icon, icon.equals("Aa") ? 20 : 25, true);
+        iconView.setTextColor(ORANGE_DARK);
+        iconView.setGravity(Gravity.CENTER);
+        iconView.setBackground(shape(ORANGE_LIGHT, 13, LINE));
+        tile.addView(iconView, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams labelsParams = new LinearLayout.LayoutParams(0, -2, 1);
+        labelsParams.setMargins(dp(12), 0, dp(10), 0);
+        tile.addView(labels, labelsParams);
+
+        TextView titleView = text(title, 15, true);
+        titleView.setMaxLines(2);
+        titleView.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        labels.addView(titleView, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView subtitleView = muted(subtitle, 12);
+        subtitleView.setMaxLines(2);
+        subtitleView.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(-1, -2);
+        subtitleParams.topMargin = dp(2);
+        labels.addView(subtitleView, subtitleParams);
+
+        TextView arrow = text("‹", 28, false);
+        arrow.setTextColor(MUTED);
+        arrow.setGravity(Gravity.CENTER);
+        tile.addView(arrow, new LinearLayout.LayoutParams(dp(24), dp(40)));
+        tile.setContentDescription(title + ". " + subtitle);
+        tile.setOnClickListener(v -> action.run());
+        return tile;
+    }
+
     private void addSafetySettings() {
         LinearLayout card = card(14);
         card.addView(sectionTitle("🛡️ בטיחות ותצוגה"));
@@ -9038,14 +9188,10 @@ public class MainActivity extends Activity {
         card.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (b, checked) -> {
             if (checked != nightMode) toggleNightMode();
         }));
-        TextView displayScaleButton = btn("Aa  גודל טקסט ותצוגה", TONAL);
-        displayScaleButton.setOnClickListener(v -> showActionsDialog());
-        card.addView(displayScaleButton, lp(-1, dp(44), 0, 8));
-        TextView columnsButton = btn("▦  מספר עמודות בעמוד ההזמנה", TONAL);
-        columnsButton.setOnClickListener(v -> showCardSizeDialog());
-        card.addView(columnsButton, lp(-1, dp(44), 0, 8));
-        card.addView(muted("מספר העמודות נשמר כהגדרה כללית ומשמש את כרטיסי המוצרים בעמודי ההזמנה.", 12),
-                lp(-1, -2, 2, 4));
+        card.addView(displaySettingTile("Aa", "גודל טקסט ותצוגה",
+                "התאמת הטקסט, הכפתורים והמרווחים", this::showActionsDialog), lp(-1, -2, 8, 4));
+        card.addView(displaySettingTile("▦", "מספר עמודות בעמוד ההזמנה",
+                "בחירת פריסת כרטיסי המוצרים", this::showCardSizeDialog), lp(-1, -2, 4, 4));
         card.addView(switchRow("הפרדת פריטים שאזלו", "כשהאפשרות פעילה, כל הפריטים שאזלו מופיעים בקטגוריה נפרדת. כשהם חוזרים למלאי הם חוזרים לקטגוריה המקורית.", separateSoldOutCategory(), (b, checked) -> {
             SharedPreferences.Editor edit = prefs.edit().putBoolean("separate_sold_out_category", checked);
             if (checked) edit.putBoolean("hide_sold_out", false);
