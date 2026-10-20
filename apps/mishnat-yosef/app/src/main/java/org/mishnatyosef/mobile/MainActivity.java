@@ -965,9 +965,6 @@ public class MainActivity extends Activity {
         subtitleParams.bottomMargin = dp(14);
         panel.addView(subtitle, subtitleParams);
 
-        TextView nightTitle = text("☾  מצב תצוגה", 16, true);
-        nightTitle.setGravity(Gravity.CENTER);
-        panel.addView(nightTitle, new LinearLayout.LayoutParams(-1, -2));
         TextView nightButton = btn(nightMode ? "☀️  מעבר למצב יום" : "🌙  הפעלת מצב לילה",
                 nightMode ? OUTLINE : TONAL);
         nightButton.setGravity(Gravity.CENTER);
@@ -999,7 +996,8 @@ public class MainActivity extends Activity {
 
         SeekBar scaleSlider = new SeekBar(this);
         scaleSlider.setMax(12);
-        scaleSlider.setProgress((currentScalePercent - 70) / 5);
+        scaleSlider.setProgress((130 - currentScalePercent) / 5);
+        scaleSlider.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         scaleSlider.setContentDescription("גודל התצוגה, מ־70 עד 130 אחוז בקפיצות של 5");
         if (Build.VERSION.SDK_INT >= 21) {
             scaleSlider.setProgressTintList(ColorStateList.valueOf(ORANGE));
@@ -1012,7 +1010,7 @@ public class MainActivity extends Activity {
         scaleMarks.setOrientation(LinearLayout.HORIZONTAL);
         scaleMarks.setGravity(Gravity.CENTER);
         scaleMarks.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        for (int mark : new int[]{70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130}) {
+        for (int mark : new int[]{130, 125, 120, 115, 110, 105, 100, 95, 90, 85, 80, 75, 70}) {
             TextView label = muted(String.valueOf(mark), 9);
             label.setGravity(Gravity.CENTER);
             scaleMarks.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
@@ -1021,7 +1019,7 @@ public class MainActivity extends Activity {
 
         scaleSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                int selected = 70 + progress * 5;
+                int selected = 130 - progress * 5;
                 percent.setText(selected + "%");
                 if (fromUser) changeUiScale(selected);
             }
@@ -1046,7 +1044,7 @@ public class MainActivity extends Activity {
             toggleNightMode();
             showActionsDialog();
         });
-        reset.setOnClickListener(v -> scaleSlider.setProgress((100 - 70) / 5));
+        reset.setOnClickListener(v -> scaleSlider.setProgress((130 - 100) / 5));
         dialog.setOnShowListener(ignored -> {
             if (dialog.getWindow() != null) {
                 dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -3681,7 +3679,12 @@ public class MainActivity extends Activity {
                 try { SaleMonitor.scheduleClosingReminders(getApplicationContext(), rows); } catch (Exception ignored) { }
                 runOnUiThread(() -> { if (!stale(t)) renderSales(rows); });
             } catch (Exception e) {
-                fail(t, e, "אירעה שגיאה בטעינה.");
+                runOnUiThread(() -> {
+                    if (stale(t)) return;
+                    // Keep the offline actions visible even when the server cannot be reached.
+                    renderSales(new JSONArray());
+                    setStatus(errText(e, "טעינת המכירות נכשלה. אפשר לבדוק שוב באמצעות רענון."), true);
+                });
             }
         });
     }
@@ -3700,9 +3703,23 @@ public class MainActivity extends Activity {
         refresh.setOnClickListener(v -> { toast("↻ מרענן את המכירות…", false); showOpenSales(false); });
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
-        TextView cachedOrders = btn("📦 הזמנות מהמטמון", TONAL);
-        cachedOrders.setOnClickListener(v -> showCachedOrders());
-        root.addView(cachedOrders, lp(-1, dp(46), 0, 10));
+        LinearLayout cachedOrdersBox = new LinearLayout(this);
+        cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
+        cachedOrdersBox.setGravity(Gravity.CENTER);
+        cachedOrdersBox.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cachedOrdersBox.setBackground(ripple(shape(ORANGE_LIGHT, 16, LINE), 16));
+        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 15, true);
+        cachedOrders.setTextColor(ORANGE_DARK);
+        cachedOrders.setGravity(Gravity.CENTER);
+        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 11);
+        cachedOrdersNote.setGravity(Gravity.CENTER);
+        cachedOrdersBox.addView(cachedOrders, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
+        noteParams.topMargin = dp(2);
+        cachedOrdersBox.addView(cachedOrdersNote, noteParams);
+        cachedOrdersBox.setMinimumHeight(dp(58));
+        cachedOrdersBox.setOnClickListener(v -> showCachedOrders());
+        root.addView(cachedOrdersBox, lp(-1, -2, 0, 10));
         for (int i = 0; i < rows.length(); i++) {
             JSONObject sale = rows.optJSONObject(i);
             if (sale != null) root.addView(saleCard(sale), lp(-1, -2, 0, 10));
@@ -3719,7 +3736,7 @@ public class MainActivity extends Activity {
      * the server: the available cache files are the source of truth for this list.
      */
     private void showCachedOrders() {
-        beginScreen("הזמנות מהמטמון", 0, null);
+        beginScreen("הזמנות מההיסטוריה", 0, null);
         showingSalesList = false;
         final int t = screenToken;
         setStatus("טוען הזמנות מהמטמון ושמות מכירות מהשרת…");
