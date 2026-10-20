@@ -952,13 +952,15 @@ public class MainActivity extends Activity {
         TextView minus = btn("−", OUTLINE);
         minus.setTextSize(24);
         minus.setContentDescription("הקטנת התצוגה");
-        TextView percent = text(prefs.getInt("ui_scale_percent", 100) + "%", 21, true);
+        int currentScalePercent = prefs.getInt("ui_scale_percent", 100);
+        TextView percent = text(currentScalePercent + "%", 21, true);
         percent.setGravity(Gravity.CENTER);
         percent.setTextColor(INK);
         TextView plus = btn("+", PRIMARY);
         plus.setTextSize(24);
         plus.setContentDescription("הגדלת התצוגה");
-        LinearLayout.LayoutParams controlParams = new LinearLayout.LayoutParams(dp(62), dp(48));
+        minus.setEnabled(currentScalePercent > 80);
+        plus.setEnabled(currentScalePercent < 150);
         scaleRow.addView(minus, new LinearLayout.LayoutParams(dp(62), dp(48)));
         LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(dp(100), dp(48));
         percentParams.leftMargin = dp(10);
