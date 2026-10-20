@@ -8363,7 +8363,7 @@ public class MainActivity extends Activity {
         marks.setOrientation(LinearLayout.HORIZONTAL);
         marks.setGravity(Gravity.CENTER);
         marks.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        for (int columns = 1; columns <= 5; columns++) {
+        for (int columns = 5; columns >= 1; columns--) {
             TextView mark = muted(String.valueOf(columns), 12);
             mark.setGravity(Gravity.CENTER);
             marks.addView(mark, new LinearLayout.LayoutParams(0, -2, 1));
