@@ -1,1 +1,1 @@
-APK for example-app, versionName 1.0, versionCode 256, built from commit 87ffaa05d09779411690614c13ebb7ee3e4ee845.
+APK for example-app, versionName 1.0, versionCode 257, built from commit d837165cf4833fbd449d5cd5ad429145fc5c8b11.
