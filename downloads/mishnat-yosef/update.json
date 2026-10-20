@@ -1,9 +1,9 @@
 {
-  "versionCode": 254,
-  "versionName": "1.416",
+  "versionCode": 255,
+  "versionName": "1.417",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "05b5606bddd19747f9c6c238e62e66bc9e9cab107c7cff25f7dab54885488a0f",
-  "releaseTitle": "התאמת צבע כפתור שיתוף APK",
-  "releaseNotes": "צבע כפתור „שיתוף קובץ APK” הותאם לסגנון הכתום הבהיר של כפתורי הפעולות האחרים במסך, במקום צבע ההדגשה הראשי.",
-  "buildCommit": "02a383993766821d190dbe849abd17a7d7015de7"
+  "sha256": "aabaa72b355d4fa10ab2169f6cd7a5c431709838a936bb5157d4746776d20b9a",
+  "releaseTitle": "שינוי תווית כפתור העדכון",
+  "releaseNotes": "במסך עדכוני האפליקציה, תווית הכפתור שונתה מ־„הורד עדכון” ל־„הורד ועדכן”, בהתאם לפעולה שמבצעת הורדה ואימות ולאחר מכן מפעילה את תהליך ההתקנה.\n\nלא שונתה לוגיקת ההורדה, האימות או ההתקנה.",
+  "buildCommit": "a63ddf7d4ef0a3d3f0d855e5e384ec1f61eb5556"
 }
