@@ -3834,6 +3834,22 @@ public class MainActivity extends Activity {
         refresh.setOnClickListener(v -> { toast("↻ מרענן את המכירות…", false); showOpenSales(false); });
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
+
+        // Prominent shortcut to sale-notification settings, styled with the app's existing button/card system.
+        LinearLayout notificationShortcut = card(14);
+        notificationShortcut.addView(text("🔔 רוצים לקבל התראות על מכירות?", 17, true),
+                lp(-1, -2, 0, 2));
+        TextView notificationSettingsButton = btn(
+                "רוצים ליצור התראה ברגע שנפתחת מכירה?\nרוצים ליצור התראה לפני סגירת מכירה?\nלחצו כאן",
+                PRIMARY);
+        notificationSettingsButton.setTextSize(17);
+        notificationSettingsButton.setGravity(Gravity.CENTER);
+        notificationSettingsButton.setMinHeight(dp(78));
+        notificationSettingsButton.setPadding(dp(12), dp(10), dp(12), dp(10));
+        notificationSettingsButton.setOnClickListener(v -> showNotificationSettings());
+        notificationShortcut.addView(notificationSettingsButton, lp(-1, -2, 0, 8));
+        root.addView(notificationShortcut, lp(-1, -2, 0, 10));
+
         LinearLayout cachedOrdersBox = new LinearLayout(this);
         cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
         cachedOrdersBox.setGravity(Gravity.CENTER);
