@@ -587,7 +587,10 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        uiScale = Math.max(0.80f, Math.min(1.50f, prefs.getInt("ui_scale_percent", 100) / 100.0f));
+        int savedScalePercent = prefs.getInt("ui_scale_percent", 100);
+        savedScalePercent = 70 + Math.round((Math.max(70, Math.min(130, savedScalePercent)) - 70) / 5.0f) * 5;
+        uiScale = savedScalePercent / 100.0f;
+        prefs.edit().putInt("ui_scale_percent", savedScalePercent).apply();
         uiScaleAtActivityStart = uiScale;
         boolean reopenActionsAfterScale = prefs.getBoolean("reopen_actions_after_scale", false);
         int restoreTabAfterScale = prefs.getInt("actions_restore_tab", -1);
