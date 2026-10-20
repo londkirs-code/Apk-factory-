@@ -996,7 +996,7 @@ public class MainActivity extends Activity {
 
         SeekBar scaleSlider = new SeekBar(this);
         scaleSlider.setMax(12);
-        scaleSlider.setProgress((130 - currentScalePercent) / 5);
+        scaleSlider.setProgress((currentScalePercent - 70) / 5);
         scaleSlider.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         scaleSlider.setContentDescription("גודל התצוגה, מ־70 עד 130 אחוז בקפיצות של 5");
         if (Build.VERSION.SDK_INT >= 21) {
@@ -1019,7 +1019,7 @@ public class MainActivity extends Activity {
 
         scaleSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                int selected = 130 - progress * 5;
+                int selected = 70 + progress * 5;
                 percent.setText(selected + "%");
                 if (fromUser) changeUiScale(selected);
             }
@@ -1044,7 +1044,7 @@ public class MainActivity extends Activity {
             toggleNightMode();
             showActionsDialog();
         });
-        reset.setOnClickListener(v -> scaleSlider.setProgress((130 - 100) / 5));
+        reset.setOnClickListener(v -> scaleSlider.setProgress((100 - 70) / 5));
         dialog.setOnShowListener(ignored -> {
             if (dialog.getWindow() != null) {
                 dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
