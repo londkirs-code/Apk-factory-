@@ -1814,6 +1814,18 @@ public class MainActivity extends Activity {
         TextView contactBtn = btn("📞 יצירת קשר", TONAL);
         contactBtn.setOnClickListener(v -> showContactOptions());
         root.addView(contactBtn, lp(-1, dp(46), 0, 8));
+        TextView developerMessageBtn = btn("✉️ שלח הודעה למפתחים", TONAL);
+        developerMessageBtn.setOnClickListener(v -> {
+            try {
+                Intent mail = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:londkirs@gmail.com"));
+                mail.putExtra(Intent.EXTRA_SUBJECT, "פנייה למפתחי אפליקציית משנת יוסף");
+                mail.putExtra(Intent.EXTRA_TEXT, "\n\nפרטי הפנייה:\n");
+                startActivity(Intent.createChooser(mail, "שליחת הודעה למפתחים"));
+            } catch (Exception e) {
+                toast("לא נמצאה אפליקציית דואר במכשיר", true);
+            }
+        });
+        root.addView(developerMessageBtn, lp(-1, dp(46), 0, 8));
         TextView refreshTok = btn("🔁 חידוש התחברות (בלי סיסמה)", TONAL);
         refreshTok.setOnClickListener(v -> executor.execute(() -> {
             String cur = prefs.getString("token", "");
