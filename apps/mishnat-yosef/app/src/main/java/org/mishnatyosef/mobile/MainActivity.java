@@ -3506,41 +3506,51 @@ public class MainActivity extends Activity {
     private void showImagePreview(String url) {
         if (url == null || url.trim().isEmpty() || isFinishing()) return;
 
+        // Keep the app visible around the photo: a transparent full-screen touch layer,
+        // with a centered image limited to a comfortable portion of the screen.
         FrameLayout overlay = new FrameLayout(this);
-        // Full-screen, borderless viewer: the photo itself is the focus, without a framed card.
-        overlay.setBackgroundColor(Color.argb(246, 12, 14, 16));
+        overlay.setBackgroundColor(Color.TRANSPARENT);
         overlay.setClickable(true);
+
+        FrameLayout imageContainer = new FrameLayout(this);
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int imageWidth = Math.max(dp(180), Math.min((int) (screenWidth * 0.86f), screenWidth - dp(32)));
+        int imageHeight = Math.max(dp(180), Math.min((int) (screenHeight * 0.72f), screenHeight - dp(100)));
+        FrameLayout.LayoutParams containerLp = new FrameLayout.LayoutParams(
+                imageWidth, imageHeight, Gravity.CENTER);
+        overlay.addView(imageContainer, containerLp);
 
         ImageView preview = new ImageView(this);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setAdjustViewBounds(true);
         preview.setContentDescription("תצוגה מוגדלת של התמונה");
-        FrameLayout.LayoutParams imageLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-        overlay.addView(preview, imageLp);
-        preview.setOnClickListener(v -> { /* Keep taps on the image from closing the viewer. */ });
+        imageContainer.addView(preview, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        preview.setOnClickListener(v -> { /* Taps on the photo keep it open. */ });
 
         TextView loading = text("טוען תמונה מלאה…", 14, true);
         loading.setTextColor(Color.WHITE);
         loading.setGravity(Gravity.CENTER);
-        loading.setBackground(shape(Color.argb(180, 30, 33, 36), 14, 0));
+        loading.setBackground(shape(Color.argb(185, 30, 33, 36), 14, 0));
         FrameLayout.LayoutParams loadingLp = new FrameLayout.LayoutParams(-2, dp(48), Gravity.CENTER);
-        overlay.addView(loading, loadingLp);
+        imageContainer.addView(loading, loadingLp);
         loading.setOnClickListener(v -> { });
 
-        // The close control overlays the photo in its upper corner, rather than sitting in a separate header.
-        TextView close = text("×", 28, true);
+        // The close button sits directly over the photo, with no separate card or frame.
+        TextView close = text("×", 27, true);
         close.setTextColor(Color.WHITE);
         close.setGravity(Gravity.CENTER);
         close.setBackground(shape(Color.argb(190, 24, 27, 30), 22, 0));
         close.setElevation(dp(6));
         close.setContentDescription("סגירת התמונה המוגדלת");
         FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.END);
-        closeLp.setMargins(0, dp(14), dp(14), 0);
-        overlay.addView(close, closeLp);
+        closeLp.setMargins(0, dp(6), dp(6), 0);
+        imageContainer.addView(close, closeLp);
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
         overlay.setOnClickListener(v -> dialog.dismiss());
+        imageContainer.setOnClickListener(v -> { /* Keep the photo area open. */ });
         close.setOnClickListener(v -> dialog.dismiss());
         dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(true);
@@ -3550,25 +3560,23 @@ public class MainActivity extends Activity {
                 window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
                 WindowManager.LayoutParams attrs = window.getAttributes();
-                attrs.dimAmount = 0.82f;
+                attrs.dimAmount = 0.22f;
                 window.setAttributes(attrs);
                 window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
             }
         });
         dialog.show();
-        // Apply full-screen sizing after show(), when the window is available.
         android.view.Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             WindowManager.LayoutParams attrs = window.getAttributes();
-            attrs.dimAmount = 0.82f;
+            attrs.dimAmount = 0.22f;
             window.setAttributes(attrs);
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
         }
 
-        final int decodeSize = Math.max(getResources().getDisplayMetrics().widthPixels,
-                getResources().getDisplayMetrics().heightPixels) * 2;
+        final int decodeSize = Math.max(screenWidth, screenHeight) * 2;
         try {
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(url, decodeSize);
