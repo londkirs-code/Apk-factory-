@@ -5914,13 +5914,19 @@ public class MainActivity extends Activity {
             autoOrderPanel = new LinearLayout(MainActivity.this);
             autoOrderPanel.setOrientation(LinearLayout.VERTICAL); autoOrderPanel.setPadding(dp(5),dp(5),dp(5),dp(5));
             autoOrderPanel.setBackground(shape(ORANGE_LIGHT,10,ORANGE)); autoOrderPanel.setVisibility(View.GONE);
-            autoOrderPanel.addView(text("שמירה מקומית בלבד — לא נשלחת הזמנה לשרת עד שהמוצר חוזר למלאי.",10,true));
-            LinearLayout autoRow=new LinearLayout(MainActivity.this);autoRow.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout autoRow=new LinearLayout(MainActivity.this);autoRow.setGravity(Gravity.CENTER);
             autoOrderStepper=stepper(32);autoOrderStepper.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(34),dp(32)));
             autoRow.addView(autoOrderStepper.view,new LinearLayout.LayoutParams(-2,dp(34)));
-            autoOrderSaveButton=btn("שמירה להזמנה אוטומטית",PRIMARY);LinearLayout.LayoutParams saveLp=new LinearLayout.LayoutParams(0,dp(36),1f);saveLp.setMarginStart(dp(6));autoRow.addView(autoOrderSaveButton,saveLp);
-            autoOrderPanel.addView(autoRow,lp(-1,-2,0,4));card.addView(autoOrderPanel,lp(-1,-2,5,0));
-            stockAlertButton=btn("🔔 התראה כשהמוצר חוזר למלאי",OUTLINE);stockAlertButton.setVisibility(View.GONE);card.addView(stockAlertButton,lp(-1,dp(36),5,0));
+            autoOrderPanel.addView(autoRow,lp(-1,dp(36),0,4));
+            autoOrderSaveButton=btn("שמירה להזמנה אוטומטית",PRIMARY);
+            autoOrderSaveButton.setTextSize(12);
+            autoOrderPanel.addView(autoOrderSaveButton,lp(-1,dp(32),0,4));
+            card.addView(autoOrderPanel,lp(-1,-2,5,0));
+            stockAlertButton=btn("🔔 התראה כשהמוצר חוזר למלאי",OUTLINE);
+            stockAlertButton.setTextSize(11);
+            stockAlertButton.setPadding(dp(8),0,dp(8),0);
+            stockAlertButton.setMinHeight(dp(28));
+            stockAlertButton.setVisibility(View.GONE);card.addView(stockAlertButton,lp(-1,dp(29),5,0));
             autoOrderStepper.plus.setTag("autoOrderPlus");
             autoOrderStepper.minus.setTag("autoOrderMinus");
             autoOrderStepper.plus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,1,autoOrderStepper);});
@@ -6333,12 +6339,9 @@ public class MainActivity extends Activity {
                 currentQty.setGravity(Gravity.CENTER);
                 currentQty.setMinWidth(dp(44));
                 currentQty.setContentDescription("כמות בהזמנה");
-                TextView qtyCaption = muted("כמות בהזמנה", 12);
-
                 LinearLayout qtyLabel = new LinearLayout(this);
                 qtyLabel.setOrientation(LinearLayout.VERTICAL);
                 qtyLabel.setGravity(Gravity.CENTER);
-                qtyLabel.addView(qtyCaption);
                 qtyLabel.addView(currentQty);
 
                 minusBtn.setOnClickListener(v -> changeBy(p, -1, () -> {
