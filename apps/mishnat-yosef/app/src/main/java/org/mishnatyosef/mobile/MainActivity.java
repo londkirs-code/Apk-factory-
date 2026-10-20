@@ -133,6 +133,7 @@ public class MainActivity extends Activity {
     private boolean nightMode = false;
     // Global UI scale: text follows Android fontScale; dp-based layout metrics scale in dp().
     private float uiScale = 1.0f;
+    private float uiScaleAtActivityStart = 1.0f;
     // Preserve the open-sales list position while navigating to other bottom tabs.
     private int salesListScrollY = 0;
     private boolean showingSalesList = false;
@@ -587,6 +588,7 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         uiScale = Math.max(0.80f, Math.min(1.50f, prefs.getInt("ui_scale_percent", 100) / 100.0f));
+        uiScaleAtActivityStart = uiScale;
         boolean reopenActionsAfterScale = prefs.getBoolean("reopen_actions_after_scale", false);
         int restoreTabAfterScale = prefs.getInt("actions_restore_tab", -1);
         if (reopenActionsAfterScale) {
@@ -1068,10 +1070,12 @@ public class MainActivity extends Activity {
         return new RippleDrawable(ColorStateList.valueOf(Color.argb(40, 230, 94, 20)), content, mask);
     }
 
+    private float liveFontSize(float size) { return size * (uiScale / Math.max(0.01f, uiScaleAtActivityStart)); }
+
     private TextView text(String value, float size, boolean bold) {
         TextView v = new TextView(this);
         v.setText(value);
-        v.setTextSize(size);
+        v.setTextSize(liveFontSize(size));
         v.setTextColor(INK);
         v.setGravity(Gravity.START);
         if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -1101,7 +1105,7 @@ public class MainActivity extends Activity {
     private TextView btn(String label, int style) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextSize(16);
+        b.setTextSize(liveFontSize(16));
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setGravity(Gravity.CENTER);
         b.setClickable(true);
@@ -1122,7 +1126,7 @@ public class MainActivity extends Activity {
 
     private TextView smallChip(String label, int style) {
         TextView b = btn(label, style);
-        b.setTextSize(14);
+        b.setTextSize(liveFontSize(14));
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setMinHeight(dp(34));
         b.setPadding(dp(12), dp(4), dp(12), dp(4));
@@ -1132,7 +1136,7 @@ public class MainActivity extends Activity {
     private TextView roundBtn(String label, int sizeDp, int fill, int fg) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextSize(21);
+        b.setTextSize(liveFontSize(21));
         b.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
         b.setTextColor(fg);
         b.setGravity(Gravity.CENTER);
@@ -1174,7 +1178,7 @@ public class MainActivity extends Activity {
         e.setSingleLine(true);
         e.setHint(hint);
         e.setInputType(inputType);
-        e.setTextSize(15);
+        e.setTextSize(liveFontSize(15));
         e.setTextColor(INK);
         e.setHintTextColor(MUTED);
         e.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
