@@ -554,6 +554,118 @@ public class MainActivity extends Activity {
     // ======================================================================== lifecycle
 
 
+    /** Hardware keypad shortcuts and RTL-aware bottom-tab switching. */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event != null && event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            View focused = getCurrentFocus();
+            boolean editingText = focused instanceof EditText;
+            int key = event.getKeyCode();
+            // Do not steal number keys while the user is typing in search, login, or another text field.
+            if (!editingText) {
+                if (isKeypadKey(key, KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0)) {
+                    focusBottomNavigation();
+                    return true;
+                }
+                if (hasToken() && (key == KeyEvent.KEYCODE_POUND || key == KeyEvent.KEYCODE_NUMPAD_ADD)) {
+                    moveBottomTabByKey(true);
+                    return true;
+                }
+                if (hasToken() && (key == KeyEvent.KEYCODE_STAR || key == KeyEvent.KEYCODE_NUMPAD_MULTIPLY)) {
+                    moveBottomTabByKey(false);
+                    return true;
+                }
+                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2)) {
+                    scrollOrderToEdge(false);
+                    return true;
+                }
+                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8)) {
+                    scrollOrderToEdge(true);
+                    return true;
+                }
+                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_NUMPAD_1)) {
+                    scrollOrderByKey(false);
+                    return true;
+                }
+                if (showingOrderScreen && isKeypadKey(key, KeyEvent.KEYCODE_3, KeyEvent.KEYCODE_NUMPAD_3)) {
+                    scrollOrderByKey(true);
+                    return true;
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    private boolean isKeypadKey(int key, int regularKey, int numpadKey) {
+        return key == regularKey || key == numpadKey;
+    }
+
+    /** Scroll independently of the currently focused button or product. */
+    private void scrollOrderByKey(boolean down) {
+        hideKeyboard();
+        int distance = Math.max(dp(240), (getWindow().getDecorView().getHeight() * 2) / 3);
+        if (showingOrderScreen && productList != null) {
+            productList.smoothScrollBy(down ? distance : -distance, 220);
+        } else if (scrollView != null) {
+            scrollView.smoothScrollBy(0, down ? distance : -distance);
+        }
+    }
+
+    private void scrollOrderToEdge(boolean bottom) {
+        hideKeyboard();
+        if (showingOrderScreen && productList != null) {
+            int last = Math.max(0, gridRows.size() - 1);
+            productList.setSelectionFromTop(bottom ? last : 0, 0);
+            productList.post(() -> {
+                if (productList != null) productList.setSelectionFromTop(bottom ? Math.max(0, gridRows.size() - 1) : 0, 0);
+            });
+        } else if (scrollView != null) {
+            scrollView.post(() -> scrollView.fullScroll(bottom ? View.FOCUS_DOWN : View.FOCUS_UP));
+        }
+    }
+
+    /** Focus the active bottom tab; # and * shortcuts switch tabs immediately. */
+    private void focusBottomNavigation() {
+        View target = findTaggedView(currentScreen, "navTab:" + activeBottomTab);
+        if (target == null && activeBottomTab == TAB_COLLECT) target = findTaggedView(currentScreen, "navCenter");
+        if (target != null) {
+            target.requestFocus();
+            target.announceForAccessibility("שורת כרטיסיות");
+        }
+    }
+
+    private View findTaggedView(View view, String tag) {
+        if (view == null) return null;
+        if (tag.equals(view.getTag())) return view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findTaggedView(group.getChildAt(i), tag);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    /** '#' moves visually right in RTL; '*' moves visually left and opens the destination immediately. */
+    private void moveBottomTabByKey(boolean visuallyRight) {
+        final int[] visualRtlOrder = {0, 1, TAB_COLLECT, 2, 3};
+        int position = 0;
+        for (int i = 0; i < visualRtlOrder.length; i++) {
+            if (visualRtlOrder[i] == activeBottomTab) { position = i; break; }
+        }
+        int next = (position + (visuallyRight ? visualRtlOrder.length - 1 : 1)) % visualRtlOrder.length;
+        int tab = visualRtlOrder[next];
+        switch (tab) {
+            case 0: navigateTab(0, this::showOpenSales); break;
+            case 1: navigateTab(1, this::loadFeatureOrders); break;
+            case TAB_COLLECT: navigateTab(TAB_COLLECT, this::openLatestCollect); break;
+            case 2: navigateTab(2, this::loadFeatureTransactions); break;
+            case 3: navigateTab(3, this::showAccount); break;
+            default: break;
+        }
+    }
+
     /**
      * Makes a SeekBar usable without touch. Android's native thumb movement is retained,
      * while common hardware-key adjustments explicitly commit the value as well.
@@ -609,7 +721,8 @@ public class MainActivity extends Activity {
         int targetColumn = columnIndex;
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
             // The first product is displayed on the visual right in the Hebrew layout.
-            int step = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? 1 : -1;
+            // Hebrew RTL: LEFT moves toward the next visual-left card, RIGHT toward visual-right.
+            int step = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1;
             int candidate = columnIndex + step;
             JSONObject[] products = {currentRow.a, currentRow.b, currentRow.c, currentRow.d, currentRow.e};
             if (candidate < 0 || candidate >= cardColumns() || products[candidate] == null) return false;
@@ -1705,6 +1818,9 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(dp(24), dp(3));
                 barLp.topMargin = dp(2);
                 item.addView(bar, barLp);
+                item.setTag("navTab:" + index);
+                item.setFocusable(true);
+                item.setContentDescription("מעבר לכרטיסייה " + labels[i]);
                 item.setOnClickListener(v -> actions[index].run());
                 item.setLayoutParams(new LinearLayout.LayoutParams(0, dp(64), 1));
                 navCells.add(item);
@@ -5595,7 +5711,8 @@ public class MainActivity extends Activity {
             card.setClickable(true);
             card.setFocusable(true);
             card.setFocusableInTouchMode(false);
-            card.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
+            // Let hardware Tab/focus traversal reach the actual controls inside each product card.
+            card.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             card.setOnFocusChangeListener((view, focused) ->
                     card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE)));
             card.setOnKeyListener((view, keyCode, event) -> {
@@ -8975,6 +9092,7 @@ public class MainActivity extends Activity {
     private View collectNavButton(boolean active) {
         FrameLayout slot = new FrameLayout(this);
         slot.setTag("navCenter");
+        slot.setFocusable(false);
         slot.setClipChildren(false);
 
         FrameLayout finger = new FrameLayout(this);
@@ -8989,6 +9107,8 @@ public class MainActivity extends Activity {
         finger.setElevation(dp(8));
         finger.setClickable(true);
         finger.setFocusable(true);
+        finger.setTag("navTab:4");
+        finger.setContentDescription("מעבר מיידי לכרטיסיית איסוף");
 
         // Same structure as the other buttons (icon, label, bar placeholder), so the icon sits at the same height and size.
         LinearLayout inner = new LinearLayout(this);
