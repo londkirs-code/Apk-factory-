@@ -1044,7 +1044,11 @@ public class MainActivity extends Activity {
             toggleNightMode();
             showActionsDialog();
         });
-        reset.setOnClickListener(v -> scaleSlider.setProgress((100 - 70) / 5));
+        reset.setOnClickListener(v -> {
+            // Programmatic SeekBar changes report fromUser=false, so explicitly apply the reset.
+            scaleSlider.setProgress((100 - 70) / 5);
+            changeUiScale(100);
+        });
         dialog.setOnShowListener(ignored -> {
             if (dialog.getWindow() != null) {
                 dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -3663,6 +3667,9 @@ public class MainActivity extends Activity {
         autoEnterSingle = autoEnter;
         beginScreen("מכירות פתוחות", 0, null);
         showingSalesList = true;
+        // Draw the local/offline actions immediately; the server request below updates this same tab.
+        renderSales(new JSONArray());
+        setStatus("ממתין לשרת…");
         loadOpenSales();
     }
 
@@ -3706,9 +3713,9 @@ public class MainActivity extends Activity {
         LinearLayout cachedOrdersBox = new LinearLayout(this);
         cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
         cachedOrdersBox.setGravity(Gravity.CENTER);
-        cachedOrdersBox.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cachedOrdersBox.setPadding(dp(16), dp(16), dp(16), dp(16));
         cachedOrdersBox.setBackground(ripple(shape(ORANGE_LIGHT, 16, LINE), 16));
-        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 15, true);
+        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 22, true);
         cachedOrders.setTextColor(ORANGE_DARK);
         cachedOrders.setGravity(Gravity.CENTER);
         TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 11);
@@ -3717,7 +3724,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
         noteParams.topMargin = dp(2);
         cachedOrdersBox.addView(cachedOrdersNote, noteParams);
-        cachedOrdersBox.setMinimumHeight(dp(58));
+        cachedOrdersBox.setMinimumHeight(dp(88));
+        cachedOrdersBox.setContentDescription("פתיחת הזמנות מההיסטוריה המקומית");
         cachedOrdersBox.setOnClickListener(v -> showCachedOrders());
         root.addView(cachedOrdersBox, lp(-1, -2, 0, 10));
         for (int i = 0; i < rows.length(); i++) {
