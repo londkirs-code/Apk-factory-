@@ -8999,6 +8999,14 @@ public class MainActivity extends Activity {
         card.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (b, checked) -> {
             if (checked != nightMode) toggleNightMode();
         }));
+        TextView displayScaleButton = btn("Aa  גודל טקסט ותצוגה", TONAL);
+        displayScaleButton.setOnClickListener(v -> showActionsDialog());
+        card.addView(displayScaleButton, lp(-1, dp(44), 0, 8));
+        TextView columnsButton = btn("▦  מספר עמודות בעמוד ההזמנה", TONAL);
+        columnsButton.setOnClickListener(v -> showCardSizeDialog());
+        card.addView(columnsButton, lp(-1, dp(44), 0, 8));
+        card.addView(muted("מספר העמודות נשמר כהגדרה כללית ומשמש את כרטיסי המוצרים בעמודי ההזמנה.", 12),
+                lp(-1, -2, 2, 4));
         card.addView(switchRow("הפרדת פריטים שאזלו", "כשהאפשרות פעילה, כל הפריטים שאזלו מופיעים בקטגוריה נפרדת. כשהם חוזרים למלאי הם חוזרים לקטגוריה המקורית.", separateSoldOutCategory(), (b, checked) -> {
             SharedPreferences.Editor edit = prefs.edit().putBoolean("separate_sold_out_category", checked);
             if (checked) edit.putBoolean("hide_sold_out", false);
