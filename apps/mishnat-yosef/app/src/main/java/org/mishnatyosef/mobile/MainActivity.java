@@ -423,6 +423,8 @@ public class MainActivity extends Activity {
     private String histSearch = "";
     private LinearLayout histList;
     private TextView histMore;
+    private boolean histLoading = false;
+    private int histRequestId = 0;
 
     // ---- favourites / screens / files
     private final Set<String> favIds = new HashSet<>();
@@ -5914,6 +5916,9 @@ public class MainActivity extends Activity {
     // ======================================================================== order history
 
     private void loadFeatureOrders() {
+        // Invalidate any request left behind by a previous history screen.
+        histRequestId++;
+        histLoading = false;
         beginScreen("היסטוריית הזמנות", 1, null);
 
         // Search row mirrors the existing clear-X control inside an order.
@@ -5938,6 +5943,8 @@ public class MainActivity extends Activity {
 
         search.setOnEditorActionListener((v, actionId, event) -> {
             histSearch = v.getText().toString().trim();
+            histRequestId++;
+            histLoading = false;
             histPage = 0;
             histList.removeAllViews();
             histMore.setVisibility(View.GONE);
@@ -5957,6 +5964,8 @@ public class MainActivity extends Activity {
             search.setText("");
             if (wasFiltering) {
                 histSearch = "";
+                histRequestId++;
+                histLoading = false;
                 histPage = 0;
                 histList.removeAllViews();
                 histMore.setVisibility(View.GONE);
@@ -5969,21 +5978,44 @@ public class MainActivity extends Activity {
         histList = new LinearLayout(this);
         histList.setOrientation(LinearLayout.VERTICAL);
         root.addView(histList, new LinearLayout.LayoutParams(-1, -2));
-        histMore = btn("טען עוד", TONAL);
+        histMore = muted("טוען הזמנות נוספות…", 12);
+        histMore.setGravity(Gravity.CENTER);
+        histMore.setPadding(dp(12), dp(10), dp(12), dp(10));
+        histMore.setBackground(shape(SURFACE, 12, LINE));
         histMore.setVisibility(View.GONE);
-        histMore.setOnClickListener(v -> loadHistoryPage());
-        root.addView(histMore, lp(-1, dp(46), 4, 0));
+        histMore.setContentDescription("טעינה אוטומטית של עמודי היסטוריית הזמנות");
+        root.addView(histMore, lp(-1, dp(44), 4, 0));
+        scrollView.getViewTreeObserver().addOnScrollChangedListener(this::maybeLoadHistoryAtBottom);
         histSearch = "";
         histPage = 0;
         histLast = 1;
         loadHistoryPage();
     }
 
+    private void maybeLoadHistoryAtBottom() {
+        if (histList == null || scrollView == null || histLoading || histPage >= histLast) return;
+        if (scrollView.getChildCount() == 0) return;
+        View content = scrollView.getChildAt(0);
+        int contentBottom = content.getBottom();
+        int visibleBottom = scrollView.getScrollY() + scrollView.getHeight();
+        // Start the next request slightly before the exact bottom, so loading feels continuous.
+        if (contentBottom <= visibleBottom + dp(140)) loadHistoryPage();
+    }
+
     private void loadHistoryPage() {
+        if (histLoading || (histPage > 0 && histPage >= histLast)) return;
+        histLoading = true;
+        final int requestId = ++histRequestId;
         final int t = screenToken;
         final int page = histPage + 1;
         final String q = histSearch;
-        setStatus("טוען הזמנות…");
+        setStatus(page == 1 ? "טוען הזמנות…" : "");
+        if (page > 1) {
+            histMore.setText("טוען הזמנות נוספות…");
+            histMore.setVisibility(View.VISIBLE);
+        } else {
+            histMore.setVisibility(View.GONE);
+        }
         executor.execute(() -> {
             try {
                 String path = "/api/orders?page=" + page + (q.isEmpty() ? "" : "&search=" + URLEncoder.encode(q, "UTF-8"));
@@ -5994,6 +6026,9 @@ public class MainActivity extends Activity {
                 final int lastPage = last;
                 final JSONArray orders = arrayFrom(r.body);
                 runOnUiThread(() -> {
+                    if (requestId != histRequestId) return;
+                    histLoading = false;
+                    histMore.setVisibility(View.GONE);
                     if (stale(t) || !q.equals(histSearch)) return;
                     setStatus(page == 1 && orders.length() == 0 ? "לא נמצאו הזמנות." : "");
                     histPage = page;
@@ -6022,10 +6057,19 @@ public class MainActivity extends Activity {
                             histList.addView(historyCard(o), lp(-1, -2, 0, 8));
                         }
                     }
-                    histMore.setVisibility(histPage < histLast ? View.VISIBLE : View.GONE);
+                    // If the first page doesn't fill the screen, keep loading until it does.
+                    // This also handles short screens without requiring an artificial swipe.
+                    if (orders.length() > 0 && histPage < histLast && scrollView != null) {
+                        histList.post(this::maybeLoadHistoryAtBottom);
+                    }
                 });
             } catch (Exception e) {
-                fail(t, e, "טעינת ההיסטוריה נכשלה.");
+                runOnUiThread(() -> {
+                    if (requestId != histRequestId) return;
+                    histLoading = false;
+                    histMore.setVisibility(View.GONE);
+                    fail(t, e, "טעינת ההיסטוריה נכשלה.");
+                });
             }
         });
     }
