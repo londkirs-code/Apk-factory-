@@ -584,7 +584,7 @@ public class MainActivity extends Activity {
                 .getInt("ui_scale_percent", 100);
         percent = Math.max(80, Math.min(150, percent));
         Configuration configuration = new Configuration(newBase.getResources().getConfiguration());
-        configuration.fontScale = percent / 100.0f;
+        configuration.fontScale = configuration.fontScale * (percent / 100.0f);
         super.attachBaseContext(newBase.createConfigurationContext(configuration));
     }
 
