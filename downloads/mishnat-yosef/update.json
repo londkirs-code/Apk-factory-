@@ -1,9 +1,9 @@
 {
-  "versionCode": 267,
-  "versionName": "1.429",
+  "versionCode": 268,
+  "versionName": "1.430",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "671c67fd8007571259ed45c593e695d3dfe6989e4db021b3101d08b6ce450e9f",
-  "releaseTitle": "יצירת קשר עם מפתחי האפליקציה",
-  "releaseNotes": "- נוסף בעמוד חשבון והגדרות כפתור מעוצב: ״שלח הודעה למפתחים״.\n- לחיצה על הכפתור פותחת את אפליקציית הדואר עם כתובת הנמען londkirs@gmail.com ונושא מוכן לפנייה.\n- כפתור חדש זה נפרד מאפשרויות יצירת הקשר הקיימות, שלא שונו.",
-  "buildCommit": "d1910d3dce87cdf96fb5895d22f4882b65f468b5"
+  "sha256": "4ee8b77c05f79911d29174d32e0ece55884fa4b43ba161fd0a48e89dbd291c73",
+  "releaseTitle": "פתיחה ישירה של מכירה מהתראה",
+  "releaseNotes": "- לחיצה על התראה על מכירה חדשה או תזכורת לפני סגירת מכירה פותחת ישירות את המכירה המתאימה.\n- אם נדרשת התחברות, מזהה המכירה נשמר והאפליקציה ממשיכה לפתיחה הישירה לאחר ההתחברות.\n- אם המכירה כבר אינה פתוחה, האפליקציה מציגה הודעה וחוזרת לרשימת המכירות העדכנית.",
+  "buildCommit": "18a64072da8f26ee0683d90ea24cfc559b03c20d"
 }
