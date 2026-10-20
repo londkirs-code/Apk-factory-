@@ -1073,23 +1073,12 @@ public class MainActivity extends Activity {
             }
         });
 
-        TextView cardSizeButton = btn("📐  שינוי גודל כרטיסי המוצרים", OUTLINE);
-        cardSizeButton.setGravity(Gravity.CENTER);
-        cardSizeButton.setMinHeight(dp(44));
-        LinearLayout.LayoutParams cardSizeLp = new LinearLayout.LayoutParams(-1, -2);
-        cardSizeLp.topMargin = dp(10);
-        panel.addView(cardSizeButton, cardSizeLp);
-
         AlertDialog dialog = new AlertDialog.Builder(this,
                 nightMode ? android.R.style.Theme_Material_Dialog_Alert
                         : android.R.style.Theme_Material_Light_Dialog_Alert)
                 .setView(panel)
                 .create();
         close.setOnClickListener(v -> dialog.dismiss());
-        cardSizeButton.setOnClickListener(v -> {
-            dialog.dismiss();
-            showCardSizeDialog();
-        });
         dialog.setCanceledOnTouchOutside(true);
         dialog.setOnShowListener(ignored -> {
             if (dialog.getWindow() != null) {
@@ -4085,8 +4074,15 @@ public class MainActivity extends Activity {
                     if (snapshot == null) continue;
                     String saleName = snapshot.saleName == null ? "" : snapshot.saleName.trim();
                     if (saleName.isEmpty()) saleName = "שם המכירה לא זמין";
-                    LinearLayout item = card(12);
-                    item.addView(text(saleName, 16, true));
+                    LinearLayout item = card(16);
+                    item.setPadding(dp(16), dp(16), dp(16), dp(16));
+                    item.setMinimumHeight(dp(132));
+                    item.setClickable(true);
+                    item.setFocusable(true);
+                    TextView saleTitleView = text(saleName, 18, true);
+                    saleTitleView.setTextColor(INK);
+                    saleTitleView.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+                    item.addView(saleTitleView, lp(-1, -2, 0, 4));
                     final int snapshotSaleId = saleId;
                     final JSONObject cachedOrder = new JSONObject();
                     try {
@@ -4094,10 +4090,15 @@ public class MainActivity extends Activity {
                         cachedOrder.put("sale_name", saleName);
                         cachedOrder.put("id", snapshot.orderId);
                     } catch (Exception ignored) { }
+                    item.setContentDescription("פתיחת ההזמנה מהמטמון: " + saleName);
+                    item.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
                     TextView openButton = btn("📋 פתח מהמטמון", TONAL);
+                    openButton.setGravity(Gravity.CENTER);
+                    openButton.setTextSize(15);
+                    openButton.setMinHeight(dp(48));
                     openButton.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
-                    item.addView(openButton, lp(-1, dp(42), 0, 8));
-                    root.addView(item, lp(-1, -2, 0, 8));
+                    item.addView(openButton, lp(-1, dp(48), 0, 10));
+                    root.addView(item, lp(-1, -2, 0, 10));
                 }
             });
         });
