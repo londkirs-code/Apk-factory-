@@ -3507,8 +3507,8 @@ public class MainActivity extends Activity {
         if (url == null || url.trim().isEmpty() || isFinishing()) return;
 
         FrameLayout overlay = new FrameLayout(this);
-        overlay.setPadding(dp(12), dp(12), dp(12), dp(12));
-        overlay.setBackground(shape(Color.argb(246, 20, 23, 26), 22, Color.argb(110, 255, 255, 255)));
+        // Full-screen, borderless viewer: the photo itself is the focus, without a framed card.
+        overlay.setBackgroundColor(Color.argb(246, 12, 14, 16));
         overlay.setClickable(true);
 
         ImageView preview = new ImageView(this);
@@ -3517,25 +3517,26 @@ public class MainActivity extends Activity {
         preview.setContentDescription("תצוגה מוגדלת של התמונה");
         FrameLayout.LayoutParams imageLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-        imageLp.setMargins(dp(4), dp(56), dp(4), dp(8));
         overlay.addView(preview, imageLp);
         preview.setOnClickListener(v -> { /* Keep taps on the image from closing the viewer. */ });
 
         TextView loading = text("טוען תמונה מלאה…", 14, true);
         loading.setTextColor(Color.WHITE);
         loading.setGravity(Gravity.CENTER);
-        loading.setBackground(shape(Color.argb(180, 45, 48, 51), 14, Color.argb(90, 255, 255, 255)));
+        loading.setBackground(shape(Color.argb(180, 30, 33, 36), 14, 0));
         FrameLayout.LayoutParams loadingLp = new FrameLayout.LayoutParams(-2, dp(48), Gravity.CENTER);
         overlay.addView(loading, loadingLp);
         loading.setOnClickListener(v -> { });
 
-        TextView close = text("×", 30, true);
-        close.setTextColor(INK);
+        // The close control overlays the photo in its upper corner, rather than sitting in a separate header.
+        TextView close = text("×", 28, true);
+        close.setTextColor(Color.WHITE);
         close.setGravity(Gravity.CENTER);
-        close.setBackground(shape(BG, 22, LINE));
-        close.setElevation(dp(5));
-        FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.END);
-        closeLp.setMargins(0, dp(2), dp(2), 0);
+        close.setBackground(shape(Color.argb(190, 24, 27, 30), 22, 0));
+        close.setElevation(dp(6));
+        close.setContentDescription("סגירת התמונה המוגדלת");
+        FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.END);
+        closeLp.setMargins(0, dp(14), dp(14), 0);
         overlay.addView(close, closeLp);
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
