@@ -502,6 +502,22 @@ public class StockMonitor extends BroadcastReceiver {
             appendLog(c, key, "", "ההתראה לא הוצגה", "הרשאת ההתראות חסרה."); return;
         }
         Intent launch = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        // Restock alerts carry both stable IDs so the app can open the matching sale and scroll to the exact product card.
+        if (!order && title != null && title.contains("חזר למלאי")) {
+            String targetKey = key == null ? "" : key;
+            if (targetKey.startsWith("global:")) targetKey = targetKey.substring("global:".length());
+            int separator = targetKey.indexOf(':');
+            if (separator > 0 && separator < targetKey.length() - 1) {
+                try {
+                    int saleId = Integer.parseInt(targetKey.substring(0, separator));
+                    String sid = targetKey.substring(separator + 1);
+                    if (saleId > 0 && !sid.trim().isEmpty()) {
+                        launch.putExtra("stock_sale_id", saleId);
+                        launch.putExtra("stock_product_sid", sid);
+                    }
+                } catch (NumberFormatException ignored) { }
+            }
+        }
         PendingIntent pi = PendingIntent.getActivity(c, Math.abs((key + title).hashCode()), launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, order ? ORDER_CHANNEL : ALERT_CHANNEL) : new Notification.Builder(c);
         b.setSmallIcon(android.R.drawable.stat_notify_more).setContentTitle(title).setContentText(message)
