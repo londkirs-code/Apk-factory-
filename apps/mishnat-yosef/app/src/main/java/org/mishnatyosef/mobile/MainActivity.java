@@ -1586,6 +1586,7 @@ public class MainActivity extends Activity {
         addHomeNotificationSettings();
         addHomeStockSettings();
         addHomeUpdateSettings();
+        addHomeShareAppButton();
         addWhatsNewEntry();
         addSafetySettings();
         TextView contactBtn = btn("📞 יצירת קשר", TONAL);
@@ -1926,6 +1927,130 @@ public class MainActivity extends Activity {
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
+    private void addHomeShareAppButton() {
+        LinearLayout card = card(14);
+        card.addView(text("📤 שיתוף האפליקציה", 15, true));
+        card.addView(muted("שליחת קובץ ההתקנה של משנת יוסף לחבר", 13), lp(-1, -2, 0, 8));
+        TextView share = btn("📲 שתף את האפליקציה לחבר", PRIMARY);
+        share.setOnClickListener(v -> shareAppToFriend());
+        card.addView(share, new LinearLayout.LayoutParams(-1, dp(46)));
+        root.addView(card, lp(-1, -2, 0, 10));
+    }
+
+    private File sharedApkFile() {
+        File dir = new File(getCacheDir(), "shared_apk");
+        if (!dir.exists() && !dir.mkdirs()) return null;
+        return new File(dir, "משנת יוסף.apk");
+    }
+
+    private boolean copyVerifiedApk(InputStream input, File destination, String expectedSha256) throws Exception {
+        if (input == null || destination == null) throw new java.io.IOException("קובץ האפליקציה אינו זמין");
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        File temp = new File(destination.getParentFile(), "share-download.tmp");
+        try (InputStream in = input; OutputStream out = new FileOutputStream(temp)) {
+            byte[] buffer = new byte[16384];
+            int count;
+            while ((count = in.read(buffer)) != -1) {
+                digest.update(buffer, 0, count);
+                out.write(buffer, 0, count);
+            }
+            out.flush();
+        }
+        StringBuilder hex = new StringBuilder();
+        for (byte b : digest.digest()) hex.append(String.format(Locale.US, "%02x", b & 0xff));
+        if (expectedSha256 == null || !expectedSha256.matches("[0-9a-fA-F]{64}")
+                || !expectedSha256.equalsIgnoreCase(hex.toString())) {
+            temp.delete();
+            throw new java.io.IOException("קובץ האפליקציה לא עבר אימות SHA-256");
+        }
+        if (destination.exists() && !destination.delete()) {
+            temp.delete();
+            throw new java.io.IOException("לא ניתן להחליף את קובץ השיתוף הקודם");
+        }
+        if (!temp.renameTo(destination)) {
+            try (InputStream in = new java.io.FileInputStream(temp);
+                 OutputStream out = new FileOutputStream(destination)) {
+                byte[] buffer = new byte[16384];
+                int count;
+                while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            }
+            temp.delete();
+        }
+        return destination.isFile() && destination.length() > 0;
+    }
+
+    private void shareVerifiedApk(File apk) {
+        if (apk == null || !apk.isFile() || apk.length() <= 0) {
+            toast("קובץ האפליקציה לא נמצא. נסה שוב.", true);
+            return;
+        }
+        Uri uri = Uri.parse("content://" + getPackageName() + ".jsonreports/mishnat-yosef.apk");
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("application/vnd.android.package-archive");
+        share.putExtra(Intent.EXTRA_STREAM, uri);
+        share.putExtra(Intent.EXTRA_SUBJECT, "משנת יוסף");
+        share.putExtra(Intent.EXTRA_TITLE, "משנת יוסף.apk");
+        share.setClipData(ClipData.newUri(getContentResolver(), "משנת יוסף.apk", uri));
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivity(Intent.createChooser(share, "שתף את האפליקציה לחבר"));
+        } catch (Exception error) {
+            toast("לא ניתן לפתוח את חלון השיתוף.", true);
+        }
+    }
+
+    private void shareAppToFriend() {
+        toast("מכין את קובץ האפליקציה לשיתוף…", false);
+        executor.execute(() -> {
+            File target = sharedApkFile();
+            try {
+                if (target == null) throw new java.io.IOException("לא ניתן ליצור קובץ שיתוף");
+                long savedId = prefs.getLong("update_download_id", -1L);
+                int savedCode = prefs.getInt("update_download_verified_code", -1);
+                boolean savedVerified = prefs.getBoolean("update_download_verified", false);
+                int installedCode = installedVersionCode();
+                if (savedVerified && savedCode > 0 && savedCode >= installedCode && savedId > 0) {
+                    DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                    Uri savedUri = dm == null ? null : dm.getUriForDownloadedFile(savedId);
+                    if (savedUri != null) {
+                        try (InputStream in = getContentResolver().openInputStream(savedUri)) {
+                            copyVerifiedApk(in, target, prefs.getString("update_latest_sha256", ""));
+                        }
+                        runOnUiThread(() -> shareVerifiedApk(target));
+                        return;
+                    }
+                }
+
+                JSONObject manifest = fetchUpdateManifest();
+                String apkUrl = manifest.optString("apkUrl", UPDATE_APK_URL).trim();
+                String sha = manifest.optString("sha256", "").trim();
+                if (!UPDATE_APK_URL.equals(apkUrl)) throw new java.io.IOException("כתובת ה־APK במידע העדכון אינה צפויה");
+                if (!sha.matches("[0-9a-fA-F]{64}")) throw new java.io.IOException("מידע האימות של הגרסה חסר או לא תקין");
+                HttpURLConnection connection = (HttpURLConnection) new URL(UPDATE_APK_URL).openConnection();
+                connection.setConnectTimeout(20000);
+                connection.setReadTimeout(60000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestMethod("GET");
+                try {
+                    int status = connection.getResponseCode();
+                    if (status < 200 || status >= 300) throw new java.io.IOException("שרת ההורדה החזיר שגיאה " + status);
+                    try (InputStream in = connection.getInputStream()) {
+                        copyVerifiedApk(in, target, sha);
+                    }
+                } finally {
+                    connection.disconnect();
+                }
+                prefs.edit().putInt("update_latest_code", manifest.optInt("versionCode", 0))
+                        .putString("update_latest_name", manifest.optString("versionName", ""))
+                        .putString("update_latest_sha256", sha).apply();
+                runOnUiThread(() -> shareVerifiedApk(target));
+            } catch (Exception error) {
+                String detail = error.getMessage() == null ? "שגיאה לא ידועה" : error.getMessage();
+                runOnUiThread(() -> toast("לא ניתן להכין את קובץ השיתוף: " + detail, true));
+            }
+        });
+    }
+
     @Override protected void onResume() {
         super.onResume();
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
@@ -2175,7 +2300,7 @@ public class MainActivity extends Activity {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(UPDATE_APK_URL));
             request.setTitle("משנת יוסף — עדכון " + updateLatestName);
             request.setDescription("מוריד קובץ עדכון מאומת");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN);
             request.setAllowedOverMetered(true);
             request.setAllowedOverRoaming(false);
             request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS,
