@@ -3813,6 +3813,14 @@ public class MainActivity extends Activity {
             loadFeatureProducts(rows.optJSONObject(0));
             return;
         }
+        // Re-render this screen in place: the initial offline actions and the server
+        // response both call renderSales(), so remove the previous sales content first.
+        // Keep child 0 (statusView), which is owned by setStatus().
+        if (root != null) {
+            while (root.getChildCount() > 1) {
+                root.removeViewAt(1);
+            }
+        }
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.addView(muted(rows.length() == 0 ? "אין כרגע מכירות פתוחות" : rows.length() + " מכירות פתוחות", 14), new LinearLayout.LayoutParams(0, -2, 1));
