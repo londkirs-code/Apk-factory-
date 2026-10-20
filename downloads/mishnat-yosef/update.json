@@ -1,9 +1,9 @@
 {
-  "versionCode": 255,
-  "versionName": "1.417",
+  "versionCode": 256,
+  "versionName": "1.418",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "aabaa72b355d4fa10ab2169f6cd7a5c431709838a936bb5157d4746776d20b9a",
+  "sha256": "3ede12c0016d15ca7e09621502821c994a851c4739d87404ecb7edce8dc0561b",
   "releaseTitle": "שינוי תווית כפתור העדכון",
   "releaseNotes": "במסך עדכוני האפליקציה, תווית הכפתור שונתה מ־„הורד עדכון” ל־„הורד ועדכן”, בהתאם לפעולה שמבצעת הורדה ואימות ולאחר מכן מפעילה את תהליך ההתקנה.\n\nלא שונתה לוגיקת ההורדה, האימות או ההתקנה.",
-  "buildCommit": "a63ddf7d4ef0a3d3f0d855e5e384ec1f61eb5556"
+  "buildCommit": "c6f49d47d3663f581b754072965d805c20544e03"
 }
