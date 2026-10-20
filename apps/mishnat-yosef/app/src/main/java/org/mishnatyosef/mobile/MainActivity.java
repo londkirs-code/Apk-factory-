@@ -873,6 +873,43 @@ public class MainActivity extends Activity {
         return background;
     }
 
+    private int scaleDimension(int value, float ratio) {
+        return value > 0 ? Math.max(1, Math.round(value * ratio)) : value;
+    }
+
+    /** Resize the live view tree in place so changing text size never navigates away from the current page. */
+    private void scaleViewTreeInPlace(View view, float ratio) {
+        if (view == null || Math.abs(ratio - 1.0f) < 0.001f) return;
+        if (view instanceof TextView) {
+            TextView textView = (TextView) view;
+            textView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,
+                    Math.max(1.0f, textView.getTextSize() * ratio));
+        }
+        view.setPadding(scaleDimension(view.getPaddingLeft(), ratio),
+                scaleDimension(view.getPaddingTop(), ratio),
+                scaleDimension(view.getPaddingRight(), ratio),
+                scaleDimension(view.getPaddingBottom(), ratio));
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        if (params != null) {
+            params.width = scaleDimension(params.width, ratio);
+            params.height = scaleDimension(params.height, ratio);
+            if (params instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
+                margins.leftMargin = scaleDimension(margins.leftMargin, ratio);
+                margins.topMargin = scaleDimension(margins.topMargin, ratio);
+                margins.rightMargin = scaleDimension(margins.rightMargin, ratio);
+                margins.bottomMargin = scaleDimension(margins.bottomMargin, ratio);
+            }
+            view.setLayoutParams(params);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                scaleViewTreeInPlace(group.getChildAt(i), ratio);
+            }
+        }
+    }
+
     private void changeUiScale(int requestedPercent) {
         int next = Math.max(80, Math.min(150, requestedPercent));
         next = Math.max(80, Math.min(150, ((next + 5) / 10) * 10));
@@ -881,12 +918,18 @@ public class MainActivity extends Activity {
             toast(next == 100 ? "גודל התצוגה כבר בגודל הרגיל" : "גודל התצוגה לא השתנה", false);
             return;
         }
-        prefs.edit()
-                .putInt("ui_scale_percent", next)
-                .putInt("actions_restore_tab", activeBottomTab)
-                .putBoolean("reopen_actions_after_scale", true)
-                .apply();
-        recreate();
+        float ratio = next / (float) current;
+        prefs.edit().putInt("ui_scale_percent", next).apply();
+        uiScale = next / 100.0f;
+        Set<View> scaledRoots = new HashSet<>();
+        if (currentScreen != null && scaledRoots.add(currentScreen)) scaleViewTreeInPlace(currentScreen, ratio);
+        for (TabScreenState cached : tabScreenCache.values()) {
+            if (cached != null && cached.screen != null && scaledRoots.add(cached.screen)) {
+                scaleViewTreeInPlace(cached.screen, ratio);
+            }
+        }
+        if (currentScreen != null) currentScreen.requestLayout();
+        toast("גודל התצוגה עודכן ל־" + next + "%", false);
     }
 
     private void showActionsDialog() {
@@ -2104,7 +2147,7 @@ public class MainActivity extends Activity {
     private File sharedApkFile() {
         File dir = new File(getCacheDir(), "shared_apk");
         if (!dir.exists() && !dir.mkdirs()) return null;
-        return new File(dir, "משנת יוסף.apk");
+        return new File(dir, "mishnat-yosef.apk");
     }
 
     private boolean copyVerifiedApk(InputStream input, File destination, String expectedSha256) throws Exception {
@@ -2148,7 +2191,7 @@ public class MainActivity extends Activity {
             toast("קובץ האפליקציה לא נמצא. נסה שוב.", true);
             return;
         }
-        Uri uri = Uri.withAppendedPath(Uri.parse("content://" + getPackageName() + ".jsonreports"), apk.getName());
+        Uri uri = Uri.withAppendedPath(Uri.parse("content://org.mishnatyosef.mobile.jsonreports"), "mishnat-yosef.apk");
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setType("application/vnd.android.package-archive");
         share.putExtra(Intent.EXTRA_STREAM, uri);
