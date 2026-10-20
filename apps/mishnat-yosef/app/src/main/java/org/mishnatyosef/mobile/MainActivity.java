@@ -1839,6 +1839,7 @@ public class MainActivity extends Activity {
 
     private void showAccount() {
         beginScreen("חשבון והגדרות", 3, null);
+        addDisplaySettings();
         LinearLayout acc = card(14);
         acc.addView(muted("מחובר כ", 12));
         acc.addView(text(prefs.getString("email", ""), 16, true));
@@ -1849,7 +1850,6 @@ public class MainActivity extends Activity {
         addHomeUpdateSettings();
         addHomeShareAppButton();
         addWhatsNewEntry();
-        addDisplaySettings();
         addSafetySettings();
         TextView contactBtn = btn("📞 יצירת קשר", TONAL);
         contactBtn.setOnClickListener(v -> showContactOptions());
@@ -9195,18 +9195,6 @@ public class MainActivity extends Activity {
                 showMathChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
             }
         }));
-        card.addView(switchRow("הפרדת פריטים שאזלו", "כשהאפשרות פעילה, כל הפריטים שאזלו מופיעים בקטגוריה נפרדת. כשהם חוזרים למלאי הם חוזרים לקטגוריה המקורית.", separateSoldOutCategory(), (b, checked) -> {
-            SharedPreferences.Editor edit = prefs.edit().putBoolean("separate_sold_out_category", checked);
-            if (checked) edit.putBoolean("hide_sold_out", false);
-            edit.apply();
-            if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
-            toast(checked ? "פריטים שאזלו הועברו לקטגוריה נפרדת" : "החלוקה הרגילה לפי קטגוריות הוחזרה", false);
-        }));
-        card.addView(switchRow("הסתר פריטים שאזלו", "פריטים שאזלו מהמלאי לא יוצגו ברשימת המוצרים. פריט שכבר בהזמנה ממשיך להופיע", hideSoldOut(), (b, checked) -> {
-            prefs.edit().putBoolean("hide_sold_out", checked).apply();
-            if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
-            toast(checked ? "🙈 פריטים שאזלו מוסתרים" : "פריטים שאזלו מוצגים", false);
-        }));
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
@@ -9219,10 +9207,8 @@ public class MainActivity extends Activity {
         controls.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         controls.setPadding(dp(12), dp(8), dp(12), dp(12));
         controls.setBackground(shape(SURFACE, 16, LINE));
-        controls.setVisibility(View.GONE);
+        controls.setVisibility(View.VISIBLE);
 
-        final TextView[] subtitleRef = new TextView[1];
-        final TextView[] arrowRef = new TextView[1];
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -9246,20 +9232,35 @@ public class MainActivity extends Activity {
         labelsLp.setMargins(dp(12), 0, dp(10), 0);
         header.addView(labels, labelsLp);
         labels.addView(text("הגדרות תצוגה", 16, true), new LinearLayout.LayoutParams(-1, -2));
-        TextView subtitle = muted("מצב לילה, גודל התצוגה ופריסת הכרטיסיות", 12);
-        subtitleRef[0] = subtitle;
+        TextView subtitle = muted("גודל התצוגה, עמודות, מצב לילה והצגת מלאי", 12);
         labels.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView arrow = text("⌄", 24, false);
+        TextView arrow = text("‹", 28, false);
         arrow.setTextColor(MUTED);
         arrow.setGravity(Gravity.CENTER);
-        arrowRef[0] = arrow;
         header.addView(arrow, new LinearLayout.LayoutParams(dp(28), dp(40)));
         header.setOnClickListener(v -> {
-            boolean expand = controls.getVisibility() != View.VISIBLE;
-            controls.setVisibility(expand ? View.VISIBLE : View.GONE);
-            arrowRef[0].setText(expand ? "⌃" : "⌄");
-            subtitleRef[0].setText(expand ? "כל אפשרויות התצוגה זמינות כאן לשינוי ישיר" : "מצב לילה, גודל התצוגה ופריסת הכרטיסיות");
+            if (controls.getParent() instanceof ViewGroup) ((ViewGroup) controls.getParent()).removeView(controls);
+            ScrollView settingsScroll = new ScrollView(this);
+            settingsScroll.setFillViewport(true);
+            settingsScroll.setClipToPadding(false);
+            settingsScroll.setPadding(0, dp(4), 0, dp(4));
+            settingsScroll.addView(controls, new ScrollView.LayoutParams(-1, -2));
+            AlertDialog settingsDialog = new AlertDialog.Builder(this,
+                    nightMode ? android.R.style.Theme_Material_Dialog_Alert
+                            : android.R.style.Theme_Material_Light_Dialog_Alert)
+                    .setTitle("🎨 הגדרות תצוגה")
+                    .setView(settingsScroll)
+                    .setPositiveButton("סיום", (d, which) -> d.dismiss())
+                    .create();
+            settingsDialog.setCanceledOnTouchOutside(true);
+            settingsDialog.show();
+            if (settingsDialog.getWindow() != null) {
+                settingsDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                settingsDialog.getWindow().setLayout(
+                        Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(480)),
+                        Math.min(getResources().getDisplayMetrics().heightPixels - dp(100), dp(760)));
+            }
         });
         card.addView(header, lp(-1, -2, 0, 6));
 
@@ -9389,7 +9390,24 @@ public class MainActivity extends Activity {
             }
         });
 
-        card.addView(controls, lp(-1, -2, 0, 4));
+        TextView soldOutHeading = text("📦 הצגת פריטים שאזלו", 15, true);
+        soldOutHeading.setTextColor(INK);
+        LinearLayout.LayoutParams soldOutHeadingLp = new LinearLayout.LayoutParams(-1, -2);
+        soldOutHeadingLp.topMargin = dp(18);
+        soldOutHeadingLp.bottomMargin = dp(6);
+        controls.addView(soldOutHeading, soldOutHeadingLp);
+        controls.addView(switchRow("הפרדת פריטים שאזלו", "העברת פריטים שאזלו לקטגוריה נפרדת; כשחוזרים למלאי הם חוזרים לקטגוריה המקורית.", separateSoldOutCategory(), (b, checked) -> {
+            SharedPreferences.Editor edit = prefs.edit().putBoolean("separate_sold_out_category", checked);
+            if (checked) edit.putBoolean("hide_sold_out", false);
+            edit.apply();
+            if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
+            toast(checked ? "פריטים שאזלו הועברו לקטגוריה נפרדת" : "החלוקה הרגילה לפי קטגוריות הוחזרה", false);
+        }));
+        controls.addView(switchRow("הסתר פריטים שאזלו", "פריטים שאזלו מהמלאי לא יוצגו ברשימה. פריט שכבר בהזמנה ממשיך להופיע.", hideSoldOut(), (b, checked) -> {
+            prefs.edit().putBoolean("hide_sold_out", checked).apply();
+            if (productAdapter != null && !featureProducts.isEmpty()) rebuildGrid();
+            toast(checked ? "🙈 פריטים שאזלו מוסתרים" : "פריטים שאזלו מוצגים", false);
+        }));
         root.addView(card, lp(-1, -2, 0, 10));
     }
 
