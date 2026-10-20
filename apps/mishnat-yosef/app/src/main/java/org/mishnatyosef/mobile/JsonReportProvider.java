@@ -21,6 +21,10 @@ public class JsonReportProvider extends ContentProvider {
             file = new File(new File(getContext().getCacheDir(), "json-reports"), name);
         } else if ("mishnat-yosef.apk".equals(name) || "משנת יוסף.apk".equals(name)) {
             file = new File(new File(getContext().getCacheDir(), "shared_apk"), name);
+        } else if (name != null && name.matches("mishnat-yosef-update-[0-9]+\\.apk")) {
+            File directory = getContext().getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
+            if (directory == null) directory = new File(getContext().getFilesDir(), "updates");
+            file = new File(directory, name);
         } else {
             throw new FileNotFoundException("Unknown shared file");
         }
@@ -32,7 +36,8 @@ public class JsonReportProvider extends ContentProvider {
 
     @Override public String getType(Uri uri) {
         String name = uri == null ? "" : uri.getLastPathSegment();
-        if ("mishnat-yosef.apk".equals(name) || "משנת יוסף.apk".equals(name)) {
+        if ("mishnat-yosef.apk".equals(name) || "משנת יוסף.apk".equals(name)
+                || (name != null && name.matches("mishnat-yosef-update-[0-9]+\\.apk"))) {
             return "application/vnd.android.package-archive";
         }
         if ("mishnat-yosef-json-report.txt".equals(name)) return "text/plain";
