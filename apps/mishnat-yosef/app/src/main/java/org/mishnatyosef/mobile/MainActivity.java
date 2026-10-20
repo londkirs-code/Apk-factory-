@@ -2400,6 +2400,7 @@ public class MainActivity extends Activity {
             updateStatusView.setText("תוצאת הבדיקה האחרונה: נמצאה גרסה " + updateLatestName + " (" + updateLatestCode + "). אפשר לבדוק שוב לפני ההורדה.");
             updateNotesView.setText(updateReleaseNotes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : updateReleaseNotes);
             updateDownloadButton.setEnabled(true);
+            styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
         }
         if (prefs.getBoolean("update_download_verified", false)
                 && prefs.getInt("update_download_verified_code", 0) == updateLatestCode
@@ -2473,6 +2474,7 @@ public class MainActivity extends Activity {
                         updateStatusView.setText("נמצאה גרסה חדשה: " + name + " (" + code + ").");
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
+                        styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
                         updateInstallButton.setVisibility(View.GONE);
                         if (autoDownloadAfterCheck) {
                             autoDownloadAfterCheck = false;
@@ -2483,12 +2485,14 @@ public class MainActivity extends Activity {
                         updateStatusView.setText("האפליקציה מעודכנת. מותקנת הגרסה האחרונה: " + name + " (" + code + ").");
                         updateNotesView.setText(notes.isEmpty() ? "אין פירוט שינויים נוסף." : notes);
                         updateDownloadButton.setEnabled(false);
+                        styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
                         updateInstallButton.setVisibility(View.GONE);
                     } else {
                         autoDownloadAfterCheck = false;
                         updateStatusView.setText("הגרסה המותקנת חדשה יותר מהמידע שפורסם ב־GitHub. לא תתבצע התקנה לאחור.");
                         updateNotesView.setText(notes);
                         updateDownloadButton.setEnabled(false);
+                        styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
                         updateInstallButton.setVisibility(View.GONE);
                     }
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
@@ -2502,6 +2506,7 @@ public class MainActivity extends Activity {
                     updateStatusView.setText("בדיקת העדכונים נכשלה: " + shown + ". אפשר לנסות שוב מאוחר יותר.");
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
                     updateDownloadButton.setEnabled(false);
+                    styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
                 });
             }
         });
