@@ -5531,6 +5531,22 @@ public class MainActivity extends Activity {
         });
     }
 
+    private String productShareText(JSONObject p) {
+        if (p == null) return "";
+        StringBuilder out = new StringBuilder(productName(p));
+        double price = productPrice(p);
+        if (price > 0) out.append("\nמחיר: ").append(money(price));
+        String pack = packageText(p);
+        if (!pack.isEmpty()) out.append("\nאריזה: ").append(pack);
+        String unit = unitPriceText(p);
+        if (!unit.isEmpty()) out.append("\n").append(unit);
+        if (isSoldOut(p)) out.append("\n⛔ אזל מהמלאי");
+        String description = cleanHtml(first(productOf(p), "description"));
+        if (description.isEmpty()) description = cleanHtml(first(p, "description", "note", "details", "badge"));
+        if (!description.isEmpty()) out.append("\n\n").append(description);
+        return out.toString().trim();
+    }
+
     private void showProductDetails(JSONObject p) {
         if (p == null) return;
         JSONObject prod = productOf(p);
@@ -5580,19 +5596,54 @@ public class MainActivity extends Activity {
 
         final String pid = pidOf(p);
         final AlertDialog[] dlg = new AlertDialog[1];
+
+        // Keep all product-card actions in this shared details dialog, so the same
+        // controls appear consistently wherever a product can be opened.
         if ((closedOrderReadOnly || featureOrderId > 0) && findProduct(sidOf(p)) != null && !pid.isEmpty()) {
-            LinearLayout actionsRow = new LinearLayout(this);
-            TextView favBtn = btn(favIds.contains(pid) ? "☆ הסרה ממועדפים" : "⭐ הוספה למועדפים", TONAL);
+            if (!closedOrderReadOnly && featureOrderId > 0) {
+                TextView orderBtn = btn("🛒 הוספה / עדכון בהזמנה", PRIMARY);
+                orderBtn.setTextSize(14);
+                orderBtn.setMinHeight(dp(40));
+                orderBtn.setOnClickListener(v -> {
+                    dlg[0].dismiss();
+                    // Reuse the existing quantity picker and order-update flow.
+                    askQuantity(p, productsRefresh, null);
+                });
+                panel.addView(orderBtn, lp(-1, dp(40), 12, 0));
+            }
+
+            LinearLayout savedActionsRow = new LinearLayout(this);
+            savedActionsRow.setOrientation(LinearLayout.HORIZONTAL);
+            savedActionsRow.setGravity(Gravity.CENTER_VERTICAL);
+            TextView favBtn = smallChip(favIds.contains(pid) ? "☆ הסרה ממועדפים" : "⭐ הוספה למועדפים", TONAL);
+            favBtn.setTextSize(12);
             favBtn.setOnClickListener(v -> { dlg[0].dismiss(); toggleFavourite(p, () -> rebuildGrid()); });
             int sq = favSavedQty(pid);
-            TextView qtyBtn = btn(sq > 0 ? "📌 כמות שמורה: " + sq : "📌 שמירת כמות", TONAL);
+            TextView qtyBtn = smallChip(sq > 0 ? "📌 כמות שמורה: " + sq : "📌 שמירת כמות", TONAL);
+            qtyBtn.setTextSize(12);
             qtyBtn.setOnClickListener(v -> { dlg[0].dismiss(); askSavedQty(p); });
-            actionsRow.addView(favBtn, new LinearLayout.LayoutParams(0, dp(44), 1));
-            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(0, dp(44), 1);
-            qlp.setMarginStart(dp(8));
-            actionsRow.addView(qtyBtn, qlp);
-            panel.addView(actionsRow, lp(-1, -2, 12, 0));
+            savedActionsRow.addView(favBtn, new LinearLayout.LayoutParams(0, dp(38), 1));
+            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(0, dp(38), 1);
+            qlp.setMarginStart(dp(6));
+            savedActionsRow.addView(qtyBtn, qlp);
+            panel.addView(savedActionsRow, lp(-1, -2, 8, 0));
         }
+
+        LinearLayout shareActionsRow = new LinearLayout(this);
+        shareActionsRow.setOrientation(LinearLayout.HORIZONTAL);
+        shareActionsRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView copyBtn = smallChip("📋 העתקה ללוח", OUTLINE);
+        copyBtn.setTextSize(12);
+        copyBtn.setOnClickListener(v -> copyText(productShareText(p)));
+        TextView shareBtn = smallChip("📤 שיתוף", TONAL);
+        shareBtn.setTextSize(12);
+        shareBtn.setOnClickListener(v -> shareText(productName(p), productShareText(p)));
+        shareActionsRow.addView(copyBtn, new LinearLayout.LayoutParams(0, dp(38), 1));
+        LinearLayout.LayoutParams shareLp = new LinearLayout.LayoutParams(0, dp(38), 1);
+        shareLp.setMarginStart(dp(6));
+        shareActionsRow.addView(shareBtn, shareLp);
+        panel.addView(shareActionsRow, lp(-1, -2, 8, 0));
+
         ScrollView sv = new ScrollView(this);
         sv.addView(panel);
         dlg[0] = appDialog().setView(sv).setPositiveButton("סגירה", null).create();
