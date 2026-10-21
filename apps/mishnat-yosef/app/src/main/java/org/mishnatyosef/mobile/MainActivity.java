@@ -4152,59 +4152,82 @@ public class MainActivity extends Activity {
      * The source URL is kept separate from the thumbnail URL so this always asks
      * for the full image when the app has a smaller thumbnail configured.
      */
+    /**
+     * Opens the original product image in a full-screen viewer.
+     * Any tap anywhere and any key press closes the viewer.
+     */
     private void showImagePreview(String url) {
         if (url == null || url.trim().isEmpty() || isFinishing()) return;
 
-        // Keep the app visible around the photo: a transparent full-screen touch layer,
-        // with a centered image limited to a comfortable portion of the screen.
+        // One full-screen touch layer. Alpha 1 makes sure Android does not ignore touches.
         FrameLayout overlay = new FrameLayout(this);
-        overlay.setBackgroundColor(Color.TRANSPARENT);
+        overlay.setBackgroundColor(Color.argb(1, 0, 0, 0));
+        overlay.setFocusable(true);
+        overlay.setFocusableInTouchMode(true);
         overlay.setClickable(true);
 
         FrameLayout imageContainer = new FrameLayout(this);
+        imageContainer.setFocusable(false);
+        imageContainer.setClickable(false);
+
         int screenWidth = getResources().getDisplayMetrics().widthPixels;
         int screenHeight = getResources().getDisplayMetrics().heightPixels;
-        int imageWidth = Math.max(dp(180), Math.min((int) (screenWidth * 0.86f), screenWidth - dp(32)));
-        int imageHeight = Math.max(dp(180), Math.min((int) (screenHeight * 0.72f), screenHeight - dp(100)));
+
         FrameLayout.LayoutParams containerLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER);
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                Gravity.CENTER
+        );
         overlay.addView(imageContainer, containerLp);
 
         ImageView preview = new ImageView(this);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setAdjustViewBounds(true);
+        preview.setFocusable(false);
+        preview.setClickable(false);
         preview.setContentDescription("תצוגה מוגדלת של התמונה");
-        preview.setAdjustViewBounds(false);
         imageContainer.addView(preview, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
 
         TextView loading = text("טוען תמונה מלאה…", 14, true);
         loading.setTextColor(Color.WHITE);
         loading.setGravity(Gravity.CENTER);
         loading.setBackground(shape(Color.argb(185, 30, 33, 36), 14, 0));
+        loading.setFocusable(false);
+        loading.setClickable(false);
         FrameLayout.LayoutParams loadingLp = new FrameLayout.LayoutParams(-2, dp(48), Gravity.CENTER);
         imageContainer.addView(loading, loadingLp);
 
-        // The close button sits directly over the photo, with no separate card or frame.
+        // The X stays visible as a visual hint only. It is not clickable because any tap closes.
         TextView close = text("×", 27, true);
         close.setTextColor(Color.WHITE);
         close.setGravity(Gravity.CENTER);
         close.setBackground(shape(Color.argb(190, 24, 27, 30), 22, 0));
         close.setElevation(dp(6));
         close.setContentDescription("סגירת התמונה המוגדלת");
+        close.setFocusable(false);
+        close.setClickable(false);
         FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.LEFT);
         imageContainer.addView(close, closeLp);
 
-        // Position the close control over the actual photo, not over an empty FIT_CENTER margin.
+        // Keep the visual X near the actual photo, not on empty FIT_CENTER margins.
         Runnable positionCloseOnPhoto = () -> {
             if (preview.getDrawable() == null || preview.getWidth() <= 0 || preview.getHeight() <= 0) return;
+
             int photoWidth = preview.getDrawable().getIntrinsicWidth();
             int photoHeight = preview.getDrawable().getIntrinsicHeight();
             if (photoWidth <= 0 || photoHeight <= 0) return;
-            float scale = Math.min((float) preview.getWidth() / photoWidth,
-                    (float) preview.getHeight() / photoHeight);
+
+            float scale = Math.min(
+                    (float) preview.getWidth() / photoWidth,
+                    (float) preview.getHeight() / photoHeight
+            );
+
             int shownWidth = Math.round(photoWidth * scale);
             int shownHeight = Math.round(photoHeight * scale);
+
             closeLp.leftMargin = (preview.getWidth() - shownWidth) / 2
                     + shownWidth - dp(42) - dp(8);
             closeLp.topMargin = (preview.getHeight() - shownHeight) / 2 + dp(8);
@@ -4212,52 +4235,66 @@ public class MainActivity extends Activity {
         };
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
-        // Any tap closes the viewer, including taps directly on the photo and on empty bands.
+
+        // Any tap anywhere closes the viewer.
         overlay.setOnClickListener(v -> dialog.dismiss());
-        imageContainer.setClickable(true);
-        imageContainer.setOnClickListener(v -> dialog.dismiss());
-        preview.setClickable(true);
-        preview.setOnClickListener(v -> dialog.dismiss());
-        // Any physical key closes the viewer as requested; BACK is still handled by the dialog.
-        dialog.setOnKeyListener((d, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                dialog.dismiss();
-                return true;
-            }
-            return false;
+
+        // Any key closes the viewer.
+        overlay.setOnKeyListener((v, keyCode, event) -> {
+            dialog.dismiss();
+            return true;
         });
-        close.setOnClickListener(v -> dialog.dismiss());
+
         dialog.setCancelable(true);
         dialog.setCanceledOnTouchOutside(true);
+
         dialog.setOnShowListener(d -> {
             android.view.Window window = dialog.getWindow();
             if (window != null) {
                 window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+
                 WindowManager.LayoutParams attrs = window.getAttributes();
                 attrs.dimAmount = 0.22f;
                 window.setAttributes(attrs);
-                window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
+                window.setLayout(
+                        WindowManager.LayoutParams.MATCH_PARENT,
+                        WindowManager.LayoutParams.MATCH_PARENT
+                );
             }
+
+            overlay.requestFocus();
         });
+
         dialog.show();
+
         android.view.Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+
             WindowManager.LayoutParams attrs = window.getAttributes();
             attrs.dimAmount = 0.22f;
             window.setAttributes(attrs);
-            window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
+            window.setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
+            );
         }
 
+        overlay.post(overlay::requestFocus);
+
         final int decodeSize = Math.max(screenWidth, screenHeight) * 2;
+
         try {
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(url, decodeSize);
+
                 runOnUiThread(() -> {
                     if (!dialog.isShowing()) return;
+
                     loading.setVisibility(View.GONE);
+
                     if (bmp != null) {
                         preview.setImageBitmap(bmp);
                         preview.post(positionCloseOnPhoto);
