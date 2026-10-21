@@ -423,6 +423,7 @@ public class MainActivity extends Activity {
         updateOrderBar();
     };
     private TextView barInfo, barTotal;
+    private View orderSummaryButton;
 
     // ---- order summary state
     private OrderData summary = null;
@@ -602,6 +603,136 @@ public class MainActivity extends Activity {
         }
         return null;
     }
+    /**
+     * D-pad navigation is deliberately scoped to the product-order screen. Android's ListView
+     * otherwise takes over vertical arrows, while recycled product rows contain several separate
+     * actionable views. Pick the closest visible target in the pressed screen direction so focus
+     * moves spatially between a product card, its add/+/- controls, neighbouring cards and the
+     * fixed "my order" button without changing ordering/network behaviour.
+     */
+    @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        if (event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                && screenKind == 1
+                && (event.getKeyCode() == android.view.KeyEvent.KEYCODE_DPAD_UP
+                    || event.getKeyCode() == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                    || event.getKeyCode() == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                    || event.getKeyCode() == android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+                && (activeProductSearch == null || !activeProductSearch.hasFocus())) {
+            View current = getCurrentFocus();
+            if (current == null || !isInsideProductOrderArea(current)) {
+                View first = firstVisibleProductFocusTarget();
+                if (first != null) {
+                    first.requestFocus();
+                    return true;
+                }
+            } else {
+                View next = nearestProductFocusTarget(current, event.getKeyCode());
+                if (next != null && next != current) {
+                    next.requestFocus();
+                    return true;
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    private boolean isInsideProductOrderArea(View view) {
+        if (view == null) return false;
+        if (view == orderSummaryButton) return true;
+        if (productList == null) return false;
+        View node = view;
+        while (node != null) {
+            if (node == productList) return true;
+            android.view.ViewParent parent = node.getParent();
+            node = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
+
+    private List<View> visibleProductFocusTargets() {
+        List<View> targets = new ArrayList<>();
+        if (orderSummaryButton != null && orderSummaryButton.isShown() && orderSummaryButton.isEnabled()) {
+            targets.add(orderSummaryButton);
+        }
+        if (productList == null) return targets;
+        int firstPosition = productList.getFirstVisiblePosition();
+        for (int childIndex = 0; childIndex < productList.getChildCount(); childIndex++) {
+            View rowView = productList.getChildAt(childIndex);
+            int position = firstPosition + childIndex;
+            if (rowView == null || !rowView.isShown() || position < 0 || position >= gridRows.size()
+                    || !(rowView.getTag() instanceof RowHolder)
+                    || productAdapter == null || productAdapter.getItemViewType(position) != 1) continue;
+            RowHolder row = (RowHolder) rowView.getTag();
+            for (CardHolder holder : new CardHolder[]{row.first, row.second, row.third, row.fourth, row.fifth}) {
+                View card = holder.card;
+                if (card.getVisibility() != View.VISIBLE || !card.isShown() || holder.p == null) continue;
+                targets.add(card);
+                if (holder.add.getVisibility() == View.VISIBLE && holder.add.isEnabled()) targets.add(holder.add);
+                if (holder.st.view.getVisibility() == View.VISIBLE) {
+                    if (holder.st.plus.getVisibility() == View.VISIBLE && holder.st.plus.isEnabled()) targets.add(holder.st.plus);
+                    if (holder.st.minus.getVisibility() == View.VISIBLE && holder.st.minus.isEnabled()) targets.add(holder.st.minus);
+                }
+                if (holder.chargeButton.getVisibility() == View.VISIBLE && holder.chargeButton.isEnabled()) targets.add(holder.chargeButton);
+                if (holder.autoOrderPanel.getVisibility() == View.VISIBLE) {
+                    if (holder.autoOrderStepper.plus.isShown() && holder.autoOrderStepper.plus.isEnabled()) targets.add(holder.autoOrderStepper.plus);
+                    if (holder.autoOrderStepper.minus.isShown() && holder.autoOrderStepper.minus.isEnabled()) targets.add(holder.autoOrderStepper.minus);
+                    if (holder.autoOrderSaveButton.isShown() && holder.autoOrderSaveButton.isEnabled()) targets.add(holder.autoOrderSaveButton);
+                }
+                if (holder.stockAlertButton.isShown() && holder.stockAlertButton.isEnabled()) targets.add(holder.stockAlertButton);
+            }
+        }
+        return targets;
+    }
+
+    private View firstVisibleProductFocusTarget() {
+        if (productList == null) return orderSummaryButton != null && orderSummaryButton.isShown() ? orderSummaryButton : null;
+        List<View> targets = visibleProductFocusTargets();
+        for (View target : targets) {
+            if (target != orderSummaryButton && target.getTag() != null
+                    && String.valueOf(target.getTag()).startsWith("productCard:")) return target;
+        }
+        for (View target : targets) if (target != orderSummaryButton) return target;
+        return orderSummaryButton != null && orderSummaryButton.isShown() ? orderSummaryButton : null;
+    }
+
+    private View nearestProductFocusTarget(View current, int keyCode) {
+        List<View> targets = visibleProductFocusTargets();
+        if (targets.isEmpty()) return null;
+        int[] origin = new int[2];
+        current.getLocationOnScreen(origin);
+        float cx = origin[0] + current.getWidth() / 2f;
+        float cy = origin[1] + current.getHeight() / 2f;
+        View best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (View candidate : targets) {
+            if (candidate == current || !candidate.isShown() || candidate.getWidth() <= 0 || candidate.getHeight() <= 0) continue;
+            int[] location = new int[2];
+            candidate.getLocationOnScreen(location);
+            float tx = location[0] + candidate.getWidth() / 2f;
+            float ty = location[1] + candidate.getHeight() / 2f;
+            float dx = tx - cx, dy = ty - cy;
+            float major, minor;
+            switch (keyCode) {
+                case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                    if (dx >= -dp(2)) continue;
+                    major = -dx; minor = Math.abs(dy); break;
+                case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
+                    if (dx <= dp(2)) continue;
+                    major = dx; minor = Math.abs(dy); break;
+                case android.view.KeyEvent.KEYCODE_DPAD_UP:
+                    if (dy >= -dp(2)) continue;
+                    major = -dy; minor = Math.abs(dx); break;
+                case android.view.KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (dy <= dp(2)) continue;
+                    major = dy; minor = Math.abs(dx); break;
+                default: return null;
+            }
+            double score = major * 1000.0 + minor;
+            if (score < bestScore) { bestScore = score; best = candidate; }
+        }
+        return best;
+    }
+
 
     /** '#' moves visually right in RTL; '*' moves visually left and opens the destination immediately. */
     /**
@@ -5317,6 +5448,9 @@ public class MainActivity extends Activity {
         orderBtn.setGravity(Gravity.CENTER);
         orderBtn.setClickable(true);
         orderBtn.setFocusable(true);
+        orderBtn.setFocusableInTouchMode(false);
+        orderBtn.setContentDescription("פתיחת סיכום ההזמנה");
+        orderSummaryButton = orderBtn;
         orderBtn.setPadding(dp(8), dp(2), dp(8), dp(2));
         orderBtn.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         orderBtn.addView(orderTitle, new LinearLayout.LayoutParams(-1, -2));
@@ -5579,6 +5713,12 @@ public class MainActivity extends Activity {
             card.setOrientation(LinearLayout.VERTICAL);
             card.setBackground(shape(SURFACE, 14, LINE));
             card.setClickable(true);
+            card.setFocusable(true);
+            card.setFocusableInTouchMode(false);
+            card.setOnFocusChangeListener((view, focused) -> {
+                card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE, focused ? dp(2) : dp(1)));
+                card.setElevation(focused ? dp(3) : 0);
+            });
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
             imageBox = new FrameLayout(MainActivity.this);
