@@ -14,6 +14,11 @@ on:
       - "apps/**"
       - "templates/**"
       - "scripts/**"
+      - "gradle/**"
+      - "buildSrc/**"
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradle.properties"
       - ".github/workflows/build-apk.yml"
 
 permissions:
@@ -42,6 +47,88 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Determine apps to build
+        id: scope
+        shell: bash
+        env:
+          REQUESTED_APP: ${{ inputs.app || 'all' }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          ALL_APPS=()
+          mapfile -t ALL_APPS < <(find apps -mindepth 1 -maxdepth 1 -type d -print | sort | while read -r d; do [[ -f "$d/app/build.gradle" ]] && basename "$d"; done)
+          if [[ "${#ALL_APPS[@]}" -eq 0 ]]; then
+            echo "::error::No Android apps found under apps/"
+            exit 1
+          fi
+
+          APPS=()
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_APP" != "all" ]]; then
+            [[ "$REQUESTED_APP" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "::error::Invalid app id"; exit 1; }
+            [[ -f "apps/$REQUESTED_APP/app/build.gradle" ]] || { echo "::error::App not found: $REQUESTED_APP"; exit 1; }
+            APPS=("$REQUESTED_APP")
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            BASE="$EVENT_BEFORE"
+            if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+              BASE="$(git rev-parse HEAD^ 2>/dev/null || true)"
+            fi
+            SHARED_CHANGE=false
+            declare -A TOUCHED_APPS=()
+            if [[ -n "$BASE" ]] && git cat-file -e "$BASE^{commit}" 2>/dev/null && git merge-base --is-ancestor "$BASE" "$GITHUB_SHA"; then
+              while IFS= read -r path; do
+                [[ -z "$path" ]] && continue
+                case "$path" in
+                  templates/*|scripts/*|gradle/*|buildSrc/*|build.gradle|settings.gradle|gradle.properties|.github/workflows/*)
+                    SHARED_CHANGE=true
+                    ;;
+                  apps/*/*)
+                    app="${path#apps/}"
+                    app="${app%%/*}"
+                    TOUCHED_APPS["$app"]=1
+                    ;;
+                esac
+              done < <(git diff --name-only "$BASE" "$GITHUB_SHA")
+            else
+              echo "::warning::Could not determine changed files safely; building all apps."
+              SHARED_CHANGE=true
+            fi
+            if [[ "$SHARED_CHANGE" == true || "${#TOUCHED_APPS[@]}" -eq 0 ]]; then
+              APPS=("${ALL_APPS[@]}")
+            else
+              while IFS= read -r app; do APPS+=("$app"); done < <(printf '%s\n' "${!TOUCHED_APPS[@]}" | sort)
+            fi
+          else
+            APPS=("${ALL_APPS[@]}")
+          fi
+
+          BUILD_MISHNAT=false
+          {
+            echo "apps<<EOF"
+            printf '%s\n' "${APPS[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          for app in "${APPS[@]}"; do
+            BUILD_FILE="apps/$app/app/build.gradle"
+            CODE="$(sed -nE "s/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p" "$BUILD_FILE" | head -n1)"
+            if [[ ! "$CODE" =~ ^[0-9]+$ ]]; then
+              echo "::error::Missing numeric versionCode in $BUILD_FILE"
+              exit 1
+            fi
+            if [[ "$app" == "mishnat-yosef" ]]; then
+              NAME="$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'.*$/\1/p" "$BUILD_FILE" | head -n1)"
+              if [[ ! "$NAME" =~ ^[0-9]+\.[0-9]{1,4}$ ]]; then
+                echo "::error::Unsupported Mishnat Yosef versionName format: $NAME"
+                exit 1
+              fi
+              test -s apps/mishnat-yosef/RELEASE_NOTES.md || { echo "::error::Missing Mishnat Yosef release notes"; exit 1; }
+              BUILD_MISHNAT=true
+            fi
+          done
+          echo "build_mishnat=$BUILD_MISHNAT" >> "$GITHUB_OUTPUT"
+          echo "Selected apps: ${APPS[*]}"
+          echo "build_mishnat=$BUILD_MISHNAT"
+
       - name: Prepare persistent signing key
         env:
           APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
@@ -105,9 +192,11 @@ jobs:
           done
           echo "Changelog coverage check completed; it does not modify Git history."
       - name: Update Mishnat Yosef launcher icon from public Dropbox folder
+        if: steps.scope.outputs.build_mishnat == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          PREP_START=$(date +%s)
           ICON_DIR="apps/mishnat-yosef/app/src/main/res/drawable"
           ZIP_FILE="$RUNNER_TEMP/mishnat-yosef-dropbox.zip"
           python3 -m pip install --quiet Pillow
@@ -137,10 +226,13 @@ jobs:
           PY
           rm -f "$ICON_DIR/ic_launcher.xml"
           test -s "$ICON_DIR/ic_launcher.png"
+          echo "- Mishnat Yosef icon preparation: $(( $(date +%s) - PREP_START )) seconds" >> "$GITHUB_STEP_SUMMARY"
       - name: Embed Mishnat Yosef release notes into the APK
+        if: steps.scope.outputs.build_mishnat == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          PREP_START=$(date +%s)
           python3 - apps/mishnat-yosef/RELEASE_NOTES.md apps/mishnat-yosef/app/src/main/res/values/strings.xml <<'PY'
           import html
           import sys
@@ -166,23 +258,18 @@ jobs:
           )
           print(f"Embedded release notes: {title}")
           PY
+          echo "- Mishnat Yosef release-notes preparation: $(( $(date +%s) - PREP_START )) seconds" >> "$GITHUB_STEP_SUMMARY"
       - name: Build selected app or all apps
         id: build_apps
         shell: bash
         env:
-          REQUESTED_APP: ${{ inputs.app || 'all' }}
-          EVENT_NAME: ${{ github.event_name }}
+          APPS_TO_BUILD: ${{ steps.scope.outputs.apps }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_APP" != "all" ]]; then
-            [[ "$REQUESTED_APP" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "Invalid app id"; exit 1; }
-            [[ -f "apps/$REQUESTED_APP/app/build.gradle" ]] || { echo "App not found: $REQUESTED_APP"; exit 1; }
-            APPS=("$REQUESTED_APP")
-          else
-            mapfile -t APPS < <(find apps -mindepth 1 -maxdepth 1 -type d -print | sort | while read -r d; do [[ -f "$d/app/build.gradle" ]] && basename "$d"; done)
-          fi
-          if [[ ${#APPS[@]} -eq 0 ]]; then echo "No Android apps found under apps/"; exit 1; fi
+          mapfile -t APPS <<< "$APPS_TO_BUILD"
+          if [[ ${#APPS[@]} -eq 0 || -z "${APPS[0]}" ]]; then echo "::error::No apps selected"; exit 1; fi
           for app in "${APPS[@]}"; do
+            APP_START=$(date +%s)
             echo "::group::Building $app"
             BUILD_FILE="apps/$app/app/build.gradle"
             # Keep applicationId unchanged and monotonically increase versionCode.
@@ -218,18 +305,28 @@ jobs:
             export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_PASSWORD="$APK_SIGNING_STORE_PASSWORD"
             export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
             export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_PASSWORD="$APK_SIGNING_KEY_PASSWORD"
-            # Reuse the Gradle daemon across apps in this job and enable task-output caching.
-            # setup-gradle@v4 already caches Gradle distributions and dependencies between runs.
+            # Reuse setup-gradle's dependency cache and enable Gradle task-output caching.
+            GRADLE_START=$(date +%s)
             (cd "apps/$app" && gradle --build-cache assembleRelease -x lintVitalRelease)
+            GRADLE_SECONDS=$(( $(date +%s) - GRADLE_START ))
+            echo "- **$app** Gradle release build: ${GRADLE_SECONDS}s" >> "$GITHUB_STEP_SUMMARY"
             APK_PATH="apps/$app/app/build/outputs/apk/release/"*.apk
+            shopt -s nullglob
+            APK_FILES=( $APK_PATH )
+            if [[ ${#APK_FILES[@]} -ne 1 || ! -s "${APK_FILES[0]}" ]]; then
+              echo "::error::Expected exactly one non-empty release APK for $app"
+              exit 1
+            fi
+            APK_PATH="${APK_FILES[0]}"
             mkdir -p "downloads/$app"
-            cp $APK_PATH "downloads/$app/app.apk"
+            PUBLISH_START=$(date +%s)
+            cp "$APK_PATH" "downloads/$app/app.apk"
             VERSION_NAME=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'.*$/\\1/p" "$BUILD_FILE" | head -n1)
 
             # Preserve each successful build before the latest APK is replaced.
             HISTORY_DIR="downloads/$app/history"
             mkdir -p "$HISTORY_DIR"
-            cp $APK_PATH "$HISTORY_DIR/${app}-v${VERSION_NAME}-code${NEXT_CODE}.apk"
+            cp "$APK_PATH" "$HISTORY_DIR/${app}-v${VERSION_NAME}-code${NEXT_CODE}.apk"
             printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
             if [[ "$app" == "mishnat-yosef" ]]; then
               # Publish version metadata and the exact APK checksum together with every successful build.
@@ -272,7 +369,8 @@ jobs:
           print(f"Published update metadata for {manifest['versionName']} ({manifest['versionCode']}); SHA-256 {manifest['sha256']}")
           PY
             fi
-                      echo "::endgroup::"
+            echo "- **$app** APK publish preparation: $(( $(date +%s) - PUBLISH_START ))s; total app stage: $(( $(date +%s) - APP_START ))s" >> "$GITHUB_STEP_SUMMARY"
+            echo "::endgroup::"
           done
           {
             echo "apps<<EOF"
