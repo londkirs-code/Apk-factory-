@@ -41,6 +41,7 @@ public class PersistentNotificationService extends Service {
         else if (back) enabled.add("עדכונים על מוצרים שחזרו למלאי");
         String content = enabled.isEmpty() ? "אין כרגע סוגי התראות פעילים" : "פעילה לצורך קבלת " + join(enabled) + " וכו׳";
         Intent open = new Intent(this, MainActivity.class);
+        open.putExtra("open_notification_settings", true);
         open.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pending = PendingIntent.getActivity(this, 74103, open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
