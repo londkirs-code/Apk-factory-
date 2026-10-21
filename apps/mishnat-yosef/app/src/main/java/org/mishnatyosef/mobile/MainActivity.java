@@ -2526,7 +2526,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
                     appDialog()
-                            .setTitle("📲 יצא עדכון חדש")
+                            .setTitle("📲 נמצאה גרסה שונה ב־GitHub")
                             .setMessage("נמצאה גרסה שונה ב־GitHub של משנת יוסף: " + name + " (" + code + ")."
                                     + (notes.isEmpty() ? "" : "\n\n" + notes)
                                     + "\n\nרוצה לעבור לעמוד העדכונים ולהתחיל אוטומטית את ההורדה וההתקנה?")
@@ -2682,12 +2682,14 @@ public class MainActivity extends Activity {
                         styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
                         updateInstallButton.setVisibility(View.GONE);
                     } else {
+                        boolean startOlderVersionDownload = autoDownloadAfterCheck;
                         autoDownloadAfterCheck = false;
                         updateStatusView.setText("הגרסה שב־GitHub ישנה יותר מהגרסה המותקנת. אפשר להוריד אותה, אך Android עשוי לחסום התקנה לאחור.");
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
                         updateInstallButton.setVisibility(View.GONE);
+                        if (startOlderVersionDownload) downloadLatestUpdate();
                     }
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
                 });
@@ -5349,8 +5351,6 @@ public class MainActivity extends Activity {
 
         // the product list: only the rows on screen exist as views, and they are recycled while scrolling
         productList = new ListView(this);
-        productList.setItemsCanFocus(true);
-        productList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         productList.setContentDescription("רשימת מוצרי ההזמנה");
         productList.setDivider(null);
         productList.setDividerHeight(0);
@@ -5895,8 +5895,6 @@ public class MainActivity extends Activity {
                 if (tv == null) {
                     tv = text("", 16, true);
                     tv.setTextColor(ORANGE_DARK);
-                    // Headers are display-only: if they could take focus, any focus loss would land here.
-                    tv.setFocusable(false);
                     tv.setContentDescription("כותרת קטגוריית מוצרים");
                     tv.setPadding(dp(4), dp(12), dp(4), dp(4));
                 }
