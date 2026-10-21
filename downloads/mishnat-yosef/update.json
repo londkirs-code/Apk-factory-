@@ -1,9 +1,9 @@
 {
-  "versionCode": 351,
-  "versionName": "1.4806",
+  "versionCode": 352,
+  "versionName": "1.4807",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "c57576eb2ff001b9f61c8bf224589477ee168b198da8a1e32edf3c950dbb7589",
-  "releaseTitle": "🎉 **איסוף הזמנה חגיגי יותר**",
-  "releaseNotes": "- כשמסמנים את המוצר האחרון שנאסף, מופיעה חגיגת קונפטי קצרה והודעת הצלחה.\n- כפתור החזרה לראש רשימת המוצרים נמצא כעת בפינה השמאלית התחתונה, במיקום נוח ומרווח.",
-  "buildCommit": "2c7560ad23df9e9ae8e7ca2b60b0994816bf2ae6"
+  "sha256": "577a266b8f38a9d30b2068d44720724a7ee535655337eff25921072665b52b6a",
+  "releaseTitle": "עדכוני אפליקציה",
+  "releaseNotes": "- כפתור ההורדה נקרא כעת „⬇️ הורדה ועדכון מיידים” לניסוח ברור יותר.",
+  "buildCommit": "fed2b4e8904a9e2e15de3457f188aede9c9122df"
 }
