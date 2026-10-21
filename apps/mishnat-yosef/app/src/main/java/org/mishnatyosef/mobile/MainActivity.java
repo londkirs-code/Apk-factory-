@@ -903,8 +903,9 @@ public class MainActivity extends Activity {
         if (scrollView != null) {
             scrollView.post(() -> {
                 if (scrollView == null) return;
-                int targetY = end
-                        ? Math.max(0, scrollView.getChildAt(0).getHeight() - scrollView.getHeight())
+                View content = scrollView.getChildAt(0);
+                int targetY = end && content != null
+                        ? Math.max(0, content.getHeight() - scrollView.getHeight())
                         : 0;
                 scrollView.scrollTo(0, targetY);
             });
