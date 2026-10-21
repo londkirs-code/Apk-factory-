@@ -3731,8 +3731,13 @@ public class MainActivity extends Activity {
                     updateStatusView.setText("תוצאות הבדיקה האחרונה: בדיקת העדכונים נכשלה: " + shown + ". אפשר לנסות שוב מאוחר יותר.");
                     updateStatusView.setTextColor(ORANGE_DARK);
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
-                    updateDownloadButton.setEnabled(false);
-                    styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
+                    boolean cachedUpdateAvailable = updateLatestCode > 0
+                            && updateLatestCode != installedVersionCode()
+                            && updateLatestSha256.matches("[0-9a-f]{64}");
+                    updateDownloadButton.setEnabled(cachedUpdateAvailable);
+                    styleActionButton(updateDownloadButton,
+                            cachedUpdateAvailable ? ORANGE : ORANGE_LIGHT,
+                            cachedUpdateAvailable ? ON_ORANGE : ORANGE_DARK, 0);
                 });
             }
         });
