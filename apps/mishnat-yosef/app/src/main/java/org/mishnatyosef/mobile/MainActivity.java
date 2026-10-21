@@ -7409,6 +7409,7 @@ public class MainActivity extends Activity {
             entry.put("type", "credit");
             entry.put("text", historyItemCopyText(line));
             entry.put("quantity", Math.max(0, (int) Math.round(line.amount)));
+            entry.put("unitPrice", line.price);
             entry.put("saleId", summary.saleId);
             entry.put("saleName", summary.saleName == null ? "" : summary.saleName);
             entry.put("itemId", line.sid == null ? "" : line.sid);
@@ -7449,6 +7450,44 @@ public class MainActivity extends Activity {
             out.append(itemText);
         }
         return out.toString();
+    }
+
+    /** Sum saved credit/charge entries, including older rows that only stored a formatted total. */
+    private String creditListTotalText(String type, String label) {
+        JSONArray current = readCreditList();
+        double total = 0;
+        int missingPrices = 0;
+        int countedItems = 0;
+        for (int i = 0; i < current.length(); i++) {
+            JSONObject item = current.optJSONObject(i);
+            if (item == null || !type.equals(item.optString("type", "credit"))) continue;
+            String itemText = item.optString("text", "").trim();
+            if (itemText.isEmpty()) continue;
+            countedItems++;
+            int quantity = Math.max(0, item.optInt("quantity", 0));
+            if (item.has("unitPrice") && quantity > 0) {
+                double unitPrice = item.optDouble("unitPrice", -1);
+                if (unitPrice >= 0) {
+                    total += unitPrice * quantity;
+                    continue;
+                }
+            }
+            // Backward compatibility for saved rows created before unitPrice was stored.
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("סה״כ:\\s*₪\\s*([0-9]+(?:[.,][0-9]+)?)")
+                    .matcher(itemText);
+            if (matcher.find()) {
+                try {
+                    total += Double.parseDouble(matcher.group(1).replace(',', '.'));
+                    continue;
+                } catch (Exception ignored) { }
+            }
+            missingPrices++;
+        }
+        if (countedItems == 0) return "";
+        String result = label + ": " + money(total);
+        if (missingPrices > 0) result += " (לא כולל " + missingPrices + " פריטים ללא מחיר זמין)";
+        return result;
     }
 
     /** Stable key for one product row within one sale; never merges charges across sales. */
@@ -7568,6 +7607,8 @@ public class MainActivity extends Activity {
         sendCredit.setOnClickListener(v -> requireUnlock(() -> {
             String creditText = creditListTypedText("credit");
             String chargeText = creditListTypedText("charge");
+            String creditTotalText = creditListTotalText("credit", "סה״כ לזיכויים");
+            String chargeTotalText = creditListTotalText("charge", "סה״כ חיובים");
             if (creditText.isEmpty() && chargeText.isEmpty()) {
                 toast("רשימת הזיכויים והחיובים ריקה.", false);
                 return;
@@ -7581,20 +7622,25 @@ public class MainActivity extends Activity {
                     body = "שלום,\n"
                             + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
                             + creditText
+                            + (creditTotalText.isEmpty() ? "" : "\n" + creditTotalText)
                             + "\n\nסיבת הזיכוי: חוסרים."
-                            + "\n\nולהלן הדברים שאתם צריכים לחייב אותנו עליהם:\n" + chargeText;
+                            + "\n\nולהלן הדברים שאתם צריכים לחייב אותנו עליהם:\n"
+                            + chargeText
+                            + (chargeTotalText.isEmpty() ? "" : "\n" + chargeTotalText);
                 } else if (!creditText.isEmpty()) {
                     subject = "בקשת זיכויים על הזמנות משנת יוסף לחשבון " + accountEmail;
                     body = "שלום,\n"
                             + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
                             + creditText
+                            + (creditTotalText.isEmpty() ? "" : "\n" + creditTotalText)
                             + "\n\nסיבת הזיכוי: חוסרים.";
                 } else {
                     subject = "חיובים על הזמנות משנת יוסף לחשבון " + accountEmail;
                     body = "שלום,\n"
                             + "יש לנו גם כמה חיובים שאתם צריכים לחייב אותנו.\n"
                             + "פירוט החיובים:\n"
-                            + chargeText;
+                            + chargeText
+                            + (chargeTotalText.isEmpty() ? "" : "\n" + chargeTotalText);
                 }
                 Uri mailUri = Uri.parse("mailto:A0773168080@gmail.com"
                         + "?subject=" + Uri.encode(subject)
