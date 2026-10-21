@@ -387,6 +387,7 @@ public class MainActivity extends Activity {
     private AlertDialog imageViewerDialog;
     private SeekBar actionScaleBar;
     private TextView actionScaleValue;
+    private boolean simpleKeyboardNavigation() { return prefs.getBoolean("simple_keyboard_navigation", true); }
 
     // ---- ordering state
     private JSONObject featureSale = null;
@@ -681,7 +682,7 @@ public class MainActivity extends Activity {
         int rowPosition = location[0], column = location[1];
 
         if ((key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-                && isStepperRole(role)) {
+                && !simpleKeyboardNavigation() && isStepperRole(role)) {
             if (moveWithinProductControls(focusedCard, current, role, key)) return true;
             moveFocusHorizontallyToCard(rowPosition, column,
                     key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1, role);
@@ -689,7 +690,8 @@ public class MainActivity extends Activity {
         }
         if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
             moveFocusHorizontallyToCard(rowPosition, column,
-                    key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1, "card");
+                    key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1,
+                    simpleKeyboardNavigation() ? "card" : role);
             return true;
         }
         if (key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
@@ -776,6 +778,14 @@ public class MainActivity extends Activity {
         }
         if (key == android.view.KeyEvent.KEYCODE_7) { jumpCategoryBy(-1); return true; }
         if (key == android.view.KeyEvent.KEYCODE_9) { jumpCategoryBy(1); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_SEARCH) {
+            if (activeProductSearch != null && activeProductSearch.hasFocus()) {
+                hideKeyboard();
+                activeProductSearch.clearFocus();
+                return true;
+            }
+            return false;
+        }
         if (key == android.view.KeyEvent.KEYCODE_MENU) {
             openProductDetailsOrMoreOptions(); return true;
         }
@@ -1294,7 +1304,7 @@ public class MainActivity extends Activity {
                 && focusCardInRowIfAvailable(rowPosition, targetColumn, targetRole)) return;
         int rowDelta = columnDelta > 0 ? 1 : -1;
         int preferredColumn = columnDelta > 0 ? 0 : Math.max(0, cardColumns() - 1);
-        moveFocusToProductRow(rowPosition, preferredColumn, rowDelta, "card");
+        moveFocusToProductRow(rowPosition, preferredColumn, rowDelta, targetRole);
     }
 
     private boolean focusCardInRowIfAvailable(int position, int column, String role) {
@@ -1902,6 +1912,20 @@ public class MainActivity extends Activity {
             toast("גודל התצוגה אופס ל־100%", false);
         });
         panel.addView(resetScaleButton, new LinearLayout.LayoutParams(-1, dp(42)));
+
+        TextView navigationModeButton = btn(
+                simpleKeyboardNavigation() ? "↔  ניווט פשוט: פעיל" : "↔  ניווט לפי פעולה: פעיל",
+                TONAL);
+        navigationModeButton.setGravity(Gravity.CENTER);
+        navigationModeButton.setContentDescription("החלפת מצב ניווט בחצים בכרטיסי המוצרים");
+        navigationModeButton.setOnClickListener(v -> {
+            boolean nextSimple = !simpleKeyboardNavigation();
+            prefs.edit().putBoolean("simple_keyboard_navigation", nextSimple).apply();
+            navigationModeButton.setText(nextSimple ? "↔  ניווט פשוט: פעיל" : "↔  ניווט לפי פעולה: פעיל");
+            styleActionButton(navigationModeButton, nextSimple ? ORANGE_LIGHT : SURFACE,
+                    nextSimple ? ORANGE_DARK : INK, 0);
+        });
+        panel.addView(navigationModeButton, new LinearLayout.LayoutParams(-1, dp(42)));
 
         TextView columnsLabel = text("▦  מספר עמודות בהזמנות", 14, true);
         columnsLabel.setTextColor(INK);
