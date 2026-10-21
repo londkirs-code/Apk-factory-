@@ -2218,7 +2218,11 @@ public class MainActivity extends Activity {
 
     /** Switch to a tab by restoring its live view tree when it has already been opened. */
     private void navigateTab(int targetTab, Runnable firstOpenAction) {
-        if (targetTab == activeBottomTab && currentScreen != null) return;
+        if (targetTab == activeBottomTab && currentScreen != null) {
+            // Tapping the selected tab again returns to that tab's main screen.
+            firstOpenAction.run();
+            return;
+        }
         if (currentScreen != null && activeBottomTab >= 0) {
             tabScreenCache.put(activeBottomTab, captureTabScreenState());
         }
@@ -4500,18 +4504,18 @@ public class MainActivity extends Activity {
         LinearLayout cachedOrdersBox = new LinearLayout(this);
         cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
         cachedOrdersBox.setGravity(Gravity.CENTER);
-        cachedOrdersBox.setPadding(dp(16), dp(16), dp(16), dp(16));
+        cachedOrdersBox.setPadding(dp(12), dp(9), dp(12), dp(9));
         cachedOrdersBox.setBackground(ripple(shape(ORANGE_LIGHT, 16, LINE), 16));
-        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 22, true);
+        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 18, true);
         cachedOrders.setTextColor(ORANGE_DARK);
         cachedOrders.setGravity(Gravity.CENTER);
-        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 15);
+        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 12);
         cachedOrdersNote.setGravity(Gravity.CENTER);
         cachedOrdersBox.addView(cachedOrders, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
         noteParams.topMargin = dp(2);
         cachedOrdersBox.addView(cachedOrdersNote, noteParams);
-        cachedOrdersBox.setMinimumHeight(dp(88));
+        cachedOrdersBox.setMinimumHeight(dp(62));
         cachedOrdersBox.setContentDescription("פתיחת הזמנות מההיסטוריה המקומית");
         cachedOrdersBox.setOnClickListener(v -> showCachedOrders());
         root.addView(cachedOrdersBox, lp(-1, -2, 0, 10));
@@ -7622,17 +7626,17 @@ public class MainActivity extends Activity {
                     body = "שלום,\n"
                             + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
                             + creditText
-                            + (creditTotalText.isEmpty() ? "" : "\n" + creditTotalText)
+                            + (creditTotalText.isEmpty() ? "" : "\n\n" + creditTotalText)
                             + "\n\nסיבת הזיכוי: חוסרים."
                             + "\n\nולהלן הדברים שאתם צריכים לחייב אותנו עליהם:\n"
                             + chargeText
-                            + (chargeTotalText.isEmpty() ? "" : "\n" + chargeTotalText);
+                            + (chargeTotalText.isEmpty() ? "" : "\n\n" + chargeTotalText);
                 } else if (!creditText.isEmpty()) {
                     subject = "בקשת זיכויים על הזמנות משנת יוסף לחשבון " + accountEmail;
                     body = "שלום,\n"
                             + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
                             + creditText
-                            + (creditTotalText.isEmpty() ? "" : "\n" + creditTotalText)
+                            + (creditTotalText.isEmpty() ? "" : "\n\n" + creditTotalText)
                             + "\n\nסיבת הזיכוי: חוסרים.";
                 } else {
                     subject = "חיובים על הזמנות משנת יוסף לחשבון " + accountEmail;
@@ -7640,7 +7644,7 @@ public class MainActivity extends Activity {
                             + "יש לנו גם כמה חיובים שאתם צריכים לחייב אותנו.\n"
                             + "פירוט החיובים:\n"
                             + chargeText
-                            + (chargeTotalText.isEmpty() ? "" : "\n" + chargeTotalText);
+                            + (chargeTotalText.isEmpty() ? "" : "\n\n" + chargeTotalText);
                 }
                 Uri mailUri = Uri.parse("mailto:A0773168080@gmail.com"
                         + "?subject=" + Uri.encode(subject)
@@ -7831,9 +7835,13 @@ public class MainActivity extends Activity {
         LinearLayout txTools = new LinearLayout(this);
         int pendingCreditItems = readCreditList().length();
         String creditListLabel = "🧾 רשימת זיכויים וחיובים" + (pendingCreditItems > 0 ? " (" + pendingCreditItems + ")" : "");
-        TextView creditListButton = smallChip(creditListLabel, TONAL);
+        TextView creditListButton = btn(creditListLabel, TONAL);
+        creditListButton.setTextSize(17);
+        creditListButton.setTypeface(creditListButton.getTypeface(), Typeface.BOLD);
+        creditListButton.setGravity(Gravity.CENTER);
+        creditListButton.setMinHeight(dp(48));
         creditListButton.setOnClickListener(v -> showCreditList());
-        txTools.addView(creditListButton);
+        root.addView(creditListButton, root.indexOfChild(filters), lp(-1, dp(50), 0, 8));
         TextView bySale = smallChip("📊 לפי מכירה", TONAL);
         bySale.setOnClickListener(v -> showCreditsBySale(rows));
         TextView shareTx = smallChip("📤 שיתוף", TONAL);
