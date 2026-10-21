@@ -840,19 +840,26 @@ public class MainActivity extends Activity {
     private View chooseProductEntryControl(View card, int keyCode, int refX, int refY, String preferredActionTag) {
         List<View> controls = new ArrayList<>();
         collectCardControls(card, card, controls);
-        if (controls.isEmpty()) return card;
 
-        // Keep the same kind of action across cards where possible. Add and stepper controls swap
-        // visibility as quantity changes, so each has a deliberate compatible fallback.
-        String[] actionOrder;
+        // A charge-list card has one meaningful action. Never silently redirect a failed
+        // charge-button match to a quantity stepper on the next card.
         if ("productCharge".equals(preferredActionTag)) {
-            actionOrder = new String[]{"productCharge"};
-        } else if ("productAdd".equals(preferredActionTag)) {
-            actionOrder = new String[]{"productAdd", "productPlus", "productQty", "productMinus"};
+            for (View control : controls) {
+                if ("productCharge".equals(control.getTag()) && control.isShown()
+                        && control.isEnabled() && control.isFocusable()) return control;
+            }
+            return card;
+        }
+
+        // Keep navigation action-based, not geometry-based, for order controls. This prevents
+        // a nearby +/- button from winning simply because the desired action is hidden.
+        String[] actionOrder;
+        if ("productAdd".equals(preferredActionTag)) {
+            actionOrder = new String[]{"productAdd", "productPlus"};
         } else if ("productPlus".equals(preferredActionTag)) {
-            actionOrder = new String[]{"productPlus", "productAdd", "productQty", "productMinus"};
+            actionOrder = new String[]{"productPlus", "productAdd"};
         } else if ("productMinus".equals(preferredActionTag)) {
-            actionOrder = new String[]{"productMinus", "productPlus", "productQty", "productAdd"};
+            actionOrder = new String[]{"productMinus", "productPlus", "productAdd"};
         } else if ("productQty".equals(preferredActionTag)) {
             actionOrder = new String[]{"productQty", "productPlus", "productMinus", "productAdd"};
         } else {
@@ -860,32 +867,27 @@ public class MainActivity extends Activity {
         }
         for (String tag : actionOrder) {
             for (View control : controls) {
-                if (tag.equals(control.getTag()) && control.isShown() && control.isEnabled() && control.isFocusable()) {
-                    return control;
-                }
+                if (tag.equals(control.getTag()) && control.isShown()
+                        && control.isEnabled() && control.isFocusable()) return control;
             }
         }
 
         List<View> orderControls = new ArrayList<>();
         for (View control : controls) {
-            if (isOrderActionTag(control.getTag()) && control.isShown() && control.isEnabled() && control.isFocusable()) {
-                orderControls.add(control);
-            }
+            if (isOrderActionTag(control.getTag()) && control.isShown()
+                    && control.isEnabled() && control.isFocusable()) orderControls.add(control);
         }
-        List<View> candidates = orderControls.isEmpty() ? controls : orderControls;
+        if (orderControls.isEmpty()) return card;
+
+        // Only non-action origins use screen geometry to find the closest appropriate control.
+        List<View> candidates = orderControls;
         View best = null;
         long bestScore = Long.MAX_VALUE;
         for (View candidate : candidates) {
             int[] center = centerOnScreen(candidate);
-            long score;
-            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                // Preserve the source column first; use vertical distance only as a tie-breaker.
-                score = (long) Math.abs(center[0] - refX) * 100000L + Math.abs(center[1] - refY);
-                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) score += center[1];
-                else score += Math.max(0, -center[1]);
-            } else {
-                score = (long) Math.abs(center[1] - refY) * 100000L + Math.abs(center[0] - refX);
-            }
+            long score = (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_UP)
+                    ? (long) Math.abs(center[0] - refX) * 100000L + Math.abs(center[1] - refY)
+                    : (long) Math.abs(center[1] - refY) * 100000L + Math.abs(center[0] - refX);
             if (score < bestScore) { bestScore = score; best = candidate; }
         }
         return best == null ? card : best;
@@ -6278,6 +6280,8 @@ public class MainActivity extends Activity {
             card.addView(controls, lp(-1, dp(34), 6, 0));
             chargeButton = smallChip("הוסף לחיובים", PRIMARY);
             chargeButton.setTag("productCharge");
+            chargeButton.setFocusable(true);
+            chargeButton.setFocusableInTouchMode(false);
             chargeButton.setTextSize(12);
             chargeButton.setOnClickListener(v -> { if (closedOrderReadOnly && p != null) addCachedProductCharge(p); });
             card.addView(chargeButton, lp(-1, dp(34), 5, 0));
