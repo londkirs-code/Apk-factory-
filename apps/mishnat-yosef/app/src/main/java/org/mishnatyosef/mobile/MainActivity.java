@@ -3814,12 +3814,16 @@ public class MainActivity extends Activity {
             try {
                 if (partial.exists() && !partial.delete())
                     throw new java.io.IOException("לא ניתן לנקות קובץ הורדה חלקי קודם");
-                connection = (HttpURLConnection) new URL(UPDATE_APK_URL).openConnection();
+                // Give every published APK a unique URL so GitHub/CDN caches cannot serve bytes from an older build.
+                // The manifest keeps the canonical URL; the query parameters only bust intermediary caches.
+                String downloadUrl = UPDATE_APK_URL + "?v=" + targetCode + "&sha256=" + expectedSha;
+                connection = (HttpURLConnection) new URL(downloadUrl).openConnection();
                 connection.setConnectTimeout(20000);
                 connection.setReadTimeout(60000);
                 connection.setInstanceFollowRedirects(true);
                 connection.setRequestMethod("GET");
-                connection.setRequestProperty("Cache-Control", "no-cache");
+                connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
+                connection.setRequestProperty("Pragma", "no-cache");
                 connection.setRequestProperty("Accept", "application/vnd.android.package-archive");
                 int status = connection.getResponseCode();
                 if (status < 200 || status >= 300)
