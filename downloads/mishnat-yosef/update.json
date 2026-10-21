@@ -1,9 +1,9 @@
 {
-  "versionCode": 309,
-  "versionName": "1.471",
+  "versionCode": 310,
+  "versionName": "1.472",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "7ebeeace18efd6de2db74aba11f5e9cc8184b779f7c14719c3291b263bdb51f1",
+  "sha256": "437931e5fc32217deed458beb360ad87c2ff1b3c33c38e0b70ef48b92b8eb081",
   "releaseTitle": "גובה אחיד לכרטיסי המוצרים בהזמנות",
   "releaseNotes": "- כרטיסי המוצרים בכל עמודי ההזמנה מיושרים לגובה אחיד בכל שורה, לפי הכרטיס הגבוה ביותר באותה שורה.\n- הגובה מחושב מחדש אוטומטית לאחר שינוי מספר העמודות, וגם בעת שימוש חוזר בכרטיסים בזמן גלילה.\n- שם המוצר ומקומות המידע נשמרים בגובה עקבי; פרטים חסרים משאירים מקום מסודר בלי להציג טקסט מיותר.\n- נשמרו מבנה כרטיסי המלאי, הכפתורים ופעולות ההזמנה הקיימות.",
-  "buildCommit": "5409c3322c15a250b863a4c4fd7914d162192ef8"
+  "buildCommit": "e05bc91f70be33015f2d2891d82fa71b789ff59d"
 }
