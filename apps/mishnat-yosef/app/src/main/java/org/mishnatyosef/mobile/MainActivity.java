@@ -666,6 +666,23 @@ public class MainActivity extends Activity {
             return super.dispatchKeyEvent(event);
         }
         View current = getCurrentFocus();
+        if (event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                && showingOrderScreen && catStripRow != null
+                && isDescendantOf(current, catStripRow)) {
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                    || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                return moveFocusWithinCategoryStrip(current, key);
+            }
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (orderSummaryButton != null && orderSummaryButton.isShown()) {
+                    requestProductFocus(orderSummaryButton);
+                    return true;
+                }
+                View firstProduct = firstProductNavigationTarget();
+                if (firstProduct != null) requestProductFocus(firstProduct);
+                return firstProduct != null;
+            }
+        }
         if (current == orderSummaryButton && key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
             return moveFocusFromOrderSummaryToLastProduct();
         }
@@ -1308,7 +1325,69 @@ public class MainActivity extends Activity {
             }
             targetPosition += delta;
         }
-        if (delta > 0 && orderSummaryButton != null && orderSummaryButton.isShown()) requestProductFocus(orderSummaryButton);
+        if (delta > 0 && orderSummaryButton != null && orderSummaryButton.isShown()) {
+            requestProductFocus(orderSummaryButton);
+        } else if (delta < 0) {
+            // At the first product row, Up/Right can leave the grid and reach the fixed toolbar.
+            focusOrderToolbarFromFirstProduct();
+        }
+    }
+
+    private void focusOrderToolbarFromFirstProduct() {
+        if (catStripRow != null) {
+            for (int i = 0; i < catStripRow.getChildCount(); i++) {
+                View chip = catStripRow.getChildAt(i);
+                if (chip != null && chip.getVisibility() == View.VISIBLE && chip.isFocusable()) {
+                    if (requestProductFocus(chip)) {
+                        scrollCategoryChipIntoView(chip);
+                        return;
+                    }
+                }
+            }
+        }
+        if (orderSummaryButton != null && orderSummaryButton.isShown()) requestProductFocus(orderSummaryButton);
+    }
+
+    private boolean isDescendantOf(View child, ViewGroup ancestor) {
+        View node = child;
+        while (node != null) {
+            if (node == ancestor) return true;
+            android.view.ViewParent parent = node.getParent();
+            node = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
+
+    private boolean moveFocusWithinCategoryStrip(View current, int key) {
+        if (catStripRow == null || current == null) return false;
+        int currentCenter = current.getLeft() + current.getWidth() / 2;
+        View target = null;
+        int nearestDistance = Integer.MAX_VALUE;
+        boolean toRight = key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT;
+        for (int i = 0; i < catStripRow.getChildCount(); i++) {
+            View candidate = catStripRow.getChildAt(i);
+            if (candidate == null || candidate == current || candidate.getVisibility() != View.VISIBLE
+                    || !candidate.isFocusable()) continue;
+            int center = candidate.getLeft() + candidate.getWidth() / 2;
+            int distance = center - currentCenter;
+            if ((toRight && distance > 0 || !toRight && distance < 0)
+                    && Math.abs(distance) < nearestDistance) {
+                nearestDistance = Math.abs(distance);
+                target = candidate;
+            }
+        }
+        if (target == null) return true;
+        if (requestProductFocus(target)) scrollCategoryChipIntoView(target);
+        return true;
+    }
+
+    private void scrollCategoryChipIntoView(View chip) {
+        if (catStripScroll == null || chip == null) return;
+        catStripScroll.post(() -> {
+            if (catStripScroll == null || chip.getParent() != catStripRow || !chip.hasFocus()) return;
+            int targetX = chip.getLeft() - (catStripScroll.getWidth() - chip.getWidth()) / 2;
+            catStripScroll.smoothScrollTo(Math.max(0, targetX), 0);
+        });
     }
 
     private void moveFocusHorizontallyToCard(int rowPosition, int column, int columnDelta, String targetRole) {
@@ -10720,6 +10799,12 @@ public class MainActivity extends Activity {
         if (!pendingCategoryJump.isEmpty() && !cats.contains(pendingCategoryJump)) pendingCategoryJump = "";
         List<View> cells = new ArrayList<>();
         TextView menu = pickChip("☰ קטגוריות");
+        menu.setFocusable(true);
+        menu.setFocusableInTouchMode(false);
+        menu.setOnFocusChangeListener((v, hasFocus) -> {
+            v.setElevation(hasFocus ? dp(3) : 0);
+            if (hasFocus) scrollCategoryChipIntoView(v);
+        });
         styleChip(menu, true);
         menu.setOnClickListener(v -> showCategoryMenu());
         menu.setLayoutParams(chipLp());
@@ -10729,6 +10814,12 @@ public class MainActivity extends Activity {
         for (int i = 0; i < 3; i++) {
             final String key = modeKeys[i];
             TextView mc = pickChip(modeLabels[i]);
+            mc.setFocusable(true);
+            mc.setFocusableInTouchMode(false);
+            mc.setOnFocusChangeListener((v, hasFocus) -> {
+                v.setElevation(hasFocus ? dp(3) : 0);
+                if (hasFocus) scrollCategoryChipIntoView(v);
+            });
             styleChip(mc, key.equals(viewMode));
             mc.setOnClickListener(v -> { viewMode = key; rebuildGrid(true); });
             mc.setLayoutParams(chipLp());
@@ -10737,6 +10828,12 @@ public class MainActivity extends Activity {
         for (final String cat : cats) {
             Integer count = catCounts.get(cat);
             TextView chip = pickChip(cat + (count == null ? "" : " " + count));
+            chip.setFocusable(true);
+            chip.setFocusableInTouchMode(false);
+            chip.setOnFocusChangeListener((v, hasFocus) -> {
+                v.setElevation(hasFocus ? dp(3) : 0);
+                if (hasFocus) scrollCategoryChipIntoView(v);
+            });
             chip.setOnClickListener(v -> jumpToCategory(cat));
             chip.setLayoutParams(chipLp());
             catChips.put(cat, chip);
