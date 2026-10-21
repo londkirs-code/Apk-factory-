@@ -894,13 +894,20 @@ public class MainActivity extends Activity {
     }
 
     private void scrollCurrentScreenToEdge(boolean end) {
+        // Keys 2/8 are direct jumps, not animated scrolling commands.
         if (productList != null && showingOrderScreen && screenKind == 1) {
-            productList.smoothScrollToPosition(end ? Math.max(0, gridRows.size() - 1) : 0);
+            int target = end ? Math.max(0, gridRows.size() - 1) : 0;
+            productList.setSelectionFromTop(target, 0);
             return;
         }
         if (scrollView != null) {
-            if (end) scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
-            else scrollView.post(() -> scrollView.fullScroll(View.FOCUS_UP));
+            scrollView.post(() -> {
+                if (scrollView == null) return;
+                int targetY = end
+                        ? Math.max(0, scrollView.getChildAt(0).getHeight() - scrollView.getHeight())
+                        : 0;
+                scrollView.scrollTo(0, targetY);
+            });
             return;
         }
         scrollCurrentScreenFallback(end ? 1 : -1);
