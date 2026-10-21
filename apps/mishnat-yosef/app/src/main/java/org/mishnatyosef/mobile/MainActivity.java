@@ -5718,6 +5718,11 @@ public class MainActivity extends Activity {
 
     /** The same figures "my order" shows: server lines and server total once known, an estimate while a change is in flight. */
     private double[] orderBarStats() {
+        // TEMPORARY DIAGNOSTIC: cached-order quantities are local charge selections, so use their current local totals.
+        if (closedOrderReadOnly) {
+            double[] t = orderTotals();
+            return new double[]{t[0], t[1], t[2], 1};
+        }
         if (summary != null && summary.id == featureOrderId && !orderDirty && pending.isEmpty()) {
             int lines = 0, units = 0;
             double local = 0;
