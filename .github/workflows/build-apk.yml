@@ -340,14 +340,28 @@ jobs:
               echo "::error::APK version mismatch: expected $VERSION_NAME ($NEXT_CODE), found $ACTUAL_NAME ($ACTUAL_CODE)."
               exit 1
             fi
-            NEW_CERT="$("$APK_SIGNER" verify --print-certs "$APK_PATH" | awk -F': ' '/certificate SHA-256 digest:/ {gsub(/:/, "", $2); print tolower($2); exit}')"
+            extract_cert_digest() {
+              local apk="$1" output digest
+              output="$("$APK_SIGNER" verify --print-certs "$apk" 2>&1)" || {
+                printf '%s\\n' "$output" >&2
+                return 1
+              }
+              digest="$(printf '%s\\n' "$output" | grep -i 'SHA-256 digest' | sed -E 's/.*digest:[[:space:]]*//I' | head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+              if [[ ! "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+                echo "Unexpected apksigner certificate output for $apk:" >&2
+                printf '%s\\n' "$output" | grep -iE 'signer|digest' >&2 || true
+                return 1
+              fi
+              printf '%s' "$digest"
+            }
+            NEW_CERT="$(extract_cert_digest "$APK_PATH")"
             if [[ ! "$NEW_CERT" =~ ^[0-9a-f]{64}$ ]]; then
               echo "::error::Could not verify the release APK signing certificate."
               exit 1
             fi
             PREVIOUS_APK="downloads/$app/app.apk"
             if [[ "$app" == "mishnat-yosef" && -s "$PREVIOUS_APK" ]]; then
-              OLD_CERT="$("$APK_SIGNER" verify --print-certs "$PREVIOUS_APK" | awk -F': ' '/certificate SHA-256 digest:/ {gsub(/:/, "", $2); print tolower($2); exit}')"
+              OLD_CERT="$(extract_cert_digest "$PREVIOUS_APK")"
               if [[ ! "$OLD_CERT" =~ ^[0-9a-f]{64}$ ]]; then
                 echo "::error::Could not verify the previously published APK signing certificate."
                 exit 1
