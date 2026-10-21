@@ -3586,7 +3586,7 @@ public class MainActivity extends Activity {
         updateCheckButton = btn("🔄 בדוק אם יש עדכון", PRIMARY);
         updateCheckButton.setOnClickListener(v -> checkForAppUpdate());
         card.addView(updateCheckButton, lp(-1, dp(46), 0, 6));
-        updateDownloadButton = btn("⬇️ הורדה ידנית של העדכון", TONAL);
+        updateDownloadButton = btn("⬇️ הורדה ועדכון מיידים", TONAL);
         updateDownloadButton.setEnabled(false);
         updateDownloadButton.setOnClickListener(v -> downloadLatestUpdate());
         card.addView(updateDownloadButton, lp(-1, dp(48), 0, 6));
