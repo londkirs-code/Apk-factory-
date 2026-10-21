@@ -2598,18 +2598,18 @@ public class MainActivity extends Activity {
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView actionsButton = text("☷ פעולות", 14, true);
+        TextView actionsButton = text("⚙️", 22, true);
         actionsButton.setTextColor(nightMode ? INK : ORANGE_DARK);
         actionsButton.setGravity(Gravity.CENTER);
         actionsButton.setSingleLine(true);
         actionsButton.setIncludeFontPadding(false);
-        actionsButton.setPadding(dp(12), 0, dp(12), 0);
-        actionsButton.setBackground(ripple(shape(SURFACE, 18, nightMode ? LINE : Color.WHITE), 18));
+        actionsButton.setPadding(0, 0, 0, 0);
+        actionsButton.setBackground(ripple(shape(SURFACE, 50, nightMode ? LINE : Color.WHITE), 50));
         actionsButton.setElevation(dp(3));
-        actionsButton.setContentDescription("פתיחת פעולות והתאמת תצוגה");
+        actionsButton.setContentDescription("פתיחת הגדרות ופעולות");
         actionsButton.setOnClickListener(v -> showActionsDialog());
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(94), dp(38));
-        actionsParams.leftMargin = dp(8);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        actionsParams.leftMargin = dp(2);
         header.addView(actionsButton, actionsParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
         screen.addView(header, new LinearLayout.LayoutParams(-1, -2));
@@ -8620,7 +8620,7 @@ public class MainActivity extends Activity {
         final TextView credits = btn("זיכויים", TONAL);
         final TextView charges = btn("חיובים", TONAL);
         final TextView bySale = smallChip("לפי מכירה", TONAL);
-        final TextView shareTx = smallChip("שיתוף", TONAL);
+        final TextView shareTx = smallChip("📤 שיתוף", TONAL);
         final TextView[] chips = {all, credits, charges, bySale, shareTx};
         for (int i = 0; i < chips.length; i++) {
             chips[i].setMinHeight(dp(40));
@@ -8694,6 +8694,8 @@ public class MainActivity extends Activity {
 
     private void renderTransactionsBySale(List<JSONObject> rows, LinearLayout list,
                                           String mode, String query, Set<String> expandedSales) {
+        // Rebuild the grouped list after each tap so expansion/collapse is visible immediately.
+        list.removeAllViews();
         Map<String, List<JSONObject>> groups = new LinkedHashMap<>();
         Map<String, String> labels = new LinkedHashMap<>();
         Map<String, String> latest = new LinkedHashMap<>();
