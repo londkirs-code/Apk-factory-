@@ -62,6 +62,7 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.ProgressBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Switch;
@@ -372,6 +373,7 @@ public class MainActivity extends Activity {
     private TextView loginButton;
     // In-app updater state; download and installation remain user-confirmed.
     private TextView updateStatusView, updateNotesView, updateCheckButton, updateDownloadButton, updateInstallButton;
+    private ProgressBar updateProgressBar;
     private boolean updateDownloadInProgress = false;
     private int updateLatestCode = 0;
     private String updateLatestName = "", updateLatestSha256 = "", updateReleaseNotes = "";
@@ -3246,7 +3248,7 @@ public class MainActivity extends Activity {
         LinearLayout card = card(14);
         card.addView(text("📦 אזל מהמלאי", 15, true));
         card.addView(muted("התראות מלאי, מעקב מוצרים והזמנות אוטומטיות", 13), lp(-1, -2, 0, 8));
-        TextView settings = btn("⚙️ ניהול מוצרים שאזלו", TONAL);
+        TextView settings = btn("⚙️ ניהול הגדרות", TONAL);
         settings.setOnClickListener(v -> showStockSettings());
         card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
         root.addView(card, lp(-1, -2, 0, 10));
@@ -3553,22 +3555,37 @@ public class MainActivity extends Activity {
                 prefs.edit().putBoolean("update_auto_check_on_launch", enabled).apply());
         card.addView(autoCheck, lp(-1, -2, 0, 4));
         card.addView(muted("כאשר האפשרות פעילה, תיבדק גרסה חדשה בכל פתיחה. בדיקה והתקנה ידניות נשארות זמינות גם כשהמתג כבוי.", 12), lp(-1, -2, 0, 6));
-        card.addView(muted("הגרסה המותקנת: " + installedVersionName() + " (" + installedVersionCode() + ")", 13), lp(-1, -2, 0, 8));
-        updateStatusView = muted("לחץ על „בדוק אם יש עדכון” כדי לבדוק מול GitHub.", 14);
-        updateStatusView.setPadding(dp(2), dp(8), dp(2), dp(8));
+        TextView installedVersionView = text("הגרסה המותקנת: " + installedVersionName() + " (" + installedVersionCode() + ")", 16, true);
+        installedVersionView.setTextColor(INK);
+        card.addView(installedVersionView, lp(-1, -2, 0, 8));
+        updateStatusView = text("תוצאות הבדיקה האחרונה: לחץ על „בדוק אם יש עדכון”.", 15, true);
+        updateStatusView.setTextColor(MUTED);
+        updateStatusView.setPadding(dp(2), dp(10), dp(2), dp(8));
         card.addView(updateStatusView, new LinearLayout.LayoutParams(-1, -2));
-        updateNotesView = muted("פרטי השינויים יוצגו לאחר בדיקת הגרסה העדכנית.", 13);
+        updateProgressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        updateProgressBar.setMax(100);
+        updateProgressBar.setProgress(0);
+        updateProgressBar.setProgressTintList(ColorStateList.valueOf(ORANGE));
+        updateProgressBar.setProgressBackgroundTintList(ColorStateList.valueOf(ORANGE_LIGHT));
+        updateProgressBar.setIndeterminateTintList(ColorStateList.valueOf(ORANGE));
+        updateProgressBar.setVisibility(View.GONE);
+        LinearLayout.LayoutParams progressLp = lp(-1, dp(10), 0, 4);
+        progressLp.leftMargin = dp(2); progressLp.rightMargin = dp(2);
+        card.addView(updateProgressBar, progressLp);
+        card.addView(text("מה חדש?", 16, true), lp(-1, -2, 0, 6));
+        updateNotesView = muted("פרטי השינויים יוצגו לאחר בדיקת הגרסה העדכנית.", 14);
         updateNotesView.setPadding(dp(2), dp(4), dp(2), dp(10));
         card.addView(updateNotesView, new LinearLayout.LayoutParams(-1, -2));
         updateCheckButton = btn("🔄 בדוק אם יש עדכון", PRIMARY);
         updateCheckButton.setOnClickListener(v -> checkForAppUpdate());
         card.addView(updateCheckButton, lp(-1, dp(46), 0, 6));
-        updateDownloadButton = btn("⬇️ הורד ועדכן", TONAL);
+        updateDownloadButton = btn("⬇️ הורדה ידנית של העדכון", TONAL);
         updateDownloadButton.setEnabled(false);
         updateDownloadButton.setOnClickListener(v -> downloadLatestUpdate());
-        card.addView(updateDownloadButton, lp(-1, dp(46), 0, 6));
-        updateInstallButton = btn("📦 התקנה ידנית / ניסיון חוזר", TONAL);
-        updateInstallButton.setVisibility(View.GONE);
+        card.addView(updateDownloadButton, lp(-1, dp(48), 0, 6));
+        updateInstallButton = btn("📦 התקנה ידנית", TONAL);
+        updateInstallButton.setEnabled(false);
+        updateInstallButton.setVisibility(View.VISIBLE);
         updateInstallButton.setOnClickListener(v -> installDownloadedUpdate());
         card.addView(updateInstallButton, lp(-1, dp(46), 0, 6));
         card.addView(muted("ההתקנה נפתחת דרך מערכת Android ועשויה לדרוש אישור. ההורדה נבדקת מול חתימת SHA-256 שפורסמה עם הגרסה.", 12), lp(-1, -2, 0, 4));
@@ -3579,7 +3596,8 @@ public class MainActivity extends Activity {
         updateLatestSha256 = prefs.getString("update_latest_sha256", "");
         updateReleaseNotes = prefs.getString("update_release_notes", "");
         if (updateLatestCode > 0 && updateLatestCode != installedVersionCode()) {
-            updateStatusView.setText("תוצאת הבדיקה האחרונה: נמצאה גרסה " + updateLatestName + " (" + updateLatestCode + "). אפשר לבדוק שוב לפני ההורדה.");
+            updateStatusView.setText("תוצאות הבדיקה האחרונה: נמצאה גרסה " + updateLatestName + " (" + updateLatestCode + "). אפשר לבדוק שוב לפני ההורדה.");
+            updateStatusView.setTextColor(ORANGE_DARK);
             updateNotesView.setText(updateReleaseNotes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : updateReleaseNotes);
             updateDownloadButton.setEnabled(true);
             styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
@@ -3596,6 +3614,7 @@ public class MainActivity extends Activity {
                 && (savedUpdateFile != null || legacyDownloadAvailable)) {
             updateStatusView.setText("ההורדה הושלמה והקובץ אומת. אפשר להתקין.");
             updateInstallButton.setVisibility(View.VISIBLE);
+            updateInstallButton.setEnabled(true);
         } else if (prefs.getBoolean("update_download_verified", false) && !legacyDownloadAvailable) {
             prefs.edit().putBoolean("update_download_verified", false).apply();
         }
@@ -3661,7 +3680,8 @@ public class MainActivity extends Activity {
                             .putString("update_latest_sha256", sha)
                             .putString("update_release_notes", notes).apply();
                     if (code > installed) {
-                        updateStatusView.setText("נמצאה גרסה חדשה: " + name + " (" + code + ").");
+                        updateStatusView.setText("תוצאות הבדיקה האחרונה: נמצאה גרסה חדשה: " + name + " (" + code + ").");
+                        updateStatusView.setTextColor(ORANGE_DARK);
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
@@ -3672,7 +3692,8 @@ public class MainActivity extends Activity {
                         }
                     } else if (code == installed) {
                         autoDownloadAfterCheck = false;
-                        updateStatusView.setText("האפליקציה מעודכנת. מותקנת הגרסה האחרונה: " + name + " (" + code + ").");
+                        updateStatusView.setText("תוצאות הבדיקה האחרונה: האפליקציה מעודכנת. מותקנת הגרסה האחרונה: " + name + " (" + code + ").");
+                        updateStatusView.setTextColor(GREEN);
                         updateNotesView.setText(notes.isEmpty() ? "אין פירוט שינויים נוסף." : notes);
                         updateDownloadButton.setEnabled(false);
                         styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
@@ -3680,7 +3701,8 @@ public class MainActivity extends Activity {
                     } else {
                         boolean startOlderVersionDownload = autoDownloadAfterCheck;
                         autoDownloadAfterCheck = false;
-                        updateStatusView.setText("הגרסה שב־GitHub ישנה יותר מהגרסה המותקנת. אפשר להוריד אותה, אך Android עשוי לחסום התקנה לאחור.");
+                        updateStatusView.setText("תוצאות הבדיקה האחרונה: הגרסה שב־GitHub ישנה יותר מהגרסה המותקנת. אפשר להוריד אותה, אך Android עשוי לחסום התקנה לאחור.");
+                        updateStatusView.setTextColor(ORANGE_DARK);
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
@@ -3695,7 +3717,8 @@ public class MainActivity extends Activity {
                 final String shown = message;
                 runOnUiThread(() -> {
                     if (screenKind != 7 || updateStatusView == null) return;
-                    updateStatusView.setText("בדיקת העדכונים נכשלה: " + shown + ". אפשר לנסות שוב מאוחר יותר.");
+                    updateStatusView.setText("תוצאות הבדיקה האחרונה: בדיקת העדכונים נכשלה: " + shown + ". אפשר לנסות שוב מאוחר יותר.");
+                    updateStatusView.setTextColor(ORANGE_DARK);
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
                     updateDownloadButton.setEnabled(false);
                     styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
@@ -3709,6 +3732,26 @@ public class MainActivity extends Activity {
         if (directory == null) directory = new File(getFilesDir(), "updates");
         if (!directory.exists() && !directory.mkdirs()) return null;
         return new File(directory, "mishnat-yosef-update-" + versionCode + ".apk");
+    }
+
+    private void pruneOldUpdateApks(File keep) {
+        File[] directories = new File[] {
+                getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                new File(getFilesDir(), "updates")
+        };
+        String keepPath = keep == null ? "" : keep.getAbsolutePath();
+        for (File directory : directories) {
+            if (directory == null || !directory.isDirectory()) continue;
+            File[] files = directory.listFiles();
+            if (files == null) continue;
+            for (File file : files) {
+                String name = file.getName();
+                if (!name.startsWith("mishnat-yosef-update-")) continue;
+                if (!(name.endsWith(".apk") || name.endsWith(".apk.part"))) continue;
+                if (file.getAbsolutePath().equals(keepPath)) continue;
+                try { file.delete(); } catch (Exception ignored) { }
+            }
+        }
     }
 
     private File savedVerifiedUpdateFile() {
@@ -3738,7 +3781,12 @@ public class MainActivity extends Activity {
         final File partial = new File(target.getAbsolutePath() + ".part");
         updateDownloadInProgress = true;
         updateDownloadButton.setEnabled(false);
-        updateInstallButton.setVisibility(View.GONE);
+        updateInstallButton.setEnabled(false);
+        if (updateProgressBar != null) {
+            updateProgressBar.setVisibility(View.VISIBLE);
+            updateProgressBar.setIndeterminate(true);
+            updateProgressBar.setProgress(0);
+        }
         updateStatusView.setText("מתחיל הורדה מאובטחת…");
         prefs.edit().putBoolean("update_download_verified", false)
                 .remove("update_download_verified_code").remove("update_download_file").apply();
@@ -3783,6 +3831,14 @@ public class MainActivity extends Activity {
                                             ? " (" + Math.min(100, currentBytes * 100L / totalBytes) + "%)"
                                             : " (" + formatBytes(currentBytes) + ")";
                                     updateStatusView.setText("מוריד עדכון באופן פרטי" + progress + "…");
+                                    updateStatusView.setTextColor(ORANGE_DARK);
+                                    if (updateProgressBar != null) {
+                                        updateProgressBar.setVisibility(View.VISIBLE);
+                                        if (totalBytes > 0) {
+                                            updateProgressBar.setIndeterminate(false);
+                                            updateProgressBar.setProgress((int) Math.min(100, currentBytes * 100L / totalBytes));
+                                        } else updateProgressBar.setIndeterminate(true);
+                                    }
                                 }
                             });
                         }
@@ -3807,6 +3863,7 @@ public class MainActivity extends Activity {
                     target.delete();
                     throw new java.io.IOException("חתימת הקובץ אינה תואמת לגרסה שפורסמה");
                 }
+                pruneOldUpdateApks(target);
             } catch (Exception error) {
                 failure = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
             } finally {
@@ -3824,7 +3881,11 @@ public class MainActivity extends Activity {
                             .putBoolean("update_auto_install_pending", true).apply();
                     if (screenKind == 7 && updateStatusView != null) {
                         updateStatusView.setText("ההורדה הושלמה והקובץ אומת בהצלחה. פותח את מתקין Android…");
+                        updateStatusView.setTextColor(GREEN);
+                        if (updateProgressBar != null) { updateProgressBar.setVisibility(View.VISIBLE); updateProgressBar.setIndeterminate(false); updateProgressBar.setProgress(100); }
                         updateInstallButton.setVisibility(View.VISIBLE);
+                        updateInstallButton.setEnabled(true);
+                        updateDownloadButton.setEnabled(true);
                     }
                     installDownloadedUpdate();
                 } else {
@@ -3833,7 +3894,9 @@ public class MainActivity extends Activity {
                             .putBoolean("update_auto_install_pending", false).apply();
                     if (screenKind == 7 && updateStatusView != null) {
                         updateStatusView.setText("ההורדה לא הושלמה או שהקובץ לא עבר אימות: " + problem + ". אפשר לנסות שוב.");
-                        updateDownloadButton.setEnabled(true);
+                        updateStatusView.setTextColor(ORANGE_DARK);
+                        if (updateProgressBar != null) updateProgressBar.setVisibility(View.GONE);
+                        updateDownloadButton.setEnabled(updateLatestCode > 0 && updateLatestSha256.matches("[0-9a-f]{64}"));
                     }
                     toast("הורדת העדכון נכשלה: " + problem, true);
                 }
