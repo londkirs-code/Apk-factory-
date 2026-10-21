@@ -1,9 +1,9 @@
 {
-  "versionCode": 325,
-  "versionName": "1.4780",
+  "versionCode": 327,
+  "versionName": "1.4782",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "0488df1e73f99cacc05cbcb1a1f6e216ee84b1bb166d352731b642cd90f8d904",
+  "sha256": "a4516e0c4141a381f7e6ae8a88bc85eb190cbb1febf7c7310d10881951cb24b6",
   "releaseTitle": "שיפור הודעת הגדרות התראות מכירה",
   "releaseNotes": "- טקסט ההסבר על התראת פתיחת מכירה ותזכורת סגירה הועבר לחלונית הלבנה במסך «מכירות פתוחות»; הכפתור הכתום נשאר קטן ומציג «לחצו כאן» בלבד.\n- החלונית מוסתרת כאשר גם התראת פתיחת מכירה וגם תזכורת לפני סגירה מופעלות.\n- לא שונו הגדרות, תזמונים או פעולת מנגנון ההתראות.",
-  "buildCommit": "25c0fca96c5ccfd34a6ca639c020f0e25adcfe80"
+  "buildCommit": "8b5bc94dc716ef149968997004cd5e2d67a44189"
 }
