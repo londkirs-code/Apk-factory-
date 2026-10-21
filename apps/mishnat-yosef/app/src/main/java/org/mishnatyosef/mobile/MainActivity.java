@@ -781,22 +781,6 @@ public class MainActivity extends Activity {
         return best;
     }
 
-    /** Which control of a card to land on when arriving from another card. */
-    private View entryControl(List<View> controls, int keyCode, int refX, int refY) {
-        View best = null;
-        long bestScore = Long.MAX_VALUE;
-        for (View v : controls) {
-            int[] c = centerOnScreen(v);
-            long score;
-            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) score = (long) c[1] * 10000L + Math.abs(c[0] - refX);
-            else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) score = (long) -c[1] * 10000L + Math.abs(c[0] - refX);
-            else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) score = (long) Math.abs(c[1] - refY) * 10000L - c[0];
-            else score = (long) Math.abs(c[1] - refY) * 10000L + c[0];
-            if (score < bestScore) { bestScore = score; best = v; }
-        }
-        return best;
-    }
-
     private int[] productGridPos(String sid) {
         if (sid == null) return null;
         for (int i = 0; i < gridRows.size(); i++) {
@@ -806,14 +790,6 @@ public class MainActivity extends Activity {
             for (int c = 0; c < ps.length; c++) if (ps[c] != null && sid.equals(sidOf(ps[c]))) return new int[]{i, c};
         }
         return null;
-    }
-
-    private JSONObject productAtGrid(int rowIndex, int col) {
-        if (rowIndex < 0 || rowIndex >= gridRows.size() || col < 0) return null;
-        GridRow row = gridRows.get(rowIndex);
-        if (row.header != null) return null;
-        JSONObject[] ps = {row.a, row.b, row.c, row.d, row.e};
-        return col < ps.length && col < cardColumns() ? ps[col] : null;
     }
 
     private void ensureRowVisible(View rowView) {
@@ -1203,79 +1179,6 @@ public class MainActivity extends Activity {
             }
             return true;
         });
-    }
-
-    /** Keeps keyboard focus on the intended product when navigating the multi-column order list. */
-    private boolean moveProductCardFocus(JSONObject current, int keyCode) {
-        if (current == null || productList == null || gridRows.isEmpty()) return false;
-        String sid = sidOf(current);
-        int rowIndex = -1, columnIndex = -1;
-        for (int i = 0; i < gridRows.size(); i++) {
-            GridRow row = gridRows.get(i);
-            if (row.header != null) continue;
-            JSONObject[] products = {row.a, row.b, row.c, row.d, row.e};
-            for (int c = 0; c < products.length; c++) {
-                if (products[c] != null && sid.equals(sidOf(products[c]))) {
-                    rowIndex = i;
-                    columnIndex = c;
-                    break;
-                }
-            }
-            if (rowIndex >= 0) break;
-        }
-        if (rowIndex < 0) return false;
-        GridRow currentRow = gridRows.get(rowIndex);
-        int targetColumn = columnIndex;
-        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            // The first product is displayed on the visual right in the Hebrew layout.
-            // Hebrew RTL: LEFT moves toward the next visual-left card, RIGHT toward visual-right.
-            int step = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1;
-            int candidate = columnIndex + step;
-            JSONObject[] products = {currentRow.a, currentRow.b, currentRow.c, currentRow.d, currentRow.e};
-            if (candidate < 0 || candidate >= cardColumns() || products[candidate] == null) return false;
-            return focusProductBySid(sidOf(products[candidate]));
-        }
-        int step = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1;
-        int candidateRow = rowIndex;
-        JSONObject target = null;
-        while (true) {
-            candidateRow += step;
-            if (candidateRow < 0 || candidateRow >= gridRows.size()) break;
-            GridRow row = gridRows.get(candidateRow);
-            if (row.header != null) continue;
-            JSONObject[] products = {row.a, row.b, row.c, row.d, row.e};
-            if (targetColumn < products.length && products[targetColumn] != null) target = products[targetColumn];
-            else {
-                for (JSONObject product : products) if (product != null) { target = product; break; }
-            }
-            if (target != null) break;
-        }
-        return target != null && focusProductBySid(sidOf(target));
-    }
-
-    private boolean focusProductBySid(String sid) {
-        if (sid == null || sid.isEmpty() || productList == null) return false;
-        int targetPosition = -1;
-        for (int i = 0; i < gridRows.size(); i++) {
-            if (rowContainsProduct(gridRows.get(i), sid)) { targetPosition = i; break; }
-        }
-        if (targetPosition < 0) return false;
-        final int position = targetPosition;
-        productList.setSelection(position);
-        productList.post(() -> productList.post(() -> {
-            if (productList == null || position < productList.getFirstVisiblePosition()
-                    || position > productList.getLastVisiblePosition()) return;
-            View rowView = productList.getChildAt(position - productList.getFirstVisiblePosition());
-            if (rowView == null || !(rowView.getTag() instanceof RowHolder)) return;
-            RowHolder holder = (RowHolder) rowView.getTag();
-            for (CardHolder card : new CardHolder[]{holder.first, holder.second, holder.third, holder.fourth, holder.fifth}) {
-                if (card.p != null && sid.equals(sidOf(card.p)) && card.card.getVisibility() == View.VISIBLE) {
-                    card.card.requestFocus();
-                    return;
-                }
-            }
-        }));
-        return true;
     }
 
     @Override protected void attachBaseContext(Context base) {
