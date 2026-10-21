@@ -5716,7 +5716,7 @@ public class MainActivity extends Activity {
             card.setFocusable(true);
             card.setFocusableInTouchMode(false);
             card.setOnFocusChangeListener((view, focused) -> {
-                card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE, focused ? dp(2) : dp(1)));
+                card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE, focused ? 2 : 1));
                 card.setElevation(focused ? dp(3) : 0);
             });
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
