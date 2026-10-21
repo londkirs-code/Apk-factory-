@@ -4413,7 +4413,7 @@ public class MainActivity extends Activity {
         notificationShortcut.addView(text("🔔 רוצים לקבל התראות על מכירות?", 17, true),
                 lp(-1, -2, 0, 2));
         TextView notificationSettingsButton = btn(
-                "רוצים ליצור התראה ברגע שנפתחת מכירה?\nרוצים ליצור התראה לפני סגירת מכירה?\nלחצו כאן",
+                "רוצים לקבל התראה ברגע שנפתחת מכירה?\nרוצים לקבל תזכורת לסגירת מכירה?\nלחצו כאן",
                 PRIMARY);
         notificationSettingsButton.setTextSize(17);
         notificationSettingsButton.setGravity(Gravity.CENTER);
