@@ -343,13 +343,13 @@ jobs:
             extract_cert_digest() {
               local apk="$1" output digest
               output="$("$APK_SIGNER" verify --print-certs "$apk" 2>&1)" || {
-                printf '%s\\n' "$output" >&2
+                printf '%s\n' "$output" >&2
                 return 1
               }
-              digest="$(printf '%s\\n' "$output" | grep -i 'SHA-256 digest' | sed -E 's/.*digest:[[:space:]]*//I' | head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+              digest="$(printf '%s\n' "$output" | grep -i 'SHA-256 digest' | sed -E 's/.*digest:[[:space:]]*//I' | head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
               if [[ ! "$digest" =~ ^[0-9a-f]{64}$ ]]; then
                 echo "Unexpected apksigner certificate output for $apk:" >&2
-                printf '%s\\n' "$output" | grep -iE 'signer|digest' >&2 || true
+                printf '%s\n' "$output" | grep -iE 'signer|digest' >&2 || true
                 return 1
               fi
               printf '%s' "$digest"
