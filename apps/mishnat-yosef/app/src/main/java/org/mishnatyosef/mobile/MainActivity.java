@@ -4347,7 +4347,7 @@ public class MainActivity extends Activity {
         TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 22, true);
         cachedOrders.setTextColor(ORANGE_DARK);
         cachedOrders.setGravity(Gravity.CENTER);
-        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 11);
+        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 15);
         cachedOrdersNote.setGravity(Gravity.CENTER);
         cachedOrdersBox.addView(cachedOrders, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
