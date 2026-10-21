@@ -259,6 +259,38 @@ jobs:
           print(f"Embedded release notes: {title}")
           PY
           echo "- Mishnat Yosef release-notes preparation: $(( $(date +%s) - PREP_START )) seconds" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preflight source sanity checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          python3 <<'PY'
+          import re
+          from pathlib import Path
+
+          # Catch copy/paste accidents such as "final int x = 1; final int x = 1;"
+          # before spending time on a full Android build.
+          duplicate_declaration = re.compile(
+              r"(?P<decl>\\b(?:final\\s+)?(?:int|long|float|double|boolean|String)\\s+"
+              r"[A-Za-z_$][\\w$]*\\s*=\\s*[^;\\n]+;)[ \\t]*(?P=decl)"
+          )
+          source_roots = [Path("apps"), Path("templates")]
+          checked = 0
+          for root in source_roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob("*"):
+                  if path.suffix not in {".java", ".kt"} or not path.is_file():
+                      continue
+                  checked += 1
+                  text = path.read_text(encoding="utf-8")
+                  for number, line in enumerate(text.splitlines(), 1):
+                      if duplicate_declaration.search(line):
+                          raise SystemExit(
+                              f"::error file={path},line={number}::Duplicate variable declaration "
+                              "repeated on one line; inspect the source before building."
+                          )
+          print(f"Preflight source checks passed ({checked} Java/Kotlin files checked).")
       - name: Build selected app or all apps
         id: build_apps
         shell: bash
