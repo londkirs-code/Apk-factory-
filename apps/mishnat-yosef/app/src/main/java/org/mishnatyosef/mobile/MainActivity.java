@@ -2464,8 +2464,8 @@ public class MainActivity extends Activity {
         c.addView(switchRow("התראה גלובלית כשהמוצר חוזר למלאי","כל המוצרים הרלוונטיים; התראה רק בעת שינוי מצב",prefs.getBoolean("stock_global_notify_return",false),(b,on)->{
             prefs.edit().putBoolean("stock_global_notify_return",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();StockMonitor.scheduleNextCheck(this);
         }));
-        c.addView(switchRow("התראה כשהמוצר אוזל במעקב אישי","בנוסף להתראות הגלובליות, למוצרים שנבחרו ידנית",prefs.getBoolean("stock_notify_out",true),(b,on)->prefs.edit().putBoolean("stock_notify_out",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification()));
-        c.addView(switchRow("התראה כשהמוצר חוזר במעקב אישי","מעקב אישי; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->prefs.edit().putBoolean("stock_notify_return",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification()));
+        c.addView(switchRow("התראה כשהמוצר אוזל במעקב אישי","בנוסף להתראות הגלובליות, למוצרים שנבחרו ידנית",prefs.getBoolean("stock_notify_out",true),(b,on)->{prefs.edit().putBoolean("stock_notify_out",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();}));
+        c.addView(switchRow("התראה כשהמוצר חוזר במעקב אישי","מעקב אישי; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->{prefs.edit().putBoolean("stock_notify_return",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();}));
         c.addView(text("תדירות בדיקה (דקות)",14,true),lp(-1,-2,0,4)); LinearLayout chips=new LinearLayout(this);
         for(int n:new int[]{1,2,5,10,15,30,60}){TextView ch=pickChip(String.valueOf(n));styleChip(ch,prefs.getInt(StockMonitor.INTERVAL,5)==n);
             ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showStockSettings();});
@@ -2548,7 +2548,7 @@ public class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 4101) requestMonitoringPermissions(false);
+        if (requestCode == 4101) { requestMonitoringPermissions(false); refreshPersistentNotification(); }
     }
 
     private static final int[] CAL_DAYS = {Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY};
