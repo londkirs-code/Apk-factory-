@@ -1,9 +1,9 @@
 {
-  "versionCode": 323,
-  "versionName": "1.4778",
+  "versionCode": 324,
+  "versionName": "1.4779",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "96720381b1c44ef2d2f3f38cdccb5f65f24f7d47518365763dee899c02704b91",
+  "sha256": "45791e7c94390131d5f71e65d926611092c98ad201bf315e3a8b17a33d8db17b",
   "releaseTitle": "ניסוח ברור יותר להתראות מכירה",
   "releaseNotes": "- במסך «מכירות פתוחות» כרטיס המעבר להגדרות מציג כעת «רוצים לקבל התראה ברגע שנפתחת מכירה?» ו«רוצים לקבל תזכורת לסגירת מכירה?».\n- זהו שינוי ניסוח בלבד; לא שונו הגדרות ההתראות, תזמון התזכורות או מנגנון ההתראות.",
-  "buildCommit": "1f16f54eb7ae080f54640c5acaa2fbefdc24181f"
+  "buildCommit": "49d1068d12868f39ef8bc1c046e0d88959e32628"
 }
