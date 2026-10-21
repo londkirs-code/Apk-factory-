@@ -829,8 +829,13 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Scrolls the target product row into view if needed, then puts focus on the right control inside it. */
+    /** Scrolls the target product row into view, then focuses the matching action in that product. */
     private void focusProductControl(final String sid, final int keyCode, final int refX, final int refY) {
+        focusProductControl(sid, keyCode, refX, refY, null);
+    }
+
+    private void focusProductControl(final String sid, final int keyCode, final int refX,
+                                     final int refY, final String preferredActionTag) {
         if (productList == null) return;
         final int[] pos = productGridPos(sid);
         if (pos == null) return;
@@ -854,7 +859,27 @@ public class MainActivity extends Activity {
                 if (card != null && card.isShown()) {
                     List<View> controls = new ArrayList<>();
                     collectCardControls(card, card, controls);
-                    View target = controls.isEmpty() ? card : entryControl(controls, keyCode, refX, refY);
+                    List<View> preferred = new ArrayList<>();
+                    if (preferredActionTag != null) {
+                        for (View control : controls) {
+                            if (preferredActionTag.equals(control.getTag())) preferred.add(control);
+                        }
+                    }
+                    // Vertical navigation between cards should land on the same action when possible.
+                    // Otherwise prefer order actions over unrelated focusable content in the card.
+                    if (preferred.isEmpty() && (keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                            || keyCode == KeyEvent.KEYCODE_DPAD_UP)) {
+                        for (View control : controls) {
+                            Object tag = control.getTag();
+                            if (tag instanceof String && ("productAdd".equals(tag)
+                                    || "productPlus".equals(tag) || "productMinus".equals(tag)
+                                    || "productQty".equals(tag) || "productCharge".equals(tag))) {
+                                preferred.add(control);
+                            }
+                        }
+                    }
+                    List<View> candidates = preferred.isEmpty() ? controls : preferred;
+                    View target = candidates.isEmpty() ? card : entryControl(candidates, keyCode, refX, refY);
                     if (target != null && target.requestFocus()) { ensureRowVisible(rowView); return; }
                 }
                 if (++attempts[0] < 8) productList.postDelayed(this, 30);
@@ -900,7 +925,8 @@ public class MainActivity extends Activity {
         Object focusedTag = focused == null ? null : focused.getTag();
         boolean primaryOrderControl = focusedTag instanceof String
                 && ("productAdd".equals(focusedTag) || "productPlus".equals(focusedTag)
-                || "productMinus".equals(focusedTag) || "productQty".equals(focusedTag));
+                || "productMinus".equals(focusedTag) || "productQty".equals(focusedTag)
+                || "productCharge".equals(focusedTag));
         if (!onControl && keyCode == KeyEvent.KEYCODE_DPAD_DOWN && !controls.isEmpty()) {
             View entry = entryControl(controls, keyCode, 0, 0);
             if (entry != null && entry.requestFocus()) { ensureRowVisible(rowViewOf(card)); return true; }
@@ -938,7 +964,9 @@ public class MainActivity extends Activity {
         }
         if (target == null) return keyCode != KeyEvent.KEYCODE_DPAD_UP;
         int[] center = centerOnScreen(reference);
-        focusProductControl(sidOf(target), keyCode, center[0], center[1]);
+        String preferredActionTag = focusedTag instanceof String
+                && "productCharge".equals(focusedTag) ? "productCharge" : null;
+        focusProductControl(sidOf(target), keyCode, center[0], center[1], preferredActionTag);
         return true;
     }
 
@@ -6266,6 +6294,7 @@ public class MainActivity extends Activity {
             controls.addView(st.view, sp);
             card.addView(controls, lp(-1, dp(34), 6, 0));
             chargeButton = smallChip("הוסף לחיובים", PRIMARY);
+            chargeButton.setTag("productCharge");
             chargeButton.setTextSize(12);
             chargeButton.setOnClickListener(v -> { if (closedOrderReadOnly && p != null) addCachedProductCharge(p); });
             card.addView(chargeButton, lp(-1, dp(34), 5, 0));
