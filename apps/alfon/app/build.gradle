@@ -12,3 +12,23 @@ android {
         versionName '1.0'
     }
 }
+
+// Use the repository's persistent release key for every published APK.
+// Without this block Gradle emits an unsigned APK and apksigner verification fails.
+if (System.getenv('APK_SIGNING_STORE_FILE')) {
+    android {
+        signingConfigs {
+            release {
+                storeFile file(System.getenv('APK_SIGNING_STORE_FILE'))
+                storePassword System.getenv('APK_SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('APK_SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('APK_SIGNING_KEY_PASSWORD')
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
