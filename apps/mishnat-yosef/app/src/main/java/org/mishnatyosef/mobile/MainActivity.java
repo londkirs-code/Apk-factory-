@@ -673,7 +673,8 @@ public class MainActivity extends Activity {
                     || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
                 return moveFocusWithinCategoryStrip(current, key);
             }
-            if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                    || key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
                 if (orderSummaryButton != null && orderSummaryButton.isShown()) {
                     requestProductFocus(orderSummaryButton);
                     return true;
