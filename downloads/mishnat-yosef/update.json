@@ -1,9 +1,9 @@
 {
-  "versionCode": 340,
-  "versionName": "1.4795",
+  "versionCode": 341,
+  "versionName": "1.4796",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "161f8e0b8f1afa0cc0ba7fe0b80068bb9cd2f044d5e20d6de072f15ea88d1af9",
+  "sha256": "df23b27fffaa95c8c265663c7aee0d868a640460bc75985200bbc53a9a8e75d9",
   "releaseTitle": "תיקון סגירת התמונה המוגדלת",
   "releaseNotes": "- התמונה המוגדלת נפתחת בחלון מסך מלא ללא מעטפת הכפתורים הפנימית של AlertDialog.\n- לחיצה על התמונה או על השטח הריק סביבה, וגם לחיצה על מקש, סוגרות את התצוגה.\n- נשמרו טעינת התמונה ברקע, הודעת הטעינה, כפתור ה-X ומנגנון המטמון הקיים.",
-  "buildCommit": "a0bd1bb0710341a3154bb99c6213f457b2943f41"
+  "buildCommit": "0d7e209b8d2594cbeef7fda1b22129673ab86015"
 }
