@@ -778,7 +778,7 @@ public class MainActivity extends Activity {
             for (CardHolder card : cards) {
                 if (card.p == null || card.card.getVisibility() != View.VISIBLE) continue;
                 View target = navigationTargetForRole(card, targetRole);
-                if (target == null || !target.isShown() || !target.isFocusable()) continue;
+                if (!canTakeProductFocus(target)) continue;
                 int[] loc = new int[2];
                 target.getLocationOnScreen(loc);
                 double candidateScore = originView == null ? 0
@@ -790,7 +790,7 @@ public class MainActivity extends Activity {
             }
             if (best != null) {
                 View target = navigationTargetForRole(best, targetRole);
-                if (target != null && target.isShown() && target.isFocusable()) {
+                if (canTakeProductFocus(target)) {
                     target.requestFocus();
                     if (!target.hasFocus()) best.card.requestFocus();
                 } else {
