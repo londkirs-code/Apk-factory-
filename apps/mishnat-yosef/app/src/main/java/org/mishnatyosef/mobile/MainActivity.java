@@ -4875,6 +4875,8 @@ public class MainActivity extends Activity {
             View targetCard = findTaggedView(currentScreen, "productCard:" + sid);
             View quantityView = findTaggedView(targetCard, "productQty");
             if (quantityView instanceof TextView) ((TextView) quantityView).setText(String.valueOf(Math.max(0, current + delta)));
+            // TEMPORARY DIAGNOSTIC: refresh only the order totals bar, not the product grid.
+            updateOrderBar();
         } else {
             // TEMPORARY DIAGNOSTIC: preserve the current rebuild behavior when the switch is off.
             final int first = productList == null ? 0 : productList.getFirstVisiblePosition();
