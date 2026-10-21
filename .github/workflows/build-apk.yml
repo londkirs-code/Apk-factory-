@@ -335,14 +335,14 @@ jobs:
               echo "::error::APK version mismatch: expected $VERSION_NAME ($NEXT_CODE), found $ACTUAL_NAME ($ACTUAL_CODE)."
               exit 1
             fi
-            NEW_CERT="$("$APK_SIGNER" verify --print-certs "$APK_PATH" | awk -F': ' '/certificate SHA-256 digest:/ {print tolower($2); exit}')"
+            NEW_CERT="$("$APK_SIGNER" verify --print-certs "$APK_PATH" | awk -F': ' '/certificate SHA-256 digest:/ {gsub(/:/, "", $2); print tolower($2); exit}')"
             if [[ ! "$NEW_CERT" =~ ^[0-9a-f]{64}$ ]]; then
               echo "::error::Could not verify the release APK signing certificate."
               exit 1
             fi
             PREVIOUS_APK="downloads/$app/app.apk"
             if [[ "$app" == "mishnat-yosef" && -s "$PREVIOUS_APK" ]]; then
-              OLD_CERT="$("$APK_SIGNER" verify --print-certs "$PREVIOUS_APK" | awk -F': ' '/certificate SHA-256 digest:/ {print tolower($2); exit}')"
+              OLD_CERT="$("$APK_SIGNER" verify --print-certs "$PREVIOUS_APK" | awk -F': ' '/certificate SHA-256 digest:/ {gsub(/:/, "", $2); print tolower($2); exit}')"
               if [[ ! "$OLD_CERT" =~ ^[0-9a-f]{64}$ ]]; then
                 echo "::error::Could not verify the previously published APK signing certificate."
                 exit 1
