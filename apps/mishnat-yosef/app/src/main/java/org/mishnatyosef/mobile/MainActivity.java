@@ -440,6 +440,7 @@ public class MainActivity extends Activity {
     private static final int ICON_CART = 0, ICON_CLOCK = 1, ICON_WALLET = 2, ICON_PERSON = 3, ICON_CHECK = 4;
     private LinearLayout summaryList, collectedBox, collectedList;
     private TextView summaryTotal, summarySub, progressView;
+    private boolean collectionCelebrationShown = false;
 
     // ---- history state
     private int histPage = 0, histLast = 1;
@@ -6592,8 +6593,8 @@ public class MainActivity extends Activity {
             productList.setSelectionFromTop(0, 0);
         });
         // Keep a clear gap from the screen edge and avoid pinning the control in the left corner.
-        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(39), dp(39), Gravity.BOTTOM | Gravity.RIGHT);
-        floatingTopLp.setMargins(0, 0, dp(18), dp(18));
+        FrameLayout.LayoutParams floatingTopLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.BOTTOM | Gravity.LEFT);
+        floatingTopLp.setMargins(dp(16), 0, 0, dp(18));
         productArea.addView(floatingTopButton, floatingTopLp);
         ViewGroup parent = (ViewGroup) scrollView.getParent();
         int at = parent.indexOfChild(scrollView);
@@ -7555,7 +7556,7 @@ public class MainActivity extends Activity {
         final TextView collect = btn(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
         edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
         edit.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(edit, collect); });
-        collect.setOnClickListener(v -> { collectMode = !collectMode; rebuildSummary(); updateModeButtons(edit, collect); });
+        collect.setOnClickListener(v -> { collectMode = !collectMode; if (collectMode) collectionCelebrationShown = false; rebuildSummary(); updateModeButtons(edit, collect); });
         modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
         if (!collectMode) cp.setMarginStart(dp(8));
@@ -7652,9 +7653,46 @@ public class MainActivity extends Activity {
         View title = collectedBox.findViewWithTag("collectedTitle");
         if (title instanceof TextView) ((TextView) title).setText("✔ נאספו (" + done + ")");
         progressView.setVisibility(collectMode ? View.VISIBLE : View.GONE);
-        progressView.setText(done == total && total > 0 ? "✅ כל הפריטים נאספו" : "נאספו " + done + " מתוך " + total + " פריטים");
+        boolean allCollected = collectMode && total > 0 && done == total;
+        progressView.setText(allCollected ? "🎉 כל הפריטים נאספו! כל הכבוד!" : "נאספו " + done + " מתוך " + total + " פריטים");
+        if (allCollected && !collectionCelebrationShown) {
+            collectionCelebrationShown = true;
+            showCollectionConfetti();
+        } else if (!allCollected) {
+            collectionCelebrationShown = false;
+        }
         updateSummaryTotals();
         if (scrollView != null && keepScroll > 0) scrollView.post(() -> scrollView.scrollTo(0, keepScroll));
+    }
+
+    /** Brief, lightweight celebration when the last order line is marked as collected. */
+    private void showCollectionConfetti() {
+        final View decor = getWindow().getDecorView();
+        if (!(decor instanceof FrameLayout)) return;
+        final FrameLayout overlay = new FrameLayout(this);
+        overlay.setTag("collectionConfettiOverlay");
+        overlay.setClickable(false);
+        overlay.setFocusable(false);
+        ((FrameLayout) decor).addView(overlay, new FrameLayout.LayoutParams(-1, -1));
+        final String[] pieces = {"🎉", "✨", "🎊", "🟠", "🟢", "🟡", "💚", "⭐"};
+        final int count = 28;
+        final float density = getResources().getDisplayMetrics().density;
+        for (int i = 0; i < count; i++) {
+            TextView piece = text(pieces[i % pieces.length], 19 + (i % 3) * 4, true);
+            piece.setGravity(Gravity.CENTER);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(dp(36), dp(42));
+            params.leftMargin = dp((i * 37 + 13) % Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density) - 36));
+            params.topMargin = -dp(48 + (i % 5) * 18);
+            overlay.addView(piece, params);
+            piece.setRotation((i * 29) % 70 - 35);
+            piece.animate().translationY(getResources().getDisplayMetrics().heightPixels + dp(100))
+                    .translationX(dp((i % 2 == 0 ? 1 : -1) * (12 + i % 5 * 9)))
+                    .rotationBy((i % 2 == 0 ? 1 : -1) * (90 + i % 4 * 35))
+                    .alpha(0.15f).setStartDelay(i * 24L).setDuration(1500 + (i % 5) * 130L).start();
+        }
+        ui.postDelayed(() -> {
+            if (overlay.getParent() instanceof ViewGroup) ((ViewGroup) overlay.getParent()).removeView(overlay);
+        }, 2600);
     }
 
     private void updateSummaryTotals() {
