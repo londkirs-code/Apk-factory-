@@ -944,7 +944,8 @@ public class MainActivity extends Activity {
                 }
                 // ListView row binding and layout can take longer on slower devices. Retry for up to
                 // one second, but stop immediately if another key or screen transition supersedes us.
-                if (++attempts[0] < 20) productList.postDelayed(this, 50);
+                if (prefs.getBoolean("focus_retry_attempts", true) && ++attempts[0] < 20)
+                    productList.postDelayed(this, 50);
             }
         };
         productList.post(tryFocus);
@@ -970,7 +971,8 @@ public class MainActivity extends Activity {
     /** Simple product-to-product D-pad mode: arrows never try to select a particular action. */
     private boolean handleSimpleProductDpad(int keyCode, View focused, View card) {
         if (card == null) {
-            if (focused == null || focused == productList) return focusFirstVisibleProductCard();
+            if (prefs.getBoolean("focus_first_product_fallback", true)
+                    && (focused == null || focused == productList)) return focusFirstVisibleProductCard();
             return false;
         }
         Object tag = card.getTag();
@@ -1069,7 +1071,8 @@ public class MainActivity extends Activity {
                     ensureRowVisible(row);
                     return;
                 }
-                if (++attempts < 20) productList.postDelayed(this, 50);
+                if (prefs.getBoolean("focus_retry_attempts", true) && ++attempts < 20)
+                    productList.postDelayed(this, 50);
             }
         });
     }
@@ -1089,7 +1092,8 @@ public class MainActivity extends Activity {
             return handleSimpleProductDpad(keyCode, focused, card);
         }
         if (card == null) {
-            if (focused == null || focused == productList) return focusFirstVisibleProduct();
+            if (prefs.getBoolean("focus_first_product_fallback", true)
+                    && (focused == null || focused == productList)) return focusFirstVisibleProduct();
             return false;
         }
         Object cardTag = card.getTag();
@@ -1241,7 +1245,8 @@ public class MainActivity extends Activity {
                         }
                     }
                 }
-                if (++attempts[0] < 20) productList.postDelayed(this, 40);
+                if (prefs.getBoolean("focus_retry_attempts", true) && ++attempts[0] < 20)
+                    productList.postDelayed(this, 40);
             }
         };
         if (productList != null) productList.post(restore);
@@ -6597,7 +6602,8 @@ public class MainActivity extends Activity {
             add.setEnabled(!closedOrderReadOnly && canOrder);
             add.setAlpha(add.isEnabled() && !busyNow ? 1f : 0.45f);
             // Add <-> stepper swap: move keyboard focus to the control that replaces the focused one.
-            if (sameProductAsBefore && !closedOrderReadOnly) {
+            if (prefs.getBoolean("focus_restore_after_bind", true)
+                    && sameProductAsBefore && !closedOrderReadOnly) {
                 if (addHadFocus && q > 0) st.plus.requestFocus();
                 else if (stepperHadFocus && q <= 0 && add.isEnabled()) add.requestFocus();
             }
@@ -9252,6 +9258,7 @@ public class MainActivity extends Activity {
         final List<Integer> actions = new ArrayList<>();
         labels.add(nightMode ? "☀️ מעבר למצב יום" : "🌙 הפעלת מצב לילה"); actions.add(11);
         labels.add((prefs.getBoolean("simple_product_navigation", true) ? "✓ " : "") + "ניווט פשוט בין מוצרים (ללא העדפת כפתורים)"); actions.add(15);
+        labels.add("⚙ מתגי מיקוד וניווט"); actions.add(16);
         labels.add((prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false) ? "✓ " : "") + "ביטול רענון עמוד בהזמנות");
         actions.add(14);
         if (closedOrderReadOnly) {
@@ -9305,8 +9312,46 @@ public class MainActivity extends Activity {
                             prefs.edit().putBoolean("simple_product_navigation", simpleNavigation).apply();
                             toast(simpleNavigation ? "ניווט פשוט בין מוצרים הופעל" : "ניווט לפי פעולות הכרטיסים הופעל", false);
                             break;
+                        case 16:
+                            showFocusMechanismToggles();
+                            break;
                     }
                 }).show();
+    }
+
+    /** Diagnostic controls for the three independent paths that can redirect keyboard focus. */
+    private void showFocusMechanismToggles() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        panel.setPadding(dp(18), dp(10), dp(18), dp(12));
+        panel.setBackground(shape(SURFACE, 22, LINE));
+
+        panel.addView(switchRow(
+                "מיקוד אוטומטי במוצר הראשון",
+                "כשאין מיקוד בתוך כרטיס, לאתר אוטומטית את המוצר הראשון הגלוי. כיבוי מונע את מסלול ברירת המחדל הזה.",
+                prefs.getBoolean("focus_first_product_fallback", true),
+                (button, enabled) -> prefs.edit().putBoolean("focus_first_product_fallback", enabled).apply()),
+                lp(-1, -2, 0, 2));
+        panel.addView(switchRow(
+                "ניסיונות מיקוד חוזרים",
+                "לאחר ניסיון המיקוד הראשון, לנסות שוב עד כשנייה אם שורת המוצר עדיין לא מוכנה.",
+                prefs.getBoolean("focus_retry_attempts", true),
+                (button, enabled) -> prefs.edit().putBoolean("focus_retry_attempts", enabled).apply()),
+                lp(-1, -2, 0, 2));
+        panel.addView(switchRow(
+                "שחזור מיקוד בעת עדכון כרטיס",
+                "לאחר עדכון כרטיס ממוחזר, להחזיר את המיקוד מכפתור ההוספה לפלוס או להפך כשצריך.",
+                prefs.getBoolean("focus_restore_after_bind", true),
+                (button, enabled) -> prefs.edit().putBoolean("focus_restore_after_bind", enabled).apply()),
+                lp(-1, -2, 0, 2));
+        panel.addView(muted("המתגים עצמאיים ונשמרים גם לאחר סגירת האפליקציה. כיבוי מתג נועד לבודד את המנגנון לבדיקה; הוא עשוי לשנות את אופן הניווט.", 12),
+                lp(-1, -2, 0, 10));
+
+        appDialog().setTitle("מתגי מיקוד וניווט")
+                .setView(panel)
+                .setPositiveButton("סגירה", null)
+                .show();
     }
 
     private int cardColumns() {
