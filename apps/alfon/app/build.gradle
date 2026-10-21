@@ -8,7 +8,7 @@ android {
         applicationId 'com.apkfactory.alfon'
         minSdk 21
         targetSdk 35
-        versionCode 139
+        versionCode 140
         versionName '1.0'
     }
 }
