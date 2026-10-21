@@ -271,8 +271,8 @@ jobs:
           # Catch copy/paste accidents such as "final int x = 1; final int x = 1;"
           # before spending time on a full Android build.
           duplicate_declaration = re.compile(
-              r"(?P<decl>\\b(?:final\\s+)?(?:int|long|float|double|boolean|String)\\s+"
-              r"[A-Za-z_$][\\w$]*\\s*=\\s*[^;\\n]+;)[ \\t]*(?P=decl)"
+              r"(?P<decl>\b(?:final\s+)?(?:int|long|float|double|boolean|String)\s+"
+              r"[A-Za-z_$][\w$]*\s*=\s*[^;\n]+;)[ \t]*(?P=decl)"
           )
           source_roots = [Path("apps"), Path("templates")]
           checked = 0
