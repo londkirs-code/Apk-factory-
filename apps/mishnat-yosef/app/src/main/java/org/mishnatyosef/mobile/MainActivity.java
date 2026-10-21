@@ -7582,7 +7582,7 @@ public class MainActivity extends Activity {
                             + "נשמח לקבל זיכוי על המוצרים הבאים: \n"
                             + creditText
                             + "\n\nסיבת הזיכוי: חוסרים."
-                            + "\n\nחיובים:\n" + chargeText;
+                            + "\n\nולהלן הדברים שאתם צריכים לחייב אותנו עליהם:\n" + chargeText;
                 } else if (!creditText.isEmpty()) {
                     subject = "בקשת זיכויים על הזמנות משנת יוסף לחשבון " + accountEmail;
                     body = "שלום,\n"
@@ -7592,7 +7592,8 @@ public class MainActivity extends Activity {
                 } else {
                     subject = "חיובים על הזמנות משנת יוסף לחשבון " + accountEmail;
                     body = "שלום,\n"
-                            + "פירוט החיובים הבאים:\n"
+                            + "יש לנו גם כמה חיובים שאתם צריכים לחייב אותנו.\n"
+                            + "פירוט החיובים:\n"
                             + chargeText;
                 }
                 Uri mailUri = Uri.parse("mailto:A0773168080@gmail.com"
