@@ -723,31 +723,11 @@ public class MainActivity extends Activity {
             if (gridRows.get(targetPosition).header == null) {
                 final int position = targetPosition;
                 final String targetRole = role;
-                productList.smoothScrollToPosition(position);
-                productList.post(() -> {
-                    if (productList == null || position < 0 || position >= gridRows.size()) return;
-                    View child = productList.getChildAt(position - productList.getFirstVisiblePosition());
-                    if (child == null || !(child.getTag() instanceof RowHolder)) return;
-                    RowHolder holder = (RowHolder) child.getTag();
-                    CardHolder best = null;
-                    int[] origin = new int[2];
-                    current.getLocationOnScreen(origin);
-                    float cx = origin[0] + current.getWidth() / 2f;
-                    CardHolder[] cards = {holder.first, holder.second, holder.third, holder.fourth, holder.fifth};
-                    double score = Double.MAX_VALUE;
-                    for (CardHolder c : cards) {
-                        if (c.p == null || c.card.getVisibility() != View.VISIBLE) continue;
-                        View target = navigationTargetForRole(c, targetRole);
-                        if (target == null || !target.isShown() || !target.isFocusable()) continue;
-                        int[] loc = new int[2]; target.getLocationOnScreen(loc);
-                        double candidateScore = Math.abs((loc[0] + target.getWidth() / 2f) - cx);
-                        if (candidateScore < score) { score = candidateScore; best = c; }
-                    }
-                    if (best != null) {
-                        View target = navigationTargetForRole(best, targetRole);
-                        if (target != null) target.requestFocus();
-                    }
-                });
+                // Jump to the actual adapter row first. Smooth scrolling can leave the
+                // target detached when the first posted callback runs, which used to make
+                // Down appear stuck on the current card.
+                productList.setSelectionFromTop(position, 0);
+                focusProductRowWhenAttached(position, targetRole, current, 0);
                 return true;
             }
             targetPosition += delta;
@@ -762,6 +742,53 @@ public class MainActivity extends Activity {
             if (last != null) { last.requestFocus(); return true; }
         }
         return false;
+    }
+
+    private void focusProductRowWhenAttached(final int position, final String targetRole,
+            final View originView, final int attempt) {
+        if (productList == null || position < 0 || position >= gridRows.size()) return;
+        productList.post(() -> {
+            if (productList == null || position >= gridRows.size()) return;
+            int childIndex = position - productList.getFirstVisiblePosition();
+            View child = childIndex >= 0 && childIndex < productList.getChildCount()
+                    ? productList.getChildAt(childIndex) : null;
+            if (child == null || !(child.getTag() instanceof RowHolder)) {
+                if (attempt < 12) {
+                    productList.postDelayed(() ->
+                            focusProductRowWhenAttached(position, targetRole, originView, attempt + 1), 35);
+                }
+                return;
+            }
+            RowHolder holder = (RowHolder) child.getTag();
+            CardHolder best = null;
+            int[] origin = new int[2];
+            if (originView != null) originView.getLocationOnScreen(origin);
+            float cx = originView == null ? 0 : origin[0] + originView.getWidth() / 2f;
+            CardHolder[] cards = {holder.first, holder.second, holder.third, holder.fourth, holder.fifth};
+            double score = Double.MAX_VALUE;
+            for (CardHolder card : cards) {
+                if (card.p == null || card.card.getVisibility() != View.VISIBLE) continue;
+                View target = navigationTargetForRole(card, targetRole);
+                if (target == null || !target.isShown() || !target.isFocusable()) continue;
+                int[] loc = new int[2];
+                target.getLocationOnScreen(loc);
+                double candidateScore = originView == null ? 0
+                        : Math.abs((loc[0] + target.getWidth() / 2f) - cx);
+                if (best == null || candidateScore < score) {
+                    score = candidateScore;
+                    best = card;
+                }
+            }
+            if (best != null) {
+                View target = navigationTargetForRole(best, targetRole);
+                if (target != null && target.isShown() && target.isFocusable()) {
+                    target.requestFocus();
+                    if (!target.hasFocus()) best.card.requestFocus();
+                } else {
+                    best.card.requestFocus();
+                }
+            }
+        });
     }
 
     private View lastVisibleProductFocusTarget() {
@@ -5931,6 +5958,15 @@ public class MainActivity extends Activity {
             st.plus.setTag("productPlus");
             st.minus.setTag("productMinus");
             st.qty.setTag("productQty");
+            // Explicitly enable hardware-key focus; do not rely on theme/widget defaults.
+            card.setFocusable(true);
+            card.setFocusableInTouchMode(false);
+            add.setFocusable(true);
+            add.setFocusableInTouchMode(false);
+            st.plus.setFocusable(true);
+            st.plus.setFocusableInTouchMode(false);
+            st.minus.setFocusable(true);
+            st.minus.setFocusableInTouchMode(false);
             card.setTag("productCard:" + sidOf(p));
             add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
             st.plus.setOnClickListener(v -> {
