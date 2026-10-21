@@ -637,33 +637,42 @@ public class MainActivity extends Activity {
 
         CardHolder focusedCard = findProductCardHolder(current);
         String focusedRole = navigationRole(current);
+
+        // Vertical navigation is explicit. Native focusSearch often returns the card itself
+        // instead of its nested controls, especially in cached/read-only orders.
         if (focusedCard != null && key == android.view.KeyEvent.KEYCODE_DPAD_UP
                 && !"card".equals(focusedRole)) {
             focusedCard.card.requestFocus();
             return true;
         }
-        if (focusedCard != null && key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
-                && "card".equals(focusedRole)) {
-            View control = focusedCard.add.isShown() && focusedCard.add.isEnabled()
-                    ? focusedCard.add
-                    : (focusedCard.st.plus.isShown() && focusedCard.st.plus.isEnabled() ? focusedCard.st.plus : null);
-            if (control != null) { control.requestFocus(); return true; }
+        if (focusedCard != null && key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+            if ("card".equals(focusedRole)) {
+                View firstControl = firstFocusableControl(focusedCard);
+                if (firstControl != null && requestProductFocus(firstControl)) return true;
+            } else if (closedOrderReadOnly && !"charge".equals(focusedRole)
+                    && focusedCard.chargeButton.isShown() && focusedCard.chargeButton.isEnabled()) {
+                if (requestProductFocus(focusedCard.chargeButton)) return true;
+            }
+            if (moveFocusToAdjacentProductRow(current, 1)) return true;
+            return true;
+        }
+        if (focusedCard != null && (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+                && moveWithinProductControls(focusedCard, current, focusedRole, key)) {
+            return true;
         }
 
         View candidate = current.focusSearch(focusDirectionForKey(key));
         if (candidate != null && candidate != current && isProductNavigationView(candidate)
-                && candidate.isShown() && candidate.isFocusable()) {
+                && candidate.isShown() && candidate.isFocusable() && candidate.isEnabled()) {
             candidate.requestFocus();
-            return true;
+            if (candidate.hasFocus()) return true;
         }
 
-        // At a vertical edge, advance to the next/previous actual adapter row and retain the
-        // semantic control (card, add, plus, or minus) instead of letting ListView steal focus.
         if (key == android.view.KeyEvent.KEYCODE_DPAD_UP
                 || key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (moveFocusToAdjacentProductRow(current, key == android.view.KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1)) {
-                return true;
-            }
+            if (moveFocusToAdjacentProductRow(current,
+                    key == android.view.KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1)) return true;
         }
         return true; // keep D-pad navigation inside the product area; do not leak to unrelated chrome
     }
@@ -835,16 +844,24 @@ public class MainActivity extends Activity {
     private String navigationRole(View view) {
         if (view == orderSummaryButton) return "order";
         Object tag = view == null ? null : view.getTag();
-        if ("productPlus".equals(tag)) return "plus";
-        if ("productMinus".equals(tag)) return "minus";
+        if ("productPlus".equals(tag) || "autoOrderPlus".equals(tag)) return "plus";
+        if ("productMinus".equals(tag) || "autoOrderMinus".equals(tag)) return "minus";
+        if ("productQty".equals(tag) || "autoOrderQty".equals(tag)) return "qty";
         if ("productAdd".equals(tag)) return "add";
+        if ("productCharge".equals(tag)) return "charge";
+        if ("autoOrderSave".equals(tag)) return "autoSave";
+        if ("stockAlert".equals(tag)) return "stockAlert";
         if (tag instanceof String && ((String) tag).startsWith("productCard:")) return "card";
         View node = view;
         while (node != null) {
             Object t = node.getTag();
-            if ("productPlus".equals(t)) return "plus";
-            if ("productMinus".equals(t)) return "minus";
+            if ("productPlus".equals(t) || "autoOrderPlus".equals(t)) return "plus";
+            if ("productMinus".equals(t) || "autoOrderMinus".equals(t)) return "minus";
+            if ("productQty".equals(t) || "autoOrderQty".equals(t)) return "qty";
             if ("productAdd".equals(t)) return "add";
+            if ("productCharge".equals(t)) return "charge";
+            if ("autoOrderSave".equals(t)) return "autoSave";
+            if ("stockAlert".equals(t)) return "stockAlert";
             if (t instanceof String && ((String) t).startsWith("productCard:")) return "card";
             android.view.ViewParent parent = node.getParent();
             node = parent instanceof View ? (View) parent : null;
@@ -854,11 +871,83 @@ public class MainActivity extends Activity {
 
     private View navigationTargetForRole(CardHolder card, String role) {
         if (card == null || card.p == null) return null;
-        if ("plus".equals(role) && card.st.view.getVisibility() == View.VISIBLE) return card.st.plus;
-        if ("minus".equals(role) && card.st.view.getVisibility() == View.VISIBLE) return card.st.minus;
-        if ("add".equals(role) && card.add.getVisibility() == View.VISIBLE && card.add.isEnabled()) return card.add;
+        if ("plus".equals(role)) {
+            if (card.st.plus.isShown() && card.st.plus.isEnabled()) return card.st.plus;
+            if (card.autoOrderStepper.plus.isShown() && card.autoOrderStepper.plus.isEnabled()) return card.autoOrderStepper.plus;
+        }
+        if ("minus".equals(role)) {
+            if (card.st.minus.isShown() && card.st.minus.isEnabled()) return card.st.minus;
+            if (card.autoOrderStepper.minus.isShown() && card.autoOrderStepper.minus.isEnabled()) return card.autoOrderStepper.minus;
+        }
+        if ("qty".equals(role)) {
+            if (card.st.qty.isShown() && card.st.qty.isFocusable()) return card.st.qty;
+            if (card.autoOrderStepper.qty.isShown() && card.autoOrderStepper.qty.isFocusable()) return card.autoOrderStepper.qty;
+        }
+        if ("add".equals(role) && card.add.isShown() && card.add.isEnabled()) return card.add;
+        if ("charge".equals(role) && card.chargeButton.isShown() && card.chargeButton.isEnabled()) return card.chargeButton;
+        if ("autoSave".equals(role) && card.autoOrderSaveButton.isShown() && card.autoOrderSaveButton.isEnabled()) return card.autoOrderSaveButton;
+        if ("stockAlert".equals(role) && card.stockAlertButton.isShown() && card.stockAlertButton.isEnabled()) return card.stockAlertButton;
         if ("order".equals(role)) return orderSummaryButton;
         return card.card;
+    }
+
+    private boolean canTakeProductFocus(View view) {
+        return view != null && view.isShown() && view.isFocusable() && view.isEnabled();
+    }
+
+    private boolean requestProductFocus(View view) {
+        if (!canTakeProductFocus(view)) return false;
+        view.requestFocus();
+        return view.hasFocus();
+    }
+
+    /** The card's first available action, independent of Android's native focus heuristics. */
+    private View firstFocusableControl(CardHolder card) {
+        if (card == null) return null;
+        if (canTakeProductFocus(card.add)) return card.add;
+        if (card.st.view.isShown()) {
+            if (canTakeProductFocus(card.st.plus)) return card.st.plus;
+            if (canTakeProductFocus(card.st.qty)) return card.st.qty;
+            if (canTakeProductFocus(card.st.minus)) return card.st.minus;
+        }
+        if (card.autoOrderPanel.isShown()) {
+            if (canTakeProductFocus(card.autoOrderStepper.plus)) return card.autoOrderStepper.plus;
+            if (canTakeProductFocus(card.autoOrderStepper.qty)) return card.autoOrderStepper.qty;
+            if (canTakeProductFocus(card.autoOrderStepper.minus)) return card.autoOrderStepper.minus;
+            if (canTakeProductFocus(card.autoOrderSaveButton)) return card.autoOrderSaveButton;
+        }
+        if (canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
+        if (canTakeProductFocus(card.chargeButton)) return card.chargeButton;
+        return null;
+    }
+
+    /** Left/right moves between the controls inside one stepper; card-to-card movement remains spatial. */
+    private boolean moveWithinProductControls(CardHolder card, View current, String role, int key) {
+        if (card == null || current == null) return false;
+        String[] tags;
+        if ("plus".equals(role) || "minus".equals(role) || "qty".equals(role)) {
+            boolean stockStepper = current == card.autoOrderStepper.plus || current == card.autoOrderStepper.minus
+                    || current == card.autoOrderStepper.qty;
+            if (stockStepper) tags = new String[]{"autoOrderMinus", "autoOrderQty", "autoOrderPlus"};
+            else tags = new String[]{"productMinus", "productQty", "productPlus"};
+        } else {
+            return false;
+        }
+        int index = -1;
+        for (int i = 0; i < tags.length; i++) if (tags[i].equals(current.getTag())) index = i;
+        if (index < 0) return false;
+        int next = index + (key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
+        if (next < 0 || next >= tags.length) return false;
+        View target;
+        switch (tags[next]) {
+            case "productMinus": target = card.st.minus; break;
+            case "productQty": target = card.st.qty; break;
+            case "productPlus": target = card.st.plus; break;
+            case "autoOrderMinus": target = card.autoOrderStepper.minus; break;
+            case "autoOrderQty": target = card.autoOrderStepper.qty; break;
+            default: target = card.autoOrderStepper.plus; break;
+        }
+        return requestProductFocus(target);
     }
 
 
@@ -5946,6 +6035,15 @@ public class MainActivity extends Activity {
             stockAlertButton.setVisibility(View.GONE);card.addView(stockAlertButton,lp(-1,dp(29),5,0));
             autoOrderStepper.plus.setTag("autoOrderPlus");
             autoOrderStepper.minus.setTag("autoOrderMinus");
+            autoOrderStepper.qty.setTag("autoOrderQty");
+            autoOrderStepper.qty.setFocusable(true);
+            autoOrderStepper.qty.setFocusableInTouchMode(false);
+            autoOrderStepper.plus.setFocusable(true);
+            autoOrderStepper.plus.setFocusableInTouchMode(false);
+            autoOrderStepper.minus.setFocusable(true);
+            autoOrderStepper.minus.setFocusableInTouchMode(false);
+            autoOrderSaveButton.setTag("autoOrderSave");
+            stockAlertButton.setTag("stockAlert");
             autoOrderStepper.plus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,1,autoOrderStepper);});
             autoOrderStepper.minus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,-1,autoOrderStepper);});
             autoOrderSaveButton.setOnClickListener(v->{if(p!=null)saveAutoOrder(p,stockDraftQty(p));});
@@ -5967,6 +6065,15 @@ public class MainActivity extends Activity {
             st.plus.setFocusableInTouchMode(false);
             st.minus.setFocusable(true);
             st.minus.setFocusableInTouchMode(false);
+            st.qty.setFocusable(true);
+            st.qty.setFocusableInTouchMode(false);
+            chargeButton.setTag("productCharge");
+            chargeButton.setFocusable(true);
+            chargeButton.setFocusableInTouchMode(false);
+            autoOrderSaveButton.setFocusable(true);
+            autoOrderSaveButton.setFocusableInTouchMode(false);
+            stockAlertButton.setFocusable(true);
+            stockAlertButton.setFocusableInTouchMode(false);
             card.setTag("productCard:" + sidOf(p));
             add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
             st.plus.setOnClickListener(v -> {
