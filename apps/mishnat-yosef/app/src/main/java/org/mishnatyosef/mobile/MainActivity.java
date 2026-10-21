@@ -6147,6 +6147,7 @@ public class MainActivity extends Activity {
         final FrameLayout imageBox;
         final FrameLayout controls;
         final TextView badge, star, name, pack, price, maxView, savedView, unitView, add;
+        final View actionSpacer;
         final Stepper st;
         final TextView chargeButton;
         final LinearLayout autoOrderPanel;
@@ -6229,6 +6230,11 @@ public class MainActivity extends Activity {
             unitView.setSingleLine(true);
             unitView.setEllipsize(TextUtils.TruncateAt.END);
             card.addView(unitView);
+
+            // Flexible space absorbs the extra height of equalized cards, keeping all order actions at the bottom.
+            actionSpacer = new View(MainActivity.this);
+            actionSpacer.setFocusable(false);
+            card.addView(actionSpacer, new LinearLayout.LayoutParams(-1, 0, 1f));
 
             controls = new FrameLayout(MainActivity.this);
             add = btn("הוספה", TONAL);
