@@ -1,5 +1,9 @@
 # Alfon — Changelog
 
+## Release pipeline fix
+- Added the shared persistent release-signing configuration to the Alfon Android module so release APKs are signed consistently and pass verification before publishing.
+- No app behavior, bundled HTML, styling, search, calling, SMS, or contact sharing was changed.
+
 ## Compatibility update (Android 5.0+ and Android 15+)
 - Lowered minSdk to 21 (Android 5.0) to broaden device compatibility.
 - Added Android 15+ edge-to-edge insets so the embedded HTML remains clear of status/navigation bars and display cutouts.
