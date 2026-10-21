@@ -7687,8 +7687,7 @@ public class MainActivity extends Activity {
                 return;
             }
             final String[] pieces = {"🎉", "✨", "🎊", "🟠", "🟢", "🟡", "💚", "⭐", "🎈", "🥳", "💛", "🩷"};
-            final float density = getResources().getDisplayMetrics().density;
-            final int pieceWidth = dp(38);
+            final int pieceWidth = dp(38);            final int pieceWidth = dp(38);
             final int pieceHeight = dp(42);
             final int columns = 15;
             final int rows = 12;
