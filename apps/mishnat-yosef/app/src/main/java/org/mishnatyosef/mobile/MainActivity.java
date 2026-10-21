@@ -410,6 +410,8 @@ public class MainActivity extends Activity {
     // It is cleared as soon as the user deliberately navigates with another key.
     private String pendingProductFocusId = null;
     private String pendingProductFocusAction = null;
+    // Invalidates delayed focus/scroll work whenever the user presses another key.
+    private int keyboardNavigationGeneration = 0;
 
     // When page refresh is disabled, update only the changed product quantity and the order bar.
     private String lastChangedProductSid = null;
@@ -425,27 +427,13 @@ public class MainActivity extends Activity {
             updateOrderBar();
             return;
         }
-        View focusedBeforeRefresh = getCurrentFocus();
-        String focusTag = focusedBeforeRefresh == null ? null : (focusedBeforeRefresh.getTag() instanceof String ? (String) focusedBeforeRefresh.getTag() : null);
-        View cardView = focusedBeforeRefresh;
-        while (cardView != null && !(cardView.getTag() instanceof String && ((String) cardView.getTag()).startsWith("productCard:"))) {
-            if (!(cardView.getParent() instanceof View)) { cardView = null; break; }
-            cardView = (View) cardView.getParent();
-        }
-        String productTag = cardView != null && cardView.getTag() instanceof String ? (String) cardView.getTag() : null;
         refreshVisibleProductRows();
         updateOrderBar();
         if (pendingProductFocusId != null && pendingProductFocusAction != null) {
             restoreProductActionFocus(pendingProductFocusId, pendingProductFocusAction);
-        } else if (productTag != null && focusTag != null && currentScreen != null) {
-            final String restoreProductTag = productTag, restoreFocusTag = focusTag;
-            currentScreen.post(() -> {
-                View updatedCard = findTaggedView(currentScreen, restoreProductTag);
-                View updatedFocus = findTaggedView(updatedCard, restoreFocusTag);
-                if (updatedFocus != null && updatedFocus.isShown() && updatedFocus.isEnabled()) updatedFocus.requestFocus();
-                else if (updatedCard != null && updatedCard.isShown()) updatedCard.requestFocus();
-            });
         }
+        // No generic delayed focus restore: it could pull focus back to an older card after a new key.
+        // In-place row rebinding preserves valid focus; deliberate moves use the navigation coordinator.
     };
     private TextView barInfo, barTotal;
 
@@ -603,7 +591,8 @@ public class MainActivity extends Activity {
                     || incomingKey == KeyEvent.KEYCODE_NUMPAD_ENTER
                     || incomingKey == KeyEvent.KEYCODE_DPAD_CENTER;
             if (!enterKey) {
-                // The user intentionally moved on; do not force focus back to the previous product action.
+                // Any new navigation input invalidates delayed work from the previous key/action.
+                keyboardNavigationGeneration++;
                 pendingProductFocusId = null;
                 pendingProductFocusAction = null;
             }
@@ -860,8 +849,7 @@ public class MainActivity extends Activity {
         // A charge-list card has one meaningful action. Never silently redirect a failed
         // charge-button match to a quantity stepper on the next card.
         if ("productCharge".equals(preferredActionTag)) {
-            View charge = findFocusableTaggedControl(card, "productCharge");
-            return charge != null ? charge : card;
+            return findFocusableTaggedControl(card, "productCharge");
         }
 
         // Keep navigation action-based, not geometry-based, for order controls. This prevents
@@ -882,6 +870,8 @@ public class MainActivity extends Activity {
             View matching = findFocusableTaggedControl(card, tag);
             if (matching != null) return matching;
         }
+        // If navigation began on a known action, do not silently change action type based on geometry.
+        if (preferredActionTag != null) return null;
 
         List<View> orderControls = new ArrayList<>();
         for (View control : controls) {
@@ -911,6 +901,7 @@ public class MainActivity extends Activity {
         final int[] pos = productGridPos(sid);
         if (pos == null) return;
         final int adapterPosition = pos[0];
+        final int navigationGeneration = keyboardNavigationGeneration;
         int first = productList.getFirstVisiblePosition();
         int last = productList.getLastVisiblePosition();
         if (adapterPosition < first || adapterPosition > last) {
@@ -925,7 +916,8 @@ public class MainActivity extends Activity {
         final View screenAtRequest = currentScreen;
         Runnable tryFocus = new Runnable() {
             @Override public void run() {
-                if (productList == null || !showingOrderScreen || currentScreen != screenAtRequest) return;
+                if (productList == null || !showingOrderScreen || currentScreen != screenAtRequest
+                        || keyboardNavigationGeneration != navigationGeneration) return;
                 int firstNow = productList.getFirstVisiblePosition();
                 int lastNow = productList.getLastVisiblePosition();
                 View rowView = adapterPosition >= firstNow && adapterPosition <= lastNow
@@ -950,7 +942,9 @@ public class MainActivity extends Activity {
                         return;
                     }
                 }
-                if (++attempts[0] < 12) productList.postDelayed(this, 35);
+                // ListView row binding and layout can take longer on slower devices. Retry for up to
+                // one second, but stop immediately if another key or screen transition supersedes us.
+                if (++attempts[0] < 20) productList.postDelayed(this, 50);
             }
         };
         productList.post(tryFocus);
@@ -1057,10 +1051,7 @@ public class MainActivity extends Activity {
         hideKeyboard();
         int distance = Math.max(dp(240), (getWindow().getDecorView().getHeight() * 2) / 3);
         int delta = down ? distance : -distance;
-        // Repeated key-down events must keep advancing instead of restarting the same animation.
-        boolean repeating = false;
-        // Key repeat is reflected by the event in dispatchKeyEvent; scroll steps are deliberately
-        // large enough to make holding 1/3 useful, while each repeat advances another viewport.
+        // Every key-down (including hardware key repeat) advances by one viewport-sized step.
         if (showingOrderScreen && productList != null) {
             productList.smoothScrollBy(delta, 120);
         } else if (scrollView != null) {
@@ -1074,13 +1065,17 @@ public class MainActivity extends Activity {
     private void scrollOrderToEdge(boolean bottom) {
         hideKeyboard();
         if (showingOrderScreen && productList != null) {
+            final ListView list = productList;
+            final int navigationGeneration = keyboardNavigationGeneration;
             int last = Math.max(0, gridRows.size() - 1);
-            if (bottom) productList.setSelection(last);
-            else productList.setSelectionFromTop(0, 0);
-            productList.post(() -> {
-                if (productList == null) return;
-                if (bottom) productList.setSelection(Math.max(0, gridRows.size() - 1));
-                else productList.setSelectionFromTop(0, 0);
+            if (bottom) list.setSelection(last);
+            else list.setSelectionFromTop(0, 0);
+            list.post(() -> {
+                // Do not let a delayed edge-scroll overwrite a newer keyboard navigation.
+                if (productList != list || !showingOrderScreen
+                        || keyboardNavigationGeneration != navigationGeneration) return;
+                if (bottom) list.setSelection(Math.max(0, gridRows.size() - 1));
+                else list.setSelectionFromTop(0, 0);
             });
         } else if (scrollView != null) {
             scrollView.post(() -> scrollView.fullScroll(bottom ? View.FOCUS_DOWN : View.FOCUS_UP));
@@ -6062,8 +6057,11 @@ public class MainActivity extends Activity {
         final int restorePosition = orderListFirstVisiblePosition;
         final int restoreTop = orderListTopOffset;
         if (listToRestore != null && (restorePosition > 0 || restoreTop != 0)) {
+            final int restoreGeneration = keyboardNavigationGeneration;
             listToRestore.post(() -> {
-                if (showingOrderScreen && screenKind == 1 && productList == listToRestore) {
+                // Screen-entry restoration must not override keyboard input received afterwards.
+                if (showingOrderScreen && screenKind == 1 && productList == listToRestore
+                        && keyboardNavigationGeneration == restoreGeneration) {
                     listToRestore.setSelectionFromTop(restorePosition, restoreTop);
                 }
             });
