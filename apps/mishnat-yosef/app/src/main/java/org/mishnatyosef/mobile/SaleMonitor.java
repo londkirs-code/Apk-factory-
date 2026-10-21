@@ -439,20 +439,6 @@ public class SaleMonitor extends BroadcastReceiver {
             nm.notify(19000 + Math.max(id, 0), notification);
     }
 
-    /** Sends a sample notification so the user can hear / see the current settings. */
-    public static void sendTest(Context context, boolean closing) {
-        if (closing) {
-            postClosingNotification(context, 0, "מכירה לדוגמה", System.currentTimeMillis() + 2L * 3600L * 1000L, false);
-            return;
-        }
-        try {
-            JSONObject sale = new JSONObject();
-            sale.put("id", -1);
-            sale.put("custom_name", "מכירה לדוגמה");
-            new SaleMonitor().notifySale(context, sale);
-        } catch (Exception ignored) { }
-    }
-
     private static void createChannelNamed(Context context, String id, String title, boolean sound, boolean vibrate) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
