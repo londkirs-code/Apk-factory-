@@ -6515,11 +6515,12 @@ public class MainActivity extends Activity {
         final int serverAmount = (int) Math.round(num(p.opt("amount")));
         final long orderId = featureOrderId;
         pending.add(sid);
-        lastChangedProductSid = sid;
         featureQuantities.put(sid, newQty);
         final String pname = productName(p);
         toast("⏳ " + (newQty == 0 ? "מסיר" : (oldQty == 0 ? "מוסיף" : "מעדכן")) + ": " + pname, false);
+        lastChangedProductSid = sid;
         refresh.run();
+        lastChangedProductSid = null;
         executor.execute(() -> {
             String error = null;
             boolean needLogin = false;
@@ -6555,7 +6556,9 @@ public class MainActivity extends Activity {
                     if (err.contains("אזל")) { try { p.put("available", 0); } catch (Exception ignored) { } }
                     toast(err, true);
                 }
+                lastChangedProductSid = sid;
                 refresh.run();
+                lastChangedProductSid = null;
                 Integer queuedDelta = queuedDeltas.remove(sid);
                 if (err == null && queuedDelta != null && queuedDelta != 0) changeBy(p, queuedDelta, refresh, onSuccess);
                 if (err == null && onSuccess != null) onSuccess.run();
