@@ -386,6 +386,7 @@ public class MainActivity extends Activity {
     private View productSearchClearButton;
     private AlertDialog imageViewerDialog;
     private SeekBar actionScaleBar;
+    private TextView actionScaleValue;
 
     // ---- ordering state
     private JSONObject featureSale = null;
@@ -1796,6 +1797,8 @@ public class MainActivity extends Activity {
         int next = 70 + Math.round((bounded - 70) / 5.0f) * 5;
         next = Math.max(70, Math.min(130, next));
         int current = prefs.getInt("ui_scale_percent", 100);
+        if (actionScaleBar != null) actionScaleBar.setProgress((next - 70) / 5);
+        if (actionScaleValue != null) actionScaleValue.setText(next + "%");
         if (next == current) return;
         float ratio = next / (float) current;
         prefs.edit().putInt("ui_scale_percent", next).apply();
@@ -1865,6 +1868,7 @@ public class MainActivity extends Activity {
         panel.addView(scaleLabel, scaleLabelLp);
         int scaleStart = Math.max(70, Math.min(130, prefs.getInt("ui_scale_percent", 100)));
         TextView scaleValue = muted(scaleStart + "%", 12);
+        actionScaleValue = scaleValue;
         scaleValue.setGravity(Gravity.CENTER);
         panel.addView(scaleValue, new LinearLayout.LayoutParams(-1, -2));
         SeekBar scaleBar = new SeekBar(this);
