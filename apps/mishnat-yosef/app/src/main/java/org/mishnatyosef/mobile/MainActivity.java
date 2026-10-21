@@ -1009,7 +1009,9 @@ public class MainActivity extends Activity {
                     if (candidate.header != null) continue;
                     JSONObject[] itemsInRow = {candidate.a, candidate.b, candidate.c, candidate.d, candidate.e};
                     if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                        for (int c = 0; c < cardColumns(); c++) if (itemsInRow[c] != null) target = itemsInRow[c];
+                        for (int c = 0; c < cardColumns(); c++) {
+                            if (itemsInRow[c] != null) { target = itemsInRow[c]; break; }
+                        }
                     } else {
                         for (int c = Math.min(cardColumns(), itemsInRow.length) - 1; c >= 0; c--) {
                             if (itemsInRow[c] != null) { target = itemsInRow[c]; break; }
