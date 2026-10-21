@@ -4148,12 +4148,8 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Opens the original product image in a dark, tap-outside-to-close viewer.
-     * The source URL is kept separate from the thumbnail URL so this always asks
-     * for the full image when the app has a smaller thumbnail configured.
-     */
-    /**
      * Opens the original product image in a full-screen viewer.
+     * The source URL is kept separate from the thumbnail URL to load the original image.
      * Any tap anywhere and any key press closes the viewer.
      */
     private void showImagePreview(String url) {
