@@ -318,6 +318,42 @@ jobs:
               exit 1
             fi
             APK_PATH="${APK_FILES[0]}"
+
+            # Verify embedded APK version and signing identity before publishing.
+            # A mismatch here can make updates inconsistent or prevent upgrading an installed app.
+            SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+            APK_ANALYZER="$(find "$SDK_ROOT" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n1)"
+            APK_SIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -n1)"
+            if [[ -z "$APK_ANALYZER" || -z "$APK_SIGNER" ]]; then
+              echo "::error::Android APK validation tools (apkanalyzer/apksigner) are unavailable."
+              exit 1
+            fi
+            ACTUAL_CODE="$("$APK_ANALYZER" manifest version-code "$APK_PATH")"
+            ACTUAL_NAME="$("$APK_ANALYZER" manifest version-name "$APK_PATH")"
+            if [[ "$ACTUAL_CODE" != "$NEXT_CODE" || "$ACTUAL_NAME" != "$VERSION_NAME" ]]; then
+              echo "::error::APK version mismatch: expected $VERSION_NAME ($NEXT_CODE), found $ACTUAL_NAME ($ACTUAL_CODE)."
+              exit 1
+            fi
+            NEW_CERT="$("$APK_SIGNER" verify --print-certs "$APK_PATH" | awk -F': ' '/certificate SHA-256 digest:/ {print tolower($2); exit}')"
+            if [[ ! "$NEW_CERT" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::Could not verify the release APK signing certificate."
+              exit 1
+            fi
+            PREVIOUS_APK="downloads/$app/app.apk"
+            if [[ "$app" == "mishnat-yosef" && -s "$PREVIOUS_APK" ]]; then
+              OLD_CERT="$("$APK_SIGNER" verify --print-certs "$PREVIOUS_APK" | awk -F': ' '/certificate SHA-256 digest:/ {print tolower($2); exit}')"
+              if [[ ! "$OLD_CERT" =~ ^[0-9a-f]{64}$ ]]; then
+                echo "::error::Could not verify the previously published APK signing certificate."
+                exit 1
+              fi
+              if [[ "$NEW_CERT" != "$OLD_CERT" ]]; then
+                echo "::error::APK signing certificate changed! Refusing to publish an update that cannot upgrade the existing app. Previous: $OLD_CERT; new: $NEW_CERT"
+                exit 1
+              fi
+              echo "Signing certificate continuity verified: $NEW_CERT"
+            fi
+            echo "APK manifest version verified: $ACTUAL_NAME ($ACTUAL_CODE)"
+
             mkdir -p "downloads/$app"
             PUBLISH_START=$(date +%s)
             cp "$APK_PATH" "downloads/$app/app.apk"
