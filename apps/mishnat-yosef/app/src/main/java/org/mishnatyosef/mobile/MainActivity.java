@@ -572,6 +572,18 @@ public class MainActivity extends Activity {
 
     /** Re-binds the rows currently on screen in place. Unlike notifyDataSetChanged() this never makes the
      *  ListView re-take focus, so the focused +/- button keeps focus and the list does not jump. */
+    private void refreshVisibleProductFocusVisuals() {
+        if (productList == null) return;
+        for (int i = 0; i < productList.getChildCount(); i++) {
+            View rowView = productList.getChildAt(i);
+            if (rowView == null || !(rowView.getTag() instanceof RowHolder)) continue;
+            RowHolder holder = (RowHolder) rowView.getTag();
+            for (CardHolder card : new CardHolder[]{holder.first, holder.second, holder.third, holder.fourth, holder.fifth}) {
+                if (card.p != null && card.card.getVisibility() == View.VISIBLE) card.updateFocusVisuals();
+            }
+        }
+    }
+
     private void refreshVisibleProductRows() {
         if (productList == null || productAdapter == null) return;
         View focusedBeforeRefresh = getCurrentFocus();
@@ -6184,6 +6196,7 @@ public class MainActivity extends Activity {
         JSONObject p;
         String boundUrl = "";
         private final Map<View, Drawable> normalFocusBackgrounds = new HashMap<>();
+        private final Map<TextView, android.content.res.ColorStateList> normalFocusTextColors = new HashMap<>();
 
         CardHolder() {
             card.setOrientation(LinearLayout.VERTICAL);
@@ -6347,7 +6360,7 @@ public class MainActivity extends Activity {
             });
             st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) askQuantity(p, productsRefresh, null); });
 
-            View.OnFocusChangeListener focusListener = (view, focused) -> updateFocusVisuals();
+            View.OnFocusChangeListener focusListener = (view, focused) -> refreshVisibleProductFocusVisuals();
             for (View focusView : new View[]{card, add, st.plus, st.qty, st.minus, chargeButton,
                     autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
                     autoOrderSaveButton, stockAlertButton}) focusView.setOnFocusChangeListener(focusListener);
@@ -6356,7 +6369,12 @@ public class MainActivity extends Activity {
         private void rememberNormalFocusBackgrounds() {
             for (View focusView : new View[]{add, st.plus, st.qty, st.minus, chargeButton,
                     autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
-                    autoOrderSaveButton, stockAlertButton}) normalFocusBackgrounds.put(focusView, focusView.getBackground());
+                    autoOrderSaveButton, stockAlertButton}) {
+                normalFocusBackgrounds.put(focusView, focusView.getBackground());
+                if (focusView instanceof TextView) {
+                    normalFocusTextColors.put((TextView) focusView, ((TextView) focusView).getTextColors());
+                }
+            }
         }
 
         private void updateFocusVisuals() {
@@ -6369,6 +6387,12 @@ public class MainActivity extends Activity {
                 else {
                     Drawable normal = normalFocusBackgrounds.get(focusView);
                     if (normal != null && focusView.getBackground() != normal) focusView.setBackground(normal);
+                    if (focusView instanceof TextView) {
+                        android.content.res.ColorStateList normalText = normalFocusTextColors.get((TextView) focusView);
+                        if (normalText != null && !((TextView) focusView).getTextColors().equals(normalText)) {
+                            ((TextView) focusView).setTextColor(normalText);
+                        }
+                    }
                     focusView.setScaleX(1f); focusView.setScaleY(1f); focusView.setElevation(0f);
                 }
             }
