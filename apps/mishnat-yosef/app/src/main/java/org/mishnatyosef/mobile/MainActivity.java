@@ -763,12 +763,17 @@ public class MainActivity extends Activity {
             return false;
         }
 
-        if (key == android.view.KeyEvent.KEYCODE_POUND || key == android.view.KeyEvent.KEYCODE_PLUS
-                || key == android.view.KeyEvent.KEYCODE_NUMPAD_ADD || shiftedThree) {
+        // Some physical keyboards report the printed * and # keys with swapped
+        // Android key codes. Keep the user's intended symbol behavior consistent:
+        // # goes to the previous tab, * to the next tab; + always goes to the next tab.
+        if (key == android.view.KeyEvent.KEYCODE_STAR || key == android.view.KeyEvent.KEYCODE_NUMPAD_MULTIPLY || shiftedEight) {
             cycleKeyboardTab(1); return true;
         }
-        if (key == android.view.KeyEvent.KEYCODE_STAR || key == android.view.KeyEvent.KEYCODE_NUMPAD_MULTIPLY || shiftedEight) {
+        if (key == android.view.KeyEvent.KEYCODE_POUND || shiftedThree) {
             cycleKeyboardTab(-1); return true;
+        }
+        if (key == android.view.KeyEvent.KEYCODE_PLUS || key == android.view.KeyEvent.KEYCODE_NUMPAD_ADD) {
+            cycleKeyboardTab(1); return true;
         }
         if (key == android.view.KeyEvent.KEYCODE_1) { scrollCurrentScreenByPage(-1); return true; }
         if (key == android.view.KeyEvent.KEYCODE_3) { scrollCurrentScreenByPage(1); return true; }
