@@ -1,1 +1,1 @@
-APK for quickfloat, versionName 1.0, versionCode 307, built from commit 57c84a695ca31d2fe0ec49662bffe6888951e992.
+APK for quickfloat, versionName 1.0, versionCode 308, built from commit 7bad484c5a8f303799b1f223b35febf6382d1fcf.
