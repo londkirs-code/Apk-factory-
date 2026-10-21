@@ -384,6 +384,10 @@ public class MainActivity extends Activity {
     private int screenToken = 0;
     private EditText activeProductSearch;
     private View productSearchClearButton;
+    private AlertDialog imageViewerDialog;
+    private SeekBar actionScaleBar;
+    private TextView actionScaleValue;
+    private boolean simpleKeyboardNavigation() { return prefs.getBoolean("simple_keyboard_navigation", true); }
 
     // ---- ordering state
     private JSONObject featureSale = null;
@@ -650,6 +654,7 @@ public class MainActivity extends Activity {
      * toolbar controls and supports product rows that are not currently attached to the ListView.
      */
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        if (handleGlobalKeyboardEvent(event)) return true;
         int key = event.getKeyCode();
         boolean direction = key == android.view.KeyEvent.KEYCODE_DPAD_UP
                 || key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
@@ -677,7 +682,7 @@ public class MainActivity extends Activity {
         int rowPosition = location[0], column = location[1];
 
         if ((key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-                && isStepperRole(role)) {
+                && !simpleKeyboardNavigation() && isStepperRole(role)) {
             if (moveWithinProductControls(focusedCard, current, role, key)) return true;
             moveFocusHorizontallyToCard(rowPosition, column,
                     key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1, role);
@@ -685,7 +690,8 @@ public class MainActivity extends Activity {
         }
         if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
             moveFocusHorizontallyToCard(rowPosition, column,
-                    key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1, "card");
+                    key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1,
+                    simpleKeyboardNavigation() ? "card" : role);
             return true;
         }
         if (key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
@@ -701,6 +707,238 @@ public class MainActivity extends Activity {
             return true;
         }
         return true;
+    }
+
+    // Keyboard contract: global shortcuts are handled before product D-pad navigation.
+    // Repeated ACTION_DOWN events are intentionally ignored for one-shot commands.
+    private boolean handleGlobalKeyboardEvent(android.view.KeyEvent event) {
+        if (event == null) return false;
+        int key = event.getKeyCode();
+        int action = event.getAction();
+
+        // The image viewer is modal: any key press dismisses it before other shortcuts run.
+        if (isImageViewerShowing()) {
+            if (action == android.view.KeyEvent.ACTION_DOWN) dismissImageViewer();
+            return action == android.view.KeyEvent.ACTION_DOWN || action == android.view.KeyEvent.ACTION_UP;
+        }
+        if (action != android.view.KeyEvent.ACTION_DOWN) return false;
+
+        if (key == android.view.KeyEvent.KEYCODE_SEARCH && activeProductSearch != null && activeProductSearch.hasFocus()) {
+            hideKeyboard();
+            activeProductSearch.clearFocus();
+            return true;
+        }
+        boolean textEditing = isTextEditorFocused() && isSoftKeyboardVisible();
+        if (textEditing) return false;
+
+        View focusedForKeyboard = getCurrentFocus();
+        if (focusedForKeyboard instanceof SeekBar && focusedForKeyboard == actionScaleBar) {
+            int progress = actionScaleBar.getProgress();
+            int next = progress;
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                next += key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1;
+            } else if (key == android.view.KeyEvent.KEYCODE_PAGE_UP) next += 4;
+            else if (key == android.view.KeyEvent.KEYCODE_PAGE_DOWN) next -= 4;
+            else if (key == android.view.KeyEvent.KEYCODE_MOVE_HOME) next = 0;
+            else if (key == android.view.KeyEvent.KEYCODE_MOVE_END) next = actionScaleBar.getMax();
+            else next = -1;
+            if (next >= 0) {
+                next = Math.max(0, Math.min(actionScaleBar.getMax(), next));
+                actionScaleBar.setProgress(next);
+                changeUiScale(70 + next * 5);
+                return true;
+            }
+        }
+        boolean shiftedThree = key == android.view.KeyEvent.KEYCODE_3 && event.isShiftPressed();
+        boolean shiftedEight = key == android.view.KeyEvent.KEYCODE_8 && event.isShiftPressed();
+        boolean repeated = event.getRepeatCount() > 0;
+        boolean repeatable = key == android.view.KeyEvent.KEYCODE_1
+                || key == android.view.KeyEvent.KEYCODE_2
+                || (key == android.view.KeyEvent.KEYCODE_3 && !shiftedThree)
+                || (key == android.view.KeyEvent.KEYCODE_8 && !shiftedEight);
+        if (repeated && !repeatable) {
+            if (key == android.view.KeyEvent.KEYCODE_4 || key == android.view.KeyEvent.KEYCODE_5
+                    || key == android.view.KeyEvent.KEYCODE_6 || key == android.view.KeyEvent.KEYCODE_0
+                    || key == android.view.KeyEvent.KEYCODE_7 || key == android.view.KeyEvent.KEYCODE_9) return true;
+            return false;
+        }
+
+        if (key == android.view.KeyEvent.KEYCODE_POUND || key == android.view.KeyEvent.KEYCODE_PLUS
+                || key == android.view.KeyEvent.KEYCODE_NUMPAD_ADD || shiftedThree) {
+            cycleKeyboardTab(1); return true;
+        }
+        if (key == android.view.KeyEvent.KEYCODE_STAR || key == android.view.KeyEvent.KEYCODE_NUMPAD_MULTIPLY || shiftedEight) {
+            cycleKeyboardTab(-1); return true;
+        }
+        if (key == android.view.KeyEvent.KEYCODE_1) { scrollCurrentScreenByPage(-1); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_3) { scrollCurrentScreenByPage(1); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_2) { scrollCurrentScreenToEdge(false); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_8) { scrollCurrentScreenToEdge(true); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_4) { changeUiScale(prefs.getInt("ui_scale_percent", 100) - 5); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_6) { changeUiScale(prefs.getInt("ui_scale_percent", 100) + 5); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_5) { commitCardColumns(cardColumns() + 1 > 5 ? 1 : cardColumns() + 1, false); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_0) {
+            changeUiScale(100);
+            commitCardColumns(3, false);
+            if (nightMode) toggleNightMode();
+            return true;
+        }
+        if (key == android.view.KeyEvent.KEYCODE_7) { jumpCategoryBy(-1); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_9) { jumpCategoryBy(1); return true; }
+        if (key == android.view.KeyEvent.KEYCODE_MENU) {
+            openProductDetailsOrMoreOptions(); return true;
+        }
+        if (key == android.view.KeyEvent.KEYCODE_SOFT_LEFT) {
+            openProductDetailsOrMoreOptions(); return true;
+        }
+        if (key == android.view.KeyEvent.KEYCODE_SOFT_RIGHT) {
+            if (orderSummaryButton != null && orderSummaryButton.isShown()) orderSummaryButton.performClick();
+            else openProductDetailsOrMoreOptions();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isTextEditorFocused() {
+        View focus = getCurrentFocus();
+        return focus instanceof EditText || (focus != null && focus.onCheckIsTextEditor());
+    }
+
+    private boolean isSoftKeyboardVisible() {
+        View decor = getWindow() == null ? null : getWindow().getDecorView();
+        if (decor == null) return false;
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsets wi = decor.getRootWindowInsets();
+            return wi != null && wi.isVisible(WindowInsets.Type.ime());
+        }
+        android.graphics.Rect visible = new android.graphics.Rect();
+        decor.getWindowVisibleDisplayFrame(visible);
+        return decor.getRootView().getHeight() - visible.bottom > dp(160);
+    }
+
+    private void cycleKeyboardTab(int direction) {
+        final int[] order = {0, 1, TAB_COLLECT, 2, 3};
+        int index = 0;
+        for (int i = 0; i < order.length; i++) if (order[i] == activeBottomTab) { index = i; break; }
+        int next = order[(index + direction + order.length) % order.length];
+        View tab = findViewWithTag(getWindow().getDecorView(), "navTab:" + next);
+        if (tab != null) {
+            tab.performClick();
+            return;
+        }
+        // Nested screens may not render the bottom bar; keep keyboard tab cycling global.
+        switch (next) {
+            case 0: navigateTab(0, this::showOpenSales); break;
+            case 1: navigateTab(1, this::loadFeatureOrders); break;
+            case TAB_COLLECT: navigateTab(TAB_COLLECT, this::openLatestCollect); break;
+            case 2: navigateTab(2, this::loadFeatureTransactions); break;
+            case 3: navigateTab(3, this::showAccount); break;
+        }
+    }
+
+    private View findViewWithTag(View rootView, String tag) {
+        if (rootView == null) return null;
+        if (tag.equals(rootView.getTag())) return rootView;
+        if (rootView instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) rootView;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findViewWithTag(group.getChildAt(i), tag);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private void scrollCurrentScreenByPage(int direction) {
+        if (productList != null && showingOrderScreen && screenKind == 1) {
+            int amount = Math.max(1, productList.getChildCount() - 1) * direction;
+            int target = Math.max(0, Math.min(gridRows.size() - 1, productList.getFirstVisiblePosition() + amount));
+            productList.setSelection(target);
+            return;
+        }
+        View scrollTarget = scrollView;
+        if (scrollTarget instanceof ScrollView) {
+            int page = Math.max(dp(120), ((ScrollView) scrollTarget).getHeight() - dp(48));
+            scrollTarget.scrollBy(0, page * direction);
+        } else if (scrollTarget instanceof HorizontalScrollView) {
+            scrollTarget.scrollBy(dp(240) * direction, 0);
+        } else if (currentScreen instanceof ViewGroup) {
+            scrollCurrentScreenFallback(direction);
+        }
+    }
+
+    private void scrollCurrentScreenFallback(int direction) {
+        View focus = getCurrentFocus();
+        ViewParentSearch:
+        {
+            View node = focus;
+            while (node != null) {
+                if (node instanceof ScrollView) {
+                    ScrollView sv = (ScrollView) node;
+                    sv.smoothScrollBy(0, direction * Math.max(dp(120), sv.getHeight() - dp(48)));
+                    return;
+                }
+                android.view.ViewParent p = node.getParent();
+                node = p instanceof View ? (View) p : null;
+            }
+        }
+        if (productList != null && showingOrderScreen) {
+            int target = direction < 0 ? 0 : Math.max(0, gridRows.size() - 1);
+            productList.smoothScrollToPosition(target);
+        }
+    }
+
+    private void scrollCurrentScreenToEdge(boolean end) {
+        if (productList != null && showingOrderScreen && screenKind == 1) {
+            productList.smoothScrollToPosition(end ? Math.max(0, gridRows.size() - 1) : 0);
+            return;
+        }
+        if (scrollView != null) {
+            if (end) scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
+            else scrollView.post(() -> scrollView.fullScroll(View.FOCUS_UP));
+            return;
+        }
+        scrollCurrentScreenFallback(end ? 1 : -1);
+    }
+
+    private void jumpCategoryBy(int direction) {
+        if (!showingOrderScreen || productList == null || catHeaders.isEmpty()) return;
+        List<Map.Entry<String, Integer>> categories = new ArrayList<>(catHeaders.entrySet());
+        int index = 0;
+        for (int i = 0; i < categories.size(); i++) {
+            if (categories.get(i).getKey().equals(activeCat)) { index = i; break; }
+        }
+        int next = (index + direction + categories.size()) % categories.size();
+        Map.Entry<String, Integer> target = categories.get(next);
+        pendingCategoryJump = target.getKey();
+        productList.setSelection(target.getValue());
+        activeCat = target.getKey();
+        styleCategoryChips();
+        TextView chip = catChips.get(activeCat);
+        if (chip != null && catStripScroll != null) {
+            int x = chip.getLeft() - (catStripScroll.getWidth() - chip.getWidth()) / 2;
+            catStripScroll.smoothScrollTo(Math.max(0, x), 0);
+        }
+        productList.postDelayed(() -> pendingCategoryJump = "", 250);
+    }
+
+    private void openProductDetailsOrMoreOptions() {
+        View focus = getCurrentFocus();
+        CardHolder holder = findProductCardHolder(focus);
+        if (holder != null && holder.p != null) {
+            // Prefer the existing card click action so product details stay consistent with touch.
+            holder.card.performClick();
+            return;
+        }
+        showActionsDialog();
+    }
+
+    private boolean isImageViewerShowing() {
+        return imageViewerDialog != null && imageViewerDialog.isShowing();
+    }
+
+    private void dismissImageViewer() {
+        if (imageViewerDialog != null && imageViewerDialog.isShowing()) imageViewerDialog.dismiss();
     }
 
     private int focusDirectionForKey(int keyCode) {
@@ -1067,7 +1305,7 @@ public class MainActivity extends Activity {
                 && focusCardInRowIfAvailable(rowPosition, targetColumn, targetRole)) return;
         int rowDelta = columnDelta > 0 ? 1 : -1;
         int preferredColumn = columnDelta > 0 ? 0 : Math.max(0, cardColumns() - 1);
-        moveFocusToProductRow(rowPosition, preferredColumn, rowDelta, "card");
+        moveFocusToProductRow(rowPosition, preferredColumn, rowDelta, targetRole);
     }
 
     private boolean focusCardInRowIfAvailable(int position, int column, String role) {
@@ -1570,6 +1808,8 @@ public class MainActivity extends Activity {
         int next = 70 + Math.round((bounded - 70) / 5.0f) * 5;
         next = Math.max(70, Math.min(130, next));
         int current = prefs.getInt("ui_scale_percent", 100);
+        if (actionScaleBar != null) actionScaleBar.setProgress((next - 70) / 5);
+        if (actionScaleValue != null) actionScaleValue.setText(next + "%");
         if (next == current) return;
         float ratio = next / (float) current;
         prefs.edit().putInt("ui_scale_percent", next).apply();
@@ -1639,9 +1879,11 @@ public class MainActivity extends Activity {
         panel.addView(scaleLabel, scaleLabelLp);
         int scaleStart = Math.max(70, Math.min(130, prefs.getInt("ui_scale_percent", 100)));
         TextView scaleValue = muted(scaleStart + "%", 12);
+        actionScaleValue = scaleValue;
         scaleValue.setGravity(Gravity.CENTER);
         panel.addView(scaleValue, new LinearLayout.LayoutParams(-1, -2));
         SeekBar scaleBar = new SeekBar(this);
+        actionScaleBar = scaleBar;
         scaleBar.setMax(12);
         scaleBar.setProgress((scaleStart - 70) / 5);
         scaleBar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -1671,6 +1913,20 @@ public class MainActivity extends Activity {
             toast("גודל התצוגה אופס ל־100%", false);
         });
         panel.addView(resetScaleButton, new LinearLayout.LayoutParams(-1, dp(42)));
+
+        TextView navigationModeButton = btn(
+                simpleKeyboardNavigation() ? "↔  ניווט פשוט: פעיל" : "↔  ניווט לפי פעולה: פעיל",
+                TONAL);
+        navigationModeButton.setGravity(Gravity.CENTER);
+        navigationModeButton.setContentDescription("החלפת מצב ניווט בחצים בכרטיסי המוצרים");
+        navigationModeButton.setOnClickListener(v -> {
+            boolean nextSimple = !simpleKeyboardNavigation();
+            prefs.edit().putBoolean("simple_keyboard_navigation", nextSimple).apply();
+            navigationModeButton.setText(nextSimple ? "↔  ניווט פשוט: פעיל" : "↔  ניווט לפי פעולה: פעיל");
+            styleActionButton(navigationModeButton, nextSimple ? ORANGE_LIGHT : SURFACE,
+                    nextSimple ? ORANGE_DARK : INK, 0);
+        });
+        panel.addView(navigationModeButton, new LinearLayout.LayoutParams(-1, dp(42)));
 
         TextView columnsLabel = text("▦  מספר עמודות בהזמנות", 14, true);
         columnsLabel.setTextColor(INK);
@@ -4274,6 +4530,12 @@ public class MainActivity extends Activity {
         };
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
+        imageViewerDialog = dialog;
+        dialog.setOnKeyListener((d, keyCode, keyEvent) -> {
+            if (keyEvent.getAction() == android.view.KeyEvent.ACTION_DOWN) { d.dismiss(); return true; }
+            return true;
+        });
+        dialog.setOnDismissListener(d -> { if (imageViewerDialog == dialog) imageViewerDialog = null; });
 
         // Any tap anywhere closes the viewer.
         overlay.setOnClickListener(v -> dialog.dismiss());
