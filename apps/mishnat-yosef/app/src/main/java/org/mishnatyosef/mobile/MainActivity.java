@@ -2599,7 +2599,7 @@ public class MainActivity extends Activity {
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView actionsButton = text("⚙️", 22, true);
+        TextView actionsButton = text("⚙️", 16, true);
         actionsButton.setTextColor(nightMode ? INK : ORANGE_DARK);
         actionsButton.setGravity(Gravity.CENTER);
         actionsButton.setSingleLine(true);
@@ -2609,7 +2609,7 @@ public class MainActivity extends Activity {
         actionsButton.setElevation(dp(2));
         actionsButton.setContentDescription("פתיחת הגדרות ופעולות");
         actionsButton.setOnClickListener(v -> showActionsDialog());
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(30), dp(30));
         actionsParams.leftMargin = dp(2);
         header.addView(actionsButton, actionsParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
@@ -7665,7 +7665,7 @@ public class MainActivity extends Activity {
         if (scrollView != null && keepScroll > 0) scrollView.post(() -> scrollView.scrollTo(0, keepScroll));
     }
 
-    /** Brief, lightweight celebration when the last order line is marked as collected. */
+    /** Full-page celebration when the last order line is marked as collected. */
     private void showCollectionConfetti() {
         final View decor = getWindow().getDecorView();
         if (!(decor instanceof FrameLayout)) return;
@@ -7674,25 +7674,42 @@ public class MainActivity extends Activity {
         overlay.setClickable(false);
         overlay.setFocusable(false);
         ((FrameLayout) decor).addView(overlay, new FrameLayout.LayoutParams(-1, -1));
-        final String[] pieces = {"🎉", "✨", "🎊", "🟠", "🟢", "🟡", "💚", "⭐"};
-        final int count = 28;
+
+        // Spread a dense mix of celebratory pieces across the full screen, not just the top.
+        final String[] pieces = {"🎉", "✨", "🎊", "🟠", "🟢", "🟡", "💚", "⭐", "🎈", "🥳"};
         final float density = getResources().getDisplayMetrics().density;
+        final int screenWidth = Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density));
+        final int screenHeight = Math.max(1, (int) (getResources().getDisplayMetrics().heightPixels / density));
+        final int count = 90;
         for (int i = 0; i < count; i++) {
-            TextView piece = text(pieces[i % pieces.length], 19 + (i % 3) * 4, true);
+            final int column = i % 9;
+            final int row = i / 9;
+            final int x = Math.max(0, Math.min(screenWidth - 42, column * Math.max(1, screenWidth - 42) / 8 + ((i * 17) % 27) - 13));
+            final int y = row * Math.max(1, screenHeight - 40) / 9 + ((i * 23) % 35) - 18;
+            TextView piece = text(pieces[i % pieces.length], 18 + (i % 4) * 4, true);
             piece.setGravity(Gravity.CENTER);
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(dp(36), dp(42));
-            params.leftMargin = dp((i * 37 + 13) % Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density) - 36));
-            params.topMargin = -dp(48 + (i % 5) * 18);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(dp(42), dp(46));
+            params.leftMargin = dp(x);
+            params.topMargin = dp(y);
             overlay.addView(piece, params);
-            piece.setRotation((i * 29) % 70 - 35);
-            piece.animate().translationY(getResources().getDisplayMetrics().heightPixels + dp(100))
-                    .translationX(dp((i % 2 == 0 ? 1 : -1) * (12 + i % 5 * 9)))
-                    .rotationBy((i % 2 == 0 ? 1 : -1) * (90 + i % 4 * 35))
-                    .alpha(0.15f).setStartDelay(i * 24L).setDuration(1500 + (i % 5) * 130L).start();
+            piece.setRotation((i * 37) % 100 - 50);
+            piece.setAlpha(0f);
+            piece.setScaleX(0.45f);
+            piece.setScaleY(0.45f);
+            piece.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .translationX(dp((i % 2 == 0 ? 1 : -1) * (12 + i % 6 * 7)))
+                    .translationY(dp((i % 3 == 0 ? -1 : 1) * (14 + i % 7 * 9)))
+                    .rotationBy((i % 2 == 0 ? 1 : -1) * (100 + i % 5 * 35))
+                    .setStartDelay((i % 12) * 22L)
+                    .setDuration(850 + (i % 5) * 110L)
+                    .start();
         }
         ui.postDelayed(() -> {
             if (overlay.getParent() instanceof ViewGroup) ((ViewGroup) overlay.getParent()).removeView(overlay);
-        }, 2600);
+        }, 2300);
     }
 
     private void updateSummaryTotals() {
