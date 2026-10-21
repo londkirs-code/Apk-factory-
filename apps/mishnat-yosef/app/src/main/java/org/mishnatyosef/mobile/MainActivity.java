@@ -669,9 +669,12 @@ public class MainActivity extends Activity {
                 && isSoftKeyboardVisible()) {
             return super.dispatchKeyEvent(event);
         }
-        // Toolbar-only spatial navigation; the product-grid handler below stays unchanged.
-        if (showingOrderScreen && isOrderToolbarView(current)) {
-            if (moveFocusWithinOrderToolbar(current, key)) return true;
+        // Keep the existing path from the order summary back into product navigation.
+        if (!(current == orderSummaryButton && key == android.view.KeyEvent.KEYCODE_DPAD_UP)) {
+            // Toolbar-only spatial navigation; the product-grid handler below stays unchanged.
+            if (showingOrderScreen && isOrderToolbarView(current)) {
+                if (moveFocusWithinOrderToolbar(current, key)) return true;
+            }
         }
         if (event.getAction() == android.view.KeyEvent.ACTION_DOWN
                 && showingOrderScreen && catStripRow != null
