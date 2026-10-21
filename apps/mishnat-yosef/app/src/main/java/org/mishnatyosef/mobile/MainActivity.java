@@ -661,11 +661,14 @@ public class MainActivity extends Activity {
                 || key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
                 || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT;
         if (event.getAction() != android.view.KeyEvent.ACTION_DOWN || !direction
-                || screenKind != 1 || productList == null
-                || (activeProductSearch != null && activeProductSearch.hasFocus())) {
+                || screenKind != 1 || productList == null) {
             return super.dispatchKeyEvent(event);
         }
         View current = getCurrentFocus();
+        if (activeProductSearch != null && activeProductSearch.hasFocus()
+                && isSoftKeyboardVisible()) {
+            return super.dispatchKeyEvent(event);
+        }
         if (event.getAction() == android.view.KeyEvent.ACTION_DOWN
                 && showingOrderScreen && catStripRow != null
                 && isDescendantOf(current, catStripRow)) {
@@ -688,8 +691,7 @@ public class MainActivity extends Activity {
             return moveFocusFromOrderSummaryToLastProduct();
         }
         if (current == null || !isProductNavigationView(current)) {
-            View start = firstProductNavigationTarget();
-            if (start != null) { requestProductFocus(start); return true; }
+            // Don't hijack D-pad navigation from the toolbar or other controls into the product grid.
             return super.dispatchKeyEvent(event);
         }
         CardHolder focusedCard = findProductCardHolder(current);
@@ -979,6 +981,86 @@ public class MainActivity extends Activity {
             case android.view.KeyEvent.KEYCODE_DPAD_LEFT: return View.FOCUS_LEFT;
             case android.view.KeyEvent.KEYCODE_DPAD_RIGHT: return View.FOCUS_RIGHT;
             default: return View.FOCUS_FORWARD;
+        }
+    }
+
+    private boolean isOrderToolbarView(View view) {
+        if (view == null) return false;
+        View node = view;
+        while (node != null) {
+            Object tag = node.getTag();
+            if ("orderTopToolbar".equals(tag) || "orderCategoryStrip".equals(tag)) return true;
+            android.view.ViewParent parent = node.getParent();
+            node = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
+
+    private boolean moveFocusWithinOrderToolbar(View current, int key) {
+        if (current == null) return false;
+        int direction;
+        switch (key) {
+            case android.view.KeyEvent.KEYCODE_DPAD_UP: direction = View.FOCUS_UP; break;
+            case android.view.KeyEvent.KEYCODE_DPAD_DOWN: direction = View.FOCUS_DOWN; break;
+            case android.view.KeyEvent.KEYCODE_DPAD_LEFT: direction = View.FOCUS_LEFT; break;
+            case android.view.KeyEvent.KEYCODE_DPAD_RIGHT: direction = View.FOCUS_RIGHT; break;
+            default: return false;
+        }
+        View target = current.focusSearch(direction);
+        if (target == null || target == current || !isOrderToolbarView(target)
+                || !target.isShown() || !target.isFocusable() || !target.isEnabled()) {
+            target = findNearestOrderToolbarFocus(current, direction);
+        }
+        if (target == null || target == current) return false;
+        target.requestFocus();
+        if (target.hasFocus()) {
+            if (isDescendantOf(target, catStripRow)) scrollCategoryChipIntoView(target);
+            return true;
+        }
+        return false;
+    }
+
+    private View findNearestOrderToolbarFocus(View current, int direction) {
+        View decor = getWindow() == null ? null : getWindow().getDecorView();
+        if (decor == null || current == null) return null;
+        int[] from = new int[2];
+        current.getLocationOnScreen(from);
+        float cx = from[0] + current.getWidth() / 2f;
+        float cy = from[1] + current.getHeight() / 2f;
+        View best = null;
+        double bestScore = Double.MAX_VALUE;
+        ArrayList<View> candidates = new ArrayList<>();
+        collectFocusableOrderToolbarViews(decor, candidates, current);
+        for (View candidate : candidates) {
+            int[] pos = new int[2];
+            candidate.getLocationOnScreen(pos);
+            float dx = pos[0] + candidate.getWidth() / 2f - cx;
+            float dy = pos[1] + candidate.getHeight() / 2f - cy;
+            boolean valid;
+            double primary, secondary;
+            if (direction == View.FOCUS_LEFT) { valid = dx < -dp(2); primary = -dx; secondary = Math.abs(dy); }
+            else if (direction == View.FOCUS_RIGHT) { valid = dx > dp(2); primary = dx; secondary = Math.abs(dy); }
+            else if (direction == View.FOCUS_UP) { valid = dy < -dp(2); primary = -dy; secondary = Math.abs(dx); }
+            else { valid = dy > dp(2); primary = dy; secondary = Math.abs(dx); }
+            if (!valid) continue;
+            double score = primary + secondary * 1.8;
+            if (score < bestScore) { bestScore = score; best = candidate; }
+        }
+        return best;
+    }
+
+    private void collectFocusableOrderToolbarViews(View view, List<View> out, View current) {
+        if (view == null) return;
+        if (view != current && isOrderToolbarView(view)
+                && view.isFocusable() && view.isShown() && view.isEnabled()
+                && !(view instanceof ViewGroup && ((ViewGroup) view).getChildCount() > 0)) {
+            out.add(view);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                collectFocusableOrderToolbarViews(group.getChildAt(i), out, current);
+            }
         }
     }
 
@@ -5139,15 +5221,15 @@ public class MainActivity extends Activity {
                     if (snapshot == null) continue;
                     String saleName = snapshot.saleName == null ? "" : snapshot.saleName.trim();
                     if (saleName.isEmpty()) saleName = "מכירה #" + saleId;
-                    LinearLayout item = card(10);
-                    item.setPadding(dp(14), dp(7), dp(14), dp(7));
-                    item.setMinimumHeight(dp(60));
+                    LinearLayout item = card(16);
+                    item.setPadding(dp(16), dp(16), dp(16), dp(16));
+                    item.setMinimumHeight(dp(88));
                     item.setClickable(true);
                     item.setFocusable(true);
-                    TextView saleTitleView = text(saleName, 16, true);
+                    TextView saleTitleView = text(saleName, 18, true);
                     saleTitleView.setTextColor(INK);
                     saleTitleView.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-                    item.addView(saleTitleView, lp(-1, -2, 0, 1));
+                    item.addView(saleTitleView, lp(-1, -2, 0, 4));
                     final int snapshotSaleId = saleId;
                     final JSONObject cachedOrder = new JSONObject();
                     try {
@@ -5160,7 +5242,7 @@ public class MainActivity extends Activity {
                     item.setContentDescription("פתיחת ההזמנה מההיסטוריה: " + saleName);
                     item.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
                     saleTitleView.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
-                    root.addView(item, lp(-1, -2, 0, 6));
+                    root.addView(item, lp(-1, -2, 0, 4));
                 }
             });
             Map<Integer, String> saleNames = fetchCachedSaleNames(new HashSet<>(cachedSaleIds));
@@ -6219,6 +6301,8 @@ public class MainActivity extends Activity {
         topBox.setOrientation(LinearLayout.VERTICAL);
 
         catStripScroll = new HorizontalScrollView(this);
+        catStripScroll.setTag("orderCategoryStrip");
+        catStripScroll.setFocusable(false);
         catStripScroll.setHorizontalScrollBarEnabled(false);
         catStripScroll.setBackgroundColor(SURFACE);
         catStripScroll.setPadding(dp(8), dp(5), dp(8), dp(5));
@@ -6228,11 +6312,13 @@ public class MainActivity extends Activity {
         topBox.addView(catStripScroll, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setTag("orderTopToolbar");
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(8), dp(5), dp(8), dp(5));
 
         EditText search = field("חיפוש מוצר…", InputType.TYPE_CLASS_TEXT);
         activeProductSearch = search;
+        search.setTag("orderToolbarSearch");
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setText(filterText);
         search.setTextSize(14);
@@ -6265,6 +6351,8 @@ public class MainActivity extends Activity {
                 if (imm != null) imm.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT);
             });
         });
+        clearSearch.setTag("orderToolbarClearSearch");
+        clearSearch.setFocusable(true);
         productSearchClearButton = clearSearch;
         final Runnable[] debounce = new Runnable[1];
         search.addTextChangedListener(new TextWatcher() {
@@ -6303,6 +6391,7 @@ public class MainActivity extends Activity {
         orderBtn.setFocusable(true);
         orderBtn.setFocusableInTouchMode(false);
         orderSummaryButton = orderBtn;
+        orderBtn.setTag("orderToolbarSummary");
         orderBtn.setPadding(dp(8), dp(2), dp(8), dp(2));
         orderBtn.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         orderBtn.addView(orderTitle, new LinearLayout.LayoutParams(-1, -2));
@@ -6322,6 +6411,9 @@ public class MainActivity extends Activity {
         });
 
         TextView optionsBtn = roundBtn("⋯", 32, ORANGE_LIGHT, ORANGE_DARK);
+        optionsBtn.setTag("orderToolbarOptions");
+        optionsBtn.setFocusable(true);
+        optionsBtn.setContentDescription("אפשרויות נוספות");
         optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
         optionsBtn.setContentDescription("אפשרויות נוספות");
         LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(32), dp(40));
