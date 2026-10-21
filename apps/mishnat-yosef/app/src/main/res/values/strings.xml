@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">משנת יוסף</string>
-    <string name="release_notes_title">תיקון כיווני מקשי * ו-#</string>
-    <string name="release_notes_details">- תוקן מעבר הכרטיסיות כך שמקשי * ו-# לא יפעלו בכיוון ההפוך.\n- מקש * עובר לכרטיסייה הבאה, ומקש # לכרטיסייה הקודמת; מקש + נשאר מעבר לכרטיסייה הבאה.\n- נשמרת תמיכה גם במקלדות שמדווחות על הסימנים באמצעות Shift+8 ו-Shift+3.</string>
+    <string name="release_notes_title">קפיצה מיידית לראש ולסוף הרשימה</string>
+    <string name="release_notes_details">- מקש 2 מעביר מיד לראש הרשימה ומקש 8 מיד לסופה, בלי אנימציית החלקה.\n- השינוי חל גם ברשימת המוצרים וגם במסכים הגלילים, בלי לשנות את פעולת מקשי הגלילה 1 ו-3.</string>
 </resources>
