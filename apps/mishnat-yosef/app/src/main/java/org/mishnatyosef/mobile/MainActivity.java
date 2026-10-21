@@ -650,7 +650,7 @@ public class MainActivity extends Activity {
             if (control != null) { control.requestFocus(); return true; }
         }
 
-        View candidate = current.focusSearch(key);
+        View candidate = current.focusSearch(focusDirectionForKey(key));
         if (candidate != null && candidate != current && isProductNavigationView(candidate)
                 && candidate.isShown() && candidate.isFocusable()) {
             candidate.requestFocus();
@@ -666,6 +666,16 @@ public class MainActivity extends Activity {
             }
         }
         return true; // keep D-pad navigation inside the product area; do not leak to unrelated chrome
+    }
+
+    private int focusDirectionForKey(int keyCode) {
+        switch (keyCode) {
+            case android.view.KeyEvent.KEYCODE_DPAD_UP: return View.FOCUS_UP;
+            case android.view.KeyEvent.KEYCODE_DPAD_DOWN: return View.FOCUS_DOWN;
+            case android.view.KeyEvent.KEYCODE_DPAD_LEFT: return View.FOCUS_LEFT;
+            case android.view.KeyEvent.KEYCODE_DPAD_RIGHT: return View.FOCUS_RIGHT;
+            default: return View.FOCUS_FORWARD;
+        }
     }
 
     private boolean isProductNavigationView(View view) {
