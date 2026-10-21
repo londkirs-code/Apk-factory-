@@ -897,12 +897,22 @@ public class MainActivity extends Activity {
         List<View> controls = new ArrayList<>();
         collectCardControls(card, card, controls);
         boolean onControl = controls.contains(focused);
+        Object focusedTag = focused == null ? null : focused.getTag();
+        boolean primaryOrderControl = focusedTag instanceof String
+                && ("productAdd".equals(focusedTag) || "productPlus".equals(focusedTag)
+                || "productMinus".equals(focusedTag) || "productQty".equals(focusedTag));
         if (!onControl && keyCode == KeyEvent.KEYCODE_DPAD_DOWN && !controls.isEmpty()) {
             View entry = entryControl(controls, keyCode, 0, 0);
             if (entry != null && entry.requestFocus()) { ensureRowVisible(rowViewOf(card)); return true; }
         }
         View reference = onControl ? focused : card;
-        if (onControl) {
+        // Product-order controls are anchored at the bottom of each card. Vertical arrows from
+        // these controls must move to the neighbouring product card, not be captured by unrelated
+        // lower controls (e.g. stock/auto-order actions) inside the same card. Horizontal arrows
+        // still use the in-card control navigation for + / quantity / -.
+        boolean verticalFromOrderControl = primaryOrderControl
+                && (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN);
+        if (onControl && !verticalFromOrderControl) {
             View inCard = nearestControlInCard(focused, controls, keyCode);
             if (inCard != null && inCard.requestFocus()) { ensureRowVisible(rowViewOf(card)); return true; }
         }
