@@ -6333,8 +6333,9 @@ public class MainActivity extends Activity {
             imageBox.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(imageHeight)));
             image.setLayoutParams(new FrameLayout.LayoutParams(-1, dp(imageHeight)));
             name.setTextSize(12 * scale);
-            name.setMinLines(columns >= 4 ? 1 : 2);
-            name.setMaxLines(columns >= 4 ? 2 : 3);
+            int nameLines = columns >= 4 ? 2 : 3;
+            name.setMinLines(nameLines);
+            name.setMaxLines(nameLines);
             pack.setTextSize(10 * scale);
             price.setTextSize(14 * scale);
             maxView.setTextSize(10 * scale);
@@ -6382,18 +6383,18 @@ public class MainActivity extends Activity {
             name.setText(productName(prod));
             String packText = packageText(prod);
             pack.setText(packText);
-            pack.setVisibility(packText.isEmpty() ? View.GONE : View.VISIBLE);
+            pack.setVisibility(packText.isEmpty() ? View.INVISIBLE : View.VISIBLE);
             double pr = productPrice(prod);
             price.setText(pr > 0 ? money(pr) : "—");
             int mx = maxPerMan(prod);
             maxView.setText("מקסימום " + mx);
-            maxView.setVisibility(showMax() && mx > 0 ? View.VISIBLE : View.GONE);
+            maxView.setVisibility(showMax() && mx > 0 ? View.VISIBLE : View.INVISIBLE);
             int savedQ = favSavedQty(pid);
             savedView.setText("📌 כמות שמורה ×" + savedQ);
-            savedView.setVisibility(savedQ > 0 && favIds.contains(pid) ? View.VISIBLE : View.GONE);
+            savedView.setVisibility(savedQ > 0 && favIds.contains(pid) ? View.VISIBLE : View.INVISIBLE);
             String up = unitPriceText(prod);
             unitView.setText(up);
-            unitView.setVisibility(up.isEmpty() ? View.GONE : View.VISIBLE);
+            unitView.setVisibility(up.isEmpty() ? View.INVISIBLE : View.VISIBLE);
 
             add.setText(canOrder ? "הוספה" : (disabled ? "לא זמין" : "אזל מהמלאי"));
             paintButton(add, canOrder ? TONAL : FLAT);
@@ -6444,6 +6445,39 @@ public class MainActivity extends Activity {
         final CardHolder third = new CardHolder();
         final CardHolder fourth = new CardHolder();
         final CardHolder fifth = new CardHolder();
+        int boundPosition = -1;
+        int bindGeneration = 0;
+
+        void resetCardHeights() {
+            for (CardHolder holder : new CardHolder[]{first, second, third, fourth, fifth}) {
+                ViewGroup.LayoutParams params = holder.card.getLayoutParams();
+                if (params != null && params.height != ViewGroup.LayoutParams.WRAP_CONTENT) {
+                    params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                    holder.card.setLayoutParams(params);
+                }
+            }
+        }
+
+        void equalizeCardHeights(int expectedPosition, int expectedColumns, int expectedGeneration) {
+            if (boundPosition != expectedPosition || bindGeneration != expectedGeneration
+                    || cardColumns() != expectedColumns || row.getTag() != this) return;
+            CardHolder[] holders = {first, second, third, fourth, fifth};
+            int maxHeight = 0;
+            for (CardHolder holder : holders) {
+                if (holder.card.getVisibility() == View.VISIBLE) {
+                    maxHeight = Math.max(maxHeight, holder.card.getMeasuredHeight());
+                }
+            }
+            if (maxHeight <= 0) return;
+            for (CardHolder holder : holders) {
+                if (holder.card.getVisibility() != View.VISIBLE) continue;
+                ViewGroup.LayoutParams params = holder.card.getLayoutParams();
+                if (params != null && params.height != maxHeight) {
+                    params.height = maxHeight;
+                    holder.card.setLayoutParams(params);
+                }
+            }
+        }
 
         RowHolder() {
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -6496,11 +6530,16 @@ public class MainActivity extends Activity {
                 h.row.setTag(h);
                 cachedRows.add(h);
             }
+            int columns = cardColumns();
+            h.boundPosition = position;
+            int bindGeneration = ++h.bindGeneration;
+            // A recycled row may carry the previous row's equalized height. Always
+            // return to natural sizing before binding the new products or column count.
+            h.resetCardHeights();
             h.first.card.setVisibility(View.VISIBLE);
             h.first.bind(r.a);
             CardHolder[] holders = {h.second, h.third, h.fourth, h.fifth};
             JSONObject[] products = {r.b, r.c, r.d, r.e};
-            int columns = cardColumns();
             for (int i = 0; i < holders.length; i++) {
                 if (i + 1 >= columns) {
                     // These cells are outside the selected grid; remove them from layout width.
@@ -6513,6 +6552,10 @@ public class MainActivity extends Activity {
                     holders[i].card.setVisibility(View.INVISIBLE);
                 }
             }
+            // Wait until the row has been laid out at the current column widths,
+            // then match all visible cards to the tallest card in this row.
+            h.row.post(() -> h.row.post(() ->
+                    h.equalizeCardHeights(position, columns, bindGeneration)));
             return h.row;
         }
     }
