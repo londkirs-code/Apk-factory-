@@ -1,9 +1,9 @@
 {
-  "versionCode": 336,
-  "versionName": "1.4791",
+  "versionCode": 337,
+  "versionName": "1.4792",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "514d3f4ae483309254f96e9a2ca758831e46e8b34be60ce246575a5f14610f93",
-  "releaseTitle": "קפיצה מיידית לראש ולסוף הרשימה",
-  "releaseNotes": "- מקש 2 מעביר מיד לראש הרשימה ומקש 8 מיד לסופה, בלי אנימציית החלקה.\n- השינוי חל גם ברשימת המוצרים וגם במסכים הגלילים, בלי לשנות את פעולת מקשי הגלילה 1 ו-3.",
-  "buildCommit": "b3007b4bccfaa78c63939d7ac5cc18b1b899ab4c"
+  "sha256": "0f29c4b97131aabf363ff044a1e9b93c0599eb75d90e4dfa2bcb0865f72963ac",
+  "releaseTitle": "ניווט מקלדת בסרגל ההזמנה",
+  "releaseNotes": "- מהפריט הראשון אפשר להגיע בעזרת למעלה או ימינה לפקדים שמעל רשימת המוצרים.\n- סרגל הקטגוריות תומך במעבר בין הכפתורים באמצעות החצים, בגלילה אוטומטית של הסרגל ובבחירת קטגוריה עם מקש האישור.\n- נשמרו פעולות ההזמנה וקיצורי המקלדת הקיימים.",
+  "buildCommit": "e8a9415a7ec50cbae34c8daf151a37f7715599d6"
 }
