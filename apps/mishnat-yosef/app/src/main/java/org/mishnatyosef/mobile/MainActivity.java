@@ -385,6 +385,7 @@ public class MainActivity extends Activity {
     private EditText activeProductSearch;
     private View productSearchClearButton;
     private AlertDialog imageViewerDialog;
+    private SeekBar actionScaleBar;
 
     // ---- ordering state
     private JSONObject featureSale = null;
@@ -722,12 +723,35 @@ public class MainActivity extends Activity {
         boolean textEditing = isTextEditorFocused() && isSoftKeyboardVisible();
         if (textEditing) return false;
 
+        View focusedForKeyboard = getCurrentFocus();
+        if (focusedForKeyboard instanceof SeekBar && focusedForKeyboard == actionScaleBar) {
+            int progress = actionScaleBar.getProgress();
+            int next = progress;
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                next += key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1;
+            } else if (key == android.view.KeyEvent.KEYCODE_PAGE_UP) next += 4;
+            else if (key == android.view.KeyEvent.KEYCODE_PAGE_DOWN) next -= 4;
+            else if (key == android.view.KeyEvent.KEYCODE_MOVE_HOME) next = 0;
+            else if (key == android.view.KeyEvent.KEYCODE_MOVE_END) next = actionScaleBar.getMax();
+            else next = -1;
+            if (next >= 0) {
+                next = Math.max(0, Math.min(actionScaleBar.getMax(), next));
+                actionScaleBar.setProgress(next);
+                changeUiScale(70 + next * 5);
+                return true;
+            }
+        }
         boolean repeated = event.getRepeatCount() > 0;
         boolean repeatable = key == android.view.KeyEvent.KEYCODE_1
                 || key == android.view.KeyEvent.KEYCODE_2
                 || key == android.view.KeyEvent.KEYCODE_3
                 || key == android.view.KeyEvent.KEYCODE_8;
-        if (repeated && !repeatable) return false;
+        if (repeated && !repeatable) {
+            if (key == android.view.KeyEvent.KEYCODE_4 || key == android.view.KeyEvent.KEYCODE_5
+                    || key == android.view.KeyEvent.KEYCODE_6 || key == android.view.KeyEvent.KEYCODE_0
+                    || key == android.view.KeyEvent.KEYCODE_7 || key == android.view.KeyEvent.KEYCODE_9) return true;
+            return false;
+        }
 
         if (key == android.view.KeyEvent.KEYCODE_POUND || key == android.view.KeyEvent.KEYCODE_PLUS
                 || key == android.view.KeyEvent.KEYCODE_NUMPAD_ADD) {
@@ -1844,6 +1868,7 @@ public class MainActivity extends Activity {
         scaleValue.setGravity(Gravity.CENTER);
         panel.addView(scaleValue, new LinearLayout.LayoutParams(-1, -2));
         SeekBar scaleBar = new SeekBar(this);
+        actionScaleBar = scaleBar;
         scaleBar.setMax(12);
         scaleBar.setProgress((scaleStart - 70) / 5);
         scaleBar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -4477,6 +4502,10 @@ public class MainActivity extends Activity {
 
         AlertDialog dialog = new AlertDialog.Builder(this).setView(overlay).create();
         imageViewerDialog = dialog;
+        dialog.setOnKeyListener((d, keyCode, keyEvent) -> {
+            if (keyEvent.getAction() == android.view.KeyEvent.ACTION_DOWN) { d.dismiss(); return true; }
+            return true;
+        });
         dialog.setOnDismissListener(d -> { if (imageViewerDialog == dialog) imageViewerDialog = null; });
 
         // Any tap anywhere closes the viewer.
