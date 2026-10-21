@@ -830,59 +830,136 @@ public class MainActivity extends Activity {
     }
 
     /** Scrolls the target product row into view, then focuses the matching action in that product. */
+    /**
+     * Single entry point for keyboard focus inside the order grid.
+     *
+     * The ListView contains category-header rows as well as product rows, while each product row
+     * is a recycled RowHolder with up to five CardHolders. Resolve the target from gridRows first,
+     * then verify the recycled holder is bound to that exact adapter position before focusing it.
+     * Never rely on Android's implicit focus search to choose a neighbouring card.
+     */
     private void focusProductControl(final String sid, final int keyCode, final int refX, final int refY) {
         focusProductControl(sid, keyCode, refX, refY, null);
     }
 
+    private boolean isOrderActionTag(Object tag) {
+        return tag instanceof String && ("productAdd".equals(tag)
+                || "productPlus".equals(tag) || "productMinus".equals(tag)
+                || "productQty".equals(tag) || "productCharge".equals(tag));
+    }
+
+    private View findProductCardInRow(View rowView, String sid) {
+        if (!(rowView != null && rowView.getTag() instanceof RowHolder)) return null;
+        RowHolder holder = (RowHolder) rowView.getTag();
+        for (CardHolder cardHolder : new CardHolder[]{holder.first, holder.second, holder.third, holder.fourth, holder.fifth}) {
+            if (cardHolder.p != null && sid.equals(sidOf(cardHolder.p))
+                    && cardHolder.card.getVisibility() == View.VISIBLE
+                    && ("productCard:" + sid).equals(cardHolder.card.getTag())) {
+                return cardHolder.card;
+            }
+        }
+        return null;
+    }
+
+    private View chooseProductEntryControl(View card, int keyCode, int refX, int refY, String preferredActionTag) {
+        List<View> controls = new ArrayList<>();
+        collectCardControls(card, card, controls);
+        if (controls.isEmpty()) return card;
+
+        // Keep the same kind of action across cards where possible. Add and stepper controls swap
+        // visibility as quantity changes, so each has a deliberate compatible fallback.
+        String[] actionOrder;
+        if ("productCharge".equals(preferredActionTag)) {
+            actionOrder = new String[]{"productCharge"};
+        } else if ("productAdd".equals(preferredActionTag)) {
+            actionOrder = new String[]{"productAdd", "productPlus", "productQty", "productMinus"};
+        } else if ("productPlus".equals(preferredActionTag)) {
+            actionOrder = new String[]{"productPlus", "productAdd", "productQty", "productMinus"};
+        } else if ("productMinus".equals(preferredActionTag)) {
+            actionOrder = new String[]{"productMinus", "productPlus", "productQty", "productAdd"};
+        } else if ("productQty".equals(preferredActionTag)) {
+            actionOrder = new String[]{"productQty", "productPlus", "productMinus", "productAdd"};
+        } else {
+            actionOrder = new String[0];
+        }
+        for (String tag : actionOrder) {
+            for (View control : controls) {
+                if (tag.equals(control.getTag()) && control.isShown() && control.isEnabled() && control.isFocusable()) {
+                    return control;
+                }
+            }
+        }
+
+        List<View> orderControls = new ArrayList<>();
+        for (View control : controls) {
+            if (isOrderActionTag(control.getTag()) && control.isShown() && control.isEnabled() && control.isFocusable()) {
+                orderControls.add(control);
+            }
+        }
+        List<View> candidates = orderControls.isEmpty() ? controls : orderControls;
+        View best = null;
+        long bestScore = Long.MAX_VALUE;
+        for (View candidate : candidates) {
+            int[] center = centerOnScreen(candidate);
+            long score;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                // Preserve the source column first; use vertical distance only as a tie-breaker.
+                score = (long) Math.abs(center[0] - refX) * 100000L + Math.abs(center[1] - refY);
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) score += center[1];
+                else score += Math.max(0, -center[1]);
+            } else {
+                score = (long) Math.abs(center[1] - refY) * 100000L + Math.abs(center[0] - refX);
+            }
+            if (score < bestScore) { bestScore = score; best = candidate; }
+        }
+        return best == null ? card : best;
+    }
+
+    /** Focus a specific product only after the ListView has bound the intended recycled row. */
     private void focusProductControl(final String sid, final int keyCode, final int refX,
                                      final int refY, final String preferredActionTag) {
-        if (productList == null) return;
+        if (productList == null || sid == null || sid.isEmpty()) return;
         final int[] pos = productGridPos(sid);
         if (pos == null) return;
-        final int position = pos[0];
-        int first = productList.getFirstVisiblePosition(), last = productList.getLastVisiblePosition();
-        if (position < first || position > last) {
-            View anyRow = productList.getChildAt(0);
-            int rowHeight = anyRow == null ? dp(200) : anyRow.getHeight();
+        final int adapterPosition = pos[0];
+        int first = productList.getFirstVisiblePosition();
+        int last = productList.getLastVisiblePosition();
+        if (adapterPosition < first || adapterPosition > last) {
+            View visibleRow = productList.getChildAt(0);
+            int rowHeight = visibleRow == null ? dp(200) : Math.max(visibleRow.getHeight(), dp(120));
             int top = keyCode == KeyEvent.KEYCODE_DPAD_DOWN
                     ? Math.max(dp(8), productList.getHeight() - rowHeight - dp(24)) : dp(8);
-            productList.setSelectionFromTop(position, top);
+            productList.setSelectionFromTop(adapterPosition, top);
         }
+
         final int[] attempts = {0};
+        final View screenAtRequest = currentScreen;
         Runnable tryFocus = new Runnable() {
             @Override public void run() {
-                if (productList == null || !showingOrderScreen) return;
+                if (productList == null || !showingOrderScreen || currentScreen != screenAtRequest) return;
                 int firstNow = productList.getFirstVisiblePosition();
-                View rowView = position >= firstNow && position <= productList.getLastVisiblePosition()
-                        ? productList.getChildAt(position - firstNow) : null;
-                View card = rowView == null ? null : findTaggedView(rowView, "productCard:" + sid);
-                if (card != null && card.isShown()) {
-                    List<View> controls = new ArrayList<>();
-                    collectCardControls(card, card, controls);
-                    List<View> preferred = new ArrayList<>();
-                    if (preferredActionTag != null) {
-                        for (View control : controls) {
-                            if (preferredActionTag.equals(control.getTag())) preferred.add(control);
-                        }
-                    }
-                    // Vertical navigation between cards should land on the same action when possible.
-                    // Otherwise prefer order actions over unrelated focusable content in the card.
-                    if (preferred.isEmpty() && (keyCode == KeyEvent.KEYCODE_DPAD_DOWN
-                            || keyCode == KeyEvent.KEYCODE_DPAD_UP)) {
-                        for (View control : controls) {
-                            Object tag = control.getTag();
-                            if (tag instanceof String && ("productAdd".equals(tag)
-                                    || "productPlus".equals(tag) || "productMinus".equals(tag)
-                                    || "productQty".equals(tag) || "productCharge".equals(tag))) {
-                                preferred.add(control);
-                            }
-                        }
-                    }
-                    List<View> candidates = preferred.isEmpty() ? controls : preferred;
-                    View target = candidates.isEmpty() ? card : entryControl(candidates, keyCode, refX, refY);
-                    if (target != null && target.requestFocus()) { ensureRowVisible(rowView); return; }
+                int lastNow = productList.getLastVisiblePosition();
+                View rowView = adapterPosition >= firstNow && adapterPosition <= lastNow
+                        ? productList.getChildAt(adapterPosition - firstNow) : null;
+                View card = null;
+                if (rowView != null && rowView.getTag() instanceof RowHolder) {
+                    RowHolder holder = (RowHolder) rowView.getTag();
+                    if (holder.boundPosition == adapterPosition) card = findProductCardInRow(rowView, sid);
                 }
-                if (++attempts[0] < 8) productList.postDelayed(this, 30);
+                if (card != null && card.isShown()) {
+                    View target = chooseProductEntryControl(card, keyCode, refX, refY, preferredActionTag);
+                    if (target != null && target.isShown() && target.isEnabled() && target.isFocusable()
+                            && target.requestFocus() && getCurrentFocus() == target) {
+                        ensureRowVisible(rowView);
+                        return;
+                    }
+                    // If the action cannot take focus (e.g. read-only state), focus the card itself.
+                    if (card.isFocusable() && card.requestFocus() && getCurrentFocus() == card) {
+                        ensureRowVisible(rowView);
+                        return;
+                    }
+                }
+                if (++attempts[0] < 12) productList.postDelayed(this, 35);
             }
         };
         productList.post(tryFocus);
@@ -892,11 +969,12 @@ public class MainActivity extends Activity {
         if (productList == null) return false;
         for (int i = 0; i < productList.getChildCount(); i++) {
             View rowView = productList.getChildAt(i);
-            if (rowView == null || !(rowView.getTag() instanceof RowHolder)) continue;
-            RowHolder h = (RowHolder) rowView.getTag();
-            for (CardHolder ch : new CardHolder[]{h.first, h.second, h.third, h.fourth, h.fifth}) {
+            if (!(rowView != null && rowView.getTag() instanceof RowHolder)) continue;
+            RowHolder holder = (RowHolder) rowView.getTag();
+            for (CardHolder ch : new CardHolder[]{holder.first, holder.second, holder.third, holder.fourth, holder.fifth}) {
                 if (ch.p != null && ch.card.isShown()) {
-                    focusProductControl(sidOf(ch.p), KeyEvent.KEYCODE_DPAD_DOWN, 0, 0);
+                    focusProductControl(sidOf(ch.p), KeyEvent.KEYCODE_DPAD_DOWN, centerOnScreen(ch.card)[0],
+                            centerOnScreen(ch.card)[1], null);
                     return true;
                 }
             }
@@ -905,68 +983,77 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Keypad-only navigation of the order grid: arrows move between the controls of one product
-     * (+ / quantity / -) and then between products, always landing on a control and never on a title.
-     * Returns false when the key should keep its default behaviour (e.g. UP from the first row).
+     * One navigation policy for all controls inside order cards. Horizontal arrows first traverse
+     * controls within the current card; vertical arrows from order actions move to the adjacent
+     * product row in the same logical column. Every cross-card move explicitly resolves a product
+     * and explicitly focuses its bound card/control instead of handing control to Android's focus
+     * search (which can jump to the first card in a row or to a category header).
      */
     private boolean handleOrderGridDpad(int keyCode) {
         if (productList == null || gridRows.isEmpty()) return false;
         View focused = getCurrentFocus();
         View card = enclosingProductCard(focused);
         if (card == null) {
-            // Nothing (or only the list itself) has focus: the first press lands on the first visible product.
             if (focused == null || focused == productList) return focusFirstVisibleProduct();
             return false;
         }
-        String sid = ((String) card.getTag()).substring("productCard:".length());
-        List<View> controls = new ArrayList<>();
-        collectCardControls(card, card, controls);
-        boolean onControl = controls.contains(focused);
-        Object focusedTag = focused == null ? null : focused.getTag();
-        boolean primaryOrderControl = focusedTag instanceof String
-                && ("productAdd".equals(focusedTag) || "productPlus".equals(focusedTag)
-                || "productMinus".equals(focusedTag) || "productQty".equals(focusedTag)
-                || "productCharge".equals(focusedTag));
-        if (!onControl && keyCode == KeyEvent.KEYCODE_DPAD_DOWN && !controls.isEmpty()) {
-            View entry = entryControl(controls, keyCode, 0, 0);
-            if (entry != null && entry.requestFocus()) { ensureRowVisible(rowViewOf(card)); return true; }
-        }
-        View reference = onControl ? focused : card;
-        // Product-order controls are anchored at the bottom of each card. Vertical arrows from
-        // these controls must move to the neighbouring product card, not be captured by unrelated
-        // lower controls (e.g. stock/auto-order actions) inside the same card. Horizontal arrows
-        // still use the in-card control navigation for + / quantity / -.
-        boolean verticalFromOrderControl = primaryOrderControl
-                && (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN);
-        if (onControl && !verticalFromOrderControl) {
-            View inCard = nearestControlInCard(focused, controls, keyCode);
-            if (inCard != null && inCard.requestFocus()) { ensureRowVisible(rowViewOf(card)); return true; }
-        }
+        Object cardTag = card.getTag();
+        if (!(cardTag instanceof String) || !((String) cardTag).startsWith("productCard:")) return false;
+        String sid = ((String) cardTag).substring("productCard:".length());
         int[] pos = productGridPos(sid);
         if (pos == null) return false;
-        JSONObject target = null;
-        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            Object rowParent = card.getParent();
-            boolean firstCardOnRight = !rtlActive()
-                    || (rowParent instanceof View && ((View) rowParent).getLayoutDirection() == View.LAYOUT_DIRECTION_RTL);
-            boolean wantVisualLeft = keyCode == KeyEvent.KEYCODE_DPAD_LEFT;
-            int step = wantVisualLeft == firstCardOnRight ? 1 : -1;
-            target = productAtGrid(pos[0], pos[1] + step);
-        } else {
-            int step = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1;
-            int rowIndex = pos[0] + step;
-            while (rowIndex >= 0 && rowIndex < gridRows.size() && gridRows.get(rowIndex).header != null) rowIndex += step;
-            if (rowIndex >= 0 && rowIndex < gridRows.size()) {
-                for (int col = Math.min(pos[1], cardColumns() - 1); col >= 0 && target == null; col--) {
-                    target = productAtGrid(rowIndex, col);
-                }
+
+        List<View> controls = new ArrayList<>();
+        collectCardControls(card, card, controls);
+        boolean focusedControl = controls.contains(focused);
+        Object focusedTag = focused == null ? null : focused.getTag();
+        boolean orderAction = isOrderActionTag(focusedTag);
+        boolean vertical = keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN;
+
+        // The left/right arrows navigate the controls inside the same card first. If no control
+        // exists in that direction, the same key continues to the adjacent card.
+        if (focusedControl && !(vertical && orderAction)) {
+            View inCard = nearestControlInCard(focused, controls, keyCode);
+            if (inCard != null && inCard.requestFocus() && getCurrentFocus() == inCard) {
+                ensureRowVisible(rowViewOf(card));
+                return true;
             }
         }
-        if (target == null) return keyCode != KeyEvent.KEYCODE_DPAD_UP;
-        int[] center = centerOnScreen(reference);
-        String preferredActionTag = focusedTag instanceof String
-                && "productCharge".equals(focusedTag) ? "productCharge" : null;
-        focusProductControl(sidOf(target), keyCode, center[0], center[1], preferredActionTag);
+
+        JSONObject target = null;
+        if (!vertical) {
+            GridRow row = gridRows.get(pos[0]);
+            JSONObject[] products = {row.a, row.b, row.c, row.d, row.e};
+            boolean firstCardOnRight = true; // GridRow column zero is deliberately rendered on the visual right.
+            int step = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? (firstCardOnRight ? 1 : -1)
+                    : (firstCardOnRight ? -1 : 1);
+            int nextCol = pos[1] + step;
+            if (nextCol >= 0 && nextCol < cardColumns()) target = products[nextCol];
+        } else {
+            int step = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1;
+            for (int rowIndex = pos[0] + step; rowIndex >= 0 && rowIndex < gridRows.size(); rowIndex += step) {
+                GridRow row = gridRows.get(rowIndex);
+                if (row.header != null) continue;
+                JSONObject[] products = {row.a, row.b, row.c, row.d, row.e};
+                // Same column is the primary rule. If the final row is incomplete, choose the
+                // nearest populated column instead of falling back to the first card unconditionally.
+                if (pos[1] < products.length && products[pos[1]] != null) target = products[pos[1]];
+                else {
+                    int bestDistance = Integer.MAX_VALUE;
+                    for (int col = 0; col < Math.min(cardColumns(), products.length); col++) {
+                        if (products[col] == null) continue;
+                        int distance = Math.abs(col - pos[1]);
+                        if (distance < bestDistance) { bestDistance = distance; target = products[col]; }
+                    }
+                }
+                if (target != null) break;
+            }
+        }
+        if (target == null) return vertical && keyCode == KeyEvent.KEYCODE_DPAD_UP ? false : true;
+
+        int[] reference = centerOnScreen(focusedControl ? focused : card);
+        String preferredActionTag = isOrderActionTag(focusedTag) ? (String) focusedTag : null;
+        focusProductControl(sidOf(target), keyCode, reference[0], reference[1], preferredActionTag);
         return true;
     }
 
@@ -6205,14 +6292,7 @@ public class MainActivity extends Activity {
             card.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             card.setOnFocusChangeListener((view, focused) ->
                     card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE)));
-            card.setOnKeyListener((view, keyCode, event) -> {
-                if (event.getAction() != KeyEvent.ACTION_DOWN || p == null) return false;
-                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-                        || keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    return moveProductCardFocus(p, keyCode);
-                }
-                return false;
-            });
+            // D-pad navigation is centralized in handleOrderGridDpad(); do not install a second handler here.
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
             imageBox = new FrameLayout(MainActivity.this);
