@@ -6220,31 +6220,38 @@ public class MainActivity extends Activity {
             card.addView(imageBox, new LinearLayout.LayoutParams(-1, dp(112)));
 
             name = text("", 12, true);
-            name.setMinLines(2);
+            // Short names use their actual height instead of reserving blank title lines.
+            name.setMinLines(1);
             name.setMaxLines(3);
             name.setEllipsize(TextUtils.TruncateAt.END);
-            card.addView(name, lp(-1, -2, 4, 0));
+            card.addView(name, lp(-1, -2, 2, 0));
             pack = muted("", 10);
             pack.setSingleLine(true);
             pack.setEllipsize(TextUtils.TruncateAt.END);
-            card.addView(pack);
-            price = text("", 14, true);
-            price.setTextColor(ORANGE_DARK);
-            card.addView(price);
+            unitView = muted("", 9);
+            unitView.setSingleLine(true);
+            unitView.setEllipsize(TextUtils.TruncateAt.END);
+            LinearLayout detailsRow = new LinearLayout(MainActivity.this);
+            detailsRow.setOrientation(LinearLayout.HORIZONTAL);
+            detailsRow.setGravity(Gravity.CENTER_VERTICAL);
+            detailsRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            detailsRow.addView(pack, new LinearLayout.LayoutParams(0, -2, 1f));
+            detailsRow.addView(unitView, new LinearLayout.LayoutParams(-2, -2));
+            card.addView(detailsRow, new LinearLayout.LayoutParams(-1, -2));
             maxView = text("", 10, true);
             maxView.setTextColor(ORANGE_DARK);
             card.addView(maxView);
             savedView = muted("", 9);
             card.addView(savedView);
-            unitView = muted("", 9);
-            unitView.setSingleLine(true);
-            unitView.setEllipsize(TextUtils.TruncateAt.END);
-            card.addView(unitView);
 
-            // Flexible space absorbs the extra height of equalized cards, keeping all order actions at the bottom.
+            // Equalization space stays above the price, grouping price with the bottom order controls.
             actionSpacer = new View(MainActivity.this);
             actionSpacer.setFocusable(false);
             card.addView(actionSpacer, new LinearLayout.LayoutParams(-1, 0, 1f));
+            price = text("", 14, true);
+            price.setTextColor(ORANGE_DARK);
+            price.setGravity(Gravity.CENTER);
+            card.addView(price, lp(-1, -2, 0, 0));
 
             controls = new FrameLayout(MainActivity.this);
             add = btn("הוספה", TONAL);
@@ -6341,9 +6348,11 @@ public class MainActivity extends Activity {
         }
 
         private void setCompactOptionalRow(TextView view, boolean visible) {
-            // Keep optional rows aligned without leaving a full blank text line under the price.
+            // Preserve assigned width: unitView shares a horizontal row with package text.
+            ViewGroup.LayoutParams current = view.getLayoutParams();
+            int width = current == null ? -1 : current.width;
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    -1, visible ? ViewGroup.LayoutParams.WRAP_CONTENT : dp(3));
+                    width, visible ? ViewGroup.LayoutParams.WRAP_CONTENT : dp(3));
             view.setLayoutParams(params);
             view.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         }
@@ -6358,7 +6367,7 @@ public class MainActivity extends Activity {
             image.setLayoutParams(new FrameLayout.LayoutParams(-1, dp(imageHeight)));
             name.setTextSize(12 * scale);
             int nameLines = columns >= 4 ? 2 : 3;
-            name.setMinLines(nameLines);
+            name.setMinLines(1);
             name.setMaxLines(nameLines);
             pack.setTextSize(10 * scale);
             price.setTextSize(14 * scale);
