@@ -8615,11 +8615,15 @@ public class MainActivity extends Activity {
         final TextView all = btn("הכול", PRIMARY);
         final TextView credits = btn("זיכויים", TONAL);
         final TextView charges = btn("חיובים", TONAL);
-        final TextView[] chips = {all, credits, charges};
+        final TextView bySale = smallChip("לפי מכירה", TONAL);
+        final TextView shareTx = smallChip("שיתוף", TONAL);
+        final TextView[] chips = {all, credits, charges, bySale, shareTx};
         for (int i = 0; i < chips.length; i++) {
             chips[i].setMinHeight(dp(40));
+            chips[i].setTextSize(12);
+            chips[i].setPadding(dp(2), dp(4), dp(2), dp(4));
             LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(0, dp(40), 1);
-            if (i > 0) fp.setMarginStart(dp(6));
+            if (i > 0) fp.setMarginStart(dp(4));
             filters.addView(chips[i], fp);
         }
         root.addView(filters, lp(-1, -2, 0, 10));
@@ -8637,7 +8641,6 @@ public class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable e) { query[0] = e.toString().trim().toLowerCase(Locale.ROOT); render[0].run(); }
         });
         root.addView(searchBox, root.indexOfChild(filters), lp(-1, dp(46), 0, 8));
-        LinearLayout txTools = new LinearLayout(this);
         int pendingCreditItems = readCreditList().length();
         String creditListLabel = "🧾 רשימת זיכויים וחיובים" + (pendingCreditItems > 0 ? " (" + pendingCreditItems + ")" : "");
         TextView creditListButton = btn(creditListLabel, TONAL);
@@ -8647,22 +8650,29 @@ public class MainActivity extends Activity {
         creditListButton.setMinHeight(dp(48));
         creditListButton.setOnClickListener(v -> showCreditList());
         root.addView(creditListButton, root.indexOfChild(filters), lp(-1, dp(50), 0, 8));
-        TextView bySale = smallChip("📊 לפי מכירה", TONAL);
-        bySale.setOnClickListener(v -> showCreditsBySale(rows));
-        TextView shareTx = smallChip("📤 שיתוף", TONAL);
+        final boolean[] bySaleMode = {false};
+        final Set<String> expandedSales = new HashSet<>();
+        bySale.setOnClickListener(v -> {
+            bySaleMode[0] = !bySaleMode[0];
+            if (bySaleMode[0]) mode[0] = "all";
+            render[0].run();
+        });
         shareTx.setOnClickListener(v -> shareText("זיכויים וחיובים", creditsText(rows)));
-        txTools.addView(bySale);
-        LinearLayout.LayoutParams stl = new LinearLayout.LayoutParams(-2, -2);
-        stl.setMarginStart(dp(8));
-        txTools.addView(shareTx, stl);
-        root.addView(txTools, root.indexOfChild(filters), lp(-1, -2, 0, 8));
         render[0] = () -> {
             list.removeAllViews();
             String[] keys = {"all", "credit", "charge"};
-            for (int i = 0; i < chips.length; i++) {
-                boolean on = keys[i].equals(mode[0]);
+            for (int i = 0; i < 3; i++) {
+                boolean on = keys[i].equals(mode[0]) && !bySaleMode[0];
                 chips[i].setBackground(ripple(shape(on ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
                 chips[i].setTextColor(on ? ON_ORANGE : ORANGE_DARK);
+            }
+            bySale.setBackground(ripple(shape(bySaleMode[0] ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+            bySale.setTextColor(bySaleMode[0] ? ON_ORANGE : ORANGE_DARK);
+            shareTx.setBackground(ripple(shape(ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+            shareTx.setTextColor(ORANGE_DARK);
+            if (bySaleMode[0]) {
+                renderTransactionsBySale(rows, list, mode[0], query[0], expandedSales);
+                return;
             }
             for (JSONObject tx : rows) {
                 double amount = tx.optDouble("skum", 0);
@@ -8672,10 +8682,86 @@ public class MainActivity extends Activity {
                 list.addView(transactionCard(tx, amount), lp(-1, -2, 0, 8));
             }
         };
-        all.setOnClickListener(v -> { mode[0] = "all"; render[0].run(); });
-        credits.setOnClickListener(v -> { mode[0] = "credit"; render[0].run(); });
-        charges.setOnClickListener(v -> { mode[0] = "charge"; render[0].run(); });
+        all.setOnClickListener(v -> { bySaleMode[0] = false; mode[0] = "all"; render[0].run(); });
+        credits.setOnClickListener(v -> { bySaleMode[0] = false; mode[0] = "credit"; render[0].run(); });
+        charges.setOnClickListener(v -> { bySaleMode[0] = false; mode[0] = "charge"; render[0].run(); });
         render[0].run();
+    }
+
+    private void renderTransactionsBySale(List<JSONObject> rows, LinearLayout list,
+                                          String mode, String query, Set<String> expandedSales) {
+        Map<String, List<JSONObject>> groups = new LinkedHashMap<>();
+        Map<String, String> labels = new LinkedHashMap<>();
+        Map<String, String> latest = new LinkedHashMap<>();
+        for (JSONObject tx : rows) {
+            if (tx.optBoolean("canceled", false)) continue;
+            double amount = tx.optDouble("skum", 0);
+            if ("credit".equals(mode) && amount >= 0) continue;
+            if ("charge".equals(mode) && amount <= 0) continue;
+            if (!query.isEmpty() && !txSearchText(tx).contains(query)) continue;
+            String[] names = txNames(tx);
+            String label = !names[1].isEmpty() ? names[1] : (!names[0].isEmpty() ? names[0] : "ללא מכירה (כללי)");
+            String key = label;
+            List<JSONObject> group = groups.get(key);
+            if (group == null) {
+                group = new ArrayList<>();
+                groups.put(key, group);
+                labels.put(key, label);
+                latest.put(key, "");
+            }
+            group.add(tx);
+            String time = tx.optString("time", "");
+            if (time.compareTo(latest.get(key)) > 0) latest.put(key, time);
+        }
+        List<String> keys = new ArrayList<>(groups.keySet());
+        Collections.sort(keys, (a, b) -> latest.get(b).compareTo(latest.get(a)));
+        if (keys.isEmpty()) {
+            list.addView(muted("לא נמצאו מכירות עם תנועות התואמות לסינון.", 14), lp(-1, -2, 0, 8));
+            return;
+        }
+        for (String key : keys) {
+            List<JSONObject> group = groups.get(key);
+            double creditsTotal = 0, chargesTotal = 0;
+            int creditCount = 0, chargeCount = 0;
+            for (JSONObject tx : group) {
+                double amount = tx.optDouble("skum", 0);
+                if (amount < 0) { creditsTotal += -amount; creditCount++; }
+                else if (amount > 0) { chargesTotal += amount; chargeCount++; }
+            }
+            boolean expanded = expandedSales.contains(key);
+            LinearLayout saleCard = card(12);
+            saleCard.setPadding(dp(12), dp(10), dp(12), dp(10));
+            LinearLayout headingRow = new LinearLayout(this);
+            headingRow.setOrientation(LinearLayout.HORIZONTAL);
+            headingRow.setGravity(Gravity.CENTER_VERTICAL);
+            TextView toggle = text((expanded ? "−" : "+") + "  " + labels.get(key), 15, true);
+            toggle.setTextColor(INK);
+            toggle.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            toggle.setMaxLines(2);
+            LinearLayout.LayoutParams toggleLp = new LinearLayout.LayoutParams(0, -2, 1f);
+            toggleLp.setMarginEnd(dp(8));
+            headingRow.addView(toggle, toggleLp);
+            TextView count = muted(group.size() + " תנועות", 12);
+            headingRow.addView(count, new LinearLayout.LayoutParams(-2, -2));
+            View.OnClickListener expand = v -> {
+                if (expandedSales.contains(key)) expandedSales.remove(key);
+                else expandedSales.add(key);
+                renderTransactionsBySale(rows, list, mode, query, expandedSales);
+            };
+            headingRow.setOnClickListener(expand);
+            toggle.setOnClickListener(expand);
+            saleCard.addView(headingRow);
+            TextView summary = muted("💚 זיכויים: " + money2(creditsTotal) + " (" + creditCount + ")"
+                    + "   •   🔴 חיובים: " + money2(chargesTotal) + " (" + chargeCount + ")", 12);
+            summary.setPadding(dp(28), dp(4), 0, 0);
+            saleCard.addView(summary);
+            list.addView(saleCard, lp(-1, -2, 0, 6));
+            if (expanded) {
+                for (JSONObject tx : group) {
+                    list.addView(transactionCard(tx, tx.optDouble("skum", 0)), lp(-1, -2, 0, 4));
+                }
+            }
+        }
     }
 
     private View transactionCard(JSONObject tx, double amount) {
