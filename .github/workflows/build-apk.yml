@@ -218,7 +218,9 @@ jobs:
             export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_PASSWORD="$APK_SIGNING_STORE_PASSWORD"
             export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
             export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_PASSWORD="$APK_SIGNING_KEY_PASSWORD"
-            (cd "apps/$app" && gradle --no-daemon assembleRelease -x lintVitalRelease)
+            # Reuse the Gradle daemon across apps in this job and enable task-output caching.
+            # setup-gradle@v4 already caches Gradle distributions and dependencies between runs.
+            (cd "apps/$app" && gradle --build-cache assembleRelease -x lintVitalRelease)
             APK_PATH="apps/$app/app/build/outputs/apk/release/"*.apk
             mkdir -p "downloads/$app"
             cp $APK_PATH "downloads/$app/app.apk"
