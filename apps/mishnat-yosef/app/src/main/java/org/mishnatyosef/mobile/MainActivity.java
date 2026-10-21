@@ -5299,6 +5299,31 @@ public class MainActivity extends Activity {
                     saleTitleView.setTextColor(INK);
                     saleTitleView.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
                     item.addView(saleTitleView, lp(-1, -2, 0, 4));
+
+                    int totalQuantity = 0;
+                    double totalAmount = 0d;
+                    for (JSONObject product : snapshot.products) {
+                        if (product == null) continue;
+                        String sid = sidOf(product);
+                        int quantity = sid.isEmpty() ? 0 : Math.max(0, snapshot.quantities.containsKey(sid)
+                                ? snapshot.quantities.get(sid) : 0);
+                        totalQuantity += quantity;
+                        totalAmount += productPrice(product) * quantity;
+                    }
+                    String orderDate = "לא ידוע";
+                    if (snapshot.loadedAt > 0) {
+                        orderDate = android.text.format.DateFormat.format("dd/MM/yyyy", snapshot.loadedAt).toString();
+                    }
+                    TextView details = muted(
+                            "תאריך: " + orderDate
+                                    + "   •   כמות מוצרים: " + totalQuantity
+                                    + "   •   סה״כ הזמנה: " + money(totalAmount),
+                            14);
+                    details.setTextColor(MUTED);
+                    details.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                    details.setMaxLines(2);
+                    item.addView(details, lp(-1, -2, 0, 2));
+
                     final int snapshotSaleId = saleId;
                     final JSONObject cachedOrder = new JSONObject();
                     try {
