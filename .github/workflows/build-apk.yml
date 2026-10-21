@@ -272,6 +272,11 @@ jobs:
             APP_START=$(date +%s)
             echo "::group::Building $app"
             BUILD_FILE="apps/$app/app/build.gradle"
+            # Fail early with an actionable message instead of generating an unsigned APK.
+            if ! grep -Eq 'signingConfig[[:space:]]+signingConfigs\.release' "$BUILD_FILE"; then
+              echo "::error::Missing persistent release signing configuration in $BUILD_FILE. Add the shared APK_SIGNING_* signing block before building/publishing this app."
+              exit 1
+            fi
             # Keep applicationId unchanged and monotonically increase versionCode.
             CURRENT_CODE=$(sed -nE "s/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p" "$BUILD_FILE" | head -n1)
             if [[ -z "$CURRENT_CODE" ]]; then echo "Missing numeric versionCode in $BUILD_FILE"; exit 1; fi
