@@ -1665,7 +1665,9 @@ public class MainActivity extends Activity {
             int pendingStockSaleId = prefs.getInt(PREF_PENDING_STOCK_SALE_ID, -1);
             String pendingStockSid = prefs.getString(PREF_PENDING_STOCK_SID, "");
             int pendingSaleId = prefs.getInt(PREF_PENDING_NOTIFICATION_SALE_ID, -1);
-            if (pendingStockSaleId > 0 && !pendingStockSid.isEmpty()) {
+            if (getIntent() != null && getIntent().getBooleanExtra("open_notification_settings", false)) {
+                if (hasToken()) showNotificationSettings(); else showLogin();
+            } else if (pendingStockSaleId > 0 && !pendingStockSid.isEmpty()) {
                 openSaleFromStockNotification(pendingStockSaleId, pendingStockSid);
             } else if (pendingSaleId > 0) {
                 openSaleFromNotification(pendingSaleId);
@@ -1694,6 +1696,10 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (intent != null && intent.getBooleanExtra("open_notification_settings", false)) {
+            if (hasToken()) showNotificationSettings(); else showLogin();
+            return;
+        }
         if (intent != null && intent.hasExtra("stock_sale_id") && intent.hasExtra("stock_product_sid")) {
             int stockSaleId = intent.getIntExtra("stock_sale_id", -1);
             String stockSid = intent.getStringExtra("stock_product_sid");
@@ -3607,6 +3613,8 @@ public class MainActivity extends Activity {
         if (updateDownloadInProgress) {
             updateDownloadButton.setEnabled(false);
             updateStatusView.setText("ההורדה מתבצעת ברקע באופן פרטי. אפשר לעקוב אחר ההתקדמות כאן.");
+            updateStatusView.setTextColor(ORANGE_DARK);
+            if (updateProgressBar != null) { updateProgressBar.setVisibility(View.VISIBLE); updateProgressBar.setIndeterminate(true); }
         }
         if (prefs.getBoolean("update_download_verified", false)
                 && prefs.getInt("update_download_verified_code", 0) == updateLatestCode
@@ -3685,7 +3693,8 @@ public class MainActivity extends Activity {
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
-                        updateInstallButton.setVisibility(View.GONE);
+                        updateInstallButton.setVisibility(View.VISIBLE);
+                        updateInstallButton.setEnabled(false);
                         if (autoDownloadAfterCheck) {
                             autoDownloadAfterCheck = false;
                             downloadLatestUpdate();
@@ -3697,7 +3706,8 @@ public class MainActivity extends Activity {
                         updateNotesView.setText(notes.isEmpty() ? "אין פירוט שינויים נוסף." : notes);
                         updateDownloadButton.setEnabled(false);
                         styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
-                        updateInstallButton.setVisibility(View.GONE);
+                        updateInstallButton.setVisibility(View.VISIBLE);
+                        updateInstallButton.setEnabled(false);
                     } else {
                         boolean startOlderVersionDownload = autoDownloadAfterCheck;
                         autoDownloadAfterCheck = false;
@@ -3706,7 +3716,8 @@ public class MainActivity extends Activity {
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
-                        updateInstallButton.setVisibility(View.GONE);
+                        updateInstallButton.setVisibility(View.VISIBLE);
+                        updateInstallButton.setEnabled(false);
                         if (startOlderVersionDownload) downloadLatestUpdate();
                     }
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
