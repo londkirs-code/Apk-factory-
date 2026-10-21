@@ -2459,13 +2459,13 @@ public class MainActivity extends Activity {
             prefs.edit().putBoolean(StockMonitor.ENABLED,on).apply();StockMonitor.scheduleNextCheck(this);toast(on?"בדיקת מלאי הופעלה":"בדיקת מלאי כובתה",false);
         }));
         c.addView(switchRow("התראה גלובלית כשהמוצר אוזל","כל המוצרים הרלוונטיים בכל המכירות הפתוחות",prefs.getBoolean("stock_global_notify_out",false),(b,on)->{
-            prefs.edit().putBoolean("stock_global_notify_out",on).apply();StockMonitor.scheduleNextCheck(this);
+            prefs.edit().putBoolean("stock_global_notify_out",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();StockMonitor.scheduleNextCheck(this);
         }));
         c.addView(switchRow("התראה גלובלית כשהמוצר חוזר למלאי","כל המוצרים הרלוונטיים; התראה רק בעת שינוי מצב",prefs.getBoolean("stock_global_notify_return",false),(b,on)->{
-            prefs.edit().putBoolean("stock_global_notify_return",on).apply();StockMonitor.scheduleNextCheck(this);
+            prefs.edit().putBoolean("stock_global_notify_return",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();StockMonitor.scheduleNextCheck(this);
         }));
-        c.addView(switchRow("התראה כשהמוצר אוזל במעקב אישי","בנוסף להתראות הגלובליות, למוצרים שנבחרו ידנית",prefs.getBoolean("stock_notify_out",true),(b,on)->prefs.edit().putBoolean("stock_notify_out",on).apply()));
-        c.addView(switchRow("התראה כשהמוצר חוזר במעקב אישי","מעקב אישי; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->prefs.edit().putBoolean("stock_notify_return",on).apply()));
+        c.addView(switchRow("התראה כשהמוצר אוזל במעקב אישי","בנוסף להתראות הגלובליות, למוצרים שנבחרו ידנית",prefs.getBoolean("stock_notify_out",true),(b,on)->prefs.edit().putBoolean("stock_notify_out",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification()));
+        c.addView(switchRow("התראה כשהמוצר חוזר במעקב אישי","מעקב אישי; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->prefs.edit().putBoolean("stock_notify_return",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification()));
         c.addView(text("תדירות בדיקה (דקות)",14,true),lp(-1,-2,0,4)); LinearLayout chips=new LinearLayout(this);
         for(int n:new int[]{1,2,5,10,15,30,60}){TextView ch=pickChip(String.valueOf(n));styleChip(ch,prefs.getInt(StockMonitor.INTERVAL,5)==n);
             ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showStockSettings();});
@@ -2771,6 +2771,7 @@ public class MainActivity extends Activity {
     private void showNotificationSettings() {
         beginScreen("הגדרות התראות", 3, this::showAccount);
         screenKind = 3;
+        root.addView(persistentNotificationCard(), lp(-1, -2, 0, 10));
         root.addView(permissionsCard(), lp(-1, -2, 0, 10));
         root.addView(newSaleCard(), lp(-1, -2, 0, 10));
         root.addView(closingCard(), lp(-1, -2, 0, 10));
@@ -3292,6 +3293,62 @@ public class MainActivity extends Activity {
         chip.setTextColor(on ? ON_ORANGE : ORANGE_DARK);
     }
 
+    private boolean hasAnyNotificationFeatureEnabled() {
+        return prefs.getBoolean("sale_monitor_enabled", true)
+                || prefs.getBoolean("closing_reminder_enabled", false)
+                || prefs.getBoolean("stock_global_notify_out", false)
+                || prefs.getBoolean("stock_global_notify_return", false)
+                || prefs.getBoolean("stock_notify_out", true)
+                || prefs.getBoolean("stock_notify_return", true);
+    }
+
+    private String persistentNotificationContent() {
+        java.util.ArrayList<String> enabled = new java.util.ArrayList<>();
+        if (prefs.getBoolean("sale_monitor_enabled", true)) enabled.add("התראות על פתיחת מכירה");
+        if (prefs.getBoolean("closing_reminder_enabled", false)) enabled.add("תזכורת לפני סגירת ההזמנה");
+        boolean out = prefs.getBoolean("stock_global_notify_out", false) || prefs.getBoolean("stock_notify_out", true);
+        boolean back = prefs.getBoolean("stock_global_notify_return", false) || prefs.getBoolean("stock_notify_return", true);
+        if (out && back) enabled.add("עדכונים על מוצרים שאזלו וחזרו למלאי");
+        else if (out) enabled.add("עדכונים על מוצרים שאזלו מהמלאי");
+        else if (back) enabled.add("עדכונים על מוצרים שחזרו למלאי");
+        return enabled.isEmpty() ? "אין כרגע סוגי התראות פעילים" : "פעילה לצורך קבלת " + android.text.TextUtils.join(", ", enabled) + " וכו׳";
+    }
+
+    private void refreshPersistentNotification() {
+        Intent service = new Intent(this, PersistentNotificationService.class);
+        if (prefs.getBoolean("persistent_notifications_enabled", false) && hasAnyNotificationFeatureEnabled()) {
+            try { if (Build.VERSION.SDK_INT >= 26) startForegroundService(service); else startService(service); }
+            catch (Exception e) { toast("לא ניתן להפעיל את ההתראה הקבועה. בדקו את הרשאות ההתראות.", true); }
+        } else stopService(service);
+    }
+
+    private void maybePromptPersistentNotification() {
+        if (!hasAnyNotificationFeatureEnabled() || prefs.getBoolean("persistent_notifications_enabled", false)) {
+            refreshPersistentNotification();
+            return;
+        }
+        appDialog().setTitle("🔔 כדאי להפעיל התראה קבועה")
+                .setMessage("כדי לשפר את הסיכוי לקבלת התראות גם כשהאפליקציה ברקע, מומלץ להפעיל את ההתראה הקבועה «משנת יוסף». היא מציגה אילו התראות פעילות, אך אינה מבטיחה שמערכת Android לא תגביל את האפליקציה.")
+                .setNegativeButton("אחר כך", null)
+                .setPositiveButton("להגדרות ההתראה הקבועה", (d, w) -> showNotificationSettings()).show();
+    }
+
+    private View persistentNotificationCard() {
+        LinearLayout card = card(14);
+        card.addView(sectionTitle("📌 התראה קבועה — משנת יוסף"));
+        card.addView(muted("התראה מתמשכת שמציגה אילו עדכונים פעילים. היא מסייעת להשאיר את פעילות ההתראות גלויה, אך אינה יכולה להבטיח ש־Android או הגדרות חיסכון בסוללה לא יעצרו תהליכים.", 13), lp(-1, -2, 0, 8));
+        boolean enabled = prefs.getBoolean("persistent_notifications_enabled", false);
+        card.addView(switchRow("הפעלת התראה קבועה", "הצגת התראה מתמשכת עם סוגי ההתראות הפעילים", enabled, (button, checked) -> {
+            prefs.edit().putBoolean("persistent_notifications_enabled", checked).apply();
+            if (checked) requestMonitoringPermissions(false);
+            refreshPersistentNotification();
+            showNotificationSettings();
+            toast(checked ? "🔔 ההתראה הקבועה הופעלה" : "ההתראה הקבועה כובתה", false);
+        }));
+        card.addView(muted(enabled ? persistentNotificationContent() : "כבויה — הפעילו כדי להציג התראה מתמשכת.", 12), lp(-1, -2, 0, 6));
+        return card;
+    }
+
     private View permissionsCard() {
         boolean notifOk = true, exactOk = true;
         if (Build.VERSION.SDK_INT >= 33) notifOk = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
@@ -3391,6 +3448,7 @@ public class MainActivity extends Activity {
             prefs.edit().putBoolean("sale_monitor_enabled", checked).apply();
             details.setVisibility(checked ? View.VISIBLE : View.GONE);
             onChange.run();
+            if (checked) maybePromptPersistentNotification(); else refreshPersistentNotification();
             toast(checked ? "🔔 התראה על מכירה חדשה הופעלה" : "🔕 התראה על מכירה חדשה כובתה", false);
         }));
 
@@ -3450,6 +3508,7 @@ public class MainActivity extends Activity {
             if (checked) requestMonitoringPermissions(false);
             SaleMonitor.scheduleClosingFromStore(this);
             renderClosingPreview(previewBox);
+            if (checked) maybePromptPersistentNotification(); else refreshPersistentNotification();
             toast(checked ? "⏰ תזכורת לפני סגירה הופעלה" : "תזכורת לפני סגירה כובתה", false);
         }));
 
