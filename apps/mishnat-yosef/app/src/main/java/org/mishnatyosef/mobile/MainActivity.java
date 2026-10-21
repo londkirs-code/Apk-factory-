@@ -621,6 +621,11 @@ public class MainActivity extends Activity {
             return super.dispatchKeyEvent(event);
         }
         View current = getCurrentFocus();
+        if (current == orderSummaryButton && key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+            View last = lastVisibleProductFocusTarget();
+            if (last != null) { last.requestFocus(); return true; }
+            return true;
+        }
         if (current == null || !isProductNavigationView(current)) {
             View start = firstProductNavigationTarget();
             if (start != null) {
@@ -628,6 +633,21 @@ public class MainActivity extends Activity {
                 return true;
             }
             return super.dispatchKeyEvent(event);
+        }
+
+        CardHolder focusedCard = findProductCardHolder(current);
+        String focusedRole = navigationRole(current);
+        if (focusedCard != null && key == android.view.KeyEvent.KEYCODE_DPAD_UP
+                && !"card".equals(focusedRole)) {
+            focusedCard.card.requestFocus();
+            return true;
+        }
+        if (focusedCard != null && key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                && "card".equals(focusedRole)) {
+            View control = focusedCard.add.isShown() && focusedCard.add.isEnabled()
+                    ? focusedCard.add
+                    : (focusedCard.st.plus.isShown() && focusedCard.st.plus.isEnabled() ? focusedCard.st.plus : null);
+            if (control != null) { control.requestFocus(); return true; }
         }
 
         View candidate = current.focusSearch(key);
@@ -747,6 +767,30 @@ public class MainActivity extends Activity {
                     if (target != null) return target;
                 }
             }
+        }
+        return null;
+    }
+
+    private CardHolder findProductCardHolder(View view) {
+        View node = view;
+        while (node != null) {
+            Object tag = node.getTag();
+            if (tag instanceof String && ((String) tag).startsWith("productCard:")) {
+                View rowView = node;
+                while (rowView != null && !(rowView.getTag() instanceof RowHolder)) {
+                    android.view.ViewParent parent = rowView.getParent();
+                    rowView = parent instanceof View ? (View) parent : null;
+                }
+                if (rowView instanceof View && rowView.getTag() instanceof RowHolder) {
+                    RowHolder row = (RowHolder) rowView.getTag();
+                    for (CardHolder card : new CardHolder[]{row.first, row.second, row.third, row.fourth, row.fifth}) {
+                        if (card.card == node) return card;
+                    }
+                }
+                return null;
+            }
+            android.view.ViewParent parent = node.getParent();
+            node = parent instanceof View ? (View) parent : null;
         }
         return null;
     }
