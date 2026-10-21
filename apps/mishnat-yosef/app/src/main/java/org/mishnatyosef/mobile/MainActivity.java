@@ -673,7 +673,8 @@ public class MainActivity extends Activity {
                     || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
                 return moveFocusWithinCategoryStrip(current, key);
             }
-            if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                    || key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
                 if (orderSummaryButton != null && orderSummaryButton.isShown()) {
                     requestProductFocus(orderSummaryButton);
                     return true;
@@ -1376,8 +1377,20 @@ public class MainActivity extends Activity {
                 target = candidate;
             }
         }
-        if (target == null) return true;
-        if (requestProductFocus(target)) scrollCategoryChipIntoView(target);
+        if (target == null) {
+            // Wrap at the end of the horizontal strip instead of trapping focus.
+            View edge = null;
+            for (int i = 0; i < catStripRow.getChildCount(); i++) {
+                View candidate = catStripRow.getChildAt(i);
+                if (candidate == null || candidate.getVisibility() != View.VISIBLE || !candidate.isFocusable()) continue;
+                int center = candidate.getLeft() + candidate.getWidth() / 2;
+                if (edge == null || (toRight
+                        ? center < edge.getLeft() + edge.getWidth() / 2
+                        : center > edge.getLeft() + edge.getWidth() / 2)) edge = candidate;
+            }
+            target = edge;
+        }
+        if (target != null && requestProductFocus(target)) scrollCategoryChipIntoView(target);
         return true;
     }
 
@@ -5126,15 +5139,15 @@ public class MainActivity extends Activity {
                     if (snapshot == null) continue;
                     String saleName = snapshot.saleName == null ? "" : snapshot.saleName.trim();
                     if (saleName.isEmpty()) saleName = "מכירה #" + saleId;
-                    LinearLayout item = card(16);
-                    item.setPadding(dp(16), dp(16), dp(16), dp(16));
-                    item.setMinimumHeight(dp(88));
+                    LinearLayout item = card(10);
+                    item.setPadding(dp(14), dp(7), dp(14), dp(7));
+                    item.setMinimumHeight(dp(60));
                     item.setClickable(true);
                     item.setFocusable(true);
-                    TextView saleTitleView = text(saleName, 18, true);
+                    TextView saleTitleView = text(saleName, 16, true);
                     saleTitleView.setTextColor(INK);
                     saleTitleView.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-                    item.addView(saleTitleView, lp(-1, -2, 0, 4));
+                    item.addView(saleTitleView, lp(-1, -2, 0, 1));
                     final int snapshotSaleId = saleId;
                     final JSONObject cachedOrder = new JSONObject();
                     try {
@@ -5147,7 +5160,7 @@ public class MainActivity extends Activity {
                     item.setContentDescription("פתיחת ההזמנה מההיסטוריה: " + saleName);
                     item.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
                     saleTitleView.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
-                    root.addView(item, lp(-1, -2, 0, 10));
+                    root.addView(item, lp(-1, -2, 0, 6));
                 }
             });
             Map<Integer, String> saleNames = fetchCachedSaleNames(new HashSet<>(cachedSaleIds));
@@ -10799,10 +10812,12 @@ public class MainActivity extends Activity {
         if (!pendingCategoryJump.isEmpty() && !cats.contains(pendingCategoryJump)) pendingCategoryJump = "";
         List<View> cells = new ArrayList<>();
         TextView menu = pickChip("☰ קטגוריות");
+        menu.setTag("categoryToolbarMenu");
         menu.setFocusable(true);
         menu.setFocusableInTouchMode(false);
         menu.setOnFocusChangeListener((v, hasFocus) -> {
             v.setElevation(hasFocus ? dp(3) : 0);
+            applyCategoryToolbarChipStyle((TextView) v, hasFocus);
             if (hasFocus) scrollCategoryChipIntoView(v);
         });
         styleChip(menu, true);
@@ -10814,10 +10829,12 @@ public class MainActivity extends Activity {
         for (int i = 0; i < 3; i++) {
             final String key = modeKeys[i];
             TextView mc = pickChip(modeLabels[i]);
+            mc.setTag("categoryToolbarMode:" + key);
             mc.setFocusable(true);
             mc.setFocusableInTouchMode(false);
             mc.setOnFocusChangeListener((v, hasFocus) -> {
                 v.setElevation(hasFocus ? dp(3) : 0);
+                applyCategoryToolbarChipStyle((TextView) v, hasFocus);
                 if (hasFocus) scrollCategoryChipIntoView(v);
             });
             styleChip(mc, key.equals(viewMode));
@@ -10828,10 +10845,12 @@ public class MainActivity extends Activity {
         for (final String cat : cats) {
             Integer count = catCounts.get(cat);
             TextView chip = pickChip(cat + (count == null ? "" : " " + count));
+            chip.setTag("categoryToolbarCategory:" + cat);
             chip.setFocusable(true);
             chip.setFocusableInTouchMode(false);
             chip.setOnFocusChangeListener((v, hasFocus) -> {
                 v.setElevation(hasFocus ? dp(3) : 0);
+                applyCategoryToolbarChipStyle((TextView) v, hasFocus);
                 if (hasFocus) scrollCategoryChipIntoView(v);
             });
             chip.setOnClickListener(v -> jumpToCategory(cat));
@@ -10854,13 +10873,42 @@ public class MainActivity extends Activity {
     private void styleCategoryChips() {
         for (Map.Entry<String, TextView> e : catChips.entrySet()) {
             boolean on = e.getKey().equals(activeCat);
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(on ? SURFACE : ORANGE_LIGHT);
-            bg.setCornerRadius(dp(12));
-            if (on) bg.setStroke(dp(2), ORANGE);
-            e.getValue().setBackground(ripple(bg, 12));
-            e.getValue().setTextColor(ORANGE_DARK);
+            TextView chip = e.getValue();
+            chip.setTextColor(ORANGE_DARK);
+            applyCategoryToolbarChipStyle(chip, chip.hasFocus());
         }
+        if (catStripRow != null) {
+            for (int i = 0; i < catStripRow.getChildCount(); i++) {
+                View view = catStripRow.getChildAt(i);
+                if (!(view instanceof TextView)) continue;
+                TextView chip = (TextView) view;
+                if (String.valueOf(chip.getTag()).startsWith("categoryToolbarMode:")) {
+                    String key = String.valueOf(chip.getTag()).substring("categoryToolbarMode:".length());
+                    applyCategoryToolbarChipStyle(chip, chip.hasFocus());
+                } else if ("categoryToolbarMenu".equals(chip.getTag())) {
+                    applyCategoryToolbarChipStyle(chip, chip.hasFocus());
+                }
+            }
+        }
+    }
+
+    private void applyCategoryToolbarChipStyle(TextView chip, boolean focused) {
+        if (chip == null) return;
+        Object tag = chip.getTag();
+        boolean activeCategory = tag instanceof String
+                && ((String) tag).startsWith("categoryToolbarCategory:")
+                && ((String) tag).substring("categoryToolbarCategory:".length()).equals(activeCat);
+        boolean activeMode = tag instanceof String
+                && ((String) tag).startsWith("categoryToolbarMode:")
+                && ((String) tag).substring("categoryToolbarMode:".length()).equals(viewMode);
+        boolean activeMenu = "categoryToolbarMenu".equals(tag);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(12));
+        bg.setColor(activeCategory ? SURFACE : (activeMode || activeMenu ? ORANGE : ORANGE_LIGHT));
+        if (focused) bg.setStroke(dp(2), Color.rgb(33, 150, 243));
+        else if (activeCategory) bg.setStroke(dp(2), ORANGE);
+        chip.setBackground(ripple(bg, 12));
+        chip.setTextColor(activeMode || activeMenu ? ON_ORANGE : ORANGE_DARK);
     }
 
     private void jumpToCategory(String cat) {
