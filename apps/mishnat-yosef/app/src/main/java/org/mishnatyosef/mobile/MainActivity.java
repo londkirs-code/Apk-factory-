@@ -6324,6 +6324,14 @@ public class MainActivity extends Activity {
             });
         }
 
+        private void setCompactOptionalRow(TextView view, boolean visible) {
+            // Keep optional rows aligned without leaving a full blank text line under the price.
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    -1, visible ? ViewGroup.LayoutParams.WRAP_CONTENT : dp(3));
+            view.setLayoutParams(params);
+            view.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        }
+
         void adaptCardSize() {
             int columns = cardColumns();
             float scale = columns == 1 ? 1.18f : columns == 2 ? 1.08f : columns == 3 ? 1f : columns == 4 ? 0.84f : 0.72f;
@@ -6388,13 +6396,13 @@ public class MainActivity extends Activity {
             price.setText(pr > 0 ? money(pr) : "—");
             int mx = maxPerMan(prod);
             maxView.setText("מקסימום " + mx);
-            maxView.setVisibility(showMax() && mx > 0 ? View.VISIBLE : View.INVISIBLE);
+            setCompactOptionalRow(maxView, showMax() && mx > 0);
             int savedQ = favSavedQty(pid);
             savedView.setText("📌 כמות שמורה ×" + savedQ);
-            savedView.setVisibility(savedQ > 0 && favIds.contains(pid) ? View.VISIBLE : View.INVISIBLE);
+            setCompactOptionalRow(savedView, savedQ > 0 && favIds.contains(pid));
             String up = unitPriceText(prod);
             unitView.setText(up);
-            unitView.setVisibility(up.isEmpty() ? View.INVISIBLE : View.VISIBLE);
+            setCompactOptionalRow(unitView, !up.isEmpty());
 
             add.setText(canOrder ? "הוספה" : (disabled ? "לא זמין" : "אזל מהמלאי"));
             paintButton(add, canOrder ? TONAL : FLAT);
@@ -9694,7 +9702,8 @@ public class MainActivity extends Activity {
         label.setGravity(Gravity.CENTER);
         inner.addView(label, new LinearLayout.LayoutParams(-1, -2));
         View barSpace = new View(this);
-        barSpace.setVisibility(View.INVISIBLE);
+        barSpace.setBackground(shape(ON_ORANGE, 2, 0));
+        barSpace.setVisibility(active ? View.VISIBLE : View.INVISIBLE);
         LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(dp(24), dp(3));
         barLp.topMargin = dp(2);
         inner.addView(barSpace, barLp);
