@@ -723,6 +723,11 @@ public class MainActivity extends Activity {
         }
         if (action != android.view.KeyEvent.ACTION_DOWN) return false;
 
+        if (key == android.view.KeyEvent.KEYCODE_SEARCH && activeProductSearch != null && activeProductSearch.hasFocus()) {
+            hideKeyboard();
+            activeProductSearch.clearFocus();
+            return true;
+        }
         boolean textEditing = isTextEditorFocused() && isSoftKeyboardVisible();
         if (textEditing) return false;
 
@@ -744,11 +749,13 @@ public class MainActivity extends Activity {
                 return true;
             }
         }
+        boolean shiftedThree = key == android.view.KeyEvent.KEYCODE_3 && event.isShiftPressed();
+        boolean shiftedEight = key == android.view.KeyEvent.KEYCODE_8 && event.isShiftPressed();
         boolean repeated = event.getRepeatCount() > 0;
         boolean repeatable = key == android.view.KeyEvent.KEYCODE_1
                 || key == android.view.KeyEvent.KEYCODE_2
-                || key == android.view.KeyEvent.KEYCODE_3
-                || key == android.view.KeyEvent.KEYCODE_8;
+                || (key == android.view.KeyEvent.KEYCODE_3 && !shiftedThree)
+                || (key == android.view.KeyEvent.KEYCODE_8 && !shiftedEight);
         if (repeated && !repeatable) {
             if (key == android.view.KeyEvent.KEYCODE_4 || key == android.view.KeyEvent.KEYCODE_5
                     || key == android.view.KeyEvent.KEYCODE_6 || key == android.view.KeyEvent.KEYCODE_0
@@ -757,10 +764,10 @@ public class MainActivity extends Activity {
         }
 
         if (key == android.view.KeyEvent.KEYCODE_POUND || key == android.view.KeyEvent.KEYCODE_PLUS
-                || key == android.view.KeyEvent.KEYCODE_NUMPAD_ADD) {
+                || key == android.view.KeyEvent.KEYCODE_NUMPAD_ADD || shiftedThree) {
             cycleKeyboardTab(1); return true;
         }
-        if (key == android.view.KeyEvent.KEYCODE_STAR || key == android.view.KeyEvent.KEYCODE_NUMPAD_MULTIPLY) {
+        if (key == android.view.KeyEvent.KEYCODE_STAR || key == android.view.KeyEvent.KEYCODE_NUMPAD_MULTIPLY || shiftedEight) {
             cycleKeyboardTab(-1); return true;
         }
         if (key == android.view.KeyEvent.KEYCODE_1) { scrollCurrentScreenByPage(-1); return true; }
@@ -778,14 +785,6 @@ public class MainActivity extends Activity {
         }
         if (key == android.view.KeyEvent.KEYCODE_7) { jumpCategoryBy(-1); return true; }
         if (key == android.view.KeyEvent.KEYCODE_9) { jumpCategoryBy(1); return true; }
-        if (key == android.view.KeyEvent.KEYCODE_SEARCH) {
-            if (activeProductSearch != null && activeProductSearch.hasFocus()) {
-                hideKeyboard();
-                activeProductSearch.clearFocus();
-                return true;
-            }
-            return false;
-        }
         if (key == android.view.KeyEvent.KEYCODE_MENU) {
             openProductDetailsOrMoreOptions(); return true;
         }
@@ -822,17 +821,19 @@ public class MainActivity extends Activity {
         int index = 0;
         for (int i = 0; i < order.length; i++) if (order[i] == activeBottomTab) { index = i; break; }
         int next = order[(index + direction + order.length) % order.length];
-        if (next == TAB_COLLECT) {
-            View center = findViewWithTag(getWindow().getDecorView(), "navTab:4");
-            if (center != null) center.performClick();
-            else {
-                // The collect tab is also reachable from the current order summary.
-                if (orderSummaryButton != null && orderSummaryButton.isShown()) orderSummaryButton.performClick();
-            }
+        View tab = findViewWithTag(getWindow().getDecorView(), "navTab:" + next);
+        if (tab != null) {
+            tab.performClick();
             return;
         }
-        View tab = findViewWithTag(getWindow().getDecorView(), "navTab:" + next);
-        if (tab != null) tab.performClick();
+        // Nested screens may not render the bottom bar; keep keyboard tab cycling global.
+        switch (next) {
+            case 0: navigateTab(0, this::showOpenSales); break;
+            case 1: navigateTab(1, this::loadFeatureOrders); break;
+            case TAB_COLLECT: navigateTab(TAB_COLLECT, this::openLatestCollect); break;
+            case 2: navigateTab(2, this::loadFeatureTransactions); break;
+            case 3: navigateTab(3, this::showAccount); break;
+        }
     }
 
     private View findViewWithTag(View rootView, String tag) {
