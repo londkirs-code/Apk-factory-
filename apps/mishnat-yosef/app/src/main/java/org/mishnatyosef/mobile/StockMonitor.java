@@ -494,9 +494,23 @@ public class StockMonitor extends BroadcastReceiver {
     }
     private static void notifyUser(Context c, String key, String title, String message, boolean order) {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE); if (nm == null) return;
+        SharedPreferences notificationPrefs = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        boolean sound = notificationPrefs.getBoolean("notify_sound", true);
+        boolean vibrate = notificationPrefs.getBoolean("notify_vibrate", true);
+        String suffix = (sound ? "_s1" : "_s0") + (vibrate ? "_v1" : "_v0");
+        String alertChannel = ALERT_CHANNEL + suffix;
+        String orderChannel = ORDER_CHANNEL + suffix;
         if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(new NotificationChannel(ALERT_CHANNEL, "חזרה למלאי", NotificationManager.IMPORTANCE_DEFAULT));
-            nm.createNotificationChannel(new NotificationChannel(ORDER_CHANNEL, "תוצאות הזמנה אוטומטית", NotificationManager.IMPORTANCE_HIGH));
+            NotificationChannel alert = new NotificationChannel(alertChannel, "חזרה למלאי", NotificationManager.IMPORTANCE_DEFAULT);
+            alert.setSound(sound ? android.provider.Settings.System.DEFAULT_NOTIFICATION_URI : null, null);
+            alert.enableVibration(vibrate);
+            if (vibrate) alert.setVibrationPattern(new long[]{0, 250, 150, 250});
+            nm.createNotificationChannel(alert);
+            NotificationChannel orderResult = new NotificationChannel(orderChannel, "תוצאות הזמנה אוטומטית", NotificationManager.IMPORTANCE_HIGH);
+            orderResult.setSound(sound ? android.provider.Settings.System.DEFAULT_NOTIFICATION_URI : null, null);
+            orderResult.enableVibration(vibrate);
+            if (vibrate) orderResult.setVibrationPattern(new long[]{0, 250, 150, 250});
+            nm.createNotificationChannel(orderResult);
         }
         if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             appendLog(c, key, "", "ההתראה לא הוצגה", "הרשאת ההתראות חסרה."); return;
@@ -519,7 +533,13 @@ public class StockMonitor extends BroadcastReceiver {
             }
         }
         PendingIntent pi = PendingIntent.getActivity(c, Math.abs((key + title).hashCode()), launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, order ? ORDER_CHANNEL : ALERT_CHANNEL) : new Notification.Builder(c);
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, order ? orderChannel : alertChannel) : new Notification.Builder(c);
+        if (Build.VERSION.SDK_INT < 26) {
+            int defaults = 0;
+            if (sound) defaults |= Notification.DEFAULT_SOUND;
+            if (vibrate) defaults |= Notification.DEFAULT_VIBRATE;
+            b.setDefaults(defaults);
+        }
         b.setSmallIcon(android.R.drawable.stat_notify_more).setContentTitle(title).setContentText(message)
                 .setStyle(new Notification.BigTextStyle().bigText(message)).setContentIntent(pi).setAutoCancel(true);
         nm.notify(40000 + Math.abs((key + title).hashCode() % 20000), b.build());
