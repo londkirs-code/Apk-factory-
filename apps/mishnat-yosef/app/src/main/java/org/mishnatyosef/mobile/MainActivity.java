@@ -4867,21 +4867,30 @@ public class MainActivity extends Activity {
         }
         int current = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
         featureQuantities.put(sid, Math.max(0, current + delta));
-        // Deliberately never call changeBy(), saveQuantities(), writeSnapshot(), or an order API.
-        // Keep the row and its keyboard focus stable when rebuilding the local-only charge grid.
-        final int first = productList == null ? 0 : productList.getFirstVisiblePosition();
-        View firstChild = productList == null ? null : productList.getChildAt(0);
-        final int top = firstChild == null ? 0 : firstChild.getTop();
-        final String targetTag = delta >= 0 ? "productPlus" : "productMinus";
-        rebuildGrid();
-        if (productList != null) productList.post(() -> {
-            if (productList == null || !showingOrderScreen) return;
-            productList.setSelectionFromTop(first, top);
+        // TEMPORARY DIAGNOSTIC: this switch tests whether rebuilding the cached-order grid causes
+        // the reported screen jump. Remove this branch and its setting after the cause is confirmed.
+        if (prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false)) {
+            // Cached orders always show the stepper, so update only the visible quantity label in place.
+            // Do not rebuild the adapter, change scroll position, or move keyboard focus in this mode.
             View targetCard = findTaggedView(currentScreen, "productCard:" + sid);
-            View targetControl = findTaggedView(targetCard, targetTag);
-            if (targetControl != null && targetControl.isShown() && targetControl.isEnabled()) targetControl.requestFocus();
-            else if (targetCard != null && targetCard.isShown()) targetCard.requestFocus();
-        });
+            View quantityView = findTaggedView(targetCard, "productQty");
+            if (quantityView instanceof TextView) ((TextView) quantityView).setText(String.valueOf(Math.max(0, current + delta)));
+        } else {
+            // TEMPORARY DIAGNOSTIC: preserve the current rebuild behavior when the switch is off.
+            final int first = productList == null ? 0 : productList.getFirstVisiblePosition();
+            View firstChild = productList == null ? null : productList.getChildAt(0);
+            final int top = firstChild == null ? 0 : firstChild.getTop();
+            final String targetTag = delta >= 0 ? "productPlus" : "productMinus";
+            rebuildGrid();
+            if (productList != null) productList.post(() -> {
+                if (productList == null || !showingOrderScreen) return;
+                productList.setSelectionFromTop(first, top);
+                View targetCard = findTaggedView(currentScreen, "productCard:" + sid);
+                View targetControl = findTaggedView(targetCard, targetTag);
+                if (targetControl != null && targetControl.isShown() && targetControl.isEnabled()) targetControl.requestFocus();
+                else if (targetCard != null && targetCard.isShown()) targetCard.requestFocus();
+            });
+        }
     }
 
     private String cachedClosedOrderText() {
@@ -6234,6 +6243,8 @@ public class MainActivity extends Activity {
             setProductActionEnterHandler(add, "productAdd");
             st.plus.setTag("productPlus");
             st.minus.setTag("productMinus");
+            // TEMPORARY DIAGNOSTIC support: update the cached-order quantity label without rebinding the row.
+            st.qty.setTag("productQty");
             // Include the stable product identifier so focus can be restored after adapter rebinding.
             card.setTag("productCard:" + sidOf(p));
             // Enter/Center is handled explicitly so Android's default focus traversal cannot
@@ -10109,6 +10120,15 @@ public class MainActivity extends Activity {
         stockDisplayDividerLp.topMargin = dp(12);
         stockDisplayDividerLp.bottomMargin = dp(8);
         controls.addView(stockDisplayDivider, stockDisplayDividerLp);
+        // TEMPORARY DIAGNOSTIC setting: toggle only the cached-order +/- grid rebuild.
+        // Default OFF preserves existing behavior; remove this switch together with the marked code after testing.
+        controls.addView(switchRow("בדיקה: דילוג על רענון בהזמנות מהמטמון",
+                "מונע בנייה מחדש של רשימת המוצרים אחרי +/− כדי לבדוק אם היא גורמת לקפיצת המסך. אפשר לכבות בכל רגע.",
+                prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false),
+                (button, checked) -> {
+                    prefs.edit().putBoolean("experimental_skip_cached_quantity_grid_rebuild", checked).apply();
+                    toast(checked ? "בדיקת הרענון הופעלה — בהזמנות מהמטמון" : "רענון רשימת המטמון הוחזר", false);
+                }));
         controls.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (button, checked) -> {
             if (checked != nightMode) toggleNightMode();
         }));
