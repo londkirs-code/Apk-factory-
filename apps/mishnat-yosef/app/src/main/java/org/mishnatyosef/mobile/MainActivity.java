@@ -411,7 +411,20 @@ public class MainActivity extends Activity {
     private String pendingProductFocusId = null;
     private String pendingProductFocusAction = null;
 
+    // When page refresh is disabled, update only the changed product quantity and the order bar.
+    private String lastChangedProductSid = null;
     private final Runnable productsRefresh = () -> {
+        if (prefs != null && prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false)
+                && lastChangedProductSid != null && !lastChangedProductSid.isEmpty()) {
+            View targetCard = findTaggedView(currentScreen, "productCard:" + lastChangedProductSid);
+            View quantityView = findTaggedView(targetCard, "productQty");
+            Integer quantity = featureQuantities.get(lastChangedProductSid);
+            if (quantityView instanceof TextView && quantity != null) {
+                ((TextView) quantityView).setText(String.valueOf(quantity));
+            }
+            updateOrderBar();
+            return;
+        }
         View focusedBeforeRefresh = getCurrentFocus();
         String focusTag = focusedBeforeRefresh == null ? null : (focusedBeforeRefresh.getTag() instanceof String ? (String) focusedBeforeRefresh.getTag() : null);
         View cardView = focusedBeforeRefresh;
@@ -4867,32 +4880,13 @@ public class MainActivity extends Activity {
         }
         int current = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
         featureQuantities.put(sid, Math.max(0, current + delta));
-        // TEMPORARY DIAGNOSTIC: this switch tests whether rebuilding the cached-order grid causes
-        // the reported screen jump. Remove this branch and its setting after the cause is confirmed.
-        if (prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false)) {
-            // Cached orders always show the stepper, so update only the visible quantity label in place.
-            // Do not rebuild the adapter, change scroll position, or move keyboard focus in this mode.
-            View targetCard = findTaggedView(currentScreen, "productCard:" + sid);
-            View quantityView = findTaggedView(targetCard, "productQty");
-            if (quantityView instanceof TextView) ((TextView) quantityView).setText(String.valueOf(Math.max(0, current + delta)));
-            // TEMPORARY DIAGNOSTIC: refresh only the order totals bar, not the product grid.
-            updateOrderBar();
-        } else {
-            // TEMPORARY DIAGNOSTIC: preserve the current rebuild behavior when the switch is off.
-            final int first = productList == null ? 0 : productList.getFirstVisiblePosition();
-            View firstChild = productList == null ? null : productList.getChildAt(0);
-            final int top = firstChild == null ? 0 : firstChild.getTop();
-            final String targetTag = delta >= 0 ? "productPlus" : "productMinus";
-            rebuildGrid();
-            if (productList != null) productList.post(() -> {
-                if (productList == null || !showingOrderScreen) return;
-                productList.setSelectionFromTop(first, top);
-                View targetCard = findTaggedView(currentScreen, "productCard:" + sid);
-                View targetControl = findTaggedView(targetCard, targetTag);
-                if (targetControl != null && targetControl.isShown() && targetControl.isEnabled()) targetControl.requestFocus();
-                else if (targetCard != null && targetCard.isShown()) targetCard.requestFocus();
-            });
+        lastChangedProductSid = sid;
+        View targetCard = findTaggedView(currentScreen, "productCard:" + sid);
+        View quantityView = findTaggedView(targetCard, "productQty");
+        if (quantityView instanceof TextView) {
+            ((TextView) quantityView).setText(String.valueOf(Math.max(0, current + delta)));
         }
+        updateOrderBar();
     }
 
     private String cachedClosedOrderText() {
@@ -5718,7 +5712,6 @@ public class MainActivity extends Activity {
 
     /** The same figures "my order" shows: server lines and server total once known, an estimate while a change is in flight. */
     private double[] orderBarStats() {
-        // TEMPORARY DIAGNOSTIC: cached-order quantities are local charge selections, so use their current local totals.
         if (closedOrderReadOnly) {
             double[] t = orderTotals();
             return new double[]{t[0], t[1], t[2], 1};
@@ -6250,7 +6243,6 @@ public class MainActivity extends Activity {
             setProductActionEnterHandler(add, "productAdd");
             st.plus.setTag("productPlus");
             st.minus.setTag("productMinus");
-            // TEMPORARY DIAGNOSTIC support: update the cached-order quantity label without rebinding the row.
             st.qty.setTag("productQty");
             // Include the stable product identifier so focus can be restored after adapter rebinding.
             card.setTag("productCard:" + sidOf(p));
@@ -6523,6 +6515,7 @@ public class MainActivity extends Activity {
         final int serverAmount = (int) Math.round(num(p.opt("amount")));
         final long orderId = featureOrderId;
         pending.add(sid);
+        lastChangedProductSid = sid;
         featureQuantities.put(sid, newQty);
         final String pname = productName(p);
         toast("⏳ " + (newQty == 0 ? "מסיר" : (oldQty == 0 ? "מוסיף" : "מעדכן")) + ": " + pname, false);
@@ -9001,6 +8994,8 @@ public class MainActivity extends Activity {
         final List<String> labels = new ArrayList<>();
         final List<Integer> actions = new ArrayList<>();
         labels.add(nightMode ? "☀️ מעבר למצב יום" : "🌙 הפעלת מצב לילה"); actions.add(11);
+        labels.add((prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false) ? "✓ " : "") + "ביטול רענון עמוד בהזמנות");
+        actions.add(14);
         if (closedOrderReadOnly) {
             labels.add("פרטי המכירה"); actions.add(0);
             labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);
@@ -9042,6 +9037,11 @@ public class MainActivity extends Activity {
                             break;
                         case 12: showShareMenu(cachedClosedOrderText()); break;
                         case 13: startExport("הזמנה שמורה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), 0, currentOrderLines())); break;
+                        case 14:
+                            boolean skipPageRefresh = !prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false);
+                            prefs.edit().putBoolean("experimental_skip_cached_quantity_grid_rebuild", skipPageRefresh).apply();
+                            toast(skipPageRefresh ? "ביטול רענון עמוד הופעל בהזמנות" : "רענון עמוד ההזמנות הוחזר", false);
+                            break;
                     }
                 }).show();
     }
@@ -10127,15 +10127,6 @@ public class MainActivity extends Activity {
         stockDisplayDividerLp.topMargin = dp(12);
         stockDisplayDividerLp.bottomMargin = dp(8);
         controls.addView(stockDisplayDivider, stockDisplayDividerLp);
-        // TEMPORARY DIAGNOSTIC setting: toggle only the cached-order +/- grid rebuild.
-        // Default OFF preserves existing behavior; remove this switch together with the marked code after testing.
-        controls.addView(switchRow("בדיקה: דילוג על רענון בהזמנות מהמטמון",
-                "מונע בנייה מחדש של רשימת המוצרים אחרי +/− כדי לבדוק אם היא גורמת לקפיצת המסך. אפשר לכבות בכל רגע.",
-                prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false),
-                (button, checked) -> {
-                    prefs.edit().putBoolean("experimental_skip_cached_quantity_grid_rebuild", checked).apply();
-                    toast(checked ? "בדיקת הרענון הופעלה — בהזמנות מהמטמון" : "רענון רשימת המטמון הוחזר", false);
-                }));
         controls.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (button, checked) -> {
             if (checked != nightMode) toggleNightMode();
         }));
