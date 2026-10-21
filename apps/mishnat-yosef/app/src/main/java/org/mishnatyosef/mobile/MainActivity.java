@@ -2598,17 +2598,17 @@ public class MainActivity extends Activity {
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView actionsButton = text("⚙️", 22, true);
+        TextView actionsButton = text("⚙️", 11, true);
         actionsButton.setTextColor(nightMode ? INK : ORANGE_DARK);
         actionsButton.setGravity(Gravity.CENTER);
         actionsButton.setSingleLine(true);
         actionsButton.setIncludeFontPadding(false);
         actionsButton.setPadding(0, 0, 0, 0);
         actionsButton.setBackground(ripple(shape(SURFACE, 50, nightMode ? LINE : Color.WHITE), 50));
-        actionsButton.setElevation(dp(3));
+        actionsButton.setElevation(dp(2));
         actionsButton.setContentDescription("פתיחת הגדרות ופעולות");
         actionsButton.setOnClickListener(v -> showActionsDialog());
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(20), dp(20));
         actionsParams.leftMargin = dp(2);
         header.addView(actionsButton, actionsParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
@@ -3626,6 +3626,8 @@ public class MainActivity extends Activity {
         } else if (prefs.getBoolean("update_download_verified", false) && !legacyDownloadAvailable) {
             prefs.edit().putBoolean("update_download_verified", false).apply();
         }
+        // Always refresh GitHub metadata as soon as this settings screen is opened.
+        checkForAppUpdate();
     }
 
     private JSONObject fetchUpdateManifest() throws Exception {
@@ -3668,7 +3670,13 @@ public class MainActivity extends Activity {
 
     private void checkForAppUpdate() {
         if (updateCheckButton != null) updateCheckButton.setEnabled(false);
-        if (updateStatusView != null) updateStatusView.setText("בודק מול GitHub…");
+        if (updateStatusView != null) {
+            updateStatusView.setText("בודק מול GitHub…");
+            updateStatusView.setTextColor(MUTED);
+            updateStatusView.setTextSize(15);
+            updateStatusView.setBackgroundColor(Color.TRANSPARENT);
+            updateStatusView.setPadding(dp(2), dp(10), dp(2), dp(8));
+        }
         executor.execute(() -> {
             try {
                 JSONObject manifest = fetchUpdateManifest();
@@ -3688,8 +3696,12 @@ public class MainActivity extends Activity {
                             .putString("update_latest_sha256", sha)
                             .putString("update_release_notes", notes).apply();
                     if (code > installed) {
-                        updateStatusView.setText("תוצאות הבדיקה האחרונה: נמצאה גרסה חדשה: " + name + " (" + code + ").");
-                        updateStatusView.setTextColor(ORANGE_DARK);
+                        updateStatusView.setText("🎉 נמצאה גרסה חדשה!\nגרסה " + name + " (" + code + ") זמינה לעדכון");
+                        updateStatusView.setTextSize(19);
+                        updateStatusView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                        updateStatusView.setTextColor(GREEN);
+                        updateStatusView.setBackground(ripple(shape(0xFFE8F7EC, 14, 0xFFB7E4C7), 14));
+                        updateStatusView.setPadding(dp(12), dp(12), dp(12), dp(12));
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
@@ -8644,7 +8656,7 @@ public class MainActivity extends Activity {
             @Override public void onTextChanged(CharSequence cs, int a, int b, int c) { }
             @Override public void afterTextChanged(Editable e) { query[0] = e.toString().trim().toLowerCase(Locale.ROOT); render[0].run(); }
         });
-        root.addView(searchBox, root.indexOfChild(filters), lp(-1, dp(46), 0, 8));
+        root.addView(searchBox, root.indexOfChild(list), lp(-1, dp(46), 0, 8));
         int pendingCreditItems = readCreditList().length();
         String creditListLabel = "🧾 רשימת זיכויים וחיובים" + (pendingCreditItems > 0 ? " (" + pendingCreditItems + ")" : "");
         TextView creditListButton = btn(creditListLabel, TONAL);
