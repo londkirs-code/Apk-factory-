@@ -2771,8 +2771,9 @@ public class MainActivity extends Activity {
     private void showNotificationSettings() {
         beginScreen("הגדרות התראות", 3, this::showAccount);
         screenKind = 3;
-        root.addView(persistentNotificationCard(), lp(-1, -2, 0, 10));
         root.addView(permissionsCard(), lp(-1, -2, 0, 10));
+        root.addView(persistentNotificationCard(), lp(-1, -2, 0, 10));
+        root.addView(notificationBehaviorCard(), lp(-1, -2, 0, 10));
         root.addView(newSaleCard(), lp(-1, -2, 0, 10));
         root.addView(closingCard(), lp(-1, -2, 0, 10));
     }
@@ -3349,6 +3350,21 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    private View notificationBehaviorCard() {
+        LinearLayout card = card(14);
+        card.addView(sectionTitle("🔔 צליל ורטט לכל ההתראות"));
+        card.addView(muted("ההגדרות האלה אחידות לכל סוגי ההתראות באפליקציה: פתיחת מכירה, תזכורת סגירה ועדכוני מלאי.", 13), lp(-1, -2, 0, 8));
+        card.addView(switchRow("צליל", "השמעת צליל בכל התראה", prefs.getBoolean("notify_sound", true), (b, checked) -> {
+            prefs.edit().putBoolean("notify_sound", checked).apply();
+            toast(checked ? "🔊 צליל הופעל לכל ההתראות" : "🔕 הצליל כובה לכל ההתראות", false);
+        }));
+        card.addView(switchRow("רטט", "רטט בכל התראה", prefs.getBoolean("notify_vibrate", true), (b, checked) -> {
+            prefs.edit().putBoolean("notify_vibrate", checked).apply();
+            toast(checked ? "📳 רטט הופעל לכל ההתראות" : "רטט כובה לכל ההתראות", false);
+        }));
+        return card;
+    }
+
     private View permissionsCard() {
         boolean notifOk = true, exactOk = true;
         if (Build.VERSION.SDK_INT >= 33) notifOk = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
@@ -3481,14 +3497,8 @@ public class MainActivity extends Activity {
         hs.addView(chipRow);
         details.addView(hs, lp(-1, -2, 4, 8));
 
-        details.addView(switchRow("צליל", null, prefs.getBoolean("notify_sound", true), (b, checked) -> prefs.edit().putBoolean("notify_sound", checked).apply()));
-        details.addView(switchRow("רטט", null, prefs.getBoolean("notify_vibrate", true), (b, checked) -> prefs.edit().putBoolean("notify_vibrate", checked).apply()));
-
         summaryView.setPadding(dp(2), dp(6), dp(2), dp(6));
         details.addView(summaryView);
-        TextView test = btn("🔔 שליחת התראת בדיקה", TONAL);
-        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, false); toast("🔔 נשלחה התראת בדיקה", false); });
-        details.addView(test, lp(-1, dp(44), 4, 0));
         card.addView(details);
         return card;
     }
@@ -3549,9 +3559,6 @@ public class MainActivity extends Activity {
         details.addView(hs, lp(-1, -2, 0, 10));
 
         details.addView(previewBox, lp(-1, -2, 0, 8));
-        TextView test = btn("🔔 שליחת תזכורת לדוגמה", TONAL);
-        test.setOnClickListener(v -> { requestMonitoringPermissions(false); SaleMonitor.sendTest(this, true); toast("🔔 נשלחה תזכורת לדוגמה", false); });
-        details.addView(test, lp(-1, dp(44), 4, 0));
         card.addView(details);
 
         commit[0].run();
