@@ -574,6 +574,10 @@ public class MainActivity extends Activity {
      *  ListView re-take focus, so the focused +/- button keeps focus and the list does not jump. */
     private void refreshVisibleProductRows() {
         if (productList == null || productAdapter == null) return;
+        View focusedBeforeRefresh = getCurrentFocus();
+        CardHolder focusedHolder = findProductCardHolder(focusedBeforeRefresh);
+        String focusedSid = focusedHolder != null && focusedHolder.p != null ? sidOf(focusedHolder.p) : null;
+        String focusedRole = navigationRole(focusedBeforeRefresh);
         int first = productList.getFirstVisiblePosition();
         int count = productList.getChildCount();
         for (int i = 0; i < count; i++) {
@@ -584,6 +588,30 @@ public class MainActivity extends Activity {
             if (productAdapter.getItemViewType(position) != 1) continue;
             productAdapter.getView(position, rowView, productList);
         }
+        if (focusedSid != null) {
+            final String restoreSid = focusedSid;
+            final String restoreRole = focusedRole;
+            productList.post(() -> {
+                if (productList == null || !showingOrderScreen) return;
+                CardHolder targetCard = findVisibleProductCardBySid(restoreSid);
+                if (targetCard == null) return;
+                View target = navigationTargetForRole(targetCard, restoreRole);
+                if (!requestProductFocus(target)) requestProductFocus(targetCard.card);
+            });
+        }
+    }
+
+    private CardHolder findVisibleProductCardBySid(String sid) {
+        if (productList == null || sid == null) return null;
+        for (int i = 0; i < productList.getChildCount(); i++) {
+            View row = productList.getChildAt(i);
+            if (row == null || !(row.getTag() instanceof RowHolder)) continue;
+            RowHolder holder = (RowHolder) row.getTag();
+            for (CardHolder card : new CardHolder[]{holder.first, holder.second, holder.third, holder.fourth, holder.fifth}) {
+                if (card.p != null && sid.equals(sidOf(card.p)) && card.card.getVisibility() == View.VISIBLE) return card;
+            }
+        }
+        return null;
     }
 
     /** Closest control inside the same card in the pressed direction (e.g. + -> qty -> - on one line). */
@@ -622,59 +650,45 @@ public class MainActivity extends Activity {
         }
         View current = getCurrentFocus();
         if (current == orderSummaryButton && key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
-            View last = lastVisibleProductFocusTarget();
-            if (last != null) { last.requestFocus(); return true; }
-            return true;
+            return moveFocusFromOrderSummaryToLastProduct();
         }
         if (current == null || !isProductNavigationView(current)) {
             View start = firstProductNavigationTarget();
-            if (start != null) {
-                start.requestFocus();
-                return true;
-            }
+            if (start != null) { requestProductFocus(start); return true; }
             return super.dispatchKeyEvent(event);
         }
-
         CardHolder focusedCard = findProductCardHolder(current);
-        String focusedRole = navigationRole(current);
+        if (focusedCard == null) return true;
+        String role = navigationRole(current);
+        int[] location = findCardRowAndColumn(focusedCard);
+        if (location == null) return true;
+        int rowPosition = location[0], column = location[1];
 
-        // Vertical navigation is explicit. Native focusSearch often returns the card itself
-        // instead of its nested controls, especially in cached/read-only orders.
-        if (focusedCard != null && key == android.view.KeyEvent.KEYCODE_DPAD_UP
-                && !"card".equals(focusedRole)) {
-            focusedCard.card.requestFocus();
+        if ((key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+                && isStepperRole(role)) {
+            if (moveWithinProductControls(focusedCard, current, role, key)) return true;
+            moveFocusHorizontallyToCard(rowPosition, column,
+                    key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1, role);
             return true;
         }
-        if (focusedCard != null && key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
-            if ("card".equals(focusedRole)) {
-                View firstControl = firstFocusableControl(focusedCard);
-                if (firstControl != null && requestProductFocus(firstControl)) return true;
-            } else if (closedOrderReadOnly && !"charge".equals(focusedRole)
-                    && focusedCard.chargeButton.isShown() && focusedCard.chargeButton.isEnabled()) {
-                if (requestProductFocus(focusedCard.chargeButton)) return true;
-            }
-            if (moveFocusToAdjacentProductRow(current, 1)) return true;
+        if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+            moveFocusHorizontallyToCard(rowPosition, column,
+                    key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1, "card");
             return true;
         }
-        if (focusedCard != null && (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
-                || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-                && moveWithinProductControls(focusedCard, current, focusedRole, key)) {
+        if (key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+            String previousLayer = previousVerticalRole(focusedCard, role);
+            if (previousLayer != null) requestProductFocus(navigationTargetForRole(focusedCard, previousLayer));
+            else moveFocusToProductRow(rowPosition, column, -1, "card");
             return true;
         }
-
-        View candidate = current.focusSearch(focusDirectionForKey(key));
-        if (candidate != null && candidate != current && isProductNavigationView(candidate)
-                && candidate.isShown() && candidate.isFocusable() && candidate.isEnabled()) {
-            candidate.requestFocus();
-            if (candidate.hasFocus()) return true;
+        if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+            String nextLayer = nextVerticalRole(focusedCard, role);
+            if (nextLayer != null) requestProductFocus(navigationTargetForRole(focusedCard, nextLayer));
+            else moveFocusToProductRow(rowPosition, column, 1, "card");
+            return true;
         }
-
-        if (key == android.view.KeyEvent.KEYCODE_DPAD_UP
-                || key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (moveFocusToAdjacentProductRow(current,
-                    key == android.view.KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1)) return true;
-        }
-        return true; // keep D-pad navigation inside the product area; do not leak to unrelated chrome
+        return true;
     }
 
     private int focusDirectionForKey(int keyCode) {
@@ -872,21 +886,28 @@ public class MainActivity extends Activity {
     private View navigationTargetForRole(CardHolder card, String role) {
         if (card == null || card.p == null) return null;
         if ("plus".equals(role)) {
-            if (card.st.plus.isShown() && card.st.plus.isEnabled()) return card.st.plus;
-            if (card.autoOrderStepper.plus.isShown() && card.autoOrderStepper.plus.isEnabled()) return card.autoOrderStepper.plus;
+            if (canTakeProductFocus(card.st.plus)) return card.st.plus;
+            if (canTakeProductFocus(card.autoOrderStepper.plus)) return card.autoOrderStepper.plus;
+            if (canTakeProductFocus(card.add)) return card.add;
         }
         if ("minus".equals(role)) {
-            if (card.st.minus.isShown() && card.st.minus.isEnabled()) return card.st.minus;
-            if (card.autoOrderStepper.minus.isShown() && card.autoOrderStepper.minus.isEnabled()) return card.autoOrderStepper.minus;
+            if (canTakeProductFocus(card.st.minus)) return card.st.minus;
+            if (canTakeProductFocus(card.autoOrderStepper.minus)) return card.autoOrderStepper.minus;
+            if (canTakeProductFocus(card.add)) return card.add;
         }
         if ("qty".equals(role)) {
-            if (card.st.qty.isShown() && card.st.qty.isFocusable()) return card.st.qty;
-            if (card.autoOrderStepper.qty.isShown() && card.autoOrderStepper.qty.isFocusable()) return card.autoOrderStepper.qty;
+            if (canTakeProductFocus(card.st.qty)) return card.st.qty;
+            if (canTakeProductFocus(card.autoOrderStepper.qty)) return card.autoOrderStepper.qty;
+            if (canTakeProductFocus(card.add)) return card.add;
         }
-        if ("add".equals(role) && card.add.isShown() && card.add.isEnabled()) return card.add;
-        if ("charge".equals(role) && card.chargeButton.isShown() && card.chargeButton.isEnabled()) return card.chargeButton;
-        if ("autoSave".equals(role) && card.autoOrderSaveButton.isShown() && card.autoOrderSaveButton.isEnabled()) return card.autoOrderSaveButton;
-        if ("stockAlert".equals(role) && card.stockAlertButton.isShown() && card.stockAlertButton.isEnabled()) return card.stockAlertButton;
+        if ("add".equals(role)) {
+            if (canTakeProductFocus(card.add)) return card.add;
+            if (canTakeProductFocus(card.st.plus)) return card.st.plus;
+            if (canTakeProductFocus(card.autoOrderStepper.plus)) return card.autoOrderStepper.plus;
+        }
+        if ("charge".equals(role) && canTakeProductFocus(card.chargeButton)) return card.chargeButton;
+        if ("autoSave".equals(role) && canTakeProductFocus(card.autoOrderSaveButton)) return card.autoOrderSaveButton;
+        if ("stockAlert".equals(role) && canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
         if ("order".equals(role)) return orderSummaryButton;
         return card.card;
     }
@@ -950,6 +971,166 @@ public class MainActivity extends Activity {
         return requestProductFocus(target);
     }
 
+
+    private boolean isStepperRole(String role) {
+        return "plus".equals(role) || "minus".equals(role) || "qty".equals(role);
+    }
+
+    /** Logical column 0 is the visual rightmost card in the Hebrew product grid. */
+    private int[] findCardRowAndColumn(CardHolder targetCard) {
+        if (productList == null || targetCard == null) return null;
+        int first = productList.getFirstVisiblePosition();
+        for (int i = 0; i < productList.getChildCount(); i++) {
+            View rowView = productList.getChildAt(i);
+            if (rowView == null || !(rowView.getTag() instanceof RowHolder)) continue;
+            RowHolder row = (RowHolder) rowView.getTag();
+            CardHolder[] cards = {row.first, row.second, row.third, row.fourth, row.fifth};
+            for (int column = 0; column < cards.length; column++) {
+                if (cards[column] == targetCard && cards[column].p != null
+                        && cards[column].card.getVisibility() == View.VISIBLE) return new int[]{first + i, column};
+            }
+        }
+        return null;
+    }
+
+    private List<String> verticalRolesForCard(CardHolder card) {
+        List<String> roles = new ArrayList<>();
+        roles.add("card");
+        if (card == null || card.p == null) return roles;
+        if (canTakeProductFocus(card.add)) {
+            roles.add("add");
+        } else if (card.autoOrderPanel.isShown()) {
+            if (canTakeProductFocus(card.autoOrderStepper.plus) || canTakeProductFocus(card.autoOrderStepper.qty)
+                    || canTakeProductFocus(card.autoOrderStepper.minus)) roles.add("plus");
+            if (canTakeProductFocus(card.autoOrderSaveButton)) roles.add("autoSave");
+        } else if (card.st.view.isShown()) {
+            if (canTakeProductFocus(card.st.plus) || canTakeProductFocus(card.st.qty)
+                    || canTakeProductFocus(card.st.minus)) roles.add("plus");
+        }
+        if (canTakeProductFocus(card.stockAlertButton)) roles.add("stockAlert");
+        if (canTakeProductFocus(card.chargeButton)) roles.add("charge");
+        return roles;
+    }
+
+    private int verticalLayerIndex(List<String> roles, String role) {
+        int index = roles.indexOf(isStepperRole(role) ? "plus" : role);
+        return Math.max(0, index);
+    }
+
+    private String previousVerticalRole(CardHolder card, String role) {
+        List<String> roles = verticalRolesForCard(card);
+        int index = verticalLayerIndex(roles, role);
+        return index > 0 ? roles.get(index - 1) : null;
+    }
+
+    private String nextVerticalRole(CardHolder card, String role) {
+        List<String> roles = verticalRolesForCard(card);
+        int index = verticalLayerIndex(roles, role);
+        return index + 1 < roles.size() ? roles.get(index + 1) : null;
+    }
+
+    private boolean moveFocusFromOrderSummaryToLastProduct() {
+        View last = lastVisibleProductFocusTarget();
+        if (last != null) requestProductFocus(last);
+        return true;
+    }
+
+    private void moveFocusToProductRow(int currentPosition, int preferredColumn, int delta, String targetRole) {
+        if (productList == null) return;
+        int targetPosition = currentPosition + delta;
+        while (targetPosition >= 0 && targetPosition < gridRows.size()) {
+            if (gridRows.get(targetPosition).header == null) {
+                focusProductRowAtColumn(targetPosition, preferredColumn, targetRole, delta);
+                return;
+            }
+            targetPosition += delta;
+        }
+        if (delta > 0 && orderSummaryButton != null && orderSummaryButton.isShown()) requestProductFocus(orderSummaryButton);
+    }
+
+    private void moveFocusHorizontallyToCard(int rowPosition, int column, int columnDelta, String targetRole) {
+        if (productList == null || rowPosition < 0 || rowPosition >= gridRows.size()) return;
+        int targetColumn = column + columnDelta;
+        if (targetColumn >= 0 && targetColumn < cardColumns()
+                && focusCardInRowIfAvailable(rowPosition, targetColumn, targetRole)) return;
+        int rowDelta = columnDelta > 0 ? 1 : -1;
+        int preferredColumn = columnDelta > 0 ? 0 : Math.max(0, cardColumns() - 1);
+        moveFocusToProductRow(rowPosition, preferredColumn, rowDelta, "card");
+    }
+
+    private boolean focusCardInRowIfAvailable(int position, int column, String role) {
+        if (productList == null) return false;
+        int childIndex = position - productList.getFirstVisiblePosition();
+        if (childIndex < 0 || childIndex >= productList.getChildCount()) return false;
+        View rowView = productList.getChildAt(childIndex);
+        if (rowView == null || !(rowView.getTag() instanceof RowHolder)) return false;
+        RowHolder holder = (RowHolder) rowView.getTag();
+        CardHolder[] cards = {holder.first, holder.second, holder.third, holder.fourth, holder.fifth};
+        if (column < 0 || column >= cards.length) return false;
+        CardHolder card = cards[column];
+        return card.p != null && card.card.getVisibility() == View.VISIBLE
+                && requestProductFocus(navigationTargetForRole(card, role));
+    }
+
+    private void focusProductRowAtColumn(final int position, final int preferredColumn,
+            final String targetRole, final int delta) {
+        if (productList == null || position < 0 || position >= gridRows.size()) return;
+        int first = productList.getFirstVisiblePosition();
+        int last = productList.getLastVisiblePosition();
+        int childIndex = position - first;
+        if (position >= first && position <= last && childIndex >= 0 && childIndex < productList.getChildCount()) {
+            View row = productList.getChildAt(childIndex);
+            if (row != null && row.getTag() instanceof RowHolder) {
+                int listTop = productList.getPaddingTop();
+                int listBottom = productList.getHeight() - productList.getPaddingBottom();
+                if (row.getTop() >= listTop && row.getBottom() <= listBottom) {
+                    applyFocusToRowHolder((RowHolder) row.getTag(), preferredColumn, targetRole);
+                    return;
+                }
+                int desiredTop = delta > 0
+                        ? Math.max(listTop, listBottom - row.getHeight() - dp(8)) : listTop + dp(8);
+                productList.setSelectionFromTop(position, desiredTop);
+                focusProductRowWhenAttached(position, preferredColumn, targetRole, 0);
+                return;
+            }
+        }
+        int offset = delta > 0 ? Math.max(dp(16), productList.getHeight() / 2) : dp(16);
+        productList.setSelectionFromTop(position, offset);
+        focusProductRowWhenAttached(position, preferredColumn, targetRole, 0);
+    }
+
+    private void focusProductRowWhenAttached(final int position, final int preferredColumn,
+            final String targetRole, final int attempt) {
+        if (productList == null || position < 0 || position >= gridRows.size()) return;
+        productList.post(() -> {
+            if (productList == null || position >= gridRows.size()) return;
+            int childIndex = position - productList.getFirstVisiblePosition();
+            View child = childIndex >= 0 && childIndex < productList.getChildCount()
+                    ? productList.getChildAt(childIndex) : null;
+            if (child == null || !(child.getTag() instanceof RowHolder)) {
+                if (attempt < 12) productList.postDelayed(
+                        () -> focusProductRowWhenAttached(position, preferredColumn, targetRole, attempt + 1), 35);
+                return;
+            }
+            applyFocusToRowHolder((RowHolder) child.getTag(), preferredColumn, targetRole);
+        });
+    }
+
+    private void applyFocusToRowHolder(RowHolder holder, int preferredColumn, String targetRole) {
+        if (holder == null) return;
+        CardHolder[] cards = {holder.first, holder.second, holder.third, holder.fourth, holder.fifth};
+        CardHolder chosen = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < cards.length; i++) {
+            CardHolder candidate = cards[i];
+            if (candidate.p == null || candidate.card.getVisibility() != View.VISIBLE) continue;
+            int distance = Math.abs(i - preferredColumn);
+            if (chosen == null || distance < bestDistance) { chosen = candidate; bestDistance = distance; }
+        }
+        if (chosen != null) {
+            if (!requestProductFocus(navigationTargetForRole(chosen, targetRole))) requestProductFocus(chosen.card);
+        }
+    }
 
     /** '#' moves visually right in RTL; '*' moves visually left and opens the destination immediately. */
     /**
@@ -3988,7 +4169,9 @@ public class MainActivity extends Activity {
             showImagePreview(previewUrl);
         });
         iv.setClickable(true);
-        iv.setFocusable(true);
+        // Product thumbnails open on click but must not become accidental D-pad focus stops.
+        iv.setFocusable(false);
+        iv.setFocusableInTouchMode(false);
         Bitmap cached = imageCache.get(url);
         if (cached != null) { iv.setImageBitmap(cached); return; }
         try {
@@ -5775,6 +5958,8 @@ public class MainActivity extends Activity {
 
         // the product list: only the rows on screen exist as views, and they are recycled while scrolling
         productList = new ListView(this);
+        productList.setItemsCanFocus(true);
+        productList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         productList.setContentDescription("רשימת מוצרי ההזמנה");
         productList.setDivider(null);
         productList.setDividerHeight(0);
@@ -5998,6 +6183,7 @@ public class MainActivity extends Activity {
         final TextView stockAlertButton;
         JSONObject p;
         String boundUrl = "";
+        private final Map<View, Drawable> normalFocusBackgrounds = new HashMap<>();
 
         CardHolder() {
             card.setOrientation(LinearLayout.VERTICAL);
@@ -6005,8 +6191,7 @@ public class MainActivity extends Activity {
             card.setClickable(true);
             card.setFocusable(true);
             card.setFocusableInTouchMode(false);
-            card.setOnFocusChangeListener((view, focused) ->
-                    card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE, focused ? 2 : 1)));
+            card.setOnFocusChangeListener((view, focused) -> updateFocusVisuals());
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
             imageBox = new FrameLayout(MainActivity.this);
@@ -6161,6 +6346,44 @@ public class MainActivity extends Activity {
                 else changeBy(p, -1, productsRefresh, null);
             });
             st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) askQuantity(p, productsRefresh, null); });
+
+            View.OnFocusChangeListener focusListener = (view, focused) -> updateFocusVisuals();
+            for (View focusView : new View[]{card, add, st.plus, st.qty, st.minus, chargeButton,
+                    autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
+                    autoOrderSaveButton, stockAlertButton}) focusView.setOnFocusChangeListener(focusListener);
+        }
+
+        private void rememberNormalFocusBackgrounds() {
+            for (View focusView : new View[]{add, st.plus, st.qty, st.minus, chargeButton,
+                    autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
+                    autoOrderSaveButton, stockAlertButton}) normalFocusBackgrounds.put(focusView, focusView.getBackground());
+        }
+
+        private void updateFocusVisuals() {
+            card.setBackground(shape(SURFACE, 14, card.hasFocus() ? ORANGE : LINE, card.hasFocus() ? 2 : 1));
+            View focusedChild = null;
+            for (View focusView : new View[]{add, st.plus, st.qty, st.minus, chargeButton,
+                    autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
+                    autoOrderSaveButton, stockAlertButton}) {
+                if (focusView.hasFocus()) focusedChild = focusView;
+                else {
+                    Drawable normal = normalFocusBackgrounds.get(focusView);
+                    if (normal != null && focusView.getBackground() != normal) focusView.setBackground(normal);
+                    focusView.setScaleX(1f); focusView.setScaleY(1f); focusView.setElevation(0f);
+                }
+            }
+            if (focusedChild != null) {
+                int fill = SURFACE, foreground = INK, radius = ACTION_BUTTON_RADIUS_DP;
+                if (focusedChild == st.plus || focusedChild == autoOrderStepper.plus) { fill = ORANGE; foreground = ON_ORANGE; radius = 99; }
+                else if (focusedChild == st.minus || focusedChild == autoOrderStepper.minus) { fill = MINUS_FILL; foreground = ORANGE_DARK; radius = 99; }
+                else if (focusedChild == st.qty || focusedChild == autoOrderStepper.qty) { fill = nightMode ? SURFACE : ORANGE_LIGHT; foreground = INK; radius = 8; }
+                else if (focusedChild == add) { fill = ORANGE_LIGHT; foreground = ORANGE_DARK; }
+                else if (focusedChild == chargeButton || focusedChild == autoOrderSaveButton) { fill = ORANGE; foreground = ON_ORANGE; }
+                else if (focusedChild == stockAlertButton) { fill = SURFACE; foreground = ORANGE_DARK; }
+                focusedChild.setBackground(ripple(shape(fill, radius, nightMode ? Color.WHITE : INK, 2), radius));
+                if (focusedChild instanceof TextView) ((TextView) focusedChild).setTextColor(foreground);
+                focusedChild.setScaleX(1.04f); focusedChild.setScaleY(1.04f); focusedChild.setElevation(dp(3));
+            }
         }
 
         private void setCompactOptionalRow(TextView view, boolean visible) {
@@ -6206,6 +6429,9 @@ public class MainActivity extends Activity {
         }
 
         void bind(JSONObject prod) {
+            for (Map.Entry<View, Drawable> entry : normalFocusBackgrounds.entrySet()) {
+                if (entry.getValue() != null) entry.getKey().setBackground(entry.getValue());
+            }
             p = prod;
             card.setTag("productCard:" + sidOf(prod));
             card.setContentDescription(productName(prod) + ". כרטיס מוצר");
@@ -6272,6 +6498,8 @@ public class MainActivity extends Activity {
                 stockAlertButton.setText(stockWatchMode(prod,"alert")?"🔔 ההתראה פעילה · ניהול":"🔔 התראה כשהמוצר חוזר למלאי");
                 autoOrderPanel.setBackground(shape(disabled&&!soldOut?RED_LIGHT:ORANGE_LIGHT,10,disabled&&!soldOut?RED:ORANGE));
             }
+            rememberNormalFocusBackgrounds();
+            updateFocusVisuals();
         }
     }
 
@@ -6283,6 +6511,7 @@ public class MainActivity extends Activity {
         final CardHolder fourth = new CardHolder();
         final CardHolder fifth = new CardHolder();
         int boundPosition = -1;
+        int boundColumns = -1;
         int bindGeneration = 0;
 
         void resetCardHeights() {
@@ -6366,11 +6595,12 @@ public class MainActivity extends Activity {
                 cachedRows.add(h);
             }
             int columns = cardColumns();
+            boolean rowIdentityChanged = h.boundPosition != position || h.boundColumns != columns;
             h.boundPosition = position;
+            h.boundColumns = columns;
             int bindGeneration = ++h.bindGeneration;
-            // A recycled row may carry the previous row's equalized height. Always
-            // return to natural sizing before binding the new products or column count.
-            h.resetCardHeights();
+            // Reset equalized heights only when a row is recycled or the column count changes.
+            if (rowIdentityChanged) h.resetCardHeights();
             h.first.card.setVisibility(View.VISIBLE);
             h.first.bind(r.a);
             CardHolder[] holders = {h.second, h.third, h.fourth, h.fifth};
@@ -6387,10 +6617,8 @@ public class MainActivity extends Activity {
                     holders[i].card.setVisibility(View.INVISIBLE);
                 }
             }
-            // Wait until the row has been laid out at the current column widths,
-            // then match all visible cards to the tallest card in this row.
-            h.row.post(() -> h.row.post(() ->
-                    h.equalizeCardHeights(position, columns, bindGeneration)));
+            // One post is enough to measure the laid-out row and avoids an extra focus-sensitive frame.
+            h.row.post(() -> h.equalizeCardHeights(position, columns, bindGeneration));
             return h.row;
         }
     }
