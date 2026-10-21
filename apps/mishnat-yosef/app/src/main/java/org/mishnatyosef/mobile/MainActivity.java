@@ -586,11 +586,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Closest control inside the same card in the pressed direction (e.g. + -> qty -> - on one line). */
-    /** Which control of a card to land on when arriving from another card. */
-    /** Scrolls the target product row into view if needed, then puts focus on the right control inside it. */
-    /** Scroll independently of the currently focused button or product. */
-    /** Focus the active bottom tab; # and * shortcuts switch tabs immediately. */
     private View findTaggedView(View view, String tag) {
         if (view == null) return null;
         if (tag.equals(view.getTag())) return view;
