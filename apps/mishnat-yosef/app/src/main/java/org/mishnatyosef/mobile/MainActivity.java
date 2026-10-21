@@ -608,7 +608,9 @@ public class MainActivity extends Activity {
                 pendingProductFocusAction = null;
             }
             View focused = getCurrentFocus();
-            boolean editingText = focused instanceof EditText;
+            // An EditText may retain focus after its soft keyboard was dismissed. In that state
+            // the keypad shortcuts must still work; while the IME is visible, preserve text entry.
+            boolean editingText = focused instanceof EditText && isSoftKeyboardVisible();
             int key = event.getKeyCode();
             // Do not steal number keys while the user is typing in search, login, or another text field.
             if (!editingText) {
@@ -837,6 +839,20 @@ public class MainActivity extends Activity {
         return null;
     }
 
+    /** Resolve a control by its stable action tag without relying on the generic focusable-child scan. */
+    private View findFocusableTaggedControl(View root, String tag) {
+        if (root == null || root.getVisibility() != View.VISIBLE) return null;
+        if (tag.equals(root.getTag()) && root.isShown() && root.isEnabled() && root.isFocusable()) return root;
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findFocusableTaggedControl(group.getChildAt(i), tag);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
     private View chooseProductEntryControl(View card, int keyCode, int refX, int refY, String preferredActionTag) {
         List<View> controls = new ArrayList<>();
         collectCardControls(card, card, controls);
@@ -844,11 +860,8 @@ public class MainActivity extends Activity {
         // A charge-list card has one meaningful action. Never silently redirect a failed
         // charge-button match to a quantity stepper on the next card.
         if ("productCharge".equals(preferredActionTag)) {
-            for (View control : controls) {
-                if ("productCharge".equals(control.getTag()) && control.isShown()
-                        && control.isEnabled() && control.isFocusable()) return control;
-            }
-            return card;
+            View charge = findFocusableTaggedControl(card, "productCharge");
+            return charge != null ? charge : card;
         }
 
         // Keep navigation action-based, not geometry-based, for order controls. This prevents
@@ -866,10 +879,8 @@ public class MainActivity extends Activity {
             actionOrder = new String[0];
         }
         for (String tag : actionOrder) {
-            for (View control : controls) {
-                if (tag.equals(control.getTag()) && control.isShown()
-                        && control.isEnabled() && control.isFocusable()) return control;
-            }
+            View matching = findFocusableTaggedControl(card, tag);
+            if (matching != null) return matching;
         }
 
         List<View> orderControls = new ArrayList<>();
@@ -931,8 +942,10 @@ public class MainActivity extends Activity {
                         ensureRowVisible(rowView);
                         return;
                     }
-                    // If the action cannot take focus (e.g. read-only state), focus the card itself.
-                    if (card.isFocusable() && card.requestFocus() && getCurrentFocus() == card) {
+                    // For an action-based move, never silently substitute the card itself:
+                    // doing so loses the action identity and the next Down may select a stepper.
+                    if (preferredActionTag == null && card.isFocusable()
+                            && card.requestFocus() && getCurrentFocus() == card) {
                         ensureRowVisible(rowView);
                         return;
                     }
@@ -1937,6 +1950,14 @@ public class MainActivity extends Activity {
         statusView.setText(message == null ? "" : message);
         statusView.setTextColor(error ? RED : MUTED);
         statusView.setVisibility(message == null || message.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private boolean isSoftKeyboardVisible() {
+        View decor = getWindow() == null ? null : getWindow().getDecorView();
+        if (decor == null) return false;
+        android.graphics.Rect visible = new android.graphics.Rect();
+        decor.getWindowVisibleDisplayFrame(visible);
+        return decor.getRootView().getHeight() - visible.bottom > dp(180);
     }
 
     private void hideKeyboard() {
