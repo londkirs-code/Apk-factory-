@@ -2599,7 +2599,7 @@ public class MainActivity extends Activity {
         head.setMaxLines(1);
         head.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(head, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView actionsButton = text("⚙️", 11, true);
+        TextView actionsButton = text("⚙️", 22, true);
         actionsButton.setTextColor(nightMode ? INK : ORANGE_DARK);
         actionsButton.setGravity(Gravity.CENTER);
         actionsButton.setSingleLine(true);
@@ -2609,7 +2609,7 @@ public class MainActivity extends Activity {
         actionsButton.setElevation(dp(2));
         actionsButton.setContentDescription("פתיחת הגדרות ופעולות");
         actionsButton.setOnClickListener(v -> showActionsDialog());
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(20), dp(20));
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
         actionsParams.leftMargin = dp(2);
         header.addView(actionsButton, actionsParams);
         header.setPadding(rtlActive() ? padEnd : padStart, dp(4), rtlActive() ? padStart : padEnd, dp(4));
