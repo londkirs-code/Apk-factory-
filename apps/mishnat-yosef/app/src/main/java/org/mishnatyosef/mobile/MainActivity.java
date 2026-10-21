@@ -4414,7 +4414,7 @@ public class MainActivity extends Activity {
         if (!(saleOpeningNotificationEnabled && saleClosingReminderEnabled)) {
             LinearLayout notificationShortcut = card(14);
             notificationShortcut.addView(text(
-                    "🔔 רוצים לקבל התראה ברגע שנפתחת מכירה?\nרוצים לקבל תזכורת לסגירת מכירה?",
+                    "🔔 רוצים לקבל התראה ברגע שנפתחת מכירה?\n🔔 רוצים לקבל תזכורת לפני סגירת מכירה?",
                     16, true), lp(-1, -2, 0, 4));
             TextView notificationSettingsButton = btn("לחצו כאן", PRIMARY);
             notificationSettingsButton.setTextSize(15);
@@ -4468,7 +4468,7 @@ public class MainActivity extends Activity {
         beginScreen("הזמנות מההיסטוריה", 0, null);
         showingSalesList = false;
         final int t = screenToken;
-        setStatus("טוען הזמנות מהמטמון ושמות מכירות מהשרת…");
+        // Render local snapshots immediately; server history only fills missing sale names.
         loadExecutor.execute(() -> {
             final List<Integer> cachedSaleIds = new ArrayList<>();
             final Map<Integer, SaleSnapshot> cachedSnapshots = new LinkedHashMap<>();
@@ -4476,15 +4476,12 @@ public class MainActivity extends Activity {
                 File dir = new File(getFilesDir(), "cache");
                 File[] files = dir.listFiles((d, name) -> name.matches("sale_[0-9]+\\.json"));
                 if (files != null) {
-                    java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                    java.util.Arrays.sort(files, (x, y) -> Long.compare(y.lastModified(), x.lastModified()));
                     for (File file : files) {
                         String fileName = file.getName();
                         int saleId;
-                        try {
-                            saleId = Integer.parseInt(fileName.substring("sale_".length(), fileName.length() - ".json".length()));
-                        } catch (Exception ignored) {
-                            continue;
-                        }
+                        try { saleId = Integer.parseInt(fileName.substring(5, fileName.length() - 5)); }
+                        catch (Exception ignored) { continue; }
                         if (saleId <= 0) continue;
                         SaleSnapshot snapshot = readSnapshot(saleId);
                         if (snapshot == null || snapshot.products.isEmpty()) continue;
@@ -4493,18 +4490,8 @@ public class MainActivity extends Activity {
                     }
                 }
             } catch (Exception ignored) { }
-
-            // Match each local saleID with the authenticated order-history API and extract
-            // its Hebrew sale title from the nested sale/custom_name or parent.week fields.
-            Map<Integer, String> saleNames = fetchCachedSaleNames(new HashSet<>(cachedSaleIds));
-            for (Map.Entry<Integer, SaleSnapshot> entry : cachedSnapshots.entrySet()) {
-                String resolved = saleNames.get(entry.getKey());
-                if (resolved != null && !resolved.trim().isEmpty()) {
-                    entry.getValue().saleName = resolved.trim();
-                    persistCachedSaleName(entry.getKey(), resolved.trim());
-                }
-            }
-
+            final Map<Integer, TextView> titleViews = new LinkedHashMap<>();
+            final Map<Integer, JSONObject> cachedOrders = new LinkedHashMap<>();
             runOnUiThread(() -> {
                 if (stale(t)) return;
                 setStatus("");
@@ -4515,17 +4502,14 @@ public class MainActivity extends Activity {
                     root.addView(muted("לא נמצאו הזמנות עם מטמון מקומי קריא.", 13), lp(-1, -2, 0, 10));
                     return;
                 }
-                if (saleNames.isEmpty() && !hasToken()) {
-                    root.addView(muted("כדי להציג את שמות המכירות יש להתחבר לחשבון.", 13), lp(-1, -2, 0, 10));
-                }
                 for (int saleId : cachedSaleIds) {
                     SaleSnapshot snapshot = cachedSnapshots.get(saleId);
                     if (snapshot == null) continue;
                     String saleName = snapshot.saleName == null ? "" : snapshot.saleName.trim();
-                    if (saleName.isEmpty()) saleName = "שם המכירה לא זמין";
+                    if (saleName.isEmpty()) saleName = "מכירה #" + saleId;
                     LinearLayout item = card(16);
                     item.setPadding(dp(16), dp(16), dp(16), dp(16));
-                    item.setMinimumHeight(dp(132));
+                    item.setMinimumHeight(dp(88));
                     item.setClickable(true);
                     item.setFocusable(true);
                     TextView saleTitleView = text(saleName, 18, true);
@@ -4539,15 +4523,32 @@ public class MainActivity extends Activity {
                         cachedOrder.put("sale_name", saleName);
                         cachedOrder.put("id", snapshot.orderId);
                     } catch (Exception ignored) { }
-                    item.setContentDescription("פתיחת ההזמנה מהמטמון: " + saleName);
+                    titleViews.put(saleId, saleTitleView);
+                    cachedOrders.put(saleId, cachedOrder);
+                    item.setContentDescription("פתיחת ההזמנה מההיסטוריה: " + saleName);
                     item.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
-                    TextView openButton = btn("📋 פתח מהמטמון", TONAL);
-                    openButton.setGravity(Gravity.CENTER);
-                    openButton.setTextSize(15);
-                    openButton.setMinHeight(dp(48));
-                    openButton.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
-                    item.addView(openButton, lp(-1, dp(48), 0, 10));
+                    saleTitleView.setOnClickListener(v -> openCachedClosedOrder(cachedOrder, snapshotSaleId));
                     root.addView(item, lp(-1, -2, 0, 10));
+                }
+            });
+            Map<Integer, String> saleNames = fetchCachedSaleNames(new HashSet<>(cachedSaleIds));
+            for (Map.Entry<Integer, String> entry : saleNames.entrySet()) {
+                String resolved = entry.getValue() == null ? "" : entry.getValue().trim();
+                SaleSnapshot snapshot = cachedSnapshots.get(entry.getKey());
+                if (snapshot != null && !resolved.isEmpty()) {
+                    snapshot.saleName = resolved;
+                    persistCachedSaleName(entry.getKey(), resolved);
+                }
+            }
+            if (!saleNames.isEmpty()) runOnUiThread(() -> {
+                if (stale(t)) return;
+                for (Map.Entry<Integer, String> entry : saleNames.entrySet()) {
+                    String resolved = entry.getValue() == null ? "" : entry.getValue().trim();
+                    if (resolved.isEmpty()) continue;
+                    TextView title = titleViews.get(entry.getKey());
+                    if (title != null) title.setText(resolved);
+                    JSONObject order = cachedOrders.get(entry.getKey());
+                    if (order != null) try { order.put("sale_name", resolved); } catch (Exception ignored) { }
                 }
             });
         });
