@@ -1,9 +1,9 @@
 {
-  "versionCode": 344,
-  "versionName": "1.4799",
+  "versionCode": 345,
+  "versionName": "1.4800",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "ca26a138d783a355bb743b3c95972ed98baa7f29fe152fc33a70b26eaad5ac7c",
-  "releaseTitle": "פרטי הזמנה ברשימת ההיסטוריה",
-  "releaseNotes": "- כל כרטיס הזמנה בהיסטוריה המקומית מציג כעת תאריך, כמות מוצרים כוללת וסכום משוער לפי המחיר והכמויות השמורים במטמון.\n- לחיצה על הכרטיס עדיין פותחת את אותה הזמנה מההיסטוריה.",
-  "buildCommit": "a0712c42ccf734a39ef31c721a9b0992a7c275c2"
+  "sha256": "6dbc224daa2e5431ba9f512634d68201d3774580919ba4fabcf2b8eb881cb050",
+  "releaseTitle": "שיפור מסך זיכויים וחיובים",
+  "releaseNotes": "- הכפתורים „לפי מכירה” ו„שיתוף” עברו לשורת הסינון לצד „הכול”, „זיכויים” ו„חיובים”.\n- „לפי מכירה” מציג מכירות שיש בהן תנועות זיכוי או חיוב, עם סיכום לכל מכירה.\n- לחיצה על מכירה פותחת או מצמצמת רשימת פרטי התנועות מתחתיה, בסגנון עץ עם +/−.",
+  "buildCommit": "752d83b75636c72d0b627359ccd56c49d1e84ad8"
 }
