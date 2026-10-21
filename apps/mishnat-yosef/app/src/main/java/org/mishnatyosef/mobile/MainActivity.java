@@ -7665,7 +7665,7 @@ public class MainActivity extends Activity {
         if (scrollView != null && keepScroll > 0) scrollView.post(() -> scrollView.scrollTo(0, keepScroll));
     }
 
-    /** Full-page celebration when the last order line is marked as collected. */
+    /** Full-screen confetti spread evenly over the actual app window. */
     private void showCollectionConfetti() {
         final View decor = getWindow().getDecorView();
         if (!(decor instanceof FrameLayout)) return;
@@ -7673,43 +7673,61 @@ public class MainActivity extends Activity {
         overlay.setTag("collectionConfettiOverlay");
         overlay.setClickable(false);
         overlay.setFocusable(false);
+        overlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         ((FrameLayout) decor).addView(overlay, new FrameLayout.LayoutParams(-1, -1));
 
-        // Spread a dense mix of celebratory pieces across the full screen, not just the top.
-        final String[] pieces = {"🎉", "✨", "🎊", "🟠", "🟢", "🟡", "💚", "⭐", "🎈", "🥳"};
-        final float density = getResources().getDisplayMetrics().density;
-        final int screenWidth = Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density));
-        final int screenHeight = Math.max(1, (int) (getResources().getDisplayMetrics().heightPixels / density));
-        final int count = 90;
-        for (int i = 0; i < count; i++) {
-            final int column = i % 9;
-            final int row = i / 9;
-            final int x = Math.max(0, Math.min(screenWidth - 42, column * Math.max(1, screenWidth - 42) / 8 + ((i * 17) % 27) - 13));
-            final int y = row * Math.max(1, screenHeight - 40) / 9 + ((i * 23) % 35) - 18;
-            TextView piece = text(pieces[i % pieces.length], 18 + (i % 4) * 4, true);
-            piece.setGravity(Gravity.CENTER);
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(dp(42), dp(46));
-            params.leftMargin = dp(x);
-            params.topMargin = dp(y);
-            overlay.addView(piece, params);
-            piece.setRotation((i * 37) % 100 - 50);
-            piece.setAlpha(0f);
-            piece.setScaleX(0.45f);
-            piece.setScaleY(0.45f);
-            piece.animate()
-                    .alpha(1f)
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .translationX(dp((i % 2 == 0 ? 1 : -1) * (12 + i % 6 * 7)))
-                    .translationY(dp((i % 3 == 0 ? -1 : 1) * (14 + i % 7 * 9)))
-                    .rotationBy((i % 2 == 0 ? 1 : -1) * (100 + i % 5 * 35))
-                    .setStartDelay((i % 12) * 22L)
-                    .setDuration(850 + (i % 5) * 110L)
-                    .start();
-        }
-        ui.postDelayed(() -> {
-            if (overlay.getParent() instanceof ViewGroup) ((ViewGroup) overlay.getParent()).removeView(overlay);
-        }, 2300);
+        // Use the overlay's measured bounds (not the device's raw screen size) so
+        // confetti covers the whole visible app, including the left and bottom edges.
+        overlay.post(() -> {
+            if (overlay.getParent() == null) return;
+            final int width = overlay.getWidth();
+            final int height = overlay.getHeight();
+            if (width <= 0 || height <= 0) {
+                if (overlay.getParent() instanceof ViewGroup) ((ViewGroup) overlay.getParent()).removeView(overlay);
+                return;
+            }
+            final String[] pieces = {"🎉", "✨", "🎊", "🟠", "🟢", "🟡", "💚", "⭐", "🎈", "🥳", "💛", "🩷"};
+            final float density = getResources().getDisplayMetrics().density;
+            final int pieceWidth = dp(38);
+            final int pieceHeight = dp(42);
+            final int columns = 15;
+            final int rows = 12;
+            final int count = columns * rows;
+            for (int i = 0; i < count; i++) {
+                final int column = i % columns;
+                final int row = i / columns;
+                // Jitter each cell slightly while keeping an even full-screen spread.
+                final int jitterX = ((i * 37 + 11) % 31) - 15;
+                final int jitterY = ((i * 19 + 7) % 29) - 14;
+                final int baseX = (int) (((column + 0.5f) / columns) * Math.max(1, width - pieceWidth));
+                final int baseY = (int) (((row + 0.5f) / rows) * Math.max(1, height - pieceHeight));
+                final int x = Math.max(0, Math.min(width - pieceWidth, baseX + dp(jitterX)));
+                final int y = Math.max(0, Math.min(height - pieceHeight, baseY + dp(jitterY)));
+                TextView piece = text(pieces[i % pieces.length], 18 + (i % 4) * 3, true);
+                piece.setGravity(Gravity.CENTER);
+                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(pieceWidth, pieceHeight);
+                params.leftMargin = x;
+                params.topMargin = y;
+                overlay.addView(piece, params);
+                piece.setRotation((i * 37) % 100 - 50);
+                piece.setAlpha(0f);
+                piece.setScaleX(0.35f);
+                piece.setScaleY(0.35f);
+                piece.animate()
+                        .alpha(1f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .translationX(((i % 2 == 0) ? 1 : -1) * dp(10 + i % 6 * 5))
+                        .translationY(((i % 3 == 0) ? -1 : 1) * dp(12 + i % 7 * 7))
+                        .rotationBy(((i % 2 == 0) ? 1 : -1) * (100 + i % 5 * 35))
+                        .setStartDelay((i % 18) * 14L)
+                        .setDuration(950 + (i % 5) * 100L)
+                        .start();
+            }
+            ui.postDelayed(() -> {
+                if (overlay.getParent() instanceof ViewGroup) ((ViewGroup) overlay.getParent()).removeView(overlay);
+            }, 2600);
+        });
     }
 
     private void updateSummaryTotals() {
