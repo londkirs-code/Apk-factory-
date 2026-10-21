@@ -967,6 +967,111 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    /** Simple product-to-product D-pad mode: arrows never try to select a particular action. */
+    private boolean handleSimpleProductDpad(int keyCode, View focused, View card) {
+        if (card == null) {
+            if (focused == null || focused == productList) return focusFirstVisibleProductCard();
+            return false;
+        }
+        Object tag = card.getTag();
+        if (!(tag instanceof String) || !((String) tag).startsWith("productCard:")) return false;
+        String sid = ((String) tag).substring("productCard:".length());
+        int[] pos = productGridPos(sid);
+        if (pos == null) return false;
+        int rowIndex = pos[0], colIndex = pos[1];
+        JSONObject target = null;
+        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            int step = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1;
+            for (int r = rowIndex + step; r >= 0 && r < gridRows.size(); r += step) {
+                GridRow row = gridRows.get(r);
+                if (row.header != null) continue;
+                JSONObject[] items = {row.a, row.b, row.c, row.d, row.e};
+                if (colIndex < items.length && items[colIndex] != null) target = items[colIndex];
+                else {
+                    for (int distance = 1; distance < cardColumns() && target == null; distance++) {
+                        int left = colIndex - distance, right = colIndex + distance;
+                        if (left >= 0 && items[left] != null) target = items[left];
+                        else if (right < items.length && items[right] != null) target = items[right];
+                    }
+                }
+                if (target != null) break;
+            }
+        } else {
+            int step = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? 1 : -1;
+            GridRow row = gridRows.get(rowIndex);
+            JSONObject[] items = {row.a, row.b, row.c, row.d, row.e};
+            int next = colIndex + step;
+            if (next >= 0 && next < cardColumns() && items[next] != null) target = items[next];
+            else {
+                int rowStep = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? 1 : -1;
+                for (int r = rowIndex + rowStep; r >= 0 && r < gridRows.size(); r += rowStep) {
+                    GridRow candidate = gridRows.get(r);
+                    if (candidate.header != null) continue;
+                    JSONObject[] itemsInRow = {candidate.a, candidate.b, candidate.c, candidate.d, candidate.e};
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                        for (int c = 0; c < cardColumns(); c++) if (itemsInRow[c] != null) target = itemsInRow[c];
+                    } else {
+                        for (int c = Math.min(cardColumns(), itemsInRow.length) - 1; c >= 0; c--) {
+                            if (itemsInRow[c] != null) { target = itemsInRow[c]; break; }
+                        }
+                    }
+                    if (target != null) break;
+                }
+            }
+        }
+        if (target == null) return true;
+        focusProductCard(sidOf(target), keyCode);
+        return true;
+    }
+
+    private boolean focusFirstVisibleProductCard() {
+        if (productList == null) return false;
+        for (int i = 0; i < productList.getChildCount(); i++) {
+            View row = productList.getChildAt(i);
+            if (!(row != null && row.getTag() instanceof RowHolder)) continue;
+            RowHolder holder = (RowHolder) row.getTag();
+            for (CardHolder item : new CardHolder[]{holder.first, holder.second, holder.third, holder.fourth, holder.fifth}) {
+                if (item.p != null && item.card.isShown()) {
+                    focusProductCard(sidOf(item.p), KeyEvent.KEYCODE_DPAD_DOWN);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void focusProductCard(final String sid, final int keyCode) {
+        if (productList == null || sid == null) return;
+        final int[] pos = productGridPos(sid);
+        if (pos == null) return;
+        final int adapterPosition = pos[0];
+        final int generation = keyboardNavigationGeneration;
+        final View screen = currentScreen;
+        if (adapterPosition < productList.getFirstVisiblePosition()
+                || adapterPosition > productList.getLastVisiblePosition()) {
+            productList.setSelectionFromTop(adapterPosition, keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                    ? Math.max(dp(8), productList.getHeight() / 3) : dp(8));
+        }
+        productList.post(new Runnable() {
+            int attempts = 0;
+            @Override public void run() {
+                if (productList == null || !showingOrderScreen || currentScreen != screen
+                        || keyboardNavigationGeneration != generation) return;
+                int first = productList.getFirstVisiblePosition();
+                int last = productList.getLastVisiblePosition();
+                View row = adapterPosition >= first && adapterPosition <= last
+                        ? productList.getChildAt(adapterPosition - first) : null;
+                View target = row == null ? null : findProductCardInRow(row, sid);
+                if (target != null && target.isShown() && target.requestFocus()
+                        && getCurrentFocus() == target) {
+                    ensureRowVisible(row);
+                    return;
+                }
+                if (++attempts < 20) productList.postDelayed(this, 50);
+            }
+        });
+    }
+
     /**
      * One navigation policy for all controls inside order cards. Horizontal arrows first traverse
      * controls within the current card; vertical arrows from order actions move to the adjacent
@@ -978,6 +1083,9 @@ public class MainActivity extends Activity {
         if (productList == null || gridRows.isEmpty()) return false;
         View focused = getCurrentFocus();
         View card = enclosingProductCard(focused);
+        if (prefs.getBoolean("simple_product_navigation", true)) {
+            return handleSimpleProductDpad(keyCode, focused, card);
+        }
         if (card == null) {
             if (focused == null || focused == productList) return focusFirstVisibleProduct();
             return false;
@@ -6215,7 +6323,7 @@ public class MainActivity extends Activity {
             // Let hardware Tab/focus traversal reach the actual controls inside each product card.
             card.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             card.setOnFocusChangeListener((view, focused) ->
-                    card.setBackground(shape(SURFACE, 14, focused ? ORANGE : LINE)));
+                    card.setBackground(shape(SURFACE, 14, focused && !prefs.getBoolean("simple_product_navigation", true) ? ORANGE : LINE)));
             // D-pad navigation is centralized in handleOrderGridDpad(); do not install a second handler here.
             card.setPadding(dp(4), dp(4), dp(4), dp(6));
 
@@ -9141,6 +9249,7 @@ public class MainActivity extends Activity {
         final List<String> labels = new ArrayList<>();
         final List<Integer> actions = new ArrayList<>();
         labels.add(nightMode ? "☀️ מעבר למצב יום" : "🌙 הפעלת מצב לילה"); actions.add(11);
+        labels.add((prefs.getBoolean("simple_product_navigation", true) ? "✓ " : "") + "ניווט פשוט בין מוצרים (ללא העדפת כפתורים)"); actions.add(15);
         labels.add((prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false) ? "✓ " : "") + "ביטול רענון עמוד בהזמנות");
         actions.add(14);
         if (closedOrderReadOnly) {
@@ -9188,6 +9297,11 @@ public class MainActivity extends Activity {
                             boolean skipPageRefresh = !prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false);
                             prefs.edit().putBoolean("experimental_skip_cached_quantity_grid_rebuild", skipPageRefresh).apply();
                             toast(skipPageRefresh ? "ביטול רענון עמוד הופעל בהזמנות" : "רענון עמוד ההזמנות הוחזר", false);
+                            break;
+                        case 15:
+                            boolean simpleNavigation = !prefs.getBoolean("simple_product_navigation", true);
+                            prefs.edit().putBoolean("simple_product_navigation", simpleNavigation).apply();
+                            toast(simpleNavigation ? "ניווט פשוט בין מוצרים הופעל" : "ניווט לפי פעולות הכרטיסים הופעל", false);
                             break;
                     }
                 }).show();
