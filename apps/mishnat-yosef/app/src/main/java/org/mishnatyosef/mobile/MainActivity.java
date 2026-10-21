@@ -4408,25 +4408,28 @@ public class MainActivity extends Activity {
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
 
-        // Prominent shortcut to sale-notification settings, styled with the app's existing button/card system.
-        LinearLayout notificationShortcut = card(14);
-        notificationShortcut.addView(text("🔔 רוצים לקבל התראות על מכירות?", 17, true),
-                lp(-1, -2, 0, 2));
-        TextView notificationSettingsButton = btn(
-                "רוצים לקבל התראה ברגע שנפתחת מכירה?\nרוצים לקבל תזכורת לסגירת מכירה?\nלחצו כאן",
-                PRIMARY);
-        notificationSettingsButton.setTextSize(17);
-        notificationSettingsButton.setGravity(Gravity.CENTER);
-        notificationSettingsButton.setMinHeight(dp(78));
-        notificationSettingsButton.setPadding(dp(12), dp(10), dp(12), dp(10));
-        notificationSettingsButton.setOnClickListener(v -> {
-            // The shortcut lives on Open Sales, but notification settings belong to Account.
-            // Switch the active bottom tab first so the Account tab is selected and Back returns there.
-            navigateTab(3, this::showAccount);
-            showNotificationSettings();
-        });
-        notificationShortcut.addView(notificationSettingsButton, lp(-1, -2, 0, 8));
-        root.addView(notificationShortcut, lp(-1, -2, 0, 10));
+        // Show this shortcut only while at least one of the two sale notifications still needs setup.
+        boolean saleOpeningNotificationEnabled = prefs.getBoolean("sale_monitor_enabled", true);
+        boolean saleClosingReminderEnabled = prefs.getBoolean("closing_reminder_enabled", false);
+        if (!(saleOpeningNotificationEnabled && saleClosingReminderEnabled)) {
+            LinearLayout notificationShortcut = card(14);
+            notificationShortcut.addView(text(
+                    "🔔 רוצים לקבל התראה ברגע שנפתחת מכירה?\nרוצים לקבל תזכורת לסגירת מכירה?",
+                    16, true), lp(-1, -2, 0, 4));
+            TextView notificationSettingsButton = btn("לחצו כאן", PRIMARY);
+            notificationSettingsButton.setTextSize(15);
+            notificationSettingsButton.setGravity(Gravity.CENTER);
+            notificationSettingsButton.setMinHeight(dp(42));
+            notificationSettingsButton.setPadding(dp(12), dp(6), dp(12), dp(6));
+            notificationSettingsButton.setOnClickListener(v -> {
+                // The shortcut lives on Open Sales, but notification settings belong to Account.
+                // Switch the active bottom tab first so the Account tab is selected and Back returns there.
+                navigateTab(3, this::showAccount);
+                showNotificationSettings();
+            });
+            notificationShortcut.addView(notificationSettingsButton, lp(-1, -2, 0, 8));
+            root.addView(notificationShortcut, lp(-1, -2, 0, 10));
+        }
 
         LinearLayout cachedOrdersBox = new LinearLayout(this);
         cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
