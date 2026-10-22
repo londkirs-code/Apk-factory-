@@ -3707,7 +3707,7 @@ public class MainActivity extends Activity {
         updateCheckButton = btn("🔄 בדוק אם יש עדכון", PRIMARY);
         updateCheckButton.setOnClickListener(v -> checkForAppUpdate());
         card.addView(updateCheckButton, lp(-1, dp(46), 0, 6));
-        updateDownloadButton = btn("🔄 עדכון ידני עכשיו", TONAL);
+        updateDownloadButton = btn("🔄 עדכון ידני עכשיו", PRIMARY);
         updateDownloadButton.setEnabled(true);
         updateDownloadButton.setOnClickListener(v -> {
             // A manual update always refreshes GitHub metadata first; never rely on stale cached version data.
@@ -3847,7 +3847,7 @@ public class MainActivity extends Activity {
                         updateStatusView.setTextColor(GREEN);
                         updateNotesView.setText(notes.isEmpty() ? "אין פירוט שינויים נוסף." : notes);
                         updateDownloadButton.setEnabled(true);
-                        styleActionButton(updateDownloadButton, TONAL, INK, 0);
+                        styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
                         updateInstallButton.setVisibility(View.VISIBLE);
                         updateInstallButton.setEnabled(false);
                     } else {
@@ -3857,7 +3857,7 @@ public class MainActivity extends Activity {
                         updateStatusView.setTextColor(ORANGE_DARK);
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
-                        styleActionButton(updateDownloadButton, TONAL, INK, 0);
+                        styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
                         updateInstallButton.setVisibility(View.VISIBLE);
                         updateInstallButton.setEnabled(false);
                         if (startOlderVersionDownload) {
@@ -3881,9 +3881,7 @@ public class MainActivity extends Activity {
                     boolean cachedUpdateAvailable = updateLatestCode > installedVersionCode()
                             && updateLatestSha256.matches("[0-9a-f]{64}");
                     updateDownloadButton.setEnabled(cachedUpdateAvailable);
-                    styleActionButton(updateDownloadButton,
-                            cachedUpdateAvailable ? ORANGE : ORANGE_LIGHT,
-                            cachedUpdateAvailable ? ON_ORANGE : ORANGE_DARK, 0);
+                    styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
                 });
             }
         });
