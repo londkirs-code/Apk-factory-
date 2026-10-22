@@ -107,9 +107,45 @@ jobs:
           echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
           echo "task=$BUILD_TASK" >> "$GITHUB_OUTPUT"
           if [[ -f "$PROJECT/local.properties" ]]; then
-            echo "::notice::Existing local.properties detected; it will be backed up and android.sdk.dir normalized for the hosted runner."
             cp "$PROJECT/local.properties" "$RUNNER_TEMP/import-local.properties"
           fi
+
+      - name: Detect Android compile SDK requirements
+        id: android-sdk
+        shell: bash
+        env:
+          PROJECT: ${{ steps.project.outputs.project }}
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT" "$GITHUB_OUTPUT" <<'PY'
+          import re, sys
+          from pathlib import Path
+          root, output = Path(sys.argv[1]), Path(sys.argv[2])
+          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
+          files = [p for p in files if "build" not in p.parts and ".gradle" not in p.parts]
+          texts = []
+          for p in files:
+              try: texts.append(p.read_text(encoding="utf-8", errors="ignore"))
+              except OSError: pass
+          source = "\n".join(texts)
+          patterns = [
+              (r"compileSdk\s*\{\s*version\s*=\s*release\(\s*(\d+)\s*\)\s*\{\s*minorApiLevel\s*=\s*(\d+)", "release"),
+              (r"compileSdk(?:Version)?\s*(?:=\s*)?(\d+)", "simple"),
+          ]
+          api, ext = None, 0
+          m = re.search(patterns[0][0], source, re.S)
+          if m:
+              api, ext = int(m.group(1)), int(m.group(2))
+          else:
+              m = re.search(patterns[1][0], source)
+              if m: api = int(m.group(1))
+          if api is None:
+              raise SystemExit("::error::Could not detect compileSdk from Gradle files. Add a numeric compileSdk declaration or set it explicitly before importing.")
+          package = f"platforms;android-{api}" + (f"-ext{ext}" if ext else "")
+          with output.open("a", encoding="utf-8") as f:
+              f.write(f"api={api}\nextension={ext}\nplatform_package={package}\n")
+          print(f"Detected Android compile SDK {api}, extension {ext}; SDK package {package}")
+          PY
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -120,12 +156,14 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install baseline Android SDK packages
+      - name: Install detected Android SDK platform
         shell: bash
+        env:
+          PLATFORM_PACKAGE: ${{ steps.android-sdk.outputs.platform_package }}
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "platforms;android-36-ext1" "build-tools;36.0.0"
+          sdkmanager "platform-tools" "$PLATFORM_PACKAGE"
 
       - name: Set up Gradle when wrapper is absent
         if: steps.project.outputs.runner == 'installed'
