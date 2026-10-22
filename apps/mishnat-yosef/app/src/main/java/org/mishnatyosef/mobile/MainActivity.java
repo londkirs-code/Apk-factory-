@@ -3707,7 +3707,7 @@ public class MainActivity extends Activity {
         updateCheckButton = btn("🔄 בדוק אם יש עדכון", PRIMARY);
         updateCheckButton.setOnClickListener(v -> checkForAppUpdate());
         card.addView(updateCheckButton, lp(-1, dp(46), 0, 6));
-        updateDownloadButton = btn("🔄 עדכון ידני עכשיו", PRIMARY);
+        updateDownloadButton = btn("⬇️ הורד ועדכן מייד", PRIMARY);
         updateDownloadButton.setEnabled(true);
         updateDownloadButton.setOnClickListener(v -> {
             // A manual update always refreshes GitHub metadata first; never rely on stale cached version data.
