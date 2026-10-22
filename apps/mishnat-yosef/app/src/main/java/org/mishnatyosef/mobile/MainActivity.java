@@ -2067,6 +2067,7 @@ public class MainActivity extends Activity {
 
         TextView scaleLabel = text("Aa  גודל התצוגה", 14, true);
         scaleLabel.setTextColor(INK);
+        scaleLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams scaleLabelLp = new LinearLayout.LayoutParams(-1, -2);
         scaleLabelLp.topMargin = dp(12);
         panel.addView(scaleLabel, scaleLabelLp);
@@ -2140,15 +2141,12 @@ public class MainActivity extends Activity {
 
         TextView nightToggle = btn(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום", OUTLINE);
         nightToggle.setGravity(Gravity.CENTER);
-        styleActionButton(nightToggle, ORANGE_LIGHT, ORANGE_DARK, 0);
         LinearLayout.LayoutParams quickActionLp = new LinearLayout.LayoutParams(0, -1, 1f);
         quickActionLp.setMarginEnd(dp(5));
         quickActions.addView(nightToggle, quickActionLp);
         nightToggle.setOnClickListener(v -> {
             toggleNightMode();
             nightToggle.setText(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום");
-            styleActionButton(nightToggle, nightMode ? ORANGE : ORANGE_LIGHT,
-                    nightMode ? ON_ORANGE : ORANGE_DARK, 0);
         });
 
         TextView resetDisplayButton = btn("↺ איפוס תצוגה", OUTLINE);
@@ -2921,6 +2919,7 @@ public class MainActivity extends Activity {
         root.addView(emailField, lp(-1, dp(52), 0, 10));
 
         passwordField = field("סיסמה", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        passwordField.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         passwordField.setImeOptions(EditorInfo.IME_ACTION_DONE);
         passwordField.setOnEditorActionListener((v, actionId, event) -> { login(); return true; });
         root.addView(passwordField, lp(-1, dp(52), 0, 16));
@@ -10870,6 +10869,7 @@ public class MainActivity extends Activity {
 
         TextView scaleTitle = text("Aa  גודל טקסט ותצוגה", 15, true);
         scaleTitle.setTextColor(INK);
+        scaleTitle.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams scaleTitleLp = new LinearLayout.LayoutParams(-1, -2);
         scaleTitleLp.topMargin = dp(12);
         controls.addView(scaleTitle, scaleTitleLp);
