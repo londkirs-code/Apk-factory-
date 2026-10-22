@@ -10785,12 +10785,26 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
-    // ======================================================================== child lock (random maths exercise, answer 10..100)
+    // ======================================================================== child lock (product picture first, maths fallback)
 
     private long unlockExpiry = 0L;
     private long mathLockoutUntil = 0L;
     private int mathFailures = 0;
     private static final long UNLOCK_WINDOW_MS = 5L * 60L * 1000L;
+    private static final int CHILD_LOCK_EXCLUDED_TRAILING_CATEGORIES = 3;
+
+    private static final class ChildLockProduct {
+        final JSONObject raw;
+        final String name;
+        final String imageUrl;
+        final String key;
+        ChildLockProduct(JSONObject raw, String name, String imageUrl, String key) {
+            this.raw = raw;
+            this.name = name;
+            this.imageUrl = imageUrl;
+            this.key = key;
+        }
+    }
 
     private boolean childLockOn() { return prefs.getBoolean("child_lock_enabled", true); }
 
@@ -10811,7 +10825,7 @@ public class MainActivity extends Activity {
         unlockExpiry = 0L; // the lock closes whenever the app leaves the screen
     }
 
-    /** Runs the action at once when the lock is off or recently solved; otherwise asks for the exercise first. */
+    /** Runs the action at once when the lock is off or recently solved; otherwise asks for the challenge first. */
     private void requireUnlock(final Runnable action) {
         long now = System.currentTimeMillis();
         if (!childLockOn() || now < unlockExpiry) {
@@ -10819,7 +10833,302 @@ public class MainActivity extends Activity {
             action.run();
             return;
         }
-        showMathChallenge(action, null);
+        showChildLockChallenge(action, null);
+    }
+
+    /**
+     * Selects a simple product-picture challenge from the active order first, then local sale
+     * snapshots. Products from the last three categories are excluded when there are enough
+     * categories to do so, while retaining at least one category as a usable source.
+     */
+    private List<ChildLockProduct> childLockProductsFrom(List<JSONObject> products) {
+        List<ChildLockProduct> out = new ArrayList<>();
+        if (products == null || products.isEmpty()) return out;
+
+        final Map<String, Integer> categoryRanks = new LinkedHashMap<>();
+        final Map<String, Integer> categoryFirstPosition = new LinkedHashMap<>();
+        for (int i = 0; i < products.size(); i++) {
+            JSONObject p = products.get(i);
+            if (p == null) continue;
+            String category = categoryName(p);
+            if (!categoryFirstPosition.containsKey(category)) {
+                categoryFirstPosition.put(category, i);
+                categoryRanks.put(category, categoryOrder(p));
+            } else {
+                Integer oldRank = categoryRanks.get(category);
+                int rank = categoryOrder(p);
+                if (oldRank == null || rank < oldRank) categoryRanks.put(category, rank);
+            }
+        }
+
+        List<String> orderedCategories = new ArrayList<>(categoryFirstPosition.keySet());
+        Collections.sort(orderedCategories, (a, b) -> {
+            int ar = categoryRanks.containsKey(a) ? categoryRanks.get(a) : 9999;
+            int br = categoryRanks.containsKey(b) ? categoryRanks.get(b) : 9999;
+            if (ar != br) return Integer.compare(ar, br);
+            return Integer.compare(categoryFirstPosition.get(a), categoryFirstPosition.get(b));
+        });
+        Set<String> excludedCategories = new HashSet<>();
+        int excludedCount = Math.min(CHILD_LOCK_EXCLUDED_TRAILING_CATEGORIES,
+                Math.max(0, orderedCategories.size() - 1));
+        for (int i = orderedCategories.size() - excludedCount; i < orderedCategories.size(); i++) {
+            if (i >= 0 && i < orderedCategories.size()) excludedCategories.add(orderedCategories.get(i));
+        }
+
+        Set<String> uniqueKeys = new HashSet<>();
+        for (JSONObject p : products) {
+            if (p == null || excludedCategories.contains(categoryName(p))) continue;
+            String name = productName(p);
+            if (name == null) continue;
+            name = name.trim();
+            if (name.isEmpty() || name.matches("מוצר\\s*#.*")) continue;
+            String url = imageUrl(p, !fullImages());
+            if (url == null || url.trim().isEmpty()) continue;
+            String key = sidOf(p);
+            if (key == null || key.trim().isEmpty()) key = name + "|" + url;
+            else key = key.trim() + "|" + url;
+            if (!uniqueKeys.add(key)) continue;
+            if (normalizedProductWords(name).isEmpty()) continue;
+            out.add(new ChildLockProduct(p, name, url, key));
+        }
+        return out;
+    }
+
+    private List<ChildLockProduct> childLockProductsFromOpenOrder() {
+        if (featureSale == null || featureSale.optInt("id", -1) <= 0
+                || featureOrderId <= 0 || closedOrderReadOnly || featureProducts.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return childLockProductsFrom(new ArrayList<>(featureProducts));
+    }
+
+    /** Cached order snapshots are the offline product source; no network call is made here. */
+    private List<ChildLockProduct> childLockProductsFromCache() {
+        List<ChildLockProduct> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+
+        for (SaleSnapshot snapshot : saleSnapshots.values()) {
+            if (snapshot == null || snapshot.products == null || snapshot.products.isEmpty()) continue;
+            for (ChildLockProduct candidate : childLockProductsFrom(snapshot.products)) {
+                if (seen.add(candidate.key)) out.add(candidate);
+            }
+        }
+
+        try {
+            File dir = new File(getFilesDir(), "cache");
+            File[] files = dir.listFiles((d, name) -> name.matches("sale_[0-9]+\\.json"));
+            if (files != null) {
+                java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                for (File file : files) {
+                    int saleId;
+                    try {
+                        String fileName = file.getName();
+                        saleId = Integer.parseInt(fileName.substring(5, fileName.length() - 5));
+                    } catch (Exception ignored) { continue; }
+                    if (saleId <= 0) continue;
+                    SaleSnapshot snapshot = readSnapshot(saleId);
+                    if (snapshot == null || snapshot.products.isEmpty()) continue;
+                    for (ChildLockProduct candidate : childLockProductsFrom(snapshot.products)) {
+                        if (seen.add(candidate.key)) out.add(candidate);
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    /** Removes the Hebrew letters ו, ה and י before token comparison on both sides. */
+    private Set<String> normalizedProductWords(String value) {
+        Set<String> words = new HashSet<>();
+        if (value == null || value.trim().isEmpty()) return words;
+        String normalized = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replace("ו", "")
+                .replace("ה", "")
+                .replace("י", "");
+        String[] parts = normalized.split("[^\\p{L}\\p{N}]+");
+        for (String part : parts) {
+            String word = part.trim();
+            // Ignore tokens made empty (or meaningless) by the requested letter removal.
+            if (word.length() >= 2) words.add(word);
+        }
+        return words;
+    }
+
+    private boolean childLockAnswerMatches(String productName, String answer) {
+        Set<String> expected = normalizedProductWords(productName);
+        Set<String> actual = normalizedProductWords(answer);
+        if (expected.isEmpty() || actual.isEmpty()) return false;
+        for (String word : actual) if (expected.contains(word)) return true;
+        return false;
+    }
+
+    private ChildLockProduct pickNextChildLockProduct(List<ChildLockProduct> products,
+            Set<String> seenKeys, Set<String> failedUrls, String currentKey) {
+        if (products == null || products.isEmpty()) return null;
+        List<ChildLockProduct> unseen = new ArrayList<>();
+        List<ChildLockProduct> alternatives = new ArrayList<>();
+        for (ChildLockProduct product : products) {
+            if (product == null || product.imageUrl.isEmpty() || failedUrls.contains(product.imageUrl)
+                    || product.key.equals(currentKey)) continue;
+            alternatives.add(product);
+            if (!seenKeys.contains(product.key)) unseen.add(product);
+        }
+        List<ChildLockProduct> choices = unseen.isEmpty() ? alternatives : unseen;
+        if (choices.isEmpty()) return null;
+        ChildLockProduct selected = choices.get(new Random().nextInt(choices.size()));
+        seenKeys.add(selected.key);
+        return selected;
+    }
+
+    private void showChildLockChallenge(final Runnable onSuccess, final Runnable onCancel) {
+        long wait = mathLockoutUntil - System.currentTimeMillis();
+        if (wait > 0) {
+            toast("יותר מדי טעויות. נסו שוב בעוד " + (wait / 1000 + 1) + " שניות", true);
+            if (onCancel != null) onCancel.run();
+            return;
+        }
+
+        List<ChildLockProduct> candidates = childLockProductsFromOpenOrder();
+        if (candidates.isEmpty()) candidates = childLockProductsFromCache();
+        if (candidates.isEmpty()) {
+            showMathChallenge(onSuccess, onCancel);
+            return;
+        }
+
+        final List<ChildLockProduct> products = candidates;
+        final Set<String> seenKeys = new HashSet<>();
+        final Set<String> failedUrls = new HashSet<>();
+        final ChildLockProduct[] current = new ChildLockProduct[1];
+        final AlertDialog[] ref = new AlertDialog[1];
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(8), dp(20), dp(8));
+        panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        TextView hint = muted("זהו את המוצר שבתמונה והקלידו מילה משמו", 14);
+        hint.setGravity(Gravity.CENTER);
+        panel.addView(hint, lp(-1, -2, 0, 8));
+
+        FrameLayout imageFrame = new FrameLayout(this);
+        imageFrame.setBackground(ripple(shape(SURFACE, 14, LINE), 14));
+        imageFrame.setPadding(dp(8), dp(8), dp(8), dp(8));
+        ImageView productImage = new ImageView(this);
+        productImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        productImage.setContentDescription("תמונת המוצר לזיהוי");
+        productImage.setFocusable(false);
+        imageFrame.addView(productImage, new FrameLayout.LayoutParams(-1, dp(190), Gravity.CENTER));
+        TextView imageStatus = muted("טוען תמונה…", 13);
+        imageStatus.setGravity(Gravity.CENTER);
+        imageFrame.addView(imageStatus, new FrameLayout.LayoutParams(-1, dp(190), Gravity.CENTER));
+        panel.addView(imageFrame, lp(-1, dp(206), 0, 10));
+
+        TextView changeImage = btn("🔄  תמונה אחרת", TONAL);
+        changeImage.setContentDescription("החלפת תמונת המוצר לחידה אחרת");
+        panel.addView(changeImage, lp(-1, dp(42), 0, 8));
+
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        input.setTextSize(20);
+        input.setGravity(Gravity.CENTER);
+        input.setHint("שם המוצר");
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        input.setBackground(shape(SURFACE, 12, ORANGE));
+        panel.addView(input, lp(-1, dp(54), 0, 4));
+
+        final Runnable showMathFallback = () -> {
+            if (ref[0] != null && ref[0].isShowing()) ref[0].dismiss();
+            showMathChallenge(onSuccess, onCancel);
+        };
+
+        final Runnable[] next = new Runnable[1];
+        next[0] = () -> {
+            ChildLockProduct selected = pickNextChildLockProduct(products, seenKeys, failedUrls,
+                    current[0] == null ? "" : current[0].key);
+            if (selected == null) {
+                showMathFallback.run();
+                return;
+            }
+            current[0] = selected;
+            input.setText("");
+            productImage.setImageDrawable(null);
+            imageStatus.setText("טוען תמונה…");
+            imageStatus.setVisibility(View.VISIBLE);
+            try {
+                imageExecutor.execute(() -> {
+                    Bitmap bitmap = imageCache == null ? null : imageCache.get(selected.imageUrl);
+                    if (bitmap == null) bitmap = downloadBitmap(selected.imageUrl, 900);
+                    final Bitmap loaded = bitmap;
+                    if (loaded != null && imageCache != null) imageCache.put(selected.imageUrl, loaded);
+                    runOnUiThread(() -> {
+                        if (ref[0] == null || !ref[0].isShowing() || current[0] != selected) return;
+                        if (loaded == null) {
+                            failedUrls.add(selected.imageUrl);
+                            next[0].run();
+                        } else {
+                            productImage.setImageBitmap(loaded);
+                            imageStatus.setVisibility(View.GONE);
+                        }
+                    });
+                });
+            } catch (Exception ignored) {
+                failedUrls.add(selected.imageUrl);
+                next[0].run();
+            }
+        };
+        changeImage.setOnClickListener(v -> next[0].run());
+
+        final Runnable check = () -> {
+            String value = input.getText() == null ? "" : input.getText().toString().trim();
+            if (value.isEmpty()) {
+                toast("הקלידו מילה משם המוצר", false);
+                return;
+            }
+            if (current[0] != null && childLockAnswerMatches(current[0].name, value)) {
+                mathFailures = 0;
+                unlockExpiry = System.currentTimeMillis() + UNLOCK_WINDOW_MS;
+                ref[0].dismiss();
+                onSuccess.run();
+                return;
+            }
+
+            mathFailures++;
+            if (mathFailures >= 3) {
+                mathFailures = 0;
+                mathLockoutUntil = System.currentTimeMillis() + 30000L;
+                ref[0].dismiss();
+                toast("3 טעויות. אפשר לנסות שוב בעוד 30 שניות", true);
+                if (onCancel != null) onCancel.run();
+            } else {
+                toast("תשובה שגויה. נסו לזהות מוצר אחר", false);
+                next[0].run();
+            }
+        };
+
+        input.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE
+                    || (event != null && event.getKeyCode() == android.view.KeyEvent.KEYCODE_ENTER)) {
+                check.run();
+                return true;
+            }
+            return false;
+        });
+        ref[0] = appDialog().setTitle("🔒 נעילת ילדים").setView(panel)
+                .setPositiveButton("אישור", null)
+                .setNegativeButton("ביטול", (d, w) -> { if (onCancel != null) onCancel.run(); })
+                .setOnCancelListener(d -> { if (onCancel != null) onCancel.run(); })
+                .create();
+        ref[0].setOnShowListener(x -> {
+            ref[0].getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> check.run());
+            input.requestFocus();
+            if (ref[0].getWindow() != null) ref[0].getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+            styleAppDialog(ref[0]);
+            next[0].run();
+        });
+        ref[0].show();
     }
 
     /** One easy operation. Numbers are 10..100 (in × and ÷ one of them may be 2..9). The answer is always 10..100. */
@@ -10827,31 +11136,32 @@ public class MainActivity extends Activity {
         Random r = new Random();
         switch (r.nextInt(4)) {
             case 0: {
-                int a = 10 + r.nextInt(81);                // 10..90
-                int b = 10 + r.nextInt(100 - a - 10 + 1);  // 10..(100 - a): the sum stays <= 100
+                int a = 10 + r.nextInt(81);
+                int b = 10 + r.nextInt(100 - a - 10 + 1);
                 return new String[]{a + " + " + b, String.valueOf(a + b)};
             }
             case 1: {
-                int a = 20 + r.nextInt(81);                // 20..100
-                int b = 10 + r.nextInt(a - 10 - 10 + 1);   // 10..(a - 10): the answer stays >= 10
+                int a = 20 + r.nextInt(81);
+                int b = 10 + r.nextInt(a - 10 - 10 + 1);
                 return new String[]{a + " − " + b, String.valueOf(a - b)};
             }
             case 2: {
-                int small = 2 + r.nextInt(8);              // 2..9
-                int big = 10 + r.nextInt(100 / small - 10 + 1); // 10..(100 / small): the product stays <= 100
+                int small = 2 + r.nextInt(8);
+                int big = 10 + r.nextInt(100 / small - 10 + 1);
                 return r.nextBoolean()
                         ? new String[]{small + " × " + big, String.valueOf(small * big)}
                         : new String[]{big + " × " + small, String.valueOf(small * big)};
             }
             default: {
-                int divisor = 2 + r.nextInt(8);            // 2..9
-                int result = 10 + r.nextInt(100 / divisor - 10 + 1); // 10..(100 / divisor)
-                int dividend = divisor * result;           // <= 100
+                int divisor = 2 + r.nextInt(8);
+                int result = 10 + r.nextInt(100 / divisor - 10 + 1);
+                int dividend = divisor * result;
                 return new String[]{dividend + " ÷ " + divisor, String.valueOf(result)};
             }
         }
     }
 
+    /** Mathematics remains the fallback when no suitable product image is available. */
     private void showMathChallenge(final Runnable onSuccess, final Runnable onCancel) {
         long wait = mathLockoutUntil - System.currentTimeMillis();
         if (wait > 0) {
@@ -10927,7 +11237,6 @@ public class MainActivity extends Activity {
         });
         ref[0].show();
     }
-
 
 
     /**
@@ -11023,13 +11332,13 @@ public class MainActivity extends Activity {
     private void addSafetySettings() {
         LinearLayout card = card(14);
         card.addView(sectionTitle("🛡️ בטיחות"));
-        card.addView(switchRow("נעילת ילדים", "תרגיל חשבון לפני פעולות בהזמנה וגם לפני שליחת זיכויים וחיובים למשנת יוסף. אחרי פתרון הנעילה פתוחה 5 דקות", childLockOn(), (b, checked) -> {
+        card.addView(switchRow("נעילת ילדים", "זיהוי מוצר לפי תמונה לפני פעולות בהזמנה ושליחת זיכויים וחיובים. אם אין תמונה מתאימה, יוצג תרגיל חשבון. אחרי פתרון הנעילה פתוחה 5 דקות", childLockOn(), (b, checked) -> {
             if (checked) {
                 prefs.edit().putBoolean("child_lock_enabled", true).apply();
                 unlockExpiry = 0L;
                 toast("🔒 נעילת ילדים הופעלה", false);
             } else {
-                showMathChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
+                showChildLockChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
             }
         }));
         root.addView(card, lp(-1, -2, 0, 10));
