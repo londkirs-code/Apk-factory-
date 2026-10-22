@@ -140,6 +140,7 @@ public class MainActivity extends Activity {
     private int SWITCH_OFF_THUMB = activePalette.switchThumbOff;
     private int SWITCH_OFF_TRACK = activePalette.switchTrackOff;
     private boolean nightMode = false;
+    private boolean purpleTheme = false;
     // Global UI scale: text follows Android fontScale; dp-based layout metrics scale in dp().
     private float uiScale = 1.0f;
     private float uiScaleAtActivityStart = 1.0f;
@@ -160,7 +161,8 @@ public class MainActivity extends Activity {
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
-        activePalette = AppPalette.forNightMode(nightMode);
+        purpleTheme = prefs.getBoolean("purple_theme", false);
+        activePalette = AppPalette.forTheme(nightMode, purpleTheme);
         ORANGE = activePalette.orange;
         ORANGE_DARK = activePalette.orangeDark;
         ORANGE_LIGHT = activePalette.orangeLight;
@@ -197,6 +199,7 @@ public class MainActivity extends Activity {
     }
 
     private int remapPaletteColor(int color, PaletteSnapshot old) {
+        if (color == old.headerFg) return HEADER_FG;
         if (color == old.orange) return ORANGE;
         if (color == old.orangeDark) return ORANGE_DARK;
         if (color == old.orangeLight) return ORANGE_LIGHT;
@@ -209,9 +212,8 @@ public class MainActivity extends Activity {
         if (color == old.red) return RED;
         if (color == old.redLight) return RED_LIGHT;
         if (color == old.onOrange) return ON_ORANGE;
-        if (color == old.headerFg) return HEADER_FG;
         // The inactive bottom-navigation icons use this dedicated dark-brown color.
-        if (color == AppPalette.NAV_INACTIVE_DAY) return INK;
+        if (color == AppPalette.NAV_INACTIVE_DAY || color == AppPalette.NAV_INACTIVE_PURPLE) return INK;
         return color;
     }
 
@@ -288,6 +290,11 @@ public class MainActivity extends Activity {
                         nightMode ? ORANGE_LIGHT : Color.TRANSPARENT,
                         ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
             }
+            if ("colorThemeOrangeOption".equals(textView.getTag())) {
+                styleColorThemeOption(textView, false);
+            } else if ("colorThemePurpleOption".equals(textView.getTag())) {
+                styleColorThemeOption(textView, true);
+            }
             if ("nightModeToggle".equals(textView.getTag())) {
                 textView.setText(nightToggleLabel());
                 textView.setContentDescription(nightMode ? "מעבר למצב יום" : "הפעלת מצב לילה");
@@ -354,10 +361,13 @@ public class MainActivity extends Activity {
         prefs.edit().putBoolean("night_mode", !nightMode).apply();
         applyPalette();
         setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar); // dialogs follow the mode too
+        rethemeActiveUi(old);
+    }
+
+    private void rethemeActiveUi(PaletteSnapshot old) {
         Set<View> visited = new HashSet<>();
         rethemeViewTree(currentScreen, old, visited);
-        // Other bottom tabs are cached as live view trees too; recolor them now so returning
-        // to a previously visited tab cannot bring back the old theme.
+        // Cached tabs and product rows must change too, or old colors can reappear on navigation/scroll.
         Set<ProductAdapter> adapters = new HashSet<>();
         if (productAdapter != null) adapters.add(productAdapter);
         for (TabScreenState state : tabScreenCache.values()) {
@@ -366,13 +376,34 @@ public class MainActivity extends Activity {
                 if (state.productAdapter != null) adapters.add(state.productAdapter);
             }
         }
-        // ListView keeps detached/recycled product rows outside the visible view tree. Retheme
-        // those holders as well, or scrolling after the switch could reveal stale colors.
         for (ProductAdapter adapter : adapters) adapter.rethemeCachedRows(old, visited);
         getWindow().setStatusBarColor(HEADER_BG);
         getWindow().setNavigationBarColor(SURFACE);
         styleSystemBars();
         refreshKeyboardFocusHighlight();
+    }
+
+    private void changeColorTheme(boolean usePurple) {
+        if (purpleTheme == usePurple) return;
+        PaletteSnapshot old = new PaletteSnapshot();
+        prefs.edit().putBoolean("purple_theme", usePurple).apply();
+        applyPalette();
+        rethemeActiveUi(old);
+        toast(usePurple ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
+    }
+
+    private void styleColorThemeOption(TextView option, boolean usePurple) {
+        boolean selected = purpleTheme == usePurple;
+        int swatch = usePurple ? AppPalette.PURPLE_SWATCH : AppPalette.ORANGE_SWATCH;
+        option.setText((selected ? "✓  " : "") + (usePurple ? "סגול מלכותי" : "כתום קלאסי"));
+        option.setTextColor(Color.WHITE);
+        option.setGravity(Gravity.CENTER);
+        option.setBackground(ripple(shape(swatch, 12, selected ? ORANGE : LINE, selected ? 3 : 1), 12));
+        option.setElevation(selected ? dp(2) : 0);
+        option.setPadding(dp(8), dp(10), dp(8), dp(10));
+        option.setContentDescription((usePurple ? "סגול מלכותי" : "כתום קלאסי")
+                + (selected ? ", ערכת הצבעים הנבחרת" : ", בחירת ערכת צבעים"));
+        option.setSelected(selected);
     }
 
     // ---- button styles
@@ -2266,7 +2297,7 @@ public class MainActivity extends Activity {
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
         mask.setCornerRadius(dp(radiusDp));
-        return new RippleDrawable(ColorStateList.valueOf(Color.argb(AppPalette.RIPPLE_ALPHA, Color.red(AppPalette.DAY.orange), Color.green(AppPalette.DAY.orange), Color.blue(AppPalette.DAY.orange))), content, mask);
+        return new RippleDrawable(ColorStateList.valueOf(Color.argb(AppPalette.RIPPLE_ALPHA, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE))), content, mask);
     }
 
     private float liveFontSize(float size) { return size * (uiScale / Math.max(0.01f, uiScaleAtActivityStart)); }
@@ -2731,7 +2762,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 boolean active = i == tab;
-                int tint = active ? ORANGE : (nightMode ? INK : AppPalette.NAV_INACTIVE_DAY);
+                int tint = active ? ORANGE : (nightMode ? INK : AppPalette.navInactive(purpleTheme));
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
@@ -11475,6 +11506,40 @@ public class MainActivity extends Activity {
         controls.setBackground(shape(SURFACE, 16, LINE));
         controls.setVisibility(View.VISIBLE);
 
+        TextView themeTitle = text("🎨  ערכת צבעים", 15, true);
+        themeTitle.setTextColor(INK);
+        themeTitle.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        controls.addView(themeTitle);
+        controls.addView(muted("לחיצה על צבע מחליפה את העיצוב מיד ושומרת את הבחירה", 12));
+        LinearLayout themeOptions = new LinearLayout(this);
+        themeOptions.setOrientation(LinearLayout.HORIZONTAL);
+        themeOptions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        LinearLayout.LayoutParams themeOptionsLp = new LinearLayout.LayoutParams(-1, -2);
+        themeOptionsLp.topMargin = dp(8);
+        themeOptionsLp.bottomMargin = dp(6);
+        TextView orangeThemeOption = text("", 14, true);
+        orangeThemeOption.setTag("colorThemeOrangeOption");
+        styleColorThemeOption(orangeThemeOption, false);
+        orangeThemeOption.setOnClickListener(v -> changeColorTheme(false));
+        TextView purpleThemeOption = text("", 14, true);
+        purpleThemeOption.setTag("colorThemePurpleOption");
+        styleColorThemeOption(purpleThemeOption, true);
+        purpleThemeOption.setOnClickListener(v -> changeColorTheme(true));
+        LinearLayout.LayoutParams themeOptionLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        themeOptionLp.setMarginStart(dp(5));
+        themeOptions.addView(orangeThemeOption, themeOptionLp);
+        LinearLayout.LayoutParams purpleOptionLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        purpleOptionLp.setMarginStart(dp(5));
+        themeOptions.addView(purpleThemeOption, purpleOptionLp);
+        controls.addView(themeOptions, themeOptionsLp);
+
+        View themeDivider = new View(this);
+        themeDivider.setBackgroundColor(LINE);
+        LinearLayout.LayoutParams themeDividerLp = new LinearLayout.LayoutParams(-1, dp(1));
+        themeDividerLp.topMargin = dp(8);
+        themeDividerLp.bottomMargin = dp(8);
+        controls.addView(themeDivider, themeDividerLp);
+
         TextView scaleTitle = text("Aa  גודל טקסט ותצוגה", 15, true);
         scaleTitle.setTextColor(INK);
         scaleTitle.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
@@ -11845,7 +11910,7 @@ public class MainActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(12));
         bg.setColor(activeCategory ? SURFACE : (activeMode || activeMenu ? ORANGE : ORANGE_LIGHT));
-        if (focused) bg.setStroke(dp(2), AppPalette.CATEGORY_FOCUS_BORDER);
+        if (focused) bg.setStroke(dp(2), AppPalette.categoryFocusBorder(purpleTheme));
         else if (activeCategory) bg.setStroke(dp(2), ORANGE);
         chip.setBackground(ripple(bg, 12));
         chip.setTextColor(activeMode || activeMenu ? ON_ORANGE : ORANGE_DARK);
