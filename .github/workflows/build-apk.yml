@@ -226,16 +226,16 @@ jobs:
           PY
           rm -f "$ICON_DIR/ic_launcher.xml"
           test -s "$ICON_DIR/ic_launcher.png"
-          # GitHub upload kept the original camera filename (uppercase letters are invalid
-          # Android resource names). Convert it to a normalized, square purple launcher PNG.
-          python3 - "$ICON_DIR/IMG_20261022_122302_995.jpg" "$ICON_DIR/ic_launcher_purple.png" <<'PY'
+          # If a freshly uploaded source photo is present, normalize it. Otherwise preserve the
+          # already-versioned purple icon; previous builds remove the temporary source after use.
+          PURPLE_SOURCE="$ICON_DIR/IMG_20261022_122302_995.jpg"
+          if [[ -s "$PURPLE_SOURCE" ]]; then
+            python3 - "$PURPLE_SOURCE" "$ICON_DIR/ic_launcher_purple.png" <<'PY'
           import sys
           from pathlib import Path
           from PIL import Image
 
           source, output = Path(sys.argv[1]), Path(sys.argv[2])
-          if not source.is_file() or source.stat().st_size == 0:
-              raise SystemExit(f"Missing uploaded purple launcher icon: {source}")
           with Image.open(source) as original:
               image = original.convert("RGB")
               image.thumbnail((512, 512), Image.Resampling.LANCZOS)
@@ -248,7 +248,18 @@ jobs:
           source.unlink()
           print(f"Installed and validated purple launcher icon: {output}")
           PY
+          else
+            echo "::notice::No new purple icon upload found; keeping the validated icon already stored in the repository."
+          fi
           test -s "$ICON_DIR/ic_launcher_purple.png"
+          python3 - "$ICON_DIR/ic_launcher_purple.png" <<'PY'
+          import sys
+          from PIL import Image
+          with Image.open(sys.argv[1]) as check:
+              if check.format != "PNG" or check.size != (512, 512):
+                  raise SystemExit("Stored purple launcher icon is missing or invalid")
+          print("Existing purple launcher icon validated.")
+          PY
           echo "- Mishnat Yosef icon preparation: $(( $(date +%s) - PREP_START )) seconds" >> "$GITHUB_STEP_SUMMARY"
       - name: Embed Mishnat Yosef release notes into the APK
         if: steps.scope.outputs.build_mishnat == 'true'
