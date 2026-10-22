@@ -365,7 +365,7 @@ public class MainActivity extends Activity {
 
     /** Keep both Android system bars synchronized with the selected semantic palette. */
     private void updateSystemBarColors() {
-        getWindow().setStatusBarColor(AppPalette.systemBar(activePalette, nightMode));
+        getWindow().setStatusBarColor(AppPalette.systemBar(nightMode, purpleTheme));
         getWindow().setNavigationBarColor(SURFACE);
     }
 
