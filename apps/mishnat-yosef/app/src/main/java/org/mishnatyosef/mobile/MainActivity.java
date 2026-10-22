@@ -338,7 +338,7 @@ public class MainActivity extends Activity {
 
         // Draw above the normal background so custom buttons always get a translucent fill and frame.
         GradientDrawable highlight = shape(Color.argb(44, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE)), 10,
-                nightMode ? Color.WHITE : ORANGE_DARK, 2);
+                nightMode ? Color.WHITE : ORANGE_DARK, 4);
         keyboardFocusHighlightView = focusedView;
         keyboardFocusHighlightDrawable = highlight;
         keyboardFocusHighlightLayoutListener = (view, left, top, right, bottom,
@@ -3621,6 +3621,13 @@ public class MainActivity extends Activity {
         updateStatusView = text("תוצאות הבדיקה האחרונה: לחץ על „בדוק אם יש עדכון”.", 15, true);
         updateStatusView.setTextColor(MUTED);
         updateStatusView.setPadding(dp(2), dp(10), dp(2), dp(8));
+        updateStatusView.setOnClickListener(v -> {
+            if (updateLatestCode > installedVersionCode()
+                    && updateLatestSha256.matches("[0-9a-f]{64}")) {
+                downloadLatestUpdate();
+            }
+        });
+        updateStatusView.setClickable(false);
         card.addView(updateStatusView, new LinearLayout.LayoutParams(-1, -2));
         updateProgressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         updateProgressBar.setMax(100);
@@ -3756,6 +3763,9 @@ public class MainActivity extends Activity {
                         updateStatusView.setTextColor(GREEN);
                         updateStatusView.setBackground(ripple(shape(0xFFE8F7EC, 14, 0xFFB7E4C7), 14));
                         updateStatusView.setPadding(dp(12), dp(12), dp(12), dp(12));
+                        updateStatusView.setClickable(true);
+                        updateStatusView.setContentDescription("נמצאה גרסה חדשה. לחיצה תתחיל הורדה מאובטחת והתקנה.");
+                        updateStatusView.setOnClickListener(v -> downloadLatestUpdate());
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
                         styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
@@ -3862,6 +3872,7 @@ public class MainActivity extends Activity {
         }
         final File partial = new File(target.getAbsolutePath() + ".part");
         updateDownloadInProgress = true;
+        if (updateStatusView != null) updateStatusView.setClickable(false);
         updateDownloadButton.setEnabled(false);
         updateInstallButton.setEnabled(false);
         if (updateProgressBar != null) {
@@ -3981,6 +3992,8 @@ public class MainActivity extends Activity {
                     if (screenKind == 7 && updateStatusView != null) {
                         updateStatusView.setText("ההורדה לא הושלמה או שהקובץ לא עבר אימות: " + problem + ". אפשר לנסות שוב.");
                         updateStatusView.setTextColor(ORANGE_DARK);
+                        updateStatusView.setClickable(updateLatestCode > installedVersionCode()
+                                && updateLatestSha256.matches("[0-9a-f]{64}"));
                         if (updateProgressBar != null) updateProgressBar.setVisibility(View.GONE);
                         updateDownloadButton.setEnabled(updateLatestCode > 0 && updateLatestSha256.matches("[0-9a-f]{64}"));
                     }
