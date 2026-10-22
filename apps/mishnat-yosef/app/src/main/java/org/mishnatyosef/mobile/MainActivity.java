@@ -266,6 +266,14 @@ public class MainActivity extends Activity {
     private void rethemeViewTree(View view, PaletteSnapshot old, Set<View> visited) {
         if (view == null || !visited.add(view)) return;
         rethemeDrawable(view.getBackground(), old);
+        // The center collect button uses ORANGE as its fill, but in the classic palette
+        // that same RGB is also HEADER_BG. Generic color remapping therefore mistakes
+        // the button fill for a header and turns it into the pale purple header color.
+        // Rebuild this one semantic background from its active state instead of guessing
+        // its role from RGB values.
+        if ("navCenter".equals(view.getTag()) && view instanceof ViewGroup) {
+            refreshCollectNavButtonPalette((ViewGroup) view);
+        }
         if ("historySaleCard".equals(view.getTag())) {
             view.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, LINE), 14));
         } else if ("openSaleCard".equals(view.getTag())) {
@@ -10679,6 +10687,31 @@ public class MainActivity extends Activity {
         d.setBackgroundColor(Color.TRANSPARENT);
         d.setLayoutParams(new LinearLayout.LayoutParams(dp(1), -1));
         return d;
+    }
+
+    /**
+     * Rebuild the center button's fill from its semantic selected state.
+     * Do not palette-remap this background by RGB: classic ORANGE and HEADER_BG share a value.
+     */
+    private void refreshCollectNavButtonPalette(ViewGroup slot) {
+        if (slot.getChildCount() == 0 || !(slot.getChildAt(0) instanceof View)) return;
+        View fingerView = slot.getChildAt(0);
+        if (!(fingerView instanceof ViewGroup)) return;
+        ViewGroup finger = (ViewGroup) fingerView;
+        if (finger.getChildCount() == 0 || !(finger.getChildAt(0) instanceof ViewGroup)) return;
+        ViewGroup inner = (ViewGroup) finger.getChildAt(0);
+        boolean active = inner.getChildCount() > 2
+                && inner.getChildAt(2).getVisibility() == View.VISIBLE;
+        float r = dp(33);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(active ? ORANGE_DARK : ORANGE);
+        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        GradientDrawable mask = new GradientDrawable();
+        mask.setColor(Color.WHITE);
+        mask.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        finger.setBackground(new RippleDrawable(
+                ColorStateList.valueOf(Color.argb(AppPalette.WHITE_RIPPLE_ALPHA, 255, 255, 255)),
+                bg, mask));
     }
 
     /** The centre "collect" button: a fingertip that rises a little above the bar and is cut flat at the bottom. */
