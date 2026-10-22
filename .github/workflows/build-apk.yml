@@ -226,6 +226,29 @@ jobs:
           PY
           rm -f "$ICON_DIR/ic_launcher.xml"
           test -s "$ICON_DIR/ic_launcher.png"
+          # GitHub upload kept the original camera filename (uppercase letters are invalid
+          # Android resource names). Convert it to a normalized, square purple launcher PNG.
+          python3 - "$ICON_DIR/IMG_20261022_122302_995.jpg" "$ICON_DIR/ic_launcher_purple.png" <<'PY'
+          import sys
+          from pathlib import Path
+          from PIL import Image
+
+          source, output = Path(sys.argv[1]), Path(sys.argv[2])
+          if not source.is_file() or source.stat().st_size == 0:
+              raise SystemExit(f"Missing uploaded purple launcher icon: {source}")
+          with Image.open(source) as original:
+              image = original.convert("RGB")
+              image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+              canvas = Image.new("RGB", (512, 512), "white")
+              canvas.paste(image, ((512 - image.width) // 2, (512 - image.height) // 2))
+              canvas.save(output, format="PNG", optimize=True)
+          with Image.open(output) as check:
+              if check.format != "PNG" or check.size != (512, 512):
+                  raise SystemExit("Purple launcher icon validation failed")
+          source.unlink()
+          print(f"Installed and validated purple launcher icon: {output}")
+          PY
+          test -s "$ICON_DIR/ic_launcher_purple.png"
           echo "- Mishnat Yosef icon preparation: $(( $(date +%s) - PREP_START )) seconds" >> "$GITHUB_STEP_SUMMARY"
       - name: Embed Mishnat Yosef release notes into the APK
         if: steps.scope.outputs.build_mishnat == 'true'
