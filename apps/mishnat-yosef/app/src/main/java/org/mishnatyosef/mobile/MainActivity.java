@@ -2661,7 +2661,7 @@ public class MainActivity extends Activity {
         actionsButton.setBackground(ripple(shape(SURFACE, 50, nightMode ? LINE : Color.WHITE), 50));
         actionsButton.setElevation(dp(2));
         actionsButton.setContentDescription("פתיחת הגדרות ופעולות");
-        actionsButton.setOnClickListener(v -> showActionsDialog(actionsButton));
+        actionsButton.setOnClickListener(v -> showActionsDialog());
         LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(30), dp(30));
         actionsParams.leftMargin = dp(2);
         header.addView(actionsButton, actionsParams);
