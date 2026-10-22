@@ -11408,7 +11408,11 @@ public class MainActivity extends Activity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        webSettings.setAllowFileAccess(false);
+        // This WebView displays only the trusted HTML bundled in app/src/main/assets.
+        // Keep cross-file and universal access disabled to prevent local-file origin access.
+        webSettings.setAllowFileAccess(true);
+        webSettings.setAllowFileAccessFromFileURLs(false);
+        webSettings.setAllowUniversalAccessFromFileURLs(false);
         webSettings.setAllowContentAccess(false);
         webSettings.setSupportZoom(true);
         webSettings.setBuiltInZoomControls(true);
@@ -11456,7 +11460,7 @@ public class MainActivity extends Activity {
         if (window != null) {
             window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         }
-        webView.loadUrl("https://www.dropbox.com/scl/fi/q36g24wyp6ryj3xvjlsy1/keypad_phone_app.html?rlkey=m1664g17o6332fx5vnnw6ktt1&raw=1");
+        webView.loadUrl("file:///android_asset/keypad_phone_app.html");
     }
 
     private void addDisplaySettings() {
