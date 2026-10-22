@@ -2081,6 +2081,15 @@ public class MainActivity extends Activity {
         if (showConfirmation) toast("פריסת הכרטיסיות נשמרה", false);
     }
 
+    // Keyboard shortcuts and post-scale restoration can open the actions menu without
+    // a direct button click. Keep those existing entry points working by anchoring to
+    // the current focus when possible, or to the screen root as a safe fallback.
+    private void showActionsDialog() {
+        View anchor = getCurrentFocus();
+        if (anchor == null || !anchor.isShown()) anchor = root;
+        if (anchor != null && anchor.isShown()) showActionsDialog(anchor);
+    }
+
     private void showActionsDialog(View anchor) {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
