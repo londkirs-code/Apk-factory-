@@ -25,12 +25,32 @@
         </service>
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true" />
+        <!-- Two launcher aliases let the selected color theme control the home-screen icon. -->
+        <activity-alias
+            android:name=".OrangeLauncher"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".PurpleLauncher"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_purple"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <provider android:name=".JsonReportProvider" android:authorities="org.mishnatyosef.mobile.jsonreports" android:exported="false" android:grantUriPermissions="true" />
         <receiver
             android:name=".StockMonitor"
