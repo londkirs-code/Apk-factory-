@@ -1,9 +1,9 @@
 {
-  "versionCode": 369,
-  "versionName": "1.4824",
+  "versionCode": 370,
+  "versionName": "1.4825",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "a30b9751d92569f707f109ebb8f84e07189fadcbd1c57a4a2aba5babd4114f75",
-  "releaseTitle": "הגדלת תמונה בנעילת ילדים",
-  "releaseNotes": "- לחיצה על תמונת המוצר בחידת נעילת הילדים פותחת את מציג התמונות המוגדל של האפליקציה.\n- התמונה נטענת ברזולוציה גבוהה מהמקור; לחיצה או מקש סוגרים את התצוגה.\n- מנגנון הנעילה, בחירת המוצרים והגבלת הניסיונות נשארו ללא שינוי.",
-  "buildCommit": "383cc1b3ec712545bb1b6a1c78aa9c1ef1953681"
+  "sha256": "622d833c055a80ff7c720db2bf1637457e117fe71a72d3ccfc62f3a423a4f156",
+  "releaseTitle": "קיצורי מקשים",
+  "releaseNotes": "- נוסף לעמוד ההגדרות כפתור „קיצורי מקשים” הפותח את מדריך ה־HTML בתוך האפליקציה.\n- המדריך מוצג בחלון פנימי עם כותרת וכפתור סגירה קבוע; גם מקש החזרה של Android סוגר אותו.\n- שאר מסכי ההגדרות והפעולות הקיימות נשארו ללא שינוי.",
+  "buildCommit": "592524a80bbdfa4962b8313b5856f73f394c1d8e"
 }
