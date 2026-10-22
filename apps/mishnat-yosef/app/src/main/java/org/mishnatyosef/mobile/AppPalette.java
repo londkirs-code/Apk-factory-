@@ -12,6 +12,9 @@ import android.graphics.Color;
 final class AppPalette {
     private AppPalette() {}
 
+    // Keep alpha values named so opacity can be tuned independently from RGB.
+    static final int STAR_BACKGROUND_ALPHA = 220;
+
     static final Theme DAY = new Theme(
             Color.rgb(230, 94, 20), Color.rgb(191, 70, 12), Color.rgb(255, 239, 224),
             Color.rgb(255, 249, 244), Color.WHITE, Color.rgb(34, 49, 46),
@@ -19,7 +22,7 @@ final class AppPalette {
             Color.rgb(20, 130, 70), Color.rgb(228, 245, 234),
             Color.rgb(175, 45, 45), Color.rgb(253, 236, 234),
             Color.WHITE, Color.rgb(230, 94, 20), Color.WHITE,
-            Color.rgb(255, 218, 190), Color.argb(220, 255, 255, 255),
+            Color.rgb(255, 218, 190), Color.argb(STAR_BACKGROUND_ALPHA, 255, 255, 255),
             Color.rgb(242, 238, 234), Color.rgb(190, 180, 172), Color.rgb(225, 218, 212));
 
     static final Theme NIGHT = new Theme(
@@ -29,7 +32,7 @@ final class AppPalette {
             Color.rgb(100, 205, 140), Color.rgb(35, 65, 48),
             Color.rgb(255, 120, 120), Color.rgb(75, 40, 40),
             Color.rgb(36, 22, 12), Color.rgb(34, 38, 42), Color.rgb(255, 166, 105),
-            Color.rgb(110, 68, 40), Color.argb(220, 30, 33, 36),
+            Color.rgb(110, 68, 40), Color.argb(STAR_BACKGROUND_ALPHA, 30, 33, 36),
             Color.rgb(52, 55, 58), Color.rgb(150, 155, 160), Color.rgb(70, 74, 78));
 
     static Theme forNightMode(boolean nightMode) {
@@ -96,7 +99,6 @@ final class AppPalette {
     static final int WHATS_NEW_BORDER = 0xFFB7E4C7;
 
     // Effects keep their original alpha values; alpha is intentionally separate from RGB.
-    static final int STAR_BACKGROUND_ALPHA = 220;
     static final int RIPPLE_ALPHA = 40;
     static final int CIRCULAR_BUTTON_RIPPLE_ALPHA = 50;
     static final int FOCUS_FILL_ALPHA = 44;
