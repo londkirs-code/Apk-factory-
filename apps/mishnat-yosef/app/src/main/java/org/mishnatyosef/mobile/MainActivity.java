@@ -3707,9 +3707,13 @@ public class MainActivity extends Activity {
         updateCheckButton = btn("🔄 בדוק אם יש עדכון", PRIMARY);
         updateCheckButton.setOnClickListener(v -> checkForAppUpdate());
         card.addView(updateCheckButton, lp(-1, dp(46), 0, 6));
-        updateDownloadButton = btn("⬇️ הורדה ועדכון מיידים", TONAL);
-        updateDownloadButton.setEnabled(false);
-        updateDownloadButton.setOnClickListener(v -> downloadLatestUpdate());
+        updateDownloadButton = btn("🔄 עדכון ידני עכשיו", TONAL);
+        updateDownloadButton.setEnabled(true);
+        updateDownloadButton.setOnClickListener(v -> {
+            // A manual update always refreshes GitHub metadata first; never rely on stale cached version data.
+            autoDownloadAfterCheck = true;
+            checkForAppUpdate();
+        });
         card.addView(updateDownloadButton, lp(-1, dp(48), 0, 6));
         updateInstallButton = btn("📦 התקנה ידנית", TONAL);
         updateInstallButton.setEnabled(false);
@@ -3723,7 +3727,7 @@ public class MainActivity extends Activity {
         updateLatestName = prefs.getString("update_latest_name", "");
         updateLatestSha256 = prefs.getString("update_latest_sha256", "");
         updateReleaseNotes = prefs.getString("update_release_notes", "");
-        if (updateLatestCode > 0 && updateLatestCode != installedVersionCode()) {
+        if (updateLatestCode > installedVersionCode()) {
             updateStatusView.setText("תוצאות הבדיקה האחרונה: נמצאה גרסה " + updateLatestName + " (" + updateLatestCode + "). אפשר לבדוק שוב לפני ההורדה.");
             updateStatusView.setTextColor(ORANGE_DARK);
             updateNotesView.setText(updateReleaseNotes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : updateReleaseNotes);
@@ -3792,6 +3796,7 @@ public class MainActivity extends Activity {
 
     private void checkForAppUpdate() {
         if (updateCheckButton != null) updateCheckButton.setEnabled(false);
+        if (updateDownloadButton != null) updateDownloadButton.setEnabled(false);
         if (updateStatusView != null) {
             updateStatusView.setText("בודק מול GitHub…");
             updateStatusView.setTextColor(MUTED);
@@ -3841,8 +3846,8 @@ public class MainActivity extends Activity {
                         updateStatusView.setText("תוצאות הבדיקה האחרונה: האפליקציה מעודכנת. מותקנת הגרסה האחרונה: " + name + " (" + code + ").");
                         updateStatusView.setTextColor(GREEN);
                         updateNotesView.setText(notes.isEmpty() ? "אין פירוט שינויים נוסף." : notes);
-                        updateDownloadButton.setEnabled(false);
-                        styleActionButton(updateDownloadButton, ORANGE_LIGHT, ORANGE_DARK, 0);
+                        updateDownloadButton.setEnabled(true);
+                        styleActionButton(updateDownloadButton, TONAL, INK, 0);
                         updateInstallButton.setVisibility(View.VISIBLE);
                         updateInstallButton.setEnabled(false);
                     } else {
@@ -3852,22 +3857,27 @@ public class MainActivity extends Activity {
                         updateStatusView.setTextColor(ORANGE_DARK);
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
-                        styleActionButton(updateDownloadButton, ORANGE, ON_ORANGE, 0);
+                        styleActionButton(updateDownloadButton, TONAL, INK, 0);
                         updateInstallButton.setVisibility(View.VISIBLE);
                         updateInstallButton.setEnabled(false);
-                        if (startOlderVersionDownload) downloadLatestUpdate();
+                        if (startOlderVersionDownload) {
+                            toast("הגרסה שב־GitHub ישנה מהגרסה המותקנת, ולכן לא תבוצע התקנה לאחור.", false);
+                        }
                     }
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
+                    if (updateDownloadButton != null) updateDownloadButton.setEnabled(true);
                 });
             } catch (Exception error) {
                 String message = error.getMessage();
                 if (message == null || message.trim().isEmpty()) message = error.getClass().getSimpleName();
                 final String shown = message;
                 runOnUiThread(() -> {
-                    if (screenKind != 7 || updateStatusView == null) return;
+                    if (screenKind != 7 || updateStatusView == null) { autoDownloadAfterCheck = false; return; }
+                    autoDownloadAfterCheck = false;
                     updateStatusView.setText("תוצאות הבדיקה האחרונה: בדיקת העדכונים נכשלה: " + shown + ". אפשר לנסות שוב מאוחר יותר.");
                     updateStatusView.setTextColor(ORANGE_DARK);
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
+                    if (updateDownloadButton != null) updateDownloadButton.setEnabled(true);
                     boolean cachedUpdateAvailable = updateLatestCode > 0
                             && updateLatestCode != installedVersionCode()
                             && updateLatestSha256.matches("[0-9a-f]{64}");
