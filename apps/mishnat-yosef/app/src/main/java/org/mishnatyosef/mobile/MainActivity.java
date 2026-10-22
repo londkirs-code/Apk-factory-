@@ -7043,13 +7043,11 @@ public class MainActivity extends Activity {
             else catOrder.put(cat, Math.min(catOrder.get(cat), order));
             byCat.get(cat).add(p);
         }
+        // byCat is a LinkedHashMap populated while walking the server's product list.
+        // Keep that first-seen order: it is the authoritative category order for both live
+        // products and cached snapshots. Sorting missing category ranks alphabetically here
+        // made the UI diverge from the server, especially for catalogue-only cache entries.
         List<String> cats = new ArrayList<>(byCat.keySet());
-        Collections.sort(cats, new Comparator<String>() {
-            @Override public int compare(String a, String b) {
-                int c = Integer.compare(catOrder.get(a), catOrder.get(b));
-                return c != 0 ? c : a.compareTo(b);
-            }
-        });
         for (String cat : cats) {
             List<JSONObject> items = byCat.get(cat);
             Collections.sort(items, new Comparator<JSONObject>() {
