@@ -802,6 +802,12 @@ public class MainActivity extends Activity {
             activeProductSearch.clearFocus();
             return true;
         }
+        // A physical Menu key always opens the appropriate menu, even if a text field
+        // currently owns focus. On order screens, use that screen's own three-dot menu.
+        if (key == android.view.KeyEvent.KEYCODE_MENU) {
+            openKeyboardMenu();
+            return true;
+        }
         boolean textEditing = isTextEditorFocused() && isSoftKeyboardVisible();
         if (textEditing) return false;
 
@@ -864,9 +870,6 @@ public class MainActivity extends Activity {
         }
         if (key == android.view.KeyEvent.KEYCODE_7) { jumpCategoryBy(-1); return true; }
         if (key == android.view.KeyEvent.KEYCODE_9) { jumpCategoryBy(1); return true; }
-        if (key == android.view.KeyEvent.KEYCODE_MENU) {
-            openProductDetailsOrMoreOptions(); return true;
-        }
         if (key == android.view.KeyEvent.KEYCODE_SOFT_LEFT) {
             openProductDetailsOrMoreOptions(); return true;
         }
@@ -1007,6 +1010,33 @@ public class MainActivity extends Activity {
             catStripScroll.smoothScrollTo(Math.max(0, x), 0);
         }
         productList.postDelayed(() -> pendingCategoryJump = "", 250);
+    }
+
+    /**
+     * Route the physical Menu key to the same visible menu the user can open on screen.
+     * Order/product and cached-order screens have their own three-dot actions; everywhere
+     * else the key activates the header's global settings/actions button.
+     */
+    private void openKeyboardMenu() {
+        boolean onOrderScreen = (showingOrderScreen && screenKind == 1) || screenKind == 2;
+        if (onOrderScreen) {
+            View orderAnchor = findTaggedView(currentScreen,
+                    screenKind == 2 ? "orderSummaryOptions" : "orderToolbarOptions");
+            if (orderAnchor == null || !orderAnchor.isShown()) {
+                // Be resilient if a screen is being restored and its matching menu is not
+                // attached yet; look for either order menu anchor before giving up.
+                orderAnchor = findTaggedView(currentScreen, "orderToolbarOptions");
+                if (orderAnchor == null || !orderAnchor.isShown()) {
+                    orderAnchor = findTaggedView(currentScreen, "orderSummaryOptions");
+                }
+            }
+            if (orderAnchor != null && orderAnchor.isShown()) orderAnchor.performClick();
+            return;
+        }
+
+        View settingsAnchor = findTaggedView(currentScreen, "globalSettingsMenu");
+        if (settingsAnchor != null && settingsAnchor.isShown()) settingsAnchor.performClick();
+        else showActionsDialog();
     }
 
     private void openProductDetailsOrMoreOptions() {
@@ -2660,6 +2690,7 @@ public class MainActivity extends Activity {
         actionsButton.setPadding(0, 0, 0, 0);
         actionsButton.setBackground(ripple(shape(SURFACE, 50, nightMode ? LINE : Color.WHITE), 50));
         actionsButton.setElevation(dp(2));
+        actionsButton.setTag("globalSettingsMenu");
         actionsButton.setContentDescription("פתיחת הגדרות ופעולות");
         actionsButton.setOnClickListener(v -> showActionsDialog());
         LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(30), dp(30));
@@ -7629,6 +7660,8 @@ public class MainActivity extends Activity {
         if (!collectMode) cp.setMarginStart(dp(8));
         modes.addView(collect, cp);
         TextView summaryActions = btn("⋯", TONAL);
+        summaryActions.setTag("orderSummaryOptions");
+        summaryActions.setContentDescription("אפשרויות נוספות להזמנה");
         summaryActions.setOnClickListener(v -> showOrderQuickMenu(summaryActions));
         LinearLayout.LayoutParams sap = new LinearLayout.LayoutParams(dp(52), dp(44));
         sap.setMarginStart(dp(8));
