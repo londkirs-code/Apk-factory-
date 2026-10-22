@@ -7654,7 +7654,7 @@ public class MainActivity extends Activity {
         if (title instanceof TextView) ((TextView) title).setText("✔ נאספו (" + done + ")");
         progressView.setVisibility(collectMode ? View.VISIBLE : View.GONE);
         boolean allCollected = collectMode && total > 0 && done == total;
-        progressView.setText(allCollected ? "🎉 כל הפריטים נאספו! כל הכבוד!" : "נאספו " + done + " מתוך " + total + " פריטים");
+        progressView.setText(allCollected ? "✓ כל הפריטים נאספו! כל הכבוד!" : "נאספו " + done + " מתוך " + total + " פריטים");
         if (allCollected && !collectionCelebrationShown) {
             collectionCelebrationShown = true;
             showCollectionConfetti();
