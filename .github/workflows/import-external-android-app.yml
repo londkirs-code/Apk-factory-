@@ -146,7 +146,7 @@ jobs:
       - name: Prepare missing debug keystore when project requires one
         shell: bash
         env:
-          PROJECT: \${{ steps.project.outputs.project }}
+          PROJECT: ${{ steps.project.outputs.project }}
         run: |
           set -euo pipefail
           # Some AI Studio projects hard-code a root-level debug.keystore. Generate the standard
