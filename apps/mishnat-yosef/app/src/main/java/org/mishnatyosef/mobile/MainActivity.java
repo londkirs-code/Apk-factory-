@@ -2081,16 +2081,7 @@ public class MainActivity extends Activity {
         if (showConfirmation) toast("פריסת הכרטיסיות נשמרה", false);
     }
 
-    // Keyboard shortcuts and post-scale restoration can open the actions menu without
-    // a direct button click. Keep those existing entry points working by anchoring to
-    // the current focus when possible, or to the screen root as a safe fallback.
     private void showActionsDialog() {
-        View anchor = getCurrentFocus();
-        if (anchor == null || !anchor.isShown()) anchor = root;
-        if (anchor != null && anchor.isShown()) showActionsDialog(anchor);
-    }
-
-    private void showActionsDialog(View anchor) {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -2223,52 +2214,33 @@ public class MainActivity extends Activity {
             toast("התצוגה אופסה לברירת המחדל", false);
         });
 
-        // Apple-inspired anchored popover: a rounded surface, subtle border/shadow,
-        // and a small pointer that visually connects the menu to its trigger button.
-        LinearLayout popupContent = new LinearLayout(this);
-        popupContent.setOrientation(LinearLayout.VERTICAL);
-        popupContent.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        popupContent.setPadding(0, 0, 0, 0);
-        View pointer = new View(this) {
-            private final Paint pointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            @Override protected void onDraw(Canvas canvas) {
-                super.onDraw(canvas);
-                float centerX = dp(18);
-                float tipY = getHeight();
-                Path triangle = new Path();
-                triangle.moveTo(centerX, 0);
-                triangle.lineTo(centerX - dp(9), tipY);
-                triangle.lineTo(centerX + dp(9), tipY);
-                triangle.close();
-                pointerPaint.setColor(SURFACE);
-                pointerPaint.setStyle(Paint.Style.FILL);
-                canvas.drawPath(triangle, pointerPaint);
-                pointerPaint.setColor(LINE);
-                pointerPaint.setStyle(Paint.Style.STROKE);
-                pointerPaint.setStrokeWidth(dp(1));
-                canvas.drawLine(centerX - dp(9), tipY, centerX, 0, pointerPaint);
-                canvas.drawLine(centerX, 0, centerX + dp(9), tipY, pointerPaint);
+        AlertDialog dialog = new AlertDialog.Builder(this,
+                nightMode ? android.R.style.Theme_Material_Dialog_Alert
+                        : android.R.style.Theme_Material_Light_Dialog_Alert)
+                .setView(panel)
+                .create();
+        close.setOnClickListener(v -> dialog.dismiss());
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.setOnShowListener(ignored -> {
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                WindowManager.LayoutParams windowParams = dialog.getWindow().getAttributes();
+                windowParams.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440));
+                windowParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                windowParams.gravity = Gravity.CENTER;
+                windowParams.dimAmount = 0.48f;
+                dialog.getWindow().setAttributes(windowParams);
+                dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             }
-        };
-        popupContent.addView(pointer, new LinearLayout.LayoutParams(-1, dp(10)));
-        panel.setElevation(0);
-        popupContent.addView(panel, new LinearLayout.LayoutParams(-1, -2));
-        close.setOnClickListener(v -> {
-            Object tag = popupContent.getTag();
-            if (tag instanceof PopupWindow) ((PopupWindow) tag).dismiss();
         });
-
-        int popupWidth = Math.min(getResources().getDisplayMetrics().widthPixels - dp(24), dp(420));
-        PopupWindow popup = new PopupWindow(popupContent, popupWidth, -2, true);
-        popupContent.setTag(popup);
-        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        popup.setOutsideTouchable(true);
-        popup.setTouchable(true);
-        popup.setElevation(dp(14));
-        popup.setClippingEnabled(true);
-        popup.setOnDismissListener(() -> anchor.setSelected(false));
-        anchor.setSelected(true);
-        popup.showAsDropDown(anchor, -dp(8), -dp(8), Gravity.START);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            dialog.getWindow().setLayout(
+                    Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440)),
+                    WindowManager.LayoutParams.WRAP_CONTENT);
+            dialog.getWindow().setGravity(Gravity.CENTER);
+        }
     }
 
     private Drawable ripple(Drawable content, float radiusDp) {
@@ -6620,7 +6592,7 @@ public class MainActivity extends Activity {
         optionsBtn.setTag("orderToolbarOptions");
         optionsBtn.setFocusable(true);
         optionsBtn.setContentDescription("אפשרויות נוספות");
-        optionsBtn.setOnClickListener(v -> showOrderQuickMenu());
+        optionsBtn.setOnClickListener(v -> showOrderQuickMenu(optionsBtn));
         optionsBtn.setContentDescription("אפשרויות נוספות");
         LinearLayout.LayoutParams optionsLp = new LinearLayout.LayoutParams(dp(32), dp(40));
         optionsLp.setMarginStart(dp(3));
@@ -7657,7 +7629,7 @@ public class MainActivity extends Activity {
         if (!collectMode) cp.setMarginStart(dp(8));
         modes.addView(collect, cp);
         TextView summaryActions = btn("⋯", TONAL);
-        summaryActions.setOnClickListener(v -> showOrderQuickMenu());
+        summaryActions.setOnClickListener(v -> showOrderQuickMenu(summaryActions));
         LinearLayout.LayoutParams sap = new LinearLayout.LayoutParams(dp(52), dp(44));
         sap.setMarginStart(dp(8));
         modes.addView(summaryActions, sap);
@@ -9964,7 +9936,7 @@ public class MainActivity extends Activity {
 
     // ======================================================================== order actions menu
 
-    private void showOrderQuickMenu() {
+    private void showOrderQuickMenu(View anchor) {
         final List<String> labels = new ArrayList<>();
         final List<Integer> actions = new ArrayList<>();
         labels.add(nightMode ? "☀️ מעבר למצב יום" : "🌙 הפעלת מצב לילה"); actions.add(11);
@@ -9976,48 +9948,150 @@ public class MainActivity extends Activity {
             labels.add("📤 שיתוף סיכום ההזמנה השמורה"); actions.add(12);
             labels.add("📦 ייצוא ההזמנה השמורה לקובץ"); actions.add(13);
         } else {
-        if (!summaryFromHistory) {
-            labels.add("פרטי המכירה"); actions.add(0);
-            labels.add("רענון מוצרים"); actions.add(1);
-            labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);        }
-        if (featureOrderId > 0) {
-            labels.add("📤 שיתוף סיכום ההזמנה"); actions.add(2);
-            labels.add("📦 ייצוא הזמנה לקובץ"); actions.add(3);
-            labels.add("📥 ייבוא הזמנה מקובץ"); actions.add(4);
-            labels.add("📝 הדבקת רשימת קניות"); actions.add(5);
-            labels.add("⭐ טעינת מועדפים להזמנה"); actions.add(6);
-            labels.add("💾 שמירת כמויות למועדפים"); actions.add(7);
-            labels.add("🧹 ניקוי כמויות שמורות"); actions.add(8);
-            labels.add("🗑 מחיקת ההזמנה"); actions.add(9);
+            if (!summaryFromHistory) {
+                labels.add("פרטי המכירה"); actions.add(0);
+                labels.add("רענון מוצרים"); actions.add(1);
+                labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);
+            }
+            if (featureOrderId > 0) {
+                labels.add("📤 שיתוף סיכום ההזמנה"); actions.add(2);
+                labels.add("📦 ייצוא הזמנה לקובץ"); actions.add(3);
+                labels.add("📥 ייבוא הזמנה מקובץ"); actions.add(4);
+                labels.add("📝 הדבקת רשימת קניות"); actions.add(5);
+                labels.add("⭐ טעינת מועדפים להזמנה"); actions.add(6);
+                labels.add("💾 שמירת כמויות למועדפים"); actions.add(7);
+                labels.add("🧹 ניקוי כמויות שמורות"); actions.add(8);
+                labels.add("🗑 מחיקת ההזמנה"); actions.add(9);
+            }
         }
+
+        // A compact Apple-inspired popover, anchored only to the order's three-dot button.
+        LinearLayout popupPanel = new LinearLayout(this);
+        popupPanel.setOrientation(LinearLayout.VERTICAL);
+        popupPanel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        popupPanel.setPadding(dp(12), dp(10), dp(12), dp(12));
+        popupPanel.setBackground(shape(SURFACE, 20, LINE));
+
+        LinearLayout headingRow = new LinearLayout(this);
+        headingRow.setOrientation(LinearLayout.HORIZONTAL);
+        headingRow.setGravity(Gravity.CENTER_VERTICAL);
+        headingRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView heading = text("אפשרויות נוספות", 17, true);
+        heading.setTextColor(INK);
+        heading.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        headingRow.addView(heading, new LinearLayout.LayoutParams(0, dp(40), 1));
+        TextView close = btn("✕", FLAT);
+        close.setContentDescription("סגירת אפשרויות ההזמנה");
+        close.setMinHeight(dp(36));
+        close.setPadding(dp(8), dp(2), dp(8), dp(2));
+        headingRow.addView(close, new LinearLayout.LayoutParams(dp(38), dp(36)));
+        popupPanel.addView(headingRow, new LinearLayout.LayoutParams(-1, -2));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(LINE);
+        LinearLayout.LayoutParams dividerLp = new LinearLayout.LayoutParams(-1, dp(1));
+        dividerLp.topMargin = dp(3);
+        dividerLp.bottomMargin = dp(7);
+        popupPanel.addView(divider, dividerLp);
+
+        ScrollView menuScroll = new ScrollView(this);
+        menuScroll.setFillViewport(false);
+        menuScroll.setVerticalScrollBarEnabled(labels.size() > 7);
+        LinearLayout menuRows = new LinearLayout(this);
+        menuRows.setOrientation(LinearLayout.VERTICAL);
+        menuRows.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        final PopupWindow[] popupRef = new PopupWindow[1];
+        for (int i = 0; i < labels.size(); i++) {
+            final int action = actions.get(i);
+            TextView item = text(labels.get(i), 14, true);
+            item.setTextColor(INK);
+            item.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            item.setMinHeight(dp(42));
+            item.setPadding(dp(12), dp(7), dp(12), dp(7));
+            item.setBackground(ripple(shape(SURFACE, 12, LINE), 12));
+            item.setFocusable(true);
+            item.setContentDescription(labels.get(i));
+            LinearLayout.LayoutParams itemLp = new LinearLayout.LayoutParams(-1, -2);
+            itemLp.bottomMargin = dp(4);
+            menuRows.addView(item, itemLp);
+            item.setOnClickListener(v -> {
+                if (popupRef[0] != null) popupRef[0].dismiss();
+                runOrderQuickMenuAction(action);
+            });
         }
-        appDialog().setTitle("אפשרויות נוספות")
-                .setItems(labels.toArray(new String[0]), (d, which) -> {
-                    switch (actions.get(which)) {
-                        case 0: showSaleDetails(featureSale); break;
-                        case 1: refreshProducts(featureSale, false); break;
-                        case 2: showShareMenu(orderText(currentTitle(), featureOrderId, "", currentOrderLines())); break;
-                        case 3: startExport("הזמנה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), featureOrderId, currentOrderLines())); break;
-                        case 4: pickImportFile(); break;
-                        case 5: showPasteWishlist(); break;
-                        case 6: orderFavourites(); break;
-                        case 7: saveFavQuantities(); break;
-                        case 8: clearFavQuantities(); break;
-                        case 9: confirmDeleteOrder(); break;
-                        case 10: showCardSizeDialog(); break;
-                        case 11:
-                            d.dismiss();
-                            toggleNightMode();
-                            break;
-                        case 12: showShareMenu(cachedClosedOrderText()); break;
-                        case 13: startExport("הזמנה שמורה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), 0, currentOrderLines())); break;
-                        case 14:
-                            boolean skipPageRefresh = !prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false);
-                            prefs.edit().putBoolean("experimental_skip_cached_quantity_grid_rebuild", skipPageRefresh).apply();
-                            toast(skipPageRefresh ? "ביטול רענון עמוד הופעל בהזמנות" : "רענון עמוד ההזמנות הוחזר", false);
-                            break;
-                    }
-                }).show();
+        menuScroll.addView(menuRows, new ScrollView.LayoutParams(-1, -2));
+        int displayHeight = getResources().getDisplayMetrics().heightPixels;
+        int desiredRowsHeight = dp(labels.size() * 46);
+        int maxRowsHeight = Math.min(dp(460), displayHeight * 58 / 100);
+        int rowsHeight = Math.max(dp(46), Math.min(desiredRowsHeight, maxRowsHeight));
+        popupPanel.addView(menuScroll, new LinearLayout.LayoutParams(-1, rowsHeight));
+
+        LinearLayout popupContent = new LinearLayout(this);
+        popupContent.setOrientation(LinearLayout.VERTICAL);
+        popupContent.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        popupContent.setPadding(0, 0, 0, 0);
+        View pointer = new View(this) {
+            private final Paint pointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                float centerX = getWidth() - dp(24);
+                float tipY = getHeight();
+                Path triangle = new Path();
+                triangle.moveTo(centerX, 0);
+                triangle.lineTo(centerX - dp(8), tipY);
+                triangle.lineTo(centerX + dp(8), tipY);
+                triangle.close();
+                pointerPaint.setColor(SURFACE);
+                pointerPaint.setStyle(Paint.Style.FILL);
+                canvas.drawPath(triangle, pointerPaint);
+                pointerPaint.setColor(LINE);
+                pointerPaint.setStyle(Paint.Style.STROKE);
+                pointerPaint.setStrokeWidth(dp(1));
+                canvas.drawLine(centerX - dp(8), tipY, centerX, 0, pointerPaint);
+                canvas.drawLine(centerX, 0, centerX + dp(8), tipY, pointerPaint);
+            }
+        };
+        popupContent.addView(pointer, new LinearLayout.LayoutParams(-1, dp(9)));
+        popupPanel.setElevation(0);
+        popupContent.addView(popupPanel, new LinearLayout.LayoutParams(-1, -2));
+
+        int popupWidth = Math.min(getResources().getDisplayMetrics().widthPixels - dp(24), dp(360));
+        PopupWindow popup = new PopupWindow(popupContent, popupWidth, -2, true);
+        popupRef[0] = popup;
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popup.setOutsideTouchable(true);
+        popup.setTouchable(true);
+        popup.setElevation(dp(12));
+        popup.setClippingEnabled(true);
+        popup.setOnDismissListener(() -> anchor.setSelected(false));
+        close.setOnClickListener(v -> popup.dismiss());
+        anchor.setSelected(true);
+        popup.showAsDropDown(anchor, 0, -dp(7), Gravity.START);
+    }
+
+    private void runOrderQuickMenuAction(int action) {
+        switch (action) {
+            case 0: showSaleDetails(featureSale); break;
+            case 1: refreshProducts(featureSale, false); break;
+            case 2: showShareMenu(orderText(currentTitle(), featureOrderId, "", currentOrderLines())); break;
+            case 3: startExport("הזמנה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), featureOrderId, currentOrderLines())); break;
+            case 4: pickImportFile(); break;
+            case 5: showPasteWishlist(); break;
+            case 6: orderFavourites(); break;
+            case 7: saveFavQuantities(); break;
+            case 8: clearFavQuantities(); break;
+            case 9: confirmDeleteOrder(); break;
+            case 10: showCardSizeDialog(); break;
+            case 11: toggleNightMode(); break;
+            case 12: showShareMenu(cachedClosedOrderText()); break;
+            case 13: startExport("הזמנה שמורה " + currentTitle(), buildExportJson(currentTitle(), featureSale == null ? 0 : featureSale.optLong("id", 0), 0, currentOrderLines())); break;
+            case 14:
+                boolean skipPageRefresh = !prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false);
+                prefs.edit().putBoolean("experimental_skip_cached_quantity_grid_rebuild", skipPageRefresh).apply();
+                toast(skipPageRefresh ? "ביטול רענון עמוד הופעל בהזמנות" : "רענון עמוד ההזמנות הוחזר", false);
+                break;
+        }
     }
 
     private int cardColumns() {
