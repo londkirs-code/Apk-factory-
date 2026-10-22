@@ -1,0 +1,58 @@
+name: Build Notification Android App APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - ".github/workflows/build-notification-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout APK Factory
+        uses: actions/checkout@v4
+        with:
+          path: apk-factory
+
+      - name: Checkout Notification Android App source
+        uses: actions/checkout@v4
+        with:
+          repository: londkirs-code/Notification-android-app
+          ref: main
+          path: notification-source
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Build debug APK from original project
+        working-directory: notification-source
+        run: gradle --no-daemon assembleDebug
+
+      - name: Verify APK exists
+        run: |
+          set -euo pipefail
+          APK="notification-source/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-android-app-apk
+          path: notification-source/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
