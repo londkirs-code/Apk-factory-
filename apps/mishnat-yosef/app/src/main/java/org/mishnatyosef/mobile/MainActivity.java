@@ -6287,8 +6287,16 @@ public class MainActivity extends Activity {
 
     /** Remove personal order data from snapshots written by older releases. */
     private void migrateSaleCacheToCatalogueOnly() {
-        if (prefs == null || prefs.getInt("catalogue_cache_schema", 0) >= 2) return;
+        if (prefs == null) return;
         File dir = new File(getFilesDir(), "cache");
+        // Interrupted legacy writes may leave temporary files containing the old payload.
+        File[] temporaryFiles = dir.listFiles((d, name) -> name.matches("sale_[0-9]+\\.json\\.tmp"));
+        if (temporaryFiles != null) {
+            for (File temporary : temporaryFiles) {
+                try { temporary.delete(); } catch (Exception ignored) { }
+            }
+        }
+        if (prefs.getInt("catalogue_cache_schema", 0) >= 2) return;
         File[] files = dir.listFiles((d, name) -> name.matches("sale_[0-9]+\\.json"));
         if (files != null) {
             for (File file : files) {
