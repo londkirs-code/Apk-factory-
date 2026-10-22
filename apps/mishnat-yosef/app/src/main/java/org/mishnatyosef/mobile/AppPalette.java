@@ -126,6 +126,8 @@ final class AppPalette {
     // Fixed-purpose UI colors: centralized, but deliberately not changed with day/night mode.
     static final int NAV_INACTIVE_DAY = Color.rgb(70, 62, 58);
     static final int NAV_INACTIVE_PURPLE = Color.rgb(78, 70, 90);
+    static final int ORANGE_SWATCH = Color.rgb(191, 70, 12);
+    static final int PURPLE_SWATCH = Color.rgb(81, 48, 143);
     static final int FOCUS_BORDER = Color.rgb(142, 142, 147);
     static final int NIGHT_TOGGLE_GRADIENT_TOP = Color.rgb(255, 255, 250);
     static final int CATEGORY_FOCUS_BORDER = Color.rgb(33, 150, 243);
