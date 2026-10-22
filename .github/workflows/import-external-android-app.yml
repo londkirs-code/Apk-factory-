@@ -153,17 +153,30 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Locate Android SDK tools safely
+        id: sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
+          if [[ -z "$SDKMANAGER" || ! -x "$SDKMANAGER" ]]; then
+            echo "::error::Android SDK manager was not found under $SDK_ROOT/cmdline-tools. Available SDK paths:"
+            find /usr/local/lib/android /opt -type f -name sdkmanager -print 2>/dev/null | head -20 || true
+            exit 1
+          fi
+          echo "sdkmanager=$SDKMANAGER" >> "$GITHUB_OUTPUT"
+          echo "Using SDK manager: $SDKMANAGER"
 
       - name: Install detected Android SDK platform
         shell: bash
         env:
+          SDKMANAGER: ${{ steps.sdk.outputs.sdkmanager }}
           PLATFORM_PACKAGE: ${{ steps.android-sdk.outputs.platform_package }}
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "$PLATFORM_PACKAGE"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "$PLATFORM_PACKAGE"
 
       - name: Set up Gradle when wrapper is absent
         if: steps.project.outputs.runner == 'installed'
