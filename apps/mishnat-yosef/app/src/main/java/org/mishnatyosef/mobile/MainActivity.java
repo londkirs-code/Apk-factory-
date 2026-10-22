@@ -10995,6 +10995,8 @@ public class MainActivity extends Activity {
             columnsSize.setText(cardSizeLabel(3));
             commitCardColumns(3, false);
             if (nightMode) toggleNightMode();
+            View dayModeSwitch = findViewWithTag(currentScreen, "displayDayModeSwitch");
+            if (dayModeSwitch instanceof Switch) ((Switch) dayModeSwitch).setChecked(true);
             if (actionScaleBar != null) actionScaleBar.setProgress(6);
             if (actionScaleValue != null) actionScaleValue.setText("100%");
             toast("התצוגה אופסה לברירת המחדל", false);
@@ -11007,9 +11009,13 @@ public class MainActivity extends Activity {
         displayToggleDividerLp.bottomMargin = dp(4);
         controls.addView(displayToggleDivider, displayToggleDividerLp);
 
-        controls.addView(switchRow("מצב יום", "כיבוי המתג מפעיל מצב לילה", !nightMode, (button, checked) -> {
+        View dayModeRow = switchRow("מצב יום", "כיבוי המתג מפעיל מצב לילה", !nightMode, (button, checked) -> {
             if (nightMode == checked) toggleNightMode();
-        }));
+        });
+        if (dayModeRow instanceof ViewGroup && ((ViewGroup) dayModeRow).getChildCount() > 1) {
+            ((ViewGroup) dayModeRow).getChildAt(1).setTag("displayDayModeSwitch");
+        }
+        controls.addView(dayModeRow);
         controls.addView(switchRow("ניווט לפי פעולה", "ניווט בחצים בין פעולות הכרטיס במקום ניווט פשוט", !simpleKeyboardNavigation(), (button, checked) -> {
             prefs.edit().putBoolean("simple_keyboard_navigation", !checked).apply();
         }));
