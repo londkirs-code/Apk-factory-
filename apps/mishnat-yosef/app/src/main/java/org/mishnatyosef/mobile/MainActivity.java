@@ -8710,7 +8710,7 @@ public class MainActivity extends Activity {
         // navigation height plus a small visual gap so this footer never overlaps it.
         FrameLayout.LayoutParams sendFooterLp = new FrameLayout.LayoutParams(
                 -1, -2, Gravity.BOTTOM);
-        sendFooterLp.bottomMargin = dp(72);
+        sendFooterLp.bottomMargin = dp(20);
         bottomHolder.addView(sendFooter, sendFooterLp);
     }
 
