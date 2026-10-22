@@ -2065,15 +2065,6 @@ public class MainActivity extends Activity {
         subtitleParams.bottomMargin = dp(14);
         panel.addView(subtitle, subtitleParams);
 
-        TextView nightToggle = btn(nightMode ? "🌙  מצב לילה: פעיל" : "☀️  מצב לילה: כבוי", nightMode ? PRIMARY : TONAL);
-        nightToggle.setGravity(Gravity.CENTER);
-        panel.addView(nightToggle, new LinearLayout.LayoutParams(-1, -2));
-        nightToggle.setOnClickListener(v -> {
-            toggleNightMode();
-            nightToggle.setText(nightMode ? "🌙  מצב לילה: פעיל" : "☀️  מצב לילה: כבוי");
-            styleActionButton(nightToggle, nightMode ? ORANGE : ORANGE_LIGHT, nightMode ? ON_ORANGE : ORANGE_DARK, 0);
-        });
-
         TextView scaleLabel = text("Aa  גודל התצוגה", 14, true);
         scaleLabel.setTextColor(INK);
         LinearLayout.LayoutParams scaleLabelLp = new LinearLayout.LayoutParams(-1, -2);
@@ -2138,6 +2129,45 @@ public class MainActivity extends Activity {
             }
         });
         columnsBar.setContentDescription("מספר עמודות בכרטיסי המוצרים, 1 עד 5");
+
+        LinearLayout quickActions = new LinearLayout(this);
+        quickActions.setOrientation(LinearLayout.HORIZONTAL);
+        quickActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        quickActions.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams quickActionsLp = new LinearLayout.LayoutParams(-1, dp(44));
+        quickActionsLp.topMargin = dp(14);
+        panel.addView(quickActions, quickActionsLp);
+
+        TextView nightToggle = btn(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום", TONAL);
+        nightToggle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams quickActionLp = new LinearLayout.LayoutParams(0, -1, 1f);
+        quickActionLp.setMarginEnd(dp(5));
+        quickActions.addView(nightToggle, quickActionLp);
+        nightToggle.setOnClickListener(v -> {
+            toggleNightMode();
+            nightToggle.setText(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום");
+            styleActionButton(nightToggle, nightMode ? ORANGE : ORANGE_LIGHT,
+                    nightMode ? ON_ORANGE : ORANGE_DARK, 0);
+        });
+
+        TextView resetDisplayButton = btn("↺ איפוס תצוגה", OUTLINE);
+        resetDisplayButton.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams resetActionLp = new LinearLayout.LayoutParams(0, -1, 1f);
+        resetActionLp.setMarginStart(dp(5));
+        quickActions.addView(resetDisplayButton, resetActionLp);
+        resetDisplayButton.setContentDescription("איפוס גודל ל־100 אחוז, שלוש עמודות ומצב יום");
+        resetDisplayButton.setOnClickListener(v -> {
+            scaleBar.setProgress(6);
+            scaleValue.setText("100%");
+            changeUiScale(100);
+            columnsBar.setProgress(2);
+            columnsValue.setText("3 עמודות");
+            commitCardColumns(3, false);
+            if (nightMode) toggleNightMode();
+            nightToggle.setText("☀️ מצב יום");
+            styleActionButton(nightToggle, ORANGE_LIGHT, ORANGE_DARK, 0);
+            toast("התצוגה אופסה לברירת המחדל", false);
+        });
 
         AlertDialog dialog = new AlertDialog.Builder(this,
                 nightMode ? android.R.style.Theme_Material_Dialog_Alert
@@ -10949,32 +10979,12 @@ public class MainActivity extends Activity {
         });
         columnsSlider.setContentDescription("מספר עמודות בכרטיסי המוצרים, בין עמודה אחת לחמש");
 
-        LinearLayout displayActions = new LinearLayout(this);
-        displayActions.setOrientation(LinearLayout.HORIZONTAL);
-        displayActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        displayActions.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams displayActionsLp = new LinearLayout.LayoutParams(-1, dp(44));
-        displayActionsLp.topMargin = dp(12);
-        displayActionsLp.bottomMargin = dp(4);
-        controls.addView(displayActions, displayActionsLp);
-
-        TextView nightModeButton = btn(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום", TONAL);
-        nightModeButton.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams displayActionButtonLp = new LinearLayout.LayoutParams(0, -1, 1f);
-        displayActionButtonLp.setMarginEnd(dp(5));
-        displayActions.addView(nightModeButton, displayActionButtonLp);
-        nightModeButton.setOnClickListener(v -> {
-            toggleNightMode();
-            nightModeButton.setText(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום");
-            styleActionButton(nightModeButton, nightMode ? ORANGE : ORANGE_LIGHT,
-                    nightMode ? ON_ORANGE : ORANGE_DARK, 0);
-        });
-
-        TextView resetDisplayButton = btn("↺ איפוס תצוגה", OUTLINE);
+        TextView resetDisplayButton = btn("↺  איפוס תצוגה", OUTLINE);
         resetDisplayButton.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams resetDisplayLp = new LinearLayout.LayoutParams(0, -1, 1f);
-        resetDisplayLp.setMarginStart(dp(5));
-        displayActions.addView(resetDisplayButton, resetDisplayLp);
+        LinearLayout.LayoutParams resetDisplayLp = new LinearLayout.LayoutParams(-1, dp(44));
+        resetDisplayLp.topMargin = dp(14);
+        resetDisplayLp.bottomMargin = dp(8);
+        controls.addView(resetDisplayButton, resetDisplayLp);
         resetDisplayButton.setContentDescription("איפוס גודל ל־100 אחוז, שלוש עמודות ומצב יום");
         resetDisplayButton.setOnClickListener(v -> {
             scaleSlider.setProgress(6);
@@ -10985,28 +10995,24 @@ public class MainActivity extends Activity {
             columnsSize.setText(cardSizeLabel(3));
             commitCardColumns(3, false);
             if (nightMode) toggleNightMode();
-            nightModeButton.setText("☀️ מצב יום");
-            styleActionButton(nightModeButton, ORANGE_LIGHT, ORANGE_DARK, 0);
             if (actionScaleBar != null) actionScaleBar.setProgress(6);
             if (actionScaleValue != null) actionScaleValue.setText("100%");
             toast("התצוגה אופסה לברירת המחדל", false);
         });
 
-        TextView navigationModeButton = btn(
-                simpleKeyboardNavigation() ? "↔ ניווט פשוט: פעיל" : "↔ ניווט לפי פעולה: פעיל",
-                TONAL);
-        navigationModeButton.setGravity(Gravity.CENTER);
-        navigationModeButton.setContentDescription("החלפת מצב ניווט בחצים בכרטיסי המוצרים");
-        navigationModeButton.setOnClickListener(v -> {
-            boolean nextSimple = !simpleKeyboardNavigation();
-            prefs.edit().putBoolean("simple_keyboard_navigation", nextSimple).apply();
-            navigationModeButton.setText(nextSimple ? "↔ ניווט פשוט: פעיל" : "↔ ניווט לפי פעולה: פעיל");
-            styleActionButton(navigationModeButton, nextSimple ? ORANGE_LIGHT : SURFACE,
-                    nextSimple ? ORANGE_DARK : INK, 0);
-        });
-        LinearLayout.LayoutParams navigationModeLp = new LinearLayout.LayoutParams(-1, dp(42));
-        navigationModeLp.topMargin = dp(4);
-        controls.addView(navigationModeButton, navigationModeLp);
+        View displayToggleDivider = new View(this);
+        displayToggleDivider.setBackgroundColor(LINE);
+        LinearLayout.LayoutParams displayToggleDividerLp = new LinearLayout.LayoutParams(-1, dp(1));
+        displayToggleDividerLp.topMargin = dp(4);
+        displayToggleDividerLp.bottomMargin = dp(4);
+        controls.addView(displayToggleDivider, displayToggleDividerLp);
+
+        controls.addView(switchRow("מצב יום", "כיבוי המתג מפעיל מצב לילה", !nightMode, (button, checked) -> {
+            if (nightMode == checked) toggleNightMode();
+        }));
+        controls.addView(switchRow("ניווט לפי פעולה", "ניווט בחצים בין פעולות הכרטיס במקום ניווט פשוט", !simpleKeyboardNavigation(), (button, checked) -> {
+            prefs.edit().putBoolean("simple_keyboard_navigation", !checked).apply();
+        }));
 
         TextView soldOutHeading = text("📦 הצגת פריטים שאזלו", 15, true);
         soldOutHeading.setTextColor(INK);
