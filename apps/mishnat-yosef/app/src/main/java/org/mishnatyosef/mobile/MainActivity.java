@@ -3039,6 +3039,7 @@ public class MainActivity extends Activity {
     // ======================================================================== login / account
 
     private void showLogin() {
+        clearInMemoryAccountOrderState();
         beginScreen("התחברות לחשבון", -1, null);
         TextView hello = text("ברוכים הבאים", 22, true);
         hello.setTextColor(ORANGE_DARK);
@@ -3107,14 +3108,7 @@ public class MainActivity extends Activity {
         logout.setOnClickListener(v -> {
             prefs.edit().remove("token").remove("expires_at").apply();
             clearStoredOrderQuantities();
-            saleSnapshots.clear();
-            featureProducts.clear();
-            featureQuantities.clear();
-            favIds.clear();
-            pending.clear();
-            featureOrderId = -1;
-            currentSaleId = -1;
-            summary = null;
+            clearInMemoryAccountOrderState();
             showLogin();
         });
         root.addView(logout, lp(-1, dp(48), 16, 8));
@@ -5629,6 +5623,7 @@ public class MainActivity extends Activity {
                 JSONObject cachedSale = new JSONObject();
                 try {
                     if (sale != null) cachedSale = new JSONObject(sale.toString());
+                    else if (snap.saleInfo != null) cachedSale = new JSONObject(snap.saleInfo.toString());
                     cachedSale.put("id", saleId);
                     String name = saleTitle(cachedSale);
                     if (name.isEmpty()) name = first(order, "sale_name", "saleName", "name", "title");
@@ -6161,6 +6156,18 @@ public class MainActivity extends Activity {
         prefs.edit().remove("qty_" + featureOrderId).apply();
     }
 
+    private void clearInMemoryAccountOrderState() {
+        saleSnapshots.clear();
+        featureProducts.clear();
+        featureQuantities.clear();
+        favIds.clear();
+        pending.clear();
+        featureOrderId = -1;
+        currentSaleId = -1;
+        summary = null;
+        orderDirty = false;
+    }
+
     private void clearStoredOrderQuantities() {
         if (prefs == null) return;
         SharedPreferences.Editor editor = prefs.edit();
@@ -6198,7 +6205,10 @@ public class MainActivity extends Activity {
                     || normalized.equals("user_id") || normalized.equals("userid")
                     || normalized.equals("customer_id") || normalized.equals("account_id")
                     || normalized.equals("ordered_amount") || normalized.equals("order_amount")
-                    || normalized.equals("order_quantity") || normalized.equals("order_qty")) {
+                    || normalized.equals("order_quantity") || normalized.equals("order_qty")
+                    || normalized.equals("requested_quantity") || normalized.equals("requested_amount")
+                    || normalized.equals("ordered_quantity") || normalized.equals("quantity_ordered")
+                    || normalized.equals("amount_ordered") || normalized.equals("product_quantity")) {
                 remove.add(key);
                 continue;
             }
