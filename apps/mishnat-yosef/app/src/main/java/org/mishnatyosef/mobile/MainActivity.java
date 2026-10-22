@@ -419,8 +419,14 @@ public class MainActivity extends Activity {
         PaletteSnapshot old = new PaletteSnapshot();
         prefs.edit().putBoolean("purple_theme", usePurple).apply();
         applyPalette();
-        syncLauncherIconWithTheme();
+        // A launcher-alias update must never be able to take down the live UI theme switch.
+        // Keep palette re-theming independent from the optional home-screen icon synchronization.
         rethemeActiveUi(old);
+        try {
+            syncLauncherIconWithTheme();
+        } catch (RuntimeException e) {
+            android.util.Log.w("MishnatYosef", "Could not synchronize launcher icon with color theme", e);
+        }
         toast(usePurple ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
     }
 
@@ -8700,8 +8706,12 @@ public class MainActivity extends Activity {
         sendCredit.setMinHeight(dp(48));
         sendFooter.addView(sendCredit, new LinearLayout.LayoutParams(-1, dp(48)));
         bottomHolder.setBackgroundColor(SURFACE);
-        bottomHolder.addView(sendFooter, new FrameLayout.LayoutParams(
-                -1, -2, Gravity.BOTTOM));
+        // The center collection button rises above the navigation bar; reserve the full
+        // navigation height plus a small visual gap so this footer never overlaps it.
+        FrameLayout.LayoutParams sendFooterLp = new FrameLayout.LayoutParams(
+                -1, -2, Gravity.BOTTOM);
+        sendFooterLp.bottomMargin = dp(72);
+        bottomHolder.addView(sendFooter, sendFooterLp);
     }
 
     // ======================================================================== credits / charges
