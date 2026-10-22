@@ -363,6 +363,12 @@ public class MainActivity extends Activity {
         if (focused != null) showKeyboardFocusHighlight(focused);
     }
 
+    /** Keep both Android system bars synchronized with the selected semantic palette. */
+    private void updateSystemBarColors() {
+        getWindow().setStatusBarColor(AppPalette.systemBar(activePalette, nightMode));
+        getWindow().setNavigationBarColor(SURFACE);
+    }
+
     private void toggleNightMode() {
         PaletteSnapshot old = new PaletteSnapshot();
         prefs.edit().putBoolean("night_mode", !nightMode).apply();
@@ -384,8 +390,7 @@ public class MainActivity extends Activity {
             }
         }
         for (ProductAdapter adapter : adapters) adapter.rethemeCachedRows(old, visited);
-        getWindow().setStatusBarColor(AppPalette.systemBar(activePalette, nightMode));
-        getWindow().setNavigationBarColor(SURFACE);
+        updateSystemBarColors();
         styleSystemBars();
         refreshKeyboardFocusHighlight();
     }
@@ -1746,8 +1751,7 @@ public class MainActivity extends Activity {
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
             @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount() / 1024; }
         };
-        getWindow().setStatusBarColor(AppPalette.systemBar(activePalette, nightMode));
-        getWindow().setNavigationBarColor(SURFACE);
+        updateSystemBarColors();
         pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
         StockMonitor.scheduleNextCheck(this);
