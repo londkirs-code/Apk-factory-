@@ -141,7 +141,7 @@ jobs:
               if m: api = int(m.group(1))
           if api is None:
               raise SystemExit("::error::Could not detect compileSdk from Gradle files. Add a numeric compileSdk declaration or set it explicitly before importing.")
-          package = f"platforms;android-{api}" + (f"-ext{ext}" if ext else "")
+          package = f"platforms;android-{api}"  # SDK Manager installs the platform package by API level; minorApiLevel is metadata, not a separate package id.
           with output.open("a", encoding="utf-8") as f:
               f.write(f"api={api}\nextension={ext}\nplatform_package={package}\n")
           print(f"Detected Android compile SDK {api}, extension {ext}; SDK package {package}")
