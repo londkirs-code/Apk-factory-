@@ -117,91 +117,53 @@ public class MainActivity extends Activity {
     private static final String PREF_PENDING_STOCK_SID = "pending_stock_product_sid";
     private static final long REFRESH_MARGIN_MS = 300000L;
 
-    // ---- palette
-    private int ORANGE = Color.rgb(230, 94, 20);
-    private int ORANGE_DARK = Color.rgb(191, 70, 12);
-    private int ORANGE_LIGHT = Color.rgb(255, 239, 224);
-    private int BG = Color.rgb(255, 249, 244);
-    private int SURFACE = Color.WHITE;
-    private int INK = Color.rgb(34, 49, 46);
-    private int MUTED = Color.rgb(120, 110, 104);
-    private int LINE = Color.rgb(238, 220, 205);
-    private int GREEN = Color.rgb(20, 130, 70);
-    private int GREEN_LIGHT = Color.rgb(228, 245, 234);
-    private int RED = Color.rgb(175, 45, 45);
-    private int RED_LIGHT = Color.rgb(253, 236, 234);
-    private int ON_ORANGE = Color.WHITE;                       // text / icons drawn on orange or red fills
-    private int HEADER_BG = Color.rgb(230, 94, 20);
-    private int HEADER_FG = Color.WHITE;
-    private int MINUS_FILL = Color.rgb(255, 218, 190);
-    private int STAR_BG = Color.argb(220, 255, 255, 255);
-    private int NO_ORDER_BG = Color.rgb(242, 238, 234);
-    private int SWITCH_OFF_THUMB = Color.rgb(190, 180, 172);
-    private int SWITCH_OFF_TRACK = Color.rgb(225, 218, 212);
+    // ---- centralized semantic palette
+    private AppPalette.Theme activePalette = AppPalette.DAY;
+    private int ORANGE = activePalette.orange;
+    private int ORANGE_DARK = activePalette.orangeDark;
+    private int ORANGE_LIGHT = activePalette.orangeLight;
+    private int BG = activePalette.background;
+    private int SURFACE = activePalette.surface;
+    private int INK = activePalette.textPrimary;
+    private int MUTED = activePalette.textSecondary;
+    private int LINE = activePalette.border;
+    private int GREEN = activePalette.success;
+    private int GREEN_LIGHT = activePalette.successSurface;
+    private int RED = activePalette.error;
+    private int RED_LIGHT = activePalette.errorSurface;
+    private int ON_ORANGE = activePalette.textOnAccent;
+    private int HEADER_BG = activePalette.headerBackground;
+    private int HEADER_FG = activePalette.headerForeground;
+    private int MINUS_FILL = activePalette.minusFill;
+    private int STAR_BG = activePalette.starBackground;
+    private int NO_ORDER_BG = activePalette.noOrderBackground;
+    private int SWITCH_OFF_THUMB = activePalette.switchThumbOff;
+    private int SWITCH_OFF_TRACK = activePalette.switchTrackOff;
     private boolean nightMode = false;
-    // Global UI scale: text follows Android fontScale; dp-based layout metrics scale in dp().
-    private float uiScale = 1.0f;
-    private float uiScaleAtActivityStart = 1.0f;
-    // Preserve the open-sales list position while navigating to other bottom tabs.
-    private int salesListScrollY = 0;
-    private boolean showingSalesList = false;
-    // Preserve the real ListView position when leaving the order screen.
-    private int orderListFirstVisiblePosition = 0;
-    private int orderListTopOffset = 0;
-    private boolean showingOrderScreen = false;
-    private boolean returnToOrderScreenOnSalesTab = false;
-    // Closed orders reuse the regular product grid; order-changing controls are visible but disabled.
-    private boolean closedOrderReadOnly = false;
-    // Shared overlay keeps keyboard focus visible without replacing each view's own background.
-    private View keyboardFocusHighlightView;
-    private Drawable keyboardFocusHighlightDrawable;
-    private View.OnLayoutChangeListener keyboardFocusHighlightLayoutListener;
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
-        if (nightMode) {
-            ORANGE = Color.rgb(255, 145, 75);
-            ORANGE_DARK = Color.rgb(255, 166, 105);
-            ORANGE_LIGHT = Color.rgb(75, 48, 34);
-            BG = Color.rgb(18, 20, 22);
-            SURFACE = Color.rgb(30, 33, 36);
-            INK = Color.rgb(240, 240, 238);
-            MUTED = Color.rgb(177, 180, 181);
-            LINE = Color.rgb(65, 69, 72);
-            GREEN = Color.rgb(100, 205, 140);
-            GREEN_LIGHT = Color.rgb(35, 65, 48);
-            RED = Color.rgb(255, 120, 120);
-            RED_LIGHT = Color.rgb(75, 40, 40);
-            ON_ORANGE = Color.rgb(36, 22, 12);
-            HEADER_BG = Color.rgb(34, 38, 42);
-            HEADER_FG = Color.rgb(255, 166, 105);
-            MINUS_FILL = Color.rgb(110, 68, 40);
-            STAR_BG = Color.argb(220, 30, 33, 36);
-            NO_ORDER_BG = Color.rgb(52, 55, 58);
-            SWITCH_OFF_THUMB = Color.rgb(150, 155, 160);
-            SWITCH_OFF_TRACK = Color.rgb(70, 74, 78);
-        } else {
-            ORANGE = Color.rgb(230, 94, 20);
-            ORANGE_DARK = Color.rgb(191, 70, 12);
-            ORANGE_LIGHT = Color.rgb(255, 239, 224);
-            BG = Color.rgb(255, 249, 244);
-            SURFACE = Color.WHITE;
-            INK = Color.rgb(34, 49, 46);
-            MUTED = Color.rgb(120, 110, 104);
-            LINE = Color.rgb(238, 220, 205);
-            GREEN = Color.rgb(20, 130, 70);
-            GREEN_LIGHT = Color.rgb(228, 245, 234);
-            RED = Color.rgb(175, 45, 45);
-            RED_LIGHT = Color.rgb(253, 236, 234);
-            ON_ORANGE = Color.WHITE;
-            HEADER_BG = Color.rgb(230, 94, 20);
-            HEADER_FG = Color.WHITE;
-            MINUS_FILL = Color.rgb(255, 218, 190);
-            STAR_BG = Color.argb(220, 255, 255, 255);
-            NO_ORDER_BG = Color.rgb(242, 238, 234);
-            SWITCH_OFF_THUMB = Color.rgb(190, 180, 172);
-            SWITCH_OFF_TRACK = Color.rgb(225, 218, 212);
-        }
+        activePalette = AppPalette.forNightMode(nightMode);
+        ORANGE = activePalette.orange;
+        ORANGE_DARK = activePalette.orangeDark;
+        ORANGE_LIGHT = activePalette.orangeLight;
+        BG = activePalette.background;
+        SURFACE = activePalette.surface;
+        INK = activePalette.textPrimary;
+        MUTED = activePalette.textSecondary;
+        LINE = activePalette.border;
+        GREEN = activePalette.success;
+        GREEN_LIGHT = activePalette.successSurface;
+        RED = activePalette.error;
+        RED_LIGHT = activePalette.errorSurface;
+        ON_ORANGE = activePalette.textOnAccent;
+        HEADER_BG = activePalette.headerBackground;
+        HEADER_FG = activePalette.headerForeground;
+        MINUS_FILL = activePalette.minusFill;
+        STAR_BG = activePalette.starBackground;
+        NO_ORDER_BG = activePalette.noOrderBackground;
+        SWITCH_OFF_THUMB = activePalette.switchThumbOff;
+        SWITCH_OFF_TRACK = activePalette.switchTrackOff;
     }
 
     /**
@@ -212,7 +174,9 @@ public class MainActivity extends Activity {
         final int orange = ORANGE, orangeDark = ORANGE_DARK, orangeLight = ORANGE_LIGHT;
         final int bg = BG, surface = SURFACE, ink = INK, muted = MUTED, line = LINE;
         final int green = GREEN, greenLight = GREEN_LIGHT, red = RED, redLight = RED_LIGHT;
-        final int onOrange = ON_ORANGE, minusFill = MINUS_FILL, starBg = STAR_BG, noOrderBg = NO_ORDER_BG;
+        final int onOrange = ON_ORANGE, headerBg = HEADER_BG, headerFg = HEADER_FG;
+        final int minusFill = MINUS_FILL, starBg = STAR_BG, noOrderBg = NO_ORDER_BG;
+        final int switchOffThumb = SWITCH_OFF_THUMB, switchOffTrack = SWITCH_OFF_TRACK;
     }
 
     private int remapPaletteColor(int color, PaletteSnapshot old) {
@@ -227,17 +191,22 @@ public class MainActivity extends Activity {
         if (color == old.greenLight) return GREEN_LIGHT;
         if (color == old.red) return RED;
         if (color == old.redLight) return RED_LIGHT;
+        if (color == old.onOrange) return ON_ORANGE;
+        if (color == old.headerFg) return HEADER_FG;
         // The inactive bottom-navigation icons use this dedicated dark-brown color.
-        if (color == Color.rgb(70, 62, 58)) return INK;
+        if (color == AppPalette.NAV_INACTIVE_DAY) return INK;
         return color;
     }
 
     private int remapDrawableColor(int color, PaletteSnapshot old) {
         // White surfaces (including history-sale cards) must become dark surfaces at night.
         if (color == old.surface) return SURFACE;
+        if (color == old.headerBg) return HEADER_BG;
         if (color == old.minusFill) return MINUS_FILL;
         if (color == old.starBg) return STAR_BG;
         if (color == old.noOrderBg) return NO_ORDER_BG;
+        if (color == old.switchOffThumb) return SWITCH_OFF_THUMB;
+        if (color == old.switchOffTrack) return SWITCH_OFF_TRACK;
         return remapPaletteColor(color, old);
     }
 
@@ -268,7 +237,7 @@ public class MainActivity extends Activity {
         }
         if (Build.VERSION.SDK_INT >= 23 && drawable instanceof RippleDrawable) {
             RippleDrawable ripple = (RippleDrawable) drawable;
-            ripple.setColor(ColorStateList.valueOf(Color.argb(40,
+            ripple.setColor(ColorStateList.valueOf(Color.argb(AppPalette.RIPPLE_ALPHA,
                     Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE))));
             for (int i = 0; i < ripple.getNumberOfLayers(); i++) {
                 rethemeDrawable(ripple.getDrawable(i), old);
@@ -341,8 +310,8 @@ public class MainActivity extends Activity {
                 || focusedView.getWidth() <= 0 || focusedView.getHeight() <= 0) return;
 
         // Draw above the normal background so custom buttons always get a translucent fill and frame.
-        GradientDrawable highlight = shape(Color.argb(44, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE)), 10,
-                Color.rgb(142, 142, 147), 4);
+        GradientDrawable highlight = shape(Color.argb(AppPalette.FOCUS_FILL_ALPHA, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE)), 10,
+                AppPalette.FOCUS_BORDER, 4);
         keyboardFocusHighlightView = focusedView;
         keyboardFocusHighlightDrawable = highlight;
         keyboardFocusHighlightLayoutListener = (view, left, top, right, bottom,
@@ -2041,7 +2010,7 @@ public class MainActivity extends Activity {
     private GradientDrawable nightToggleBackground() {
         GradientDrawable background = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] { Color.rgb(255, 255, 250), Color.WHITE });
+                new int[] { AppPalette.NIGHT_TOGGLE_GRADIENT_TOP, Color.WHITE });
         background.setCornerRadius(dp(18));
         background.setStroke(dp(3), Color.BLACK);
         return background;
@@ -2280,7 +2249,7 @@ public class MainActivity extends Activity {
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
         mask.setCornerRadius(dp(radiusDp));
-        return new RippleDrawable(ColorStateList.valueOf(Color.argb(40, 230, 94, 20)), content, mask);
+        return new RippleDrawable(ColorStateList.valueOf(Color.argb(AppPalette.RIPPLE_ALPHA, Color.red(AppPalette.DAY.orange), Color.green(AppPalette.DAY.orange), Color.blue(AppPalette.DAY.orange))), content, mask);
     }
 
     private float liveFontSize(float size) { return size * (uiScale / Math.max(0.01f, uiScaleAtActivityStart)); }
@@ -2362,7 +2331,7 @@ public class MainActivity extends Activity {
         GradientDrawable mask = new GradientDrawable();
         mask.setShape(GradientDrawable.OVAL);
         mask.setColor(Color.WHITE);
-        b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(50, 230, 94, 20)), oval, mask));
+        b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(AppPalette.CIRCULAR_BUTTON_RIPPLE_ALPHA, Color.red(AppPalette.DAY.orange), Color.green(AppPalette.DAY.orange), Color.blue(AppPalette.DAY.orange))), oval, mask));
         b.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
         return b;
     }
@@ -2745,7 +2714,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 boolean active = i == tab;
-                int tint = active ? ORANGE : (nightMode ? INK : Color.rgb(70, 62, 58));
+                int tint = active ? ORANGE : (nightMode ? INK : AppPalette.NAV_INACTIVE_DAY);
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
@@ -3797,7 +3766,7 @@ public class MainActivity extends Activity {
                         updateStatusView.setTextSize(19);
                         updateStatusView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                         updateStatusView.setTextColor(GREEN);
-                        updateStatusView.setBackground(ripple(shape(0xFFE8F7EC, 14, 0xFFB7E4C7), 14));
+                        updateStatusView.setBackground(ripple(shape(AppPalette.WHATS_NEW_BACKGROUND, 14, AppPalette.WHATS_NEW_BORDER), 14));
                         updateStatusView.setPadding(dp(12), dp(12), dp(12), dp(12));
                         updateStatusView.setClickable(true);
                         updateStatusView.setContentDescription("נמצאה גרסה חדשה. לחיצה תתחיל הורדה מאובטחת והתקנה.");
@@ -4880,7 +4849,7 @@ public class MainActivity extends Activity {
         };
 
         FrameLayout overlay = new FrameLayout(this);
-        overlay.setBackgroundColor(Color.argb(180, 0, 0, 0));
+        overlay.setBackgroundColor(AppPalette.IMAGE_OVERLAY);
         overlay.setClickable(true);
 
         ImageView preview = new ImageView(this);
@@ -4895,13 +4864,13 @@ public class MainActivity extends Activity {
         TextView loading = text("טוען תמונה מלאה…", 14, true);
         loading.setTextColor(Color.WHITE);
         loading.setGravity(Gravity.CENTER);
-        loading.setBackground(shape(Color.argb(185, 30, 33, 36), 14, 0));
+        loading.setBackground(shape(AppPalette.IMAGE_LOADING_BACKGROUND, 14, 0));
         overlay.addView(loading, new FrameLayout.LayoutParams(-2, dp(48), Gravity.CENTER));
 
         TextView close = text("×", 27, true);
         close.setTextColor(Color.WHITE);
         close.setGravity(Gravity.CENTER);
-        close.setBackground(shape(Color.argb(190, 24, 27, 30), 22, 0));
+        close.setBackground(shape(AppPalette.IMAGE_CLOSE_BACKGROUND, 22, 0));
         close.setElevation(dp(6));
         close.setContentDescription("סגירת התמונה המוגדלת");
         FrameLayout.LayoutParams closeLp = new FrameLayout.LayoutParams(
@@ -10680,7 +10649,7 @@ public class MainActivity extends Activity {
         GradientDrawable mask = new GradientDrawable();
         mask.setColor(Color.WHITE);
         mask.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
-        finger.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(80, 255, 255, 255)), bg, mask));
+        finger.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(AppPalette.WHITE_RIPPLE_ALPHA, 255, 255, 255)), bg, mask));
         finger.setElevation(dp(8));
         finger.setClickable(true);
         finger.setFocusable(true);
@@ -10817,7 +10786,7 @@ public class MainActivity extends Activity {
 
     private void tintSwitch(Switch sw) {
         int[][] states = {{android.R.attr.state_checked}, {}};
-        int trackOn = Color.argb(120, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE));
+        int trackOn = Color.argb(AppPalette.SWITCH_TRACK_ON_ALPHA, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE));
         sw.setThumbTintList(new ColorStateList(states, new int[]{ORANGE, SWITCH_OFF_THUMB}));
         sw.setTrackTintList(new ColorStateList(states, new int[]{trackOn, SWITCH_OFF_TRACK}));
     }
@@ -11454,7 +11423,7 @@ public class MainActivity extends Activity {
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            window.setDimAmount(0.25f);
+            window.setDimAmount(AppPalette.DIALOG_DIM_AMOUNT);
         }
         dialog.show();
         if (window != null) {
@@ -11859,7 +11828,7 @@ public class MainActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(12));
         bg.setColor(activeCategory ? SURFACE : (activeMode || activeMenu ? ORANGE : ORANGE_LIGHT));
-        if (focused) bg.setStroke(dp(2), Color.rgb(33, 150, 243));
+        if (focused) bg.setStroke(dp(2), AppPalette.CATEGORY_FOCUS_BORDER);
         else if (activeCategory) bg.setStroke(dp(2), ORANGE);
         chip.setBackground(ripple(bg, 12));
         chip.setTextColor(activeMode || activeMenu ? ON_ORANGE : ORANGE_DARK);
