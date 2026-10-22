@@ -1,0 +1,190 @@
+name: Import and Build External Android App
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "GitHub repository in owner/name format"
+        required: true
+        type: string
+      ref:
+        description: "Branch, tag, or commit to build"
+        required: true
+        default: "main"
+        type: string
+      project_path:
+        description: "Relative path to Android project (use . for repository root)"
+        required: true
+        default: "."
+        type: string
+      gradle_version:
+        description: "Gradle version to use when no usable wrapper exists"
+        required: true
+        default: "9.3.1"
+        type: string
+      build_task:
+        description: "Gradle task to build"
+        required: true
+        default: "assembleDebug"
+        type: string
+      apk_path:
+        description: "Expected APK path relative to project directory"
+        required: true
+        default: "app/build/outputs/apk/debug/app-debug.apk"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-android-import-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Validate import parameters
+        shell: bash
+        env:
+          SOURCE_REPOSITORY: ${{ inputs.repository }}
+          SOURCE_REF: ${{ inputs.ref }}
+          PROJECT_PATH: ${{ inputs.project_path }}
+          GRADLE_VERSION: ${{ inputs.gradle_version }}
+          BUILD_TASK: ${{ inputs.build_task }}
+          APK_PATH: ${{ inputs.apk_path }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::Repository must be owner/name."; exit 1; }
+          [[ "$SOURCE_REF" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "::error::Invalid source ref."; exit 1; }
+          [[ "$PROJECT_PATH" != /* && "$PROJECT_PATH" != *".."* ]] || { echo "::error::Project path must be relative and must not contain '..'."; exit 1; }
+          [[ "$GRADLE_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "::error::Gradle version must be numeric, for example 9.3.1."; exit 1; }
+          [[ "$BUILD_TASK" =~ ^[A-Za-z0-9:_-]+$ ]] || { echo "::error::Invalid Gradle task."; exit 1; }
+          [[ "$APK_PATH" != /* && "$APK_PATH" != *".."* ]] || { echo "::error::APK path must be relative and must not contain '..'."; exit 1; }
+
+      - name: Checkout APK Factory tools
+        uses: actions/checkout@v4
+        with:
+          path: apk-factory
+          sparse-checkout: |
+            scripts
+            templates
+            .github
+
+      - name: Checkout external app source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN || github.token }}
+          path: external-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Detect project and choose compatible build runner
+        id: project
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+          BUILD_TASK: ${{ inputs.build_task }}
+        run: |
+          set -euo pipefail
+          PROJECT="$GITHUB_WORKSPACE/external-source/$PROJECT_PATH"
+          [[ -d "$PROJECT" ]] || { echo "::error::Project directory not found: $PROJECT_PATH"; exit 1; }
+          [[ -f "$PROJECT/settings.gradle" || -f "$PROJECT/settings.gradle.kts" || -f "$PROJECT/build.gradle" || -f "$PROJECT/build.gradle.kts" ]] || {
+            echo "::error::No Gradle Android project files found in $PROJECT_PATH. This importer currently supports native Android Gradle projects, not APK-only files, Flutter, or React Native projects.";
+            exit 1;
+          }
+          if [[ -f "$PROJECT/gradlew" ]]; then
+            chmod +x "$PROJECT/gradlew"
+            echo "runner=wrapper" >> "$GITHUB_OUTPUT"
+            echo "Using the project's Gradle wrapper."
+          else
+            echo "runner=installed" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Gradle wrapper script found; using the explicitly selected Gradle version."
+          fi
+          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+          echo "task=$BUILD_TASK" >> "$GITHUB_OUTPUT"
+          if [[ -f "$PROJECT/local.properties" ]]; then
+            echo "::notice::Existing local.properties detected; it will be backed up and android.sdk.dir normalized for the hosted runner."
+            cp "$PROJECT/local.properties" "$RUNNER_TEMP/import-local.properties"
+          fi
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install baseline Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "platforms;android-36-ext1" "build-tools;36.0.0"
+
+      - name: Set up Gradle when wrapper is absent
+        if: steps.project.outputs.runner == 'installed'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ inputs.gradle_version }}
+
+      - name: Build imported Android app
+        shell: bash
+        env:
+          PROJECT: ${{ steps.project.outputs.project }}
+          RUNNER_KIND: ${{ steps.project.outputs.runner }}
+          BUILD_TASK: ${{ inputs.build_task }}
+        run: |
+          set -euo pipefail
+          cd "$PROJECT"
+          if [[ -f "$RUNNER_TEMP/import-local.properties" ]]; then
+            cp "$RUNNER_TEMP/import-local.properties" local.properties
+            if grep -q '^sdk.dir=' local.properties; then
+              sed -i "s#^sdk.dir=.*#sdk.dir=$ANDROID_HOME#" local.properties
+            else
+              printf '\\nsdk.dir=%s\\n' "$ANDROID_HOME" >> local.properties
+            fi
+          else
+            printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > local.properties
+          fi
+          if [[ "$RUNNER_KIND" == "wrapper" ]]; then
+            ./gradlew --no-daemon --stacktrace "$BUILD_TASK"
+          else
+            gradle --no-daemon --stacktrace "$BUILD_TASK"
+          fi
+
+      - name: Validate APK, report metadata and checksum
+        shell: bash
+        env:
+          PROJECT: ${{ steps.project.outputs.project }}
+          APK_PATH: ${{ inputs.apk_path }}
+        run: |
+          set -euo pipefail
+          APK="$PROJECT/$APK_PATH"
+          if [[ ! -s "$APK" ]]; then
+            echo "::error::Build finished but expected APK is missing or empty: $APK_PATH"
+            echo "APK candidates found:"
+            find "$PROJECT" -path '*/build/outputs/apk/*.apk' -type f -print 2>/dev/null || true
+            exit 1
+          fi
+          mkdir -p "$GITHUB_WORKSPACE/export"
+          cp "$APK" "$GITHUB_WORKSPACE/export/app.apk"
+          sha256sum "$GITHUB_WORKSPACE/export/app.apk" | tee "$GITHUB_WORKSPACE/export/SHA256SUMS.txt"
+          ls -lh "$GITHUB_WORKSPACE/export/app.apk"
+          echo "APK_PATH=$APK_PATH" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK_SIZE=$(stat -c '%s' "$GITHUB_WORKSPACE/export/app.apk") bytes" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload imported APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: imported-android-app-apk
+          path: |
+            export/app.apk
+            export/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
