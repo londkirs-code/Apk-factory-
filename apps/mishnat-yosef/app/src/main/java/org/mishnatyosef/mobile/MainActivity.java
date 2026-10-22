@@ -383,6 +383,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(HEADER_BG);
         getWindow().setNavigationBarColor(SURFACE);
         styleSystemBars();
+        refreshKeyboardFocusHighlight();
     }
 
     // ---- button styles
