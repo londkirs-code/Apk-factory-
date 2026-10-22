@@ -140,6 +140,23 @@ public class MainActivity extends Activity {
     private int SWITCH_OFF_THUMB = activePalette.switchThumbOff;
     private int SWITCH_OFF_TRACK = activePalette.switchTrackOff;
     private boolean nightMode = false;
+    // Global UI scale: text follows Android fontScale; dp-based layout metrics scale in dp().
+    private float uiScale = 1.0f;
+    private float uiScaleAtActivityStart = 1.0f;
+    // Preserve the open-sales list position while navigating to other bottom tabs.
+    private int salesListScrollY = 0;
+    private boolean showingSalesList = false;
+    // Preserve the real ListView position when leaving the order screen.
+    private int orderListFirstVisiblePosition = 0;
+    private int orderListTopOffset = 0;
+    private boolean showingOrderScreen = false;
+    private boolean returnToOrderScreenOnSalesTab = false;
+    // Closed orders reuse the regular product grid; order-changing controls are visible but disabled.
+    private boolean closedOrderReadOnly = false;
+    // Shared overlay keeps keyboard focus visible without replacing each view's own background.
+    private View keyboardFocusHighlightView;
+    private Drawable keyboardFocusHighlightDrawable;
+    private View.OnLayoutChangeListener keyboardFocusHighlightLayoutListener;
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
