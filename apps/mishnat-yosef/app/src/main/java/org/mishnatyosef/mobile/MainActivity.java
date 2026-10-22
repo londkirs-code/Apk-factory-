@@ -3853,7 +3853,7 @@ public class MainActivity extends Activity {
                     } else {
                         boolean startOlderVersionDownload = autoDownloadAfterCheck;
                         autoDownloadAfterCheck = false;
-                        updateStatusView.setText("תוצאות הבדיקה האחרונה: הגרסה שב־GitHub ישנה יותר מהגרסה המותקנת. אפשר להוריד אותה, אך Android עשוי לחסום התקנה לאחור.");
+                        updateStatusView.setText("תוצאות הבדיקה האחרונה: הגרסה שב־GitHub ישנה יותר מהגרסה המותקנת. לא תבוצע התקנה לאחור.");
                         updateStatusView.setTextColor(ORANGE_DARK);
                         updateNotesView.setText(notes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : notes);
                         updateDownloadButton.setEnabled(true);
