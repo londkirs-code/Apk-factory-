@@ -6184,7 +6184,12 @@ public class MainActivity extends Activity {
     /** Recursively strips account/order-specific fields before anything reaches disk. */
     private JSONObject catalogueProductCopy(JSONObject product) {
         if (product == null) return new JSONObject();
-        JSONObject clean = new JSONObject(product.toString());
+        JSONObject clean;
+        try {
+            clean = new JSONObject(product.toString());
+        } catch (Exception ignored) {
+            return new JSONObject();
+        }
         stripPersonalFields(clean);
         return clean;
     }
