@@ -64,6 +64,11 @@ final class AppPalette {
         return forNightMode(nightMode);
     }
 
+    /** System status bar follows the selected semantic accent; night mode uses the theme surface. */
+    static int systemBar(Theme theme, boolean nightMode) {
+        return nightMode ? theme.background : theme.orangeDark;
+    }
+
     static int navInactive(boolean purpleTheme) {
         return purpleTheme ? NAV_INACTIVE_PURPLE : NAV_INACTIVE_DAY;
     }
