@@ -13,24 +13,50 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
+      - name: Validate private source access
+        shell: bash
+        env:
+          SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SOURCE_REPO_TOKEN}" ]]; then
+            echo "::error title=Missing SOURCE_REPO_TOKEN::The source repository is private. Add a repository secret named SOURCE_REPO_TOKEN in APK Factory with read access to londkirs-code/Notification-android-app, then rerun this workflow."
+            exit 1
+          fi
+
       - name: Checkout APK Factory
         uses: actions/checkout@v4
         with:
           path: apk-factory
 
-      - name: Checkout Notification Android App source
+      - name: Checkout private Notification Android App source
         uses: actions/checkout@v4
         with:
           repository: londkirs-code/Notification-android-app
           ref: main
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
           path: notification-source
+          fetch-depth: 1
+
+      - name: Validate Android project files
+        shell: bash
+        run: |
+          set -euo pipefail
+          for required in notification-source/settings.gradle.kts notification-source/build.gradle.kts notification-source/app/build.gradle.kts; do
+            if [[ ! -f "$required" ]]; then
+              echo "::error::Required Android project file missing: $required"
+              exit 1
+            fi
+          done
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -39,20 +65,28 @@ jobs:
 
       - name: Build debug APK from original project
         working-directory: notification-source
-        run: gradle --no-daemon assembleDebug
+        shell: bash
+        run: gradle --no-daemon --stacktrace assembleDebug
 
-      - name: Verify APK exists
+      - name: Verify APK and calculate checksum
+        shell: bash
         run: |
           set -euo pipefail
           APK="notification-source/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
+          if [[ ! -s "$APK" ]]; then
+            echo "::error::Build reported success but APK is missing or empty: $APK"
+            find notification-source/app/build/outputs -maxdepth 5 -type f -print 2>/dev/null || true
+            exit 1
+          fi
           ls -lh "$APK"
-          sha256sum "$APK"
+          sha256sum "$APK" | tee notification-source/app/build/outputs/apk/debug/SHA256SUMS.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: notification-android-app-apk
-          path: notification-source/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            notification-source/app/build/outputs/apk/debug/app-debug.apk
+            notification-source/app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
