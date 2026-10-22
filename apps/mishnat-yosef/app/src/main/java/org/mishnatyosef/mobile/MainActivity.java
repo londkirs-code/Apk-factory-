@@ -2138,8 +2138,9 @@ public class MainActivity extends Activity {
         quickActionsLp.topMargin = dp(14);
         panel.addView(quickActions, quickActionsLp);
 
-        TextView nightToggle = btn(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום", TONAL);
+        TextView nightToggle = btn(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום", OUTLINE);
         nightToggle.setGravity(Gravity.CENTER);
+        styleActionButton(nightToggle, ORANGE_LIGHT, ORANGE_DARK, 0);
         LinearLayout.LayoutParams quickActionLp = new LinearLayout.LayoutParams(0, -1, 1f);
         quickActionLp.setMarginEnd(dp(5));
         quickActions.addView(nightToggle, quickActionLp);
