@@ -337,7 +337,7 @@ public class MainActivity extends Activity {
                 || focusedView.getWidth() <= 0 || focusedView.getHeight() <= 0) return;
 
         // Draw above the normal background so custom buttons always get a translucent fill and frame.
-        GradientDrawable highlight = shape(Color.argb(44, ORANGE), 10,
+        GradientDrawable highlight = shape(Color.argb(44, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE)), 10,
                 nightMode ? Color.WHITE : ORANGE_DARK, 2);
         keyboardFocusHighlightView = focusedView;
         keyboardFocusHighlightDrawable = highlight;
