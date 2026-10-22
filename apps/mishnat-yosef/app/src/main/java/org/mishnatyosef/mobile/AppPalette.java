@@ -41,7 +41,7 @@ final class AppPalette {
             Color.rgb(117, 109, 128), Color.rgb(230, 223, 240),
             Color.rgb(20, 130, 70), Color.rgb(228, 245, 234),
             Color.rgb(175, 45, 45), Color.rgb(253, 236, 234),
-            Color.WHITE, Color.rgb(244, 239, 251), Color.rgb(81, 48, 143),
+            Color.WHITE, Color.rgb(111, 76, 166), Color.WHITE,
             Color.rgb(231, 215, 248), Color.argb(STAR_BACKGROUND_ALPHA, 255, 255, 255),
             Color.rgb(244, 240, 248), Color.rgb(199, 190, 207), Color.rgb(229, 221, 235));
 
