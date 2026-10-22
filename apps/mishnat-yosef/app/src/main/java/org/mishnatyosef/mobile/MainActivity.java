@@ -68,6 +68,9 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Switch;
 import android.widget.Toast;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -3014,6 +3017,7 @@ public class MainActivity extends Activity {
         acc.addView(muted(tokenStatus(), 12));
         root.addView(acc, lp(-1, -2, 0, 10));
         addDisplaySettings();
+        addKeyboardShortcutsButton();
         addHomeNotificationSettings();
         addHomeStockSettings();
         addHomeUpdateSettings();
@@ -11351,6 +11355,108 @@ public class MainActivity extends Activity {
             }
         }));
         root.addView(card, lp(-1, -2, 0, 10));
+    }
+
+    private void addKeyboardShortcutsButton() {
+        LinearLayout shortcutsCard = card(14);
+        shortcutsCard.addView(text("⌨️ קיצורי מקשים", 15, true));
+        shortcutsCard.addView(muted("מדריך אינטראקטיבי לקיצורי המקשים", 13), lp(-1, -2, 0, 8));
+        TextView shortcutsButton = btn("קיצורי מקשים", TONAL);
+        shortcutsButton.setContentDescription("פתיחת מדריך קיצורי מקשים");
+        shortcutsButton.setOnClickListener(v -> showKeyboardShortcuts());
+        shortcutsCard.addView(shortcutsButton, new LinearLayout.LayoutParams(-1, dp(46)));
+        root.addView(shortcutsCard, lp(-1, -2, 0, 10));
+    }
+
+    /**
+     * Shows the keyboard-shortcuts HTML inside the app. The native header and close button
+     * stay visible even while the page scrolls; Android Back also dismisses the viewer.
+     */
+    private void showKeyboardShortcuts() {
+        final android.app.Dialog dialog = new android.app.Dialog(this);
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        page.setBackground(shape(SURFACE, 18, LINE));
+        page.setClipToOutline(true);
+
+        LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setOrientation(LinearLayout.HORIZONTAL);
+        toolbar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(12), dp(8), dp(12), dp(8));
+        toolbar.setBackgroundColor(SURFACE);
+
+        TextView title = text("⌨️ קיצורי מקשים", 18, true);
+        title.setTextColor(INK);
+        title.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView closeButton = btn("✕  סגירה", TONAL);
+        closeButton.setContentDescription("סגירת מדריך קיצורי המקשים");
+        closeButton.setMinHeight(dp(42));
+        closeButton.setOnClickListener(v -> dialog.dismiss());
+        toolbar.addView(closeButton, new LinearLayout.LayoutParams(-2, dp(42)));
+        page.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(LINE);
+        page.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
+
+        WebView webView = new WebView(this);
+        webView.setBackgroundColor(BG);
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setAllowFileAccess(false);
+        webSettings.setAllowContentAccess(false);
+        webSettings.setSupportZoom(true);
+        webSettings.setBuiltInZoomControls(true);
+        webSettings.setDisplayZoomControls(false);
+        if (Build.VERSION.SDK_INT >= 21) {
+            webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        }
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                Uri uri = Uri.parse(url);
+                String host = uri.getHost();
+                if (host != null && (host.equals("dropbox.com") || host.equals("www.dropbox.com")
+                        || host.equals("dropboxusercontent.com") || host.endsWith(".dropboxusercontent.com"))) {
+                    return false;
+                }
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                } catch (Exception ignored) {
+                    toast("לא ניתן לפתוח את הקישור", true);
+                }
+                return true;
+            }
+        });
+        page.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        dialog.setContentView(page);
+        dialog.setCancelable(true);
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnKeyListener((d, keyCode, event) -> {
+            if (keyCode == android.view.KeyEvent.KEYCODE_BACK
+                    && event.getAction() == android.view.KeyEvent.ACTION_UP) {
+                dialog.dismiss();
+                return true;
+            }
+            return false;
+        });
+        android.view.Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setDimAmount(0.25f);
+        }
+        dialog.show();
+        if (window != null) {
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        webView.loadUrl("https://www.dropbox.com/scl/fi/q36g24wyp6ryj3xvjlsy1/keypad_phone_app.html?rlkey=m1664g17o6332fx5vnnw6ktt1&raw=1");
     }
 
     private void addDisplaySettings() {
