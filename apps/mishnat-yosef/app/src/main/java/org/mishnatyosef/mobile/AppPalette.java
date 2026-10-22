@@ -16,6 +16,26 @@ final class AppPalette {
     static final int STAR_BACKGROUND_ALPHA = 220;
 
     static final Theme DAY = new Theme(
+            Color.rgb(230, 94, 20), Color.rgb(191, 70, 12), Color.rgb(255, 239, 224),
+            Color.rgb(255, 249, 244), Color.WHITE, Color.rgb(34, 49, 46),
+            Color.rgb(120, 110, 104), Color.rgb(238, 220, 205),
+            Color.rgb(20, 130, 70), Color.rgb(228, 245, 234),
+            Color.rgb(175, 45, 45), Color.rgb(253, 236, 234),
+            Color.WHITE, Color.rgb(230, 94, 20), Color.WHITE,
+            Color.rgb(255, 218, 190), Color.argb(STAR_BACKGROUND_ALPHA, 255, 255, 255),
+            Color.rgb(242, 238, 234), Color.rgb(190, 180, 172), Color.rgb(225, 218, 212));
+
+    static final Theme NIGHT = new Theme(
+            Color.rgb(255, 145, 75), Color.rgb(255, 166, 105), Color.rgb(75, 48, 34),
+            Color.rgb(18, 20, 22), Color.rgb(30, 33, 36), Color.rgb(240, 240, 238),
+            Color.rgb(177, 180, 181), Color.rgb(65, 69, 72),
+            Color.rgb(100, 205, 140), Color.rgb(35, 65, 48),
+            Color.rgb(255, 120, 120), Color.rgb(75, 40, 40),
+            Color.rgb(36, 22, 12), Color.rgb(34, 38, 42), Color.rgb(255, 166, 105),
+            Color.rgb(110, 68, 40), Color.argb(STAR_BACKGROUND_ALPHA, 30, 33, 36),
+            Color.rgb(52, 55, 58), Color.rgb(150, 155, 160), Color.rgb(70, 74, 78));
+
+    static final Theme PURPLE_DAY = new Theme(
             Color.rgb(104, 65, 184), Color.rgb(81, 48, 143), Color.rgb(240, 233, 250),
             Color.rgb(251, 249, 254), Color.WHITE, Color.rgb(45, 38, 56),
             Color.rgb(117, 109, 128), Color.rgb(230, 223, 240),
@@ -25,7 +45,7 @@ final class AppPalette {
             Color.rgb(231, 215, 248), Color.argb(STAR_BACKGROUND_ALPHA, 255, 255, 255),
             Color.rgb(244, 240, 248), Color.rgb(199, 190, 207), Color.rgb(229, 221, 235));
 
-    static final Theme NIGHT = new Theme(
+    static final Theme PURPLE_NIGHT = new Theme(
             Color.rgb(182, 154, 239), Color.rgb(155, 123, 214), Color.rgb(57, 43, 75),
             Color.rgb(23, 19, 31), Color.rgb(36, 28, 48), Color.rgb(244, 239, 251),
             Color.rgb(185, 173, 201), Color.rgb(67, 54, 79),
@@ -37,6 +57,19 @@ final class AppPalette {
 
     static Theme forNightMode(boolean nightMode) {
         return nightMode ? NIGHT : DAY;
+    }
+
+    static Theme forTheme(boolean nightMode, boolean purpleTheme) {
+        if (purpleTheme) return nightMode ? PURPLE_NIGHT : PURPLE_DAY;
+        return forNightMode(nightMode);
+    }
+
+    static int navInactive(boolean purpleTheme) {
+        return purpleTheme ? NAV_INACTIVE_PURPLE : NAV_INACTIVE_DAY;
+    }
+
+    static int categoryFocusBorder(boolean purpleTheme) {
+        return purpleTheme ? CATEGORY_FOCUS_BORDER_PURPLE : CATEGORY_FOCUS_BORDER;
     }
 
     /** Semantic roles retain their meaning even when their actual color changes. */
@@ -91,10 +124,12 @@ final class AppPalette {
     }
 
     // Fixed-purpose UI colors: centralized, but deliberately not changed with day/night mode.
-    static final int NAV_INACTIVE_DAY = Color.rgb(78, 70, 90);
+    static final int NAV_INACTIVE_DAY = Color.rgb(70, 62, 58);
+    static final int NAV_INACTIVE_PURPLE = Color.rgb(78, 70, 90);
     static final int FOCUS_BORDER = Color.rgb(142, 142, 147);
     static final int NIGHT_TOGGLE_GRADIENT_TOP = Color.rgb(255, 255, 250);
-    static final int CATEGORY_FOCUS_BORDER = Color.rgb(134, 102, 213);
+    static final int CATEGORY_FOCUS_BORDER = Color.rgb(33, 150, 243);
+    static final int CATEGORY_FOCUS_BORDER_PURPLE = Color.rgb(134, 102, 213);
     static final int WHATS_NEW_BACKGROUND = 0xFFE8F7EC;
     static final int WHATS_NEW_BORDER = 0xFFB7E4C7;
 
