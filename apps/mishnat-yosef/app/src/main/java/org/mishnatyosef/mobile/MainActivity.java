@@ -659,9 +659,12 @@ public class MainActivity extends Activity {
     }
 
     private static class SaleSnapshot {
+        // Catalogue-only snapshot: account-specific order IDs, quantities and favourites
+        // are fetched from the server for the currently authenticated account.
         long orderId = -1;
         long loadedAt = 0L;
         String saleName = "";
+        JSONObject saleInfo = new JSONObject();
         final List<JSONObject> products = new ArrayList<>();
         final Map<String, Integer> quantities = new LinkedHashMap<>();
         final Set<String> favs = new HashSet<>();
@@ -1757,6 +1760,8 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener(
                 (oldFocus, newFocus) -> showKeyboardFocusHighlight(newFocus));
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        migrateSaleCacheToCatalogueOnly();
+        clearStoredOrderQuantities();
         int savedScalePercent = prefs.getInt("ui_scale_percent", 100);
         savedScalePercent = 70 + Math.round((Math.max(70, Math.min(130, savedScalePercent)) - 70) / 5.0f) * 5;
         uiScale = savedScalePercent / 100.0f;
@@ -3101,6 +3106,15 @@ public class MainActivity extends Activity {
         TextView logout = btn("התנתקות", DANGER);
         logout.setOnClickListener(v -> {
             prefs.edit().remove("token").remove("expires_at").apply();
+            clearStoredOrderQuantities();
+            saleSnapshots.clear();
+            featureProducts.clear();
+            featureQuantities.clear();
+            favIds.clear();
+            pending.clear();
+            featureOrderId = -1;
+            currentSaleId = -1;
+            summary = null;
             showLogin();
         });
         root.addView(logout, lp(-1, dp(48), 16, 8));
@@ -5475,25 +5489,17 @@ public class MainActivity extends Activity {
                     saleTitleView.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
                     item.addView(saleTitleView, lp(-1, -2, 0, 4));
 
-                    int totalQuantity = 0;
-                    double totalAmount = 0d;
-                    for (JSONObject product : snapshot.products) {
-                        if (product == null) continue;
-                        String sid = sidOf(product);
-                        int quantity = sid.isEmpty() ? 0 : Math.max(0, snapshot.quantities.containsKey(sid)
-                                ? snapshot.quantities.get(sid) : 0);
-                        totalQuantity += quantity;
-                        totalAmount += productPrice(product) * quantity;
-                    }
-                    String orderDate = "לא ידוע";
+                    String cachedAt = "לא ידוע";
                     if (snapshot.loadedAt > 0) {
-                        orderDate = android.text.format.DateFormat.format("dd/MM/yyyy", snapshot.loadedAt).toString();
+                        cachedAt = android.text.format.DateFormat.format("dd/MM/yyyy", snapshot.loadedAt).toString();
                     }
-                    TextView details = muted(
-                            "תאריך: " + orderDate
-                                    + "   •   כמות מוצרים: " + totalQuantity
-                                    + "   •   סה״כ הזמנה: " + money(totalAmount),
-                            14);
+                    String closing = first(snapshot.saleInfo, "end", "close_at", "closed_at", "closes_at", "end_date", "close_date");
+                    String supply = first(snapshot.saleInfo, "supply_begin");
+                    if (supply.isEmpty()) supply = first(snapshot.saleInfo.optJSONObject("parent"), "week_start");
+                    StringBuilder metadata = new StringBuilder("נשמר במכשיר: ").append(cachedAt);
+                    if (!closing.isEmpty()) metadata.append("   •   סגירה: ").append(fmtWhen(closing));
+                    if (!supply.isEmpty()) metadata.append("\nאספקה: ").append(fmtWhen(supply));
+                    TextView details = muted(metadata.toString(), 14);
                     details.setTextColor(MUTED);
                     details.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
                     details.setMaxLines(2);
@@ -6149,33 +6155,175 @@ public class MainActivity extends Activity {
         return new File(d, "sale_" + saleId + ".json");
     }
 
+    /** Order quantities must never be persisted locally; this compatibility hook only removes legacy values. */
     private void persistQuantities() {
-        if (featureOrderId <= 0) return;
-        try {
-            JSONObject o = new JSONObject();
-            for (Map.Entry<String, Integer> e : featureQuantities.entrySet()) {
-                if (e.getValue() != null && e.getValue() > 0) o.put(e.getKey(), e.getValue());
+        if (prefs == null || featureOrderId <= 0) return;
+        prefs.edit().remove("qty_" + featureOrderId).apply();
+    }
+
+    private void clearStoredOrderQuantities() {
+        if (prefs == null) return;
+        SharedPreferences.Editor editor = prefs.edit();
+        boolean changed = false;
+        for (String key : prefs.getAll().keySet()) {
+            if (key.startsWith("qty_")) {
+                editor.remove(key);
+                changed = true;
             }
-            prefs.edit().putString("qty_" + featureOrderId, o.toString()).apply();
+        }
+        if (changed) editor.apply();
+    }
+
+    /** Recursively strips account/order-specific fields before anything reaches disk. */
+    private JSONObject catalogueProductCopy(JSONObject product) {
+        if (product == null) return new JSONObject();
+        JSONObject clean = new JSONObject(product.toString());
+        stripPersonalFields(clean);
+        return clean;
+    }
+
+    private void stripPersonalFields(JSONObject object) {
+        if (object == null) return;
+        java.util.Iterator<String> keys = object.keys();
+        List<String> remove = new ArrayList<>();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            String normalized = key.toLowerCase(Locale.ROOT).replace("-", "_");
+            if (normalized.equals("amount") || normalized.equals("quantity") || normalized.equals("qty")
+                    || normalized.equals("order_id") || normalized.equals("orderid")
+                    || normalized.equals("order") || normalized.equals("orders")
+                    || normalized.equals("pivot") || normalized.equals("favs")
+                    || normalized.equals("favorite") || normalized.equals("favourite")
+                    || normalized.equals("is_favorite") || normalized.equals("is_favourite")
+                    || normalized.equals("user_id") || normalized.equals("userid")
+                    || normalized.equals("customer_id") || normalized.equals("account_id")
+                    || normalized.equals("ordered_amount") || normalized.equals("order_amount")
+                    || normalized.equals("order_quantity") || normalized.equals("order_qty")) {
+                remove.add(key);
+                continue;
+            }
+            Object value = object.opt(key);
+            if (value instanceof JSONObject) stripPersonalFields((JSONObject) value);
+            else if (value instanceof JSONArray) {
+                JSONArray array = (JSONArray) value;
+                for (int i = 0; i < array.length(); i++) {
+                    Object child = array.opt(i);
+                    if (child instanceof JSONObject) stripPersonalFields((JSONObject) child);
+                }
+            }
+        }
+        for (String key : remove) object.remove(key);
+    }
+
+    /** Keep only public sale metadata useful when the catalogue is shown offline. */
+    private JSONObject publicSaleMetadata(JSONObject sale) {
+        JSONObject clean = new JSONObject();
+        if (sale == null) return clean;
+        String[] saleKeys = {"id", "custom_name", "name", "title", "sale_name", "end",
+                "supply_begin", "day_diff", "start", "begin", "created_at", "updated_at",
+                "open_at", "opened_at", "opens_at", "close_at", "closed_at", "closes_at",
+                "start_date", "end_date", "open_date", "close_date"};
+        for (String key : saleKeys) {
+            if (sale.has(key)) try { clean.put(key, sale.opt(key)); } catch (Exception ignored) { }
+        }
+        JSONObject parent = sale.optJSONObject("parent");
+        if (parent != null) {
+            JSONObject publicParent = new JSONObject();
+            for (String key : new String[]{"week", "week_start", "name", "title", "start", "end"}) {
+                if (parent.has(key)) try { publicParent.put(key, parent.opt(key)); } catch (Exception ignored) { }
+            }
+            if (publicParent.length() > 0) try { clean.put("parent", publicParent); } catch (Exception ignored) { }
+        }
+        JSONObject site = sale.optJSONObject("site");
+        if (site != null) {
+            JSONObject publicSite = new JSONObject();
+            for (String key : new String[]{"distribution_day", "name", "title"}) {
+                if (site.has(key)) try { publicSite.put(key, site.opt(key)); } catch (Exception ignored) { }
+            }
+            if (publicSite.length() > 0) try { clean.put("site", publicSite); } catch (Exception ignored) { }
+        }
+        String name = saleTitle(sale);
+        if (!name.isEmpty()) try { clean.put("custom_name", name); } catch (Exception ignored) { }
+        return clean;
+    }
+
+    private void writeSnapshot(int saleId, JSONObject sale, List<JSONObject> products, long savedAt) {
+        try {
+            JSONObject saleInfo = publicSaleMetadata(sale);
+            JSONObject o = new JSONObject();
+            o.put("schema_version", 2);
+            o.put("sale_id", saleId);
+            o.put("sale_name", saleTitle(sale));
+            o.put("saved_at", savedAt);
+            o.put("sale_info", saleInfo);
+            JSONArray arr = new JSONArray();
+            for (JSONObject p : products) {
+                if (p != null) arr.put(catalogueProductCopy(p));
+            }
+            o.put("products", arr);
+            File f = snapshotFile(saleId);
+            File tmp = new File(f.getPath() + ".tmp");
+            try (FileOutputStream os = new FileOutputStream(tmp)) {
+                os.write(o.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            if (!tmp.renameTo(f)) tmp.delete();
         } catch (Exception ignored) { }
     }
 
-    private void writeSnapshot(int saleId, long orderId, List<JSONObject> products, Set<String> favs, long savedAt) {
-        try {
-            JSONObject o = new JSONObject();
-            o.put("order_id", orderId);
-            o.put("saved_at", savedAt);
-            JSONArray arr = new JSONArray();
-            for (JSONObject p : products) arr.put(p);
-            o.put("products", arr);
-            JSONArray fa = new JSONArray();
-            for (String id : favs) fa.put(id);
-            o.put("favs", fa);
-            File f = snapshotFile(saleId);
-            File tmp = new File(f.getPath() + ".tmp");
-            try (FileOutputStream os = new FileOutputStream(tmp)) { os.write(o.toString().getBytes(StandardCharsets.UTF_8)); }
-            if (!tmp.renameTo(f)) tmp.delete();
-        } catch (Exception ignored) { }
+    /** Remove personal order data from snapshots written by older releases. */
+    private void migrateSaleCacheToCatalogueOnly() {
+        if (prefs == null || prefs.getInt("catalogue_cache_schema", 0) >= 2) return;
+        File dir = new File(getFilesDir(), "cache");
+        File[] files = dir.listFiles((d, name) -> name.matches("sale_[0-9]+\\.json"));
+        if (files != null) {
+            for (File file : files) {
+                try {
+                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                    try (InputStream in = new java.io.FileInputStream(file)) {
+                        byte[] buffer = new byte[32768];
+                        int count;
+                        while ((count = in.read(buffer)) > 0) bytes.write(buffer, 0, count);
+                    }
+                    JSONObject old = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+                    int saleId = old.optInt("sale_id", -1);
+                    if (saleId <= 0) {
+                        String n = file.getName();
+                        saleId = Integer.parseInt(n.substring(5, n.length() - 5));
+                    }
+                    JSONArray oldProducts = old.optJSONArray("products");
+                    JSONArray products = new JSONArray();
+                    if (oldProducts != null) {
+                        for (int i = 0; i < oldProducts.length(); i++) {
+                            JSONObject p = oldProducts.optJSONObject(i);
+                            if (p != null) products.put(catalogueProductCopy(p));
+                        }
+                    }
+                    JSONObject saleInfo = publicSaleMetadata(old.optJSONObject("sale_info"));
+                    String saleName = old.optString("sale_name", "").trim();
+                    if (saleName.isEmpty()) saleName = saleInfo.optString("custom_name", "").trim();
+                    if (!saleName.isEmpty()) saleInfo.put("custom_name", saleName);
+                    JSONObject clean = new JSONObject();
+                    clean.put("schema_version", 2);
+                    clean.put("sale_id", saleId);
+                    clean.put("sale_name", saleName);
+                    clean.put("saved_at", old.optLong("saved_at", file.lastModified()));
+                    clean.put("sale_info", saleInfo);
+                    clean.put("products", products);
+                    File tmp = new File(file.getPath() + ".tmp");
+                    try (FileOutputStream out = new FileOutputStream(tmp)) {
+                        out.write(clean.toString().getBytes(StandardCharsets.UTF_8));
+                    }
+                    if (!tmp.renameTo(file)) {
+                        tmp.delete();
+                        file.delete();
+                    }
+                } catch (Exception ignored) {
+                    // Prefer losing an unusable old cache to retaining account-specific order data.
+                    try { file.delete(); } catch (Exception ignoredDelete) { }
+                }
+            }
+        }
+        prefs.edit().putInt("catalogue_cache_schema", 2).apply();
     }
 
     private SaleSnapshot readSnapshot(int saleId) {
@@ -6192,23 +6340,23 @@ public class MainActivity extends Activity {
             JSONArray arr = o.optJSONArray("products");
             if (arr == null || arr.length() == 0) return null;
             SaleSnapshot snap = new SaleSnapshot();
-            snap.orderId = o.optLong("order_id", -1);
+            // Order IDs and quantities are deliberately absent from the disk cache.
+            snap.orderId = -1;
             snap.loadedAt = o.optLong("saved_at", 0L);
+            snap.saleInfo = publicSaleMetadata(o.optJSONObject("sale_info"));
             snap.saleName = o.optString("sale_name", "").trim();
-            JSONObject qty = null;
-            try { qty = new JSONObject(prefs.getString("qty_" + snap.orderId, "")); } catch (Exception ignored) { }
+            if (snap.saleName.isEmpty()) snap.saleName = saleTitle(snap.saleInfo);
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject p = arr.optJSONObject(i);
                 if (p == null) continue;
-                String sid = sidOf(p);
+                JSONObject catalogueProduct = catalogueProductCopy(p);
+                String sid = sidOf(catalogueProduct);
                 if (sid.isEmpty()) continue;
-                int q = qty != null ? qty.optInt(sid, 0) : Math.max(0, (int) Math.round(num(p.opt("amount"))));
-                try { p.put("amount", q); } catch (Exception ignored) { }
-                snap.products.add(p);
-                snap.quantities.put(sid, q);
+                try { catalogueProduct.put("amount", 0); } catch (Exception ignored) { }
+                snap.products.add(catalogueProduct);
+                snap.quantities.put(sid, 0);
             }
-            JSONArray fa = o.optJSONArray("favs");
-            if (fa != null) for (int i = 0; i < fa.length(); i++) snap.favs.add(String.valueOf(fa.opt(i)));
+            // Favourites are account-specific and intentionally never restored from disk.
             return snap.products.isEmpty() ? null : snap;
         } catch (Exception e) {
             return null;
@@ -6218,26 +6366,37 @@ public class MainActivity extends Activity {
     private void snapshotCurrent() {
         if (currentSaleId <= 0 || featureOrderId <= 0 || featureProducts.isEmpty() || productsPartial) return;
         SaleSnapshot snap = new SaleSnapshot();
-        snap.orderId = featureOrderId;
+        snap.orderId = -1;
         snap.loadedAt = productsLoadedAt;
-        snap.products.addAll(featureProducts);
-        snap.quantities.putAll(featureQuantities);
-        snap.favs.addAll(favIds);
+        snap.saleInfo = publicSaleMetadata(featureSale);
+        snap.saleName = saleTitle(featureSale);
+        for (JSONObject product : featureProducts) {
+            if (product == null) continue;
+            JSONObject catalogueProduct = catalogueProductCopy(product);
+            try { catalogueProduct.put("amount", 0); } catch (Exception ignored) { }
+            snap.products.add(catalogueProduct);
+        }
+        // Never retain order quantities or favourites in a sale snapshot, even in memory.
         saleSnapshots.put(currentSaleId, snap);
     }
 
     private void applySnapshot(SaleSnapshot snap, int saleId) {
-        featureOrderId = snap.orderId;
+        featureOrderId = -1; // resolve the order for the currently signed-in account on the server
         currentSaleId = saleId;
         productsLoadedAt = snap.loadedAt;
         productsPartial = false;
         pending.clear();
         featureProducts.clear();
-        featureProducts.addAll(snap.products);
         featureQuantities.clear();
-        featureQuantities.putAll(snap.quantities);
-        favIds.clear();
-        favIds.addAll(snap.favs);
+        for (JSONObject cachedProduct : snap.products) {
+            if (cachedProduct == null) continue;
+            JSONObject catalogueProduct = catalogueProductCopy(cachedProduct);
+            try { catalogueProduct.put("amount", 0); } catch (Exception ignored) { }
+            featureProducts.add(catalogueProduct);
+            String sid = sidOf(catalogueProduct);
+            if (!sid.isEmpty()) featureQuantities.put(sid, 0);
+        }
+        favIds.clear(); // favourites are reloaded from the authenticated server
     }
 
     private boolean orderNoticeDialogVisible = false;
@@ -6321,8 +6480,9 @@ public class MainActivity extends Activity {
         renderFeatureProducts(); // paints at once from memory (empty when nothing is cached yet)
         final int t = screenToken;
         if (inMemory) {
-            // Prefer a fresh server result for restock navigation; stale cached data can have a different order or availability.
-            if (System.currentTimeMillis() - productsLoadedAt > STALE_MS) {
+            // Catalogue snapshots never contain account quantities or an order ID, so resolve
+            // the authenticated account's current order from the server even when the catalogue is fresh.
+            if (featureOrderId <= 0 || System.currentTimeMillis() - productsLoadedAt > STALE_MS) {
                 refreshProducts(sale, true);
             } else {
                 navigateToPendingStockProduct(saleId);
@@ -6432,11 +6592,17 @@ public class MainActivity extends Activity {
         if (favs != null) favSet.addAll(favs);
         else if (live) favSet.addAll(favIds);
         SaleSnapshot snap = new SaleSnapshot();
-        snap.orderId = orderId;
+        snap.orderId = -1;
         snap.loadedAt = now;
-        snap.products.addAll(clean);
-        snap.quantities.putAll(quantities);
-        snap.favs.addAll(favSet);
+        snap.saleInfo = publicSaleMetadata(live ? featureSale : null);
+        snap.saleName = saleTitle(snap.saleInfo);
+        for (JSONObject product : clean) {
+            if (product == null) continue;
+            JSONObject catalogueProduct = catalogueProductCopy(product);
+            try { catalogueProduct.put("amount", 0); } catch (Exception ignored) { }
+            snap.products.add(catalogueProduct);
+        }
+        // Do not cache server quantities or account-specific favourites.
         saleSnapshots.put(saleId, snap);
         if (live) {
             Map<String, Integer> keep = new HashMap<>(); // quantities the user is changing right now
@@ -6463,8 +6629,9 @@ public class MainActivity extends Activity {
             }
         }
         final List<JSONObject> toSave = clean;
-        final Set<String> favCopy = favSet;
-        try { loadExecutor.execute(() -> writeSnapshot(saleId, orderId, toSave, favCopy, now)); } catch (Exception ignored) { }
+        final JSONObject saleForCache = publicSaleMetadata(featureSale != null
+                && featureSale.optInt("id", -1) == saleId ? featureSale : null);
+        try { loadExecutor.execute(() -> writeSnapshot(saleId, saleForCache, toSave, now)); } catch (Exception ignored) { }
         prefetchImages(clean);
     }
 
