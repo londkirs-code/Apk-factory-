@@ -384,7 +384,7 @@ public class MainActivity extends Activity {
             }
         }
         for (ProductAdapter adapter : adapters) adapter.rethemeCachedRows(old, visited);
-        getWindow().setStatusBarColor(HEADER_BG);
+        getWindow().setStatusBarColor(AppPalette.systemBar(activePalette, nightMode));
         getWindow().setNavigationBarColor(SURFACE);
         styleSystemBars();
         refreshKeyboardFocusHighlight();
@@ -1746,7 +1746,7 @@ public class MainActivity extends Activity {
         imageCache = new LruCache<String, Bitmap>(cacheKb) {
             @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount() / 1024; }
         };
-        getWindow().setStatusBarColor(HEADER_BG);
+        getWindow().setStatusBarColor(AppPalette.systemBar(activePalette, nightMode));
         getWindow().setNavigationBarColor(SURFACE);
         pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
