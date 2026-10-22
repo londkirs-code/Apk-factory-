@@ -1,9 +1,9 @@
 {
-  "versionCode": 366,
-  "versionName": "1.4821",
+  "versionCode": 367,
+  "versionName": "1.4822",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "769a3c8d4f8a170d53b610f833092c059119bd015535705e34073810e7f2b54b",
+  "sha256": "2b154e02d6942fc2a7ec559cb16f13d006c5d8c88d8f45b23cc6c2db81c3105c",
   "releaseTitle": "מקש התפריט פותח את התפריט הנכון בכל מסך",
   "releaseNotes": "- מקש Menu במקלדת פותח את תפריט ההגדרות שבכותרת האפליקציה במסכים הרגילים.\n- בעמוד הזמנה רגילה, בהזמנה שמורה מהמטמון ובהזמנה שנפתחה מההיסטוריה, אותו מקש פותח את תפריט שלוש הנקודות של ההזמנה — עם אפשרויות ההזמנה הקיימות.\n- גם במסך סיכום ההזמנה נפתח תפריט שלוש הנקודות של הסיכום, ולא תפריט ההגדרות הכללי.\n- מקש Menu פועל גם כשהסמן נמצא בשדה טקסט; שאר קיצורי המקלדת ופעולות התפריטים נשארו ללא שינוי.",
-  "buildCommit": "b3761f1db2ea4ecad56a3ef850d227f9fd330110"
+  "buildCommit": "bcb5d016a7188bcdebe478b02058a15cb126ce74"
 }
