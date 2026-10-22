@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">משנת יוסף</string>
-    <string name="release_notes_title">תיקון החלפת ערכת הצבעים</string>
-    <string name="release_notes_details">תוקן צבע כפתור האיסוף המרכזי בסרגל התחתון בעת מעבר בין הערכה הכתומה לסגולה, בלי צורך להפעיל מחדש את האפליקציה.</string>
+    <string name="release_notes_title">תיקון כפתור האיסוף וסמל לפי ערכה</string>
+    <string name="release_notes_details">תוקן צבע כפתור האיסוף המרכזי במעבר בין ערכות הצבע, וסמל האפליקציה במסך הבית מתחלף כעת אוטומטית בין כתום לסגול לפי הערכה שנבחרה.</string>
 </resources>
