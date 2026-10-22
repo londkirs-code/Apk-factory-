@@ -63,6 +63,7 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.ProgressBar;
+import android.widget.PopupWindow;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Switch;
@@ -338,7 +339,7 @@ public class MainActivity extends Activity {
 
         // Draw above the normal background so custom buttons always get a translucent fill and frame.
         GradientDrawable highlight = shape(Color.argb(44, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE)), 10,
-                nightMode ? Color.WHITE : ORANGE_DARK, 4);
+                Color.rgb(142, 142, 147), 4);
         keyboardFocusHighlightView = focusedView;
         keyboardFocusHighlightDrawable = highlight;
         keyboardFocusHighlightLayoutListener = (view, left, top, right, bottom,
@@ -2080,7 +2081,7 @@ public class MainActivity extends Activity {
         if (showConfirmation) toast("פריסת הכרטיסיות נשמרה", false);
     }
 
-    private void showActionsDialog() {
+    private void showActionsDialog(View anchor) {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -2213,33 +2214,52 @@ public class MainActivity extends Activity {
             toast("התצוגה אופסה לברירת המחדל", false);
         });
 
-        AlertDialog dialog = new AlertDialog.Builder(this,
-                nightMode ? android.R.style.Theme_Material_Dialog_Alert
-                        : android.R.style.Theme_Material_Light_Dialog_Alert)
-                .setView(panel)
-                .create();
-        close.setOnClickListener(v -> dialog.dismiss());
-        dialog.setCanceledOnTouchOutside(true);
-        dialog.setOnShowListener(ignored -> {
-            if (dialog.getWindow() != null) {
-                dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-                WindowManager.LayoutParams windowParams = dialog.getWindow().getAttributes();
-                windowParams.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440));
-                windowParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
-                windowParams.gravity = Gravity.CENTER;
-                windowParams.dimAmount = 0.48f;
-                dialog.getWindow().setAttributes(windowParams);
-                dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        // Apple-inspired anchored popover: a rounded surface, subtle border/shadow,
+        // and a small pointer that visually connects the menu to its trigger button.
+        LinearLayout popupContent = new LinearLayout(this);
+        popupContent.setOrientation(LinearLayout.VERTICAL);
+        popupContent.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        popupContent.setPadding(0, 0, 0, 0);
+        View pointer = new View(this) {
+            private final Paint pointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                float centerX = dp(18);
+                float tipY = getHeight();
+                Path triangle = new Path();
+                triangle.moveTo(centerX, 0);
+                triangle.lineTo(centerX - dp(9), tipY);
+                triangle.lineTo(centerX + dp(9), tipY);
+                triangle.close();
+                pointerPaint.setColor(SURFACE);
+                pointerPaint.setStyle(Paint.Style.FILL);
+                canvas.drawPath(triangle, pointerPaint);
+                pointerPaint.setColor(LINE);
+                pointerPaint.setStyle(Paint.Style.STROKE);
+                pointerPaint.setStrokeWidth(dp(1));
+                canvas.drawLine(centerX - dp(9), tipY, centerX, 0, pointerPaint);
+                canvas.drawLine(centerX, 0, centerX + dp(9), tipY, pointerPaint);
             }
+        };
+        popupContent.addView(pointer, new LinearLayout.LayoutParams(-1, dp(10)));
+        panel.setElevation(0);
+        popupContent.addView(panel, new LinearLayout.LayoutParams(-1, -2));
+        close.setOnClickListener(v -> {
+            Object tag = popupContent.getTag();
+            if (tag instanceof PopupWindow) ((PopupWindow) tag).dismiss();
         });
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            dialog.getWindow().setLayout(
-                    Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(440)),
-                    WindowManager.LayoutParams.WRAP_CONTENT);
-            dialog.getWindow().setGravity(Gravity.CENTER);
-        }
+
+        int popupWidth = Math.min(getResources().getDisplayMetrics().widthPixels - dp(24), dp(420));
+        PopupWindow popup = new PopupWindow(popupContent, popupWidth, -2, true);
+        popupContent.setTag(popup);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popup.setOutsideTouchable(true);
+        popup.setTouchable(true);
+        popup.setElevation(dp(14));
+        popup.setClippingEnabled(true);
+        popup.setOnDismissListener(() -> anchor.setSelected(false));
+        anchor.setSelected(true);
+        popup.showAsDropDown(anchor, -dp(8), -dp(8), Gravity.START);
     }
 
     private Drawable ripple(Drawable content, float radiusDp) {
@@ -2660,7 +2680,7 @@ public class MainActivity extends Activity {
         actionsButton.setBackground(ripple(shape(SURFACE, 50, nightMode ? LINE : Color.WHITE), 50));
         actionsButton.setElevation(dp(2));
         actionsButton.setContentDescription("פתיחת הגדרות ופעולות");
-        actionsButton.setOnClickListener(v -> showActionsDialog());
+        actionsButton.setOnClickListener(v -> showActionsDialog(actionsButton));
         LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(dp(30), dp(30));
         actionsParams.leftMargin = dp(2);
         header.addView(actionsButton, actionsParams);
