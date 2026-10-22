@@ -2098,6 +2098,7 @@ public class MainActivity extends Activity {
         scaleBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 scaleValue.setText((70 + progress * 5) + "%");
+                if (fromUser) changeUiScale(70 + progress * 5);
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { }
             @Override public void onStopTrackingTouch(SeekBar bar) {
@@ -2105,30 +2106,6 @@ public class MainActivity extends Activity {
             }
         });
         scaleBar.setContentDescription("גודל התצוגה, 70 עד 130 אחוז");
-
-        TextView resetScaleButton = btn("↺ איפוס לגודל מקורי (100%)", TONAL);
-        resetScaleButton.setContentDescription("איפוס גודל התצוגה למאה אחוז");
-        resetScaleButton.setOnClickListener(v -> {
-            scaleBar.setProgress((100 - 70) / 5);
-            scaleValue.setText("100%");
-            changeUiScale(100);
-            toast("גודל התצוגה אופס ל־100%", false);
-        });
-        panel.addView(resetScaleButton, new LinearLayout.LayoutParams(-1, dp(42)));
-
-        TextView navigationModeButton = btn(
-                simpleKeyboardNavigation() ? "↔  ניווט פשוט: פעיל" : "↔  ניווט לפי פעולה: פעיל",
-                TONAL);
-        navigationModeButton.setGravity(Gravity.CENTER);
-        navigationModeButton.setContentDescription("החלפת מצב ניווט בחצים בכרטיסי המוצרים");
-        navigationModeButton.setOnClickListener(v -> {
-            boolean nextSimple = !simpleKeyboardNavigation();
-            prefs.edit().putBoolean("simple_keyboard_navigation", nextSimple).apply();
-            navigationModeButton.setText(nextSimple ? "↔  ניווט פשוט: פעיל" : "↔  ניווט לפי פעולה: פעיל");
-            styleActionButton(navigationModeButton, nextSimple ? ORANGE_LIGHT : SURFACE,
-                    nextSimple ? ORANGE_DARK : INK, 0);
-        });
-        panel.addView(navigationModeButton, new LinearLayout.LayoutParams(-1, dp(42)));
 
         TextView columnsLabel = text("▦  מספר עמודות בהזמנות", 14, true);
         columnsLabel.setTextColor(INK);
@@ -2153,10 +2130,11 @@ public class MainActivity extends Activity {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 int count = progress + 1;
                 columnsValue.setText(count + (count == 1 ? " עמודה" : " עמודות"));
+                if (fromUser) commitCardColumns(count, false);
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { }
             @Override public void onStopTrackingTouch(SeekBar bar) {
-                commitCardColumns(columnsBar.getProgress() + 1, true);
+                commitCardColumns(columnsBar.getProgress() + 1, false);
             }
         });
         columnsBar.setContentDescription("מספר עמודות בכרטיסי המוצרים, 1 עד 5");
@@ -7655,78 +7633,10 @@ public class MainActivity extends Activity {
         progressView.setVisibility(collectMode ? View.VISIBLE : View.GONE);
         boolean allCollected = collectMode && total > 0 && done == total;
         progressView.setText(allCollected ? "✓ כל הפריטים נאספו! כל הכבוד!" : "נאספו " + done + " מתוך " + total + " פריטים");
-        if (allCollected && !collectionCelebrationShown) {
-            collectionCelebrationShown = true;
-            showCollectionConfetti();
-        } else if (!allCollected) {
-            collectionCelebrationShown = false;
-        }
+        if (allCollected) collectionCelebrationShown = true;
+        else collectionCelebrationShown = false;
         updateSummaryTotals();
         if (scrollView != null && keepScroll > 0) scrollView.post(() -> scrollView.scrollTo(0, keepScroll));
-    }
-
-    /** Full-screen confetti spread evenly over the actual app window. */
-    private void showCollectionConfetti() {
-        final View decor = getWindow().getDecorView();
-        if (!(decor instanceof FrameLayout)) return;
-        final FrameLayout overlay = new FrameLayout(this);
-        overlay.setTag("collectionConfettiOverlay");
-        overlay.setClickable(false);
-        overlay.setFocusable(false);
-        overlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        ((FrameLayout) decor).addView(overlay, new FrameLayout.LayoutParams(-1, -1));
-
-        // Use the overlay's measured bounds (not the device's raw screen size) so
-        // confetti covers the whole visible app, including the left and bottom edges.
-        overlay.post(() -> {
-            if (overlay.getParent() == null) return;
-            final int width = overlay.getWidth();
-            final int height = overlay.getHeight();
-            if (width <= 0 || height <= 0) {
-                if (overlay.getParent() instanceof ViewGroup) ((ViewGroup) overlay.getParent()).removeView(overlay);
-                return;
-            }
-            final String[] pieces = {"🎉", "✨", "🎊", "🟠", "🟢", "🟡", "💚", "⭐", "🎈", "🥳", "💛", "🩷"};
-            final int pieceWidth = dp(38);
-            final int pieceHeight = dp(42);
-            final int columns = 15;
-            final int rows = 12;
-            final int count = columns * rows;
-            for (int i = 0; i < count; i++) {
-                final int column = i % columns;
-                final int row = i / columns;
-                // Jitter each cell slightly while keeping an even full-screen spread.
-                final int jitterX = ((i * 37 + 11) % 31) - 15;
-                final int jitterY = ((i * 19 + 7) % 29) - 14;
-                final int baseX = (int) (((column + 0.5f) / columns) * Math.max(1, width - pieceWidth));
-                final int baseY = (int) (((row + 0.5f) / rows) * Math.max(1, height - pieceHeight));
-                final int x = Math.max(0, Math.min(width - pieceWidth, baseX + dp(jitterX)));
-                final int y = Math.max(0, Math.min(height - pieceHeight, baseY + dp(jitterY)));
-                TextView piece = text(pieces[i % pieces.length], 18 + (i % 4) * 3, true);
-                piece.setGravity(Gravity.CENTER);
-                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(pieceWidth, pieceHeight);
-                params.leftMargin = x;
-                params.topMargin = y;
-                overlay.addView(piece, params);
-                piece.setRotation((i * 37) % 100 - 50);
-                piece.setAlpha(0f);
-                piece.setScaleX(0.35f);
-                piece.setScaleY(0.35f);
-                piece.animate()
-                        .alpha(1f)
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .translationX(((i % 2 == 0) ? 1 : -1) * dp(10 + i % 6 * 5))
-                        .translationY(((i % 3 == 0) ? -1 : 1) * dp(12 + i % 7 * 7))
-                        .rotationBy(((i % 2 == 0) ? 1 : -1) * (100 + i % 5 * 35))
-                        .setStartDelay((i % 18) * 14L)
-                        .setDuration(950 + (i % 5) * 100L)
-                        .start();
-            }
-            ui.postDelayed(() -> {
-                if (overlay.getParent() instanceof ViewGroup) ((ViewGroup) overlay.getParent()).removeView(overlay);
-            }, 2600);
-        });
     }
 
     private void updateSummaryTotals() {
@@ -8688,7 +8598,7 @@ public class MainActivity extends Activity {
             sum.addView(text("ממתין לשרת…", 16, true));
             sum.addView(muted("אפשר להשתמש בתפריטים ובכלי המסך כבר עכשיו.", 12));
         } else {
-            TextView c1 = text("💚 סך הכל זיכויים: " + money2(creditTotal) + " (" + creditCount + ")", 16, true);
+            TextView c1 = text("🟢 סך הכל זיכויים: " + money2(creditTotal) + " (" + creditCount + ")", 16, true);
             c1.setTextColor(GREEN);
             TextView c2 = text("🔴 סך הכל חיובים: " + money2(chargeTotal) + " (" + chargeCount + ")", 16, true);
             c2.setTextColor(RED);
@@ -8840,8 +8750,9 @@ public class MainActivity extends Activity {
             };
             headingRow.setOnClickListener(expand);
             toggle.setOnClickListener(expand);
+            saleCard.setOnClickListener(expand);
             saleCard.addView(headingRow);
-            TextView summary = muted("💚 זיכויים: " + money2(creditsTotal) + " (" + creditCount + ")"
+            TextView summary = muted("🟢 זיכויים: " + money2(creditsTotal) + " (" + creditCount + ")"
                     + "   •   🔴 חיובים: " + money2(chargesTotal) + " (" + chargeCount + ")", 12);
             summary.setPadding(dp(28), dp(4), 0, 0);
             saleCard.addView(summary);
@@ -8874,7 +8785,7 @@ public class MainActivity extends Activity {
         LinearLayout card = card(12);
         if (canceled) card.setAlpha(0.6f);
         int color = amount < 0 ? GREEN : (amount > 0 ? RED : MUTED);
-        String kind = amount < 0 ? "💚 זיכוי" : (amount > 0 ? "🔴 חיוב" : "ללא סכום");
+        String kind = amount < 0 ? "🟢 זיכוי" : (amount > 0 ? "🔴 חיוב" : "ללא סכום");
         TextView heading = text(kind + ": " + money2(Math.abs(amount)), 16, true);
         heading.setTextColor(color);
         card.addView(heading);
@@ -10481,7 +10392,7 @@ public class MainActivity extends Activity {
         for (String key : keys) {
             double[] g = groups.get(key);
             StringBuilder bits = new StringBuilder();
-            if (g[2] > 0) bits.append("💚 ").append(money2(g[0])).append(" (").append((int) g[2]).append(")");
+            if (g[2] > 0) bits.append("🟢 ").append(money2(g[0])).append(" (").append((int) g[2]).append(")");
             if (g[3] > 0) bits.append(bits.length() > 0 ? " | " : "").append("🔴 ").append(money2(g[1])).append(" (").append((int) g[3]).append(")");
             if (bits.length() > 0) sb.append(key).append(": ").append(bits).append("\n\n");
         }
@@ -10967,6 +10878,7 @@ public class MainActivity extends Activity {
         scaleSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 scaleValue.setText((70 + progress * 5) + "%");
+                if (fromUser) changeUiScale(70 + progress * 5);
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
@@ -10974,18 +10886,6 @@ public class MainActivity extends Activity {
             }
         });
         scaleSlider.setContentDescription("גודל התצוגה, מ־70 עד 130 אחוז בקפיצות של 5");
-        TextView resetScale = btn("↺  איפוס גודל התצוגה", OUTLINE);
-        resetScale.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(-1, dp(42));
-        resetLp.topMargin = dp(8);
-        controls.addView(resetScale, resetLp);
-        resetScale.setOnClickListener(v -> {
-            scaleSlider.setProgress(6);
-            scaleValue.setText("100%");
-            changeUiScale(100);
-        });
-        // Keep the reset action directly under the scale control, in the same display settings section.
-        resetScale.setContentDescription("איפוס גודל התצוגה לברירת המחדל, 100 אחוז");
 
         View divider = new View(this);
         divider.setBackgroundColor(LINE);
@@ -11040,13 +10940,73 @@ public class MainActivity extends Activity {
                 int columns = progress + 1;
                 columnsValue.setText(columns + (columns == 1 ? " עמודה" : " עמודות"));
                 columnsSize.setText(cardSizeLabel(columns));
+                if (fromUser) commitCardColumns(columns, false);
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
-                commitCardColumns(columnsSlider.getProgress() + 1, true);
+                commitCardColumns(columnsSlider.getProgress() + 1, false);
             }
         });
         columnsSlider.setContentDescription("מספר עמודות בכרטיסי המוצרים, בין עמודה אחת לחמש");
+
+        LinearLayout displayActions = new LinearLayout(this);
+        displayActions.setOrientation(LinearLayout.HORIZONTAL);
+        displayActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        displayActions.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams displayActionsLp = new LinearLayout.LayoutParams(-1, dp(44));
+        displayActionsLp.topMargin = dp(12);
+        displayActionsLp.bottomMargin = dp(4);
+        controls.addView(displayActions, displayActionsLp);
+
+        TextView nightModeButton = btn(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום", TONAL);
+        nightModeButton.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams displayActionButtonLp = new LinearLayout.LayoutParams(0, -1, 1f);
+        displayActionButtonLp.setMarginEnd(dp(5));
+        displayActions.addView(nightModeButton, displayActionButtonLp);
+        nightModeButton.setOnClickListener(v -> {
+            toggleNightMode();
+            nightModeButton.setText(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום");
+            styleActionButton(nightModeButton, nightMode ? ORANGE : ORANGE_LIGHT,
+                    nightMode ? ON_ORANGE : ORANGE_DARK, 0);
+        });
+
+        TextView resetDisplayButton = btn("↺ איפוס תצוגה", OUTLINE);
+        resetDisplayButton.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams resetDisplayLp = new LinearLayout.LayoutParams(0, -1, 1f);
+        resetDisplayLp.setMarginStart(dp(5));
+        displayActions.addView(resetDisplayButton, resetDisplayLp);
+        resetDisplayButton.setContentDescription("איפוס גודל ל־100 אחוז, שלוש עמודות ומצב יום");
+        resetDisplayButton.setOnClickListener(v -> {
+            scaleSlider.setProgress(6);
+            scaleValue.setText("100%");
+            changeUiScale(100);
+            columnsSlider.setProgress(2);
+            columnsValue.setText("3 עמודות");
+            columnsSize.setText(cardSizeLabel(3));
+            commitCardColumns(3, false);
+            if (nightMode) toggleNightMode();
+            nightModeButton.setText("☀️ מצב יום");
+            styleActionButton(nightModeButton, ORANGE_LIGHT, ORANGE_DARK, 0);
+            if (actionScaleBar != null) actionScaleBar.setProgress(6);
+            if (actionScaleValue != null) actionScaleValue.setText("100%");
+            toast("התצוגה אופסה לברירת המחדל", false);
+        });
+
+        TextView navigationModeButton = btn(
+                simpleKeyboardNavigation() ? "↔ ניווט פשוט: פעיל" : "↔ ניווט לפי פעולה: פעיל",
+                TONAL);
+        navigationModeButton.setGravity(Gravity.CENTER);
+        navigationModeButton.setContentDescription("החלפת מצב ניווט בחצים בכרטיסי המוצרים");
+        navigationModeButton.setOnClickListener(v -> {
+            boolean nextSimple = !simpleKeyboardNavigation();
+            prefs.edit().putBoolean("simple_keyboard_navigation", nextSimple).apply();
+            navigationModeButton.setText(nextSimple ? "↔ ניווט פשוט: פעיל" : "↔ ניווט לפי פעולה: פעיל");
+            styleActionButton(navigationModeButton, nextSimple ? ORANGE_LIGHT : SURFACE,
+                    nextSimple ? ORANGE_DARK : INK, 0);
+        });
+        LinearLayout.LayoutParams navigationModeLp = new LinearLayout.LayoutParams(-1, dp(42));
+        navigationModeLp.topMargin = dp(4);
+        controls.addView(navigationModeButton, navigationModeLp);
 
         TextView soldOutHeading = text("📦 הצגת פריטים שאזלו", 15, true);
         soldOutHeading.setTextColor(INK);
@@ -11072,9 +11032,6 @@ public class MainActivity extends Activity {
         stockDisplayDividerLp.topMargin = dp(12);
         stockDisplayDividerLp.bottomMargin = dp(8);
         controls.addView(stockDisplayDivider, stockDisplayDividerLp);
-        controls.addView(switchRow("מצב לילה", "ערכת צבעים כהה לכל האפליקציה", nightMode, (button, checked) -> {
-            if (checked != nightMode) toggleNightMode();
-        }));
         card.addView(controls, lp(-1, -2, 0, 0));
         root.addView(card, lp(-1, -2, 0, 10));
     }
