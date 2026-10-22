@@ -1,9 +1,9 @@
 {
-  "versionCode": 375,
-  "versionName": "1.4830",
+  "versionCode": 376,
+  "versionName": "1.4831",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "3e6b5cc887931f746fe33bf2c38139e27a44305095d13484d4f132f28b92c089",
-  "releaseTitle": "תיקון החלפת ערכת הצבעים",
-  "releaseNotes": "תוקן צבע כפתור האיסוף המרכזי בסרגל התחתון בעת מעבר בין הערכה הכתומה לסגולה, בלי צורך להפעיל מחדש את האפליקציה.",
-  "buildCommit": "5ba25559e81b574e816f34af214cd65187fe79ed"
+  "sha256": "ac94a5b31579c19d30508d4dcb2ab530fb093d9eed1df3c29cb34eef5ef47614",
+  "releaseTitle": "תיקון כפתור האיסוף וסמל האפליקציה לפי הערכה",
+  "releaseNotes": "תוקן צבע כפתור האיסוף המרכזי במעבר בין ערכות הצבע. סמל האפליקציה במסך הבית מתחלף כעת אוטומטית בין כתום לסגול לפי הערכה שנבחרה.",
+  "buildCommit": "57c58f80f154c71aa32d5d78c346f711a4d1feb3"
 }
