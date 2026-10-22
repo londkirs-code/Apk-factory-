@@ -390,43 +390,13 @@ public class MainActivity extends Activity {
         refreshKeyboardFocusHighlight();
     }
 
-    private void syncLauncherIconWithTheme() {
-        android.content.pm.PackageManager pm = getPackageManager();
-        android.content.ComponentName orange = new android.content.ComponentName(
-                this, "org.mishnatyosef.mobile.OrangeLauncher");
-        android.content.ComponentName purple = new android.content.ComponentName(
-                this, "org.mishnatyosef.mobile.PurpleLauncher");
-        android.content.ComponentName selected = purpleTheme ? purple : orange;
-        android.content.ComponentName other = purpleTheme ? orange : purple;
-
-        // Enable the destination first so the launcher never temporarily has no app icon.
-        if (pm.getComponentEnabledSetting(selected)
-                != android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
-            pm.setComponentEnabledSetting(selected,
-                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    android.content.pm.PackageManager.DONT_KILL_APP);
-        }
-        if (pm.getComponentEnabledSetting(other)
-                != android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
-            pm.setComponentEnabledSetting(other,
-                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    android.content.pm.PackageManager.DONT_KILL_APP);
-        }
-    }
-
     private void changeColorTheme(boolean usePurple) {
         if (purpleTheme == usePurple) return;
         PaletteSnapshot old = new PaletteSnapshot();
         prefs.edit().putBoolean("purple_theme", usePurple).apply();
         applyPalette();
-        // A launcher-alias update must never be able to take down the live UI theme switch.
-        // Keep palette re-theming independent from the optional home-screen icon synchronization.
+        // Changing the in-app palette must not toggle launcher aliases while this Activity is live.
         rethemeActiveUi(old);
-        try {
-            syncLauncherIconWithTheme();
-        } catch (RuntimeException e) {
-            android.util.Log.w("MishnatYosef", "Could not synchronize launcher icon with color theme", e);
-        }
         toast(usePurple ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
     }
 
@@ -1770,7 +1740,6 @@ public class MainActivity extends Activity {
         nightMode = prefs.getBoolean("night_mode", false);
         setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
         applyPalette();
-        syncLauncherIconWithTheme();
         clearLegacyUpdateArtifacts();
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
