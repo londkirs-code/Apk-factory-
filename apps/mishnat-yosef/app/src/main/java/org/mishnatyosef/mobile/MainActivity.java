@@ -199,7 +199,6 @@ public class MainActivity extends Activity {
     }
 
     private int remapPaletteColor(int color, PaletteSnapshot old) {
-        if (color == old.headerFg) return HEADER_FG;
         if (color == old.orange) return ORANGE;
         if (color == old.orangeDark) return ORANGE_DARK;
         if (color == old.orangeLight) return ORANGE_LIGHT;
