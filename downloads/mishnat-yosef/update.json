@@ -1,9 +1,9 @@
 {
-  "versionCode": 376,
-  "versionName": "1.4831",
+  "versionCode": 377,
+  "versionName": "1.4832",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "ac94a5b31579c19d30508d4dcb2ab530fb093d9eed1df3c29cb34eef5ef47614",
-  "releaseTitle": "תיקון כפתור האיסוף וסמל האפליקציה לפי הערכה",
-  "releaseNotes": "תוקן צבע כפתור האיסוף המרכזי במעבר בין ערכות הצבע. סמל האפליקציה במסך הבית מתחלף כעת אוטומטית בין כתום לסגול לפי הערכה שנבחרה.",
-  "buildCommit": "57c58f80f154c71aa32d5d78c346f711a4d1feb3"
+  "sha256": "9d3d1f99b87150d2c4c45c66e2adc203a566c5c9158fb83c97826041c155f015",
+  "releaseTitle": "שיפור מסך הזיכויים והחיובים וקיצורי המקשים",
+  "releaseNotes": "- כפתור „שלח למשנת יוסף” נשאר קבוע בתחתית המסך, מעל סרגל הניווט, גם בזמן גלילה ברשימה ארוכה.\n- נוסף סמל מקלדת ⌨️ לכפתור קיצורי המקשים במסך החשבון, בלי לשנות את פעולת הכפתור.",
+  "buildCommit": "f0ce0dd95a3867b10466b09c01402ceff38f3022"
 }
