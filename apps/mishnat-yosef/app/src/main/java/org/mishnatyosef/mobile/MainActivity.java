@@ -23,6 +23,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -148,6 +149,10 @@ public class MainActivity extends Activity {
     private boolean returnToOrderScreenOnSalesTab = false;
     // Closed orders reuse the regular product grid; order-changing controls are visible but disabled.
     private boolean closedOrderReadOnly = false;
+    // Shared overlay keeps keyboard focus visible without replacing each view's own background.
+    private View keyboardFocusHighlightView;
+    private Drawable keyboardFocusHighlightDrawable;
+    private View.OnLayoutChangeListener keyboardFocusHighlightLayoutListener;
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
@@ -315,6 +320,44 @@ public class MainActivity extends Activity {
             }
         }
         view.invalidate();
+    }
+
+    private void showKeyboardFocusHighlight(View focusedView) {
+        if (keyboardFocusHighlightView != null) {
+            if (keyboardFocusHighlightDrawable != null) {
+                keyboardFocusHighlightView.getOverlay().remove(keyboardFocusHighlightDrawable);
+            }
+            if (keyboardFocusHighlightLayoutListener != null) {
+                keyboardFocusHighlightView.removeOnLayoutChangeListener(keyboardFocusHighlightLayoutListener);
+            }
+        }
+        keyboardFocusHighlightView = null;
+        keyboardFocusHighlightDrawable = null;
+        keyboardFocusHighlightLayoutListener = null;
+        if (focusedView == null || !focusedView.isFocusable() || !focusedView.isShown()
+                || focusedView.getWidth() <= 0 || focusedView.getHeight() <= 0) return;
+
+        // Draw above the normal background so custom buttons always get a translucent fill and frame.
+        GradientDrawable highlight = shape(Color.argb(44, ORANGE), 10,
+                nightMode ? Color.WHITE : ORANGE_DARK, 2);
+        keyboardFocusHighlightView = focusedView;
+        keyboardFocusHighlightDrawable = highlight;
+        keyboardFocusHighlightLayoutListener = (view, left, top, right, bottom,
+                oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (keyboardFocusHighlightDrawable == highlight) {
+                highlight.setBounds(0, 0, view.getWidth(), view.getHeight());
+                highlight.invalidateSelf();
+            }
+        };
+        highlight.setBounds(0, 0, focusedView.getWidth(), focusedView.getHeight());
+        focusedView.addOnLayoutChangeListener(keyboardFocusHighlightLayoutListener);
+        focusedView.getOverlay().add(highlight);
+        focusedView.invalidate();
+    }
+
+    private void refreshKeyboardFocusHighlight() {
+        View focused = getCurrentFocus();
+        if (focused != null) showKeyboardFocusHighlight(focused);
     }
 
     private void toggleNightMode() {
@@ -1622,6 +1665,8 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener(
+                (oldFocus, newFocus) -> showKeyboardFocusHighlight(newFocus));
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         int savedScalePercent = prefs.getInt("ui_scale_percent", 100);
         savedScalePercent = 70 + Math.round((Math.max(70, Math.min(130, savedScalePercent)) - 70) / 5.0f) * 5;
