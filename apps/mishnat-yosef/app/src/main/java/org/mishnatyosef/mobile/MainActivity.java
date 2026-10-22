@@ -11017,8 +11017,17 @@ public class MainActivity extends Activity {
         imageFrame.setPadding(dp(8), dp(8), dp(8), dp(8));
         ImageView productImage = new ImageView(this);
         productImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        productImage.setContentDescription("תמונת המוצר לזיהוי");
+        productImage.setContentDescription("תמונת המוצר לזיהוי — לחצו להגדלה");
         productImage.setFocusable(false);
+        // Reuse the app-wide full-screen image viewer, including its original-resolution loading.
+        // Only open it after the current product image has actually loaded.
+        productImage.setClickable(true);
+        productImage.setOnClickListener(v -> {
+            ChildLockProduct selected = current[0];
+            if (selected != null && productImage.getDrawable() != null) {
+                showImagePreview(selected.imageUrl);
+            }
+        });
         imageFrame.addView(productImage, new FrameLayout.LayoutParams(-1, dp(190), Gravity.CENTER));
         TextView imageStatus = muted("טוען תמונה…", 13);
         imageStatus.setGravity(Gravity.CENTER);
