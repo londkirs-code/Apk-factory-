@@ -2379,7 +2379,7 @@ public class MainActivity extends Activity {
         GradientDrawable mask = new GradientDrawable();
         mask.setShape(GradientDrawable.OVAL);
         mask.setColor(Color.WHITE);
-        b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(AppPalette.CIRCULAR_BUTTON_RIPPLE_ALPHA, Color.red(AppPalette.DAY.orange), Color.green(AppPalette.DAY.orange), Color.blue(AppPalette.DAY.orange))), oval, mask));
+        b.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(AppPalette.CIRCULAR_BUTTON_RIPPLE_ALPHA, Color.red(ORANGE), Color.green(ORANGE), Color.blue(ORANGE))), oval, mask));
         b.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
         return b;
     }
