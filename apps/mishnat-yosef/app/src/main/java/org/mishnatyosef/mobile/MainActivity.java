@@ -8689,8 +8689,19 @@ public class MainActivity extends Activity {
             entryCard.addView(itemRow);
             root.addView(entryCard, lp(-1, -2, 0, 8));
         }
-        // Keep the primary email action below every item and stretch it across the screen.
-        root.addView(sendCredit, lp(-1, 48, 0, 12));
+        // Keep the primary email action fixed above the bottom navigation, outside the
+        // scrolling list, so it remains reachable even when the list contains many items.
+        LinearLayout sendFooter = new LinearLayout(this);
+        sendFooter.setOrientation(LinearLayout.VERTICAL);
+        sendFooter.setPadding(dp(14), dp(8), dp(14), dp(8));
+        sendFooter.setBackgroundColor(SURFACE);
+        sendFooter.setElevation(dp(4));
+        sendCredit.setText("📨 שלח למשנת יוסף");
+        sendCredit.setMinHeight(dp(48));
+        sendFooter.addView(sendCredit, new LinearLayout.LayoutParams(-1, dp(48)));
+        bottomHolder.setBackgroundColor(SURFACE);
+        bottomHolder.addView(sendFooter, new FrameLayout.LayoutParams(
+                -1, -2, Gravity.BOTTOM));
     }
 
     // ======================================================================== credits / charges
@@ -11436,7 +11447,7 @@ public class MainActivity extends Activity {
         LinearLayout shortcutsCard = card(14);
         shortcutsCard.addView(text("⌨️ קיצורי מקשים", 15, true));
         shortcutsCard.addView(muted("מדריך אינטראקטיבי לקיצורי המקשים", 13), lp(-1, -2, 0, 8));
-        TextView shortcutsButton = btn("קיצורי מקשים", TONAL);
+        TextView shortcutsButton = btn("⌨️ קיצורי מקשים", TONAL);
         shortcutsButton.setContentDescription("פתיחת מדריך קיצורי מקשים");
         shortcutsButton.setOnClickListener(v -> showKeyboardShortcuts());
         shortcutsCard.addView(shortcutsButton, new LinearLayout.LayoutParams(-1, dp(46)));
