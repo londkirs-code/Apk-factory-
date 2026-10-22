@@ -1,9 +1,9 @@
 {
-  "versionCode": 387,
-  "versionName": "1.4842",
+  "versionCode": 388,
+  "versionName": "1.4843",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "df9571144ddea886d1d09280b787e63712e3f2154ce2e25d98af8914f910be86",
+  "sha256": "3fbffa9047cb2d7af6a03543bac1cb979f6df87da0932580d7ca3609da86b0f3",
   "releaseTitle": "תיקון החלפת צבע לכל פסי ההזזה וההתקדמות",
   "releaseNotes": "- פסי ההזזה בהגדרות התצוגה מתעדכנים מיד כשמחליפים בין ערכת הכתום לערכת הסגול, גם כשהם נמצאים בחלון קופץ פתוח.\n- צבע הידית והפס הפעיל נלקח מהערכת הנושא הפעילה; מסילת הרקע מתאימה לצבעי הממשק.\n- הוגדר כלל מרכזי אחד לכל רכיבי פסי ההזזה ומדדי ההתקדמות, עם רישום חלש של הרכיבים החיים כדי לעדכן גם חלונות נפרדים בלי להשאיר מסכים סגורים בזיכרון.\n- השינוי נוגע לצביעה בלבד ואינו משנה את פעולת הפקדים.",
-  "buildCommit": "fe1568807cf21dfc75c3f18c2a950ca0ae76ee68"
+  "buildCommit": "3bae5024fd0f5495b3231688b6aca0b3f7de5191"
 }
