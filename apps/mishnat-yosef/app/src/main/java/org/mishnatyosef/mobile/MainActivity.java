@@ -269,7 +269,9 @@ public class MainActivity extends Activity {
      * including controls that were created before the user changed the theme.
      */
     private void tintProgressControl(ProgressBar bar) {
-        if (bar == null || Build.VERSION.SDK_INT < 21) return;
+        if (bar == null) return;
+        progressControls.add(bar);
+        if (Build.VERSION.SDK_INT < 21) return;
         bar.setProgressTintList(ColorStateList.valueOf(ORANGE));
         bar.setProgressBackgroundTintList(ColorStateList.valueOf(LINE));
         bar.setIndeterminateTintList(ColorStateList.valueOf(ORANGE));
@@ -397,6 +399,9 @@ public class MainActivity extends Activity {
     private void rethemeActiveUi(PaletteSnapshot old) {
         Set<View> visited = new HashSet<>();
         rethemeViewTree(currentScreen, old, visited);
+        // Dialogs/popups have separate window roots, so refresh all live bars independently of the
+        // main screen tree. Weak references avoid keeping dismissed popup contents alive.
+        for (ProgressBar bar : progressControls) tintProgressControl(bar);
         // Cached tabs and product rows must change too, or old colors can reappear on navigation/scroll.
         Set<ProductAdapter> adapters = new HashSet<>();
         if (productAdapter != null) adapters.add(productAdapter);
@@ -483,6 +488,9 @@ public class MainActivity extends Activity {
     private android.app.Dialog imageViewerDialog;
     private SeekBar actionScaleBar;
     private TextView actionScaleValue;
+    // Weak references keep sliders in dialogs/windows theme-aware without retaining closed screens.
+    private final Set<ProgressBar> progressControls =
+            Collections.newSetFromMap(new java.util.WeakHashMap<ProgressBar, Boolean>());
     private boolean simpleKeyboardNavigation() { return prefs.getBoolean("simple_keyboard_navigation", true); }
 
     // ---- ordering state
@@ -2206,11 +2214,7 @@ public class MainActivity extends Activity {
         scaleBar.setMax(12);
         scaleBar.setProgress((scaleStart - 70) / 5);
         scaleBar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        if (Build.VERSION.SDK_INT >= 21) {
-            scaleBar.setProgressTintList(ColorStateList.valueOf(ORANGE));
-            scaleBar.setThumbTintList(ColorStateList.valueOf(ORANGE));
-            scaleBar.setProgressBackgroundTintList(ColorStateList.valueOf(LINE));
-        }
+        tintProgressControl(scaleBar);
         panel.addView(scaleBar, new LinearLayout.LayoutParams(-1, dp(38)));
         scaleBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
@@ -2237,11 +2241,7 @@ public class MainActivity extends Activity {
         columnsBar.setMax(4);
         columnsBar.setProgress(columnsStart - 1);
         columnsBar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        if (Build.VERSION.SDK_INT >= 21) {
-            columnsBar.setProgressTintList(ColorStateList.valueOf(ORANGE));
-            columnsBar.setThumbTintList(ColorStateList.valueOf(ORANGE));
-            columnsBar.setProgressBackgroundTintList(ColorStateList.valueOf(LINE));
-        }
+        tintProgressControl(columnsBar);
         panel.addView(columnsBar, new LinearLayout.LayoutParams(-1, dp(38)));
         columnsBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
@@ -3714,9 +3714,7 @@ public class MainActivity extends Activity {
         updateProgressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         updateProgressBar.setMax(100);
         updateProgressBar.setProgress(0);
-        updateProgressBar.setProgressTintList(ColorStateList.valueOf(ORANGE));
-        updateProgressBar.setProgressBackgroundTintList(ColorStateList.valueOf(ORANGE_LIGHT));
-        updateProgressBar.setIndeterminateTintList(ColorStateList.valueOf(ORANGE));
+        tintProgressControl(updateProgressBar);
         updateProgressBar.setVisibility(View.GONE);
         LinearLayout.LayoutParams progressLp = lp(-1, dp(10), 0, 4);
         progressLp.leftMargin = dp(2); progressLp.rightMargin = dp(2);
@@ -10268,11 +10266,7 @@ public class MainActivity extends Activity {
         slider.setProgress(initialColumns - 1);
         slider.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         slider.setContentDescription("מספר עמודות בכרטיסי המוצרים, בין עמודה אחת לחמש");
-        if (Build.VERSION.SDK_INT >= 21) {
-            slider.setProgressTintList(ColorStateList.valueOf(ORANGE));
-            slider.setThumbTintList(ColorStateList.valueOf(ORANGE));
-            slider.setProgressBackgroundTintList(ColorStateList.valueOf(LINE));
-        }
+        tintProgressControl(slider);
         LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(-1, dp(48));
         sliderParams.topMargin = dp(8);
         panel.addView(slider, sliderParams);
