@@ -7027,7 +7027,6 @@ public class MainActivity extends Activity {
         catCounts.clear();
 
         Map<String, List<JSONObject>> byCat = new LinkedHashMap<>();
-        final Map<String, Integer> catOrder = new LinkedHashMap<>();
         for (JSONObject p : featureProducts) {
             String name = productName(p);
             if (!filterText.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(filterText)) continue;
@@ -7038,9 +7037,7 @@ public class MainActivity extends Activity {
             if ("fav".equals(viewMode) && !favIds.contains(pidOf(p))) continue;
             if ("cart".equals(viewMode)) { Integer qq = featureQuantities.get(sidOf(p)); if (qq == null || qq <= 0) continue; }
             String cat = separateSoldOutCategory() && isSoldOut(p) ? "פריטים שאזלו" : categoryName(p);
-            int order = "פריטים שאזלו".equals(cat) ? 10000 : categoryOrder(p);
-            if (!byCat.containsKey(cat)) { byCat.put(cat, new ArrayList<JSONObject>()); catOrder.put(cat, order); }
-            else catOrder.put(cat, Math.min(catOrder.get(cat), order));
+            if (!byCat.containsKey(cat)) byCat.put(cat, new ArrayList<JSONObject>());
             byCat.get(cat).add(p);
         }
         // byCat is a LinkedHashMap populated while walking the server's product list.
