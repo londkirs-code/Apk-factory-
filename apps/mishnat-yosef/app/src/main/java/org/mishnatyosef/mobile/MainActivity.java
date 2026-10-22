@@ -3878,8 +3878,7 @@ public class MainActivity extends Activity {
                     updateStatusView.setTextColor(ORANGE_DARK);
                     if (updateCheckButton != null) updateCheckButton.setEnabled(true);
                     if (updateDownloadButton != null) updateDownloadButton.setEnabled(true);
-                    boolean cachedUpdateAvailable = updateLatestCode > 0
-                            && updateLatestCode != installedVersionCode()
+                    boolean cachedUpdateAvailable = updateLatestCode > installedVersionCode()
                             && updateLatestSha256.matches("[0-9a-f]{64}");
                     updateDownloadButton.setEnabled(cachedUpdateAvailable);
                     styleActionButton(updateDownloadButton,
@@ -3925,7 +3924,11 @@ public class MainActivity extends Activity {
     }
 
     private void downloadLatestUpdate() {
-        if (updateLatestCode <= 0 || !updateLatestSha256.matches("[0-9a-f]{64}")) {
+        if (updateLatestCode <= installedVersionCode()) {
+            toast("לא נמצאה גרסה חדשה יותר מהגרסה המותקנת. לא תבוצע התקנה לאחור.", false);
+            return;
+        }
+        if (!updateLatestSha256.matches("[0-9a-f]{64}")) {
             toast("צריך לבצע בדיקת עדכונים מוצלחת לפני ההורדה.", true);
             return;
         }
@@ -4085,7 +4088,8 @@ public class MainActivity extends Activity {
         File verifiedFile = savedVerifiedUpdateFile();
         if (!prefs.getBoolean("update_download_verified", false)
                 || verifiedCode != updateLatestCode
-                || updateLatestCode <= 0) {
+                || verifiedCode <= installedVersionCode()
+                || updateLatestCode <= installedVersionCode()) {
             toast("אין קובץ עדכון מאומת להתקנה. בדוק עדכונים והורד מחדש.", true);
             return;
         }
