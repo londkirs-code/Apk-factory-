@@ -67,13 +67,35 @@ jobs:
         id: source-access
         shell: bash
         env:
-          SOURCE_REPOSITORY: \${{ inputs.repository }}
-          SOURCE_TOKEN: \${{ secrets.SOURCE_REPO_TOKEN }}
+          SOURCE_REPOSITORY: ${{ inputs.repository }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
         run: |
           set -euo pipefail
           API_URL="https://api.github.com/repos/$SOURCE_REPOSITORY"
-          if [[ -n "\${SOURCE_TOKEN:-}" ]]; then
-            RESPONSE="$(curl -sS -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $SOURCE_TOKEN" "$API_URL" -w 
+          if [ -n "$SOURCE_TOKEN" ]; then
+            HTTP_CODE="$(curl -sS -o "$RUNNER_TEMP/source-repo.json" -w '%{http_code}' -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $SOURCE_TOKEN" "$API_URL")"
+          else
+            HTTP_CODE="$(curl -sS -o "$RUNNER_TEMP/source-repo.json" -w '%{http_code}' -H "Accept: application/vnd.github+json" "$API_URL")"
+          fi
+          if [ "$HTTP_CODE" != "200" ]; then
+            if [ -z "$SOURCE_TOKEN" ]; then
+              echo "::error::GitHub could not read '$SOURCE_REPOSITORY' (HTTP $HTTP_CODE). Check the owner/repository spelling and confirm it is public. If it is private, add a repository-scoped token as SOURCE_REPO_TOKEN in APK Factory."
+            else
+              echo "::error::GitHub could not read '$SOURCE_REPOSITORY' (HTTP $HTTP_CODE), even with SOURCE_REPO_TOKEN. Check the repository name and token permissions."
+            fi
+            cat "$RUNNER_TEMP/source-repo.json"
+            exit 1
+          fi
+          IS_PRIVATE="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("private", True)).lower())' "$RUNNER_TEMP/source-repo.json")"
+          DEFAULT_BRANCH="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("default_branch", ""))' "$RUNNER_TEMP/source-repo.json")"
+          if [ "$IS_PRIVATE" = "true" ] && [ -z "$SOURCE_TOKEN" ]; then
+            echo "::error::'$SOURCE_REPOSITORY' is private. Add a token with read access to that repository as SOURCE_REPO_TOKEN in APK Factory, then run the import again."
+            exit 1
+          fi
+          echo "private=$IS_PRIVATE" >> "$GITHUB_OUTPUT"
+          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "Repository access verified: $SOURCE_REPOSITORY (private=$IS_PRIVATE, default branch=$DEFAULT_BRANCH)"
+
       - name: Checkout APK Factory tools
         uses: actions/checkout@v4
         with:
