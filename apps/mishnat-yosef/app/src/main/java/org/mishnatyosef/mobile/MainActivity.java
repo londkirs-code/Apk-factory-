@@ -263,9 +263,26 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Apply the active accent to every native progress control through one shared rule.
+     * This covers settings sliders and progress indicators across the entire view tree,
+     * including controls that were created before the user changed the theme.
+     */
+    private void tintProgressControl(ProgressBar bar) {
+        if (bar == null || Build.VERSION.SDK_INT < 21) return;
+        bar.setProgressTintList(ColorStateList.valueOf(ORANGE));
+        bar.setProgressBackgroundTintList(ColorStateList.valueOf(LINE));
+        bar.setIndeterminateTintList(ColorStateList.valueOf(ORANGE));
+        if (bar instanceof SeekBar) {
+            ((SeekBar) bar).setThumbTintList(ColorStateList.valueOf(ORANGE));
+        }
+    }
+
     private void rethemeViewTree(View view, PaletteSnapshot old, Set<View> visited) {
         if (view == null || !visited.add(view)) return;
         rethemeDrawable(view.getBackground(), old);
+        // Retint every slider/progress indicator centrally, rather than by screen or instance.
+        if (view instanceof ProgressBar) tintProgressControl((ProgressBar) view);
         // The center collect button uses ORANGE as its fill, but in the classic palette
         // that same RGB is also HEADER_BG. Generic color remapping therefore mistakes
         // the button fill for a header and turns it into the pale purple header color.
