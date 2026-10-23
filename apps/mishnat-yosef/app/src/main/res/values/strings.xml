@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">משנת יוסף</string>
-    <string name="release_notes_title">חישוב נכון של סך ההזמנה</string>
-    <string name="release_notes_details">- סך ההזמנה מחושב מחדש ממחיר × כמות של המוצרים שמופיעים בהזמנה בפועל.\n- לא מסתמכים על total_list אם מחירי כל שורות ההזמנה זמינים, משום שהשדה עלול להציג סכום קודם.\n- אם חסרים מחירי שורות תקינים, total_list נשאר גיבוי.</string>
+    <string name="release_notes_title">שיפור מסך ההזמנה שלי</string>
+    <string name="release_notes_details">- תיקון קפיצת הבחירה ומיקום הגלילה לאחר לחיצה על בקרי הכמות בסיכום ההזמנה.\n- כפתור „מחק הזמנה” זמין במצב איסוף, בעיצוב תואם לכפתורי המסך ועם חלון אישור.</string>
 </resources>

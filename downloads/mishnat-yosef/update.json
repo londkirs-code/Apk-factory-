@@ -1,9 +1,9 @@
 {
-  "versionCode": 397,
-  "versionName": "1.4852",
+  "versionCode": 398,
+  "versionName": "1.4853",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "1d44b6de320bd9c4b07ea219eeac93c71589c16407b1dfd660e53172bf1a3522",
-  "releaseTitle": "חישוב נכון של סך ההזמנה",
-  "releaseNotes": "- סך ההזמנה מחושב מחדש ממחיר × כמות של המוצרים שמופיעים בהזמנה בפועל.\n- לא מסתמכים על total_list אם מחירי כל שורות ההזמנה זמינים, משום שהשדה עלול להציג סכום קודם.\n- אם חסרים מחירי שורות תקינים, total_list נשאר גיבוי.",
-  "buildCommit": "307627fe96603aab2185096f5b0aea3cae798cb8"
+  "sha256": "ef84e7372735bfd2968ad47a196f6417ae18a806c1613759d6e75223676c98fa",
+  "releaseTitle": "שיפור מסך ההזמנה שלי",
+  "releaseNotes": "- תיקון קפיצת הבחירה ומיקום הגלילה לאחר לחיצה על בקרי הכמות בסיכום ההזמנה.\n- כפתור „מחק הזמנה” זמין במצב איסוף, בעיצוב תואם לכפתורי המסך ועם חלון אישור.",
+  "buildCommit": "6ef9ad9d42eaffd2849dd8f292e7cbf9d5ab5e79"
 }
