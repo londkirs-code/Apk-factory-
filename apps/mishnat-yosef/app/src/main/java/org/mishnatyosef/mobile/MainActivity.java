@@ -8164,19 +8164,27 @@ public class MainActivity extends Activity {
         View plus = root.findViewWithTag("summaryFocus:" + sid + ":plus");
         View minus = root.findViewWithTag("summaryFocus:" + sid + ":minus");
         View totalView = root.findViewWithTag("summaryLineTotal:" + sid);
-        if (line == null || product == null || !(qtyView instanceof TextView)
-                || !(plus instanceof View) || !(minus instanceof View) || !(totalView instanceof TextView)) {
-            return false;
-        }
+
+        // A missing server-side product object must not force a full-screen rebuild. The
+        // existing row already owns working listeners; keep those controls and their focus.
+        if (!(qtyView instanceof TextView) || plus == null || minus == null) return false;
+
         View empty = root.findViewWithTag("summaryEmptyState");
         if (empty != null && empty.getParent() == summaryList) summaryList.removeView(empty);
         ((TextView) qtyView).setText(String.valueOf(qty));
-        ((TextView) totalView).setText(line.price > 0 ? money(line.price * qty) : "");
+        if (totalView instanceof TextView) {
+            double unitPrice = line != null ? line.price : (product != null ? productPrice(product) : 0);
+            ((TextView) totalView).setText(unitPrice > 0 ? money(unitPrice * qty) : "");
+        }
         final int currentQty = qty;
-        plus.setOnClickListener(v -> changeBy(product, 1, summaryRefresh, this::refreshServerTotals));
-        minus.setOnClickListener(v -> {
-            if (currentQty > 0) changeBy(product, -1, summaryRefresh, this::refreshServerTotals);
-        });
+        if (product != null) {
+            plus.setOnClickListener(v -> changeBy(product, 1, summaryRefresh, this::refreshServerTotals));
+            minus.setOnClickListener(v -> {
+                if (featureQuantities.getOrDefault(sid, 0) > 0) {
+                    changeBy(product, -1, summaryRefresh, this::refreshServerTotals);
+                }
+            });
+        }
         boolean busy = pending.contains(sid);
         setEnabledLook(plus, !busy);
         setEnabledLook(minus, !busy && currentQty > 0);
