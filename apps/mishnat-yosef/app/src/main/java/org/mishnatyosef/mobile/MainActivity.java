@@ -6164,7 +6164,8 @@ public class MainActivity extends Activity {
         od.saleName = saleTitle(sale);
         od.saleId = order.optLong("saleID", sale == null ? 0 : sale.optLong("id", 0));
         if (od.saleName.isEmpty()) od.saleName = "מכירה " + first(order, "saleID", "sale_id");
-        if (order.has("total_list") && !order.isNull("total_list")) od.total = num(order.opt("total_list"));
+        // total_list can remain stale even when the server's product quantities are current.
+        // Recompute the displayed order value from the actual returned order lines below.
         od.credits = num(order.opt("trans_list"));
 
         JSONArray products = orderItemsFrom(order);
@@ -6194,6 +6195,14 @@ public class MainActivity extends Activity {
             line.amount += amount;
         }
         od.lines.addAll(bySid.values());
+        double computedTotal = 0;
+        boolean allPricesKnown = !od.lines.isEmpty();
+        for (OrderLine line : od.lines) {
+            if (line.price <= 0) allPricesKnown = false;
+            computedTotal += line.price * line.amount;
+        }
+        // Keep the API value only as a fallback if this response lacks usable line prices.
+        od.total = allPricesKnown ? computedTotal : (order.has("total_list") && !order.isNull("total_list") ? num(order.opt("total_list")) : -1);
         return od;
     }
 
@@ -7934,29 +7943,16 @@ public class MainActivity extends Activity {
         else beginScreen("ההזמנה שלי", 0, this::renderFeatureProducts);
         setStatus("טוען את ההזמנה מהשרת…");
         final int t = screenToken;
-        final long orderId = featureOrderId;
-        loadOrderSummaryFromServer(t, orderId);
-    }
-
-    /** Do not paint a possibly stale server snapshot while an item write is still in flight. */
-    private void loadOrderSummaryFromServer(final int t, final long orderId) {
-        if (stale(t) || featureOrderId != orderId) return;
         executor.execute(() -> {
             try {
-                final OrderData od = fetchOrder(orderId);
+                OrderData od = fetchOrder(featureOrderId);
                 runOnUiThread(() -> {
-                    if (stale(t) || featureOrderId != orderId) return;
-                    if (!pending.isEmpty()) {
-                        ui.postDelayed(() -> loadOrderSummaryFromServer(t, orderId), 400);
-                        return;
-                    }
+                    if (stale(t)) return;
                     summary = od;
                     syncOrderDataFromServer(od);
                     renderOrderSummary();
                 });
-            } catch (Exception e) {
-                if (!stale(t)) runOnUiThread(() -> fail(t, e, "טעינת סיכום ההזמנה נכשלה."));
-            }
+            } catch (Exception e) { fail(t, e, "טעינת סיכום ההזמנה נכשלה."); }
         });
     }
 
@@ -8144,14 +8140,6 @@ public class MainActivity extends Activity {
                 OrderData od = fetchOrder(orderId);
                 runOnUiThread(() -> {
                     if (stale(t) || featureOrderId != orderId || summary == null) return;
-                    // A GET started before an item update completed can return the old total.
-                    // Wait for all writes to finish, then fetch a fresh authoritative snapshot.
-                    if (!pending.isEmpty()) {
-                        ui.postDelayed(() -> {
-                            if (!stale(t) && featureOrderId == orderId) refreshServerTotals();
-                        }, 400);
-                        return;
-                    }
                     syncOrderDataFromServer(od);
                     if (screenKind == 2) {
                         rebuildSummary();
