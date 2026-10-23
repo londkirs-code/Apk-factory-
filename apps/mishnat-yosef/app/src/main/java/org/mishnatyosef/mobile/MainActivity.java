@@ -7969,17 +7969,25 @@ public class MainActivity extends Activity {
         head.addView(progressView);
         root.addView(head, lp(-1, -2, 0, 10));
 
-        // Mode switch: hide the irrelevant Edit button while collecting.
+        // Keep mode controls stable; show a matching delete button while in collection mode.
         LinearLayout modes = new LinearLayout(this);
         final TextView edit = btn("✏️ עריכה", PRIMARY);
         final TextView collect = btn(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
+        final TextView delete = btn("🗑 מחק הזמנה", RED_LIGHT);
         edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
+        delete.setVisibility(collectMode && !summaryFromHistory && !closedOrderReadOnly ? View.VISIBLE : View.GONE);
+        delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+        delete.setTextColor(RED);
         edit.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(edit, collect); });
         collect.setOnClickListener(v -> { collectMode = !collectMode; if (collectMode) collectionCelebrationShown = false; rebuildSummary(); updateModeButtons(edit, collect); });
+        delete.setOnClickListener(v -> confirmDeleteOrder());
         modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
         if (!collectMode) cp.setMarginStart(dp(8));
         modes.addView(collect, cp);
+        LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(0, dp(44), 1);
+        if (collectMode) deleteLp.setMarginStart(dp(8));
+        modes.addView(delete, deleteLp);
         TextView summaryActions = btn("⋯", TONAL);
         summaryActions.setTag("orderSummaryOptions");
         summaryActions.setContentDescription("אפשרויות נוספות להזמנה");
@@ -8051,6 +8059,7 @@ public class MainActivity extends Activity {
         if (collectMode) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         final int keepScroll = scrollView == null ? 0 : scrollView.getScrollY();
+        final Object focusTag = getCurrentFocus() == null ? null : getCurrentFocus().getTag();
         summaryList.removeAllViews();
         collectedList.removeAllViews();
         Set<String> collected = collectedSet();
@@ -8079,7 +8088,15 @@ public class MainActivity extends Activity {
         if (allCollected) collectionCelebrationShown = true;
         else collectionCelebrationShown = false;
         updateSummaryTotals();
-        if (scrollView != null && keepScroll > 0) scrollView.post(() -> scrollView.scrollTo(0, keepScroll));
+        // Rebuilding rows after every tap used to destroy the focused control and reset
+        // the user's keyboard/remote selection. Restore both the viewport and its control.
+        if (scrollView != null) scrollView.post(() -> {
+            scrollView.scrollTo(0, keepScroll);
+            if (focusTag != null && root != null) {
+                View target = root.findViewWithTag(focusTag);
+                if (target != null && target.isShown()) target.requestFocus();
+            }
+        });
     }
 
     private void updateSummaryTotals() {
@@ -8199,6 +8216,10 @@ public class MainActivity extends Activity {
         if (editable) {
             Stepper st = stepper(36);
             st.qty.setText(String.valueOf(qty));
+            row.setTag("summaryRow:" + line.sid);
+            st.plus.setTag("summaryFocus:" + line.sid + ":plus");
+            st.minus.setTag("summaryFocus:" + line.sid + ":minus");
+            st.qty.setTag("summaryFocus:" + line.sid + ":qty");
             boolean busyNow = pending.contains(line.sid);
             setEnabledLook(st.plus, !busyNow);
             setEnabledLook(st.minus, !busyNow && qty > 0);
