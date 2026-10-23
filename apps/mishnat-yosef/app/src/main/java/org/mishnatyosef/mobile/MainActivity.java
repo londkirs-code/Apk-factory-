@@ -824,6 +824,16 @@ public class MainActivity extends Activity {
                 return firstProduct != null;
             }
         }
+        if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN && showingOrderScreen
+                && current != null && isOrderToolbarView(current)
+                && !(catStripRow != null && isDescendantOf(current, catStripRow))) {
+            View first = firstProductNavigationTarget();
+            if (first != null) {
+                if (current == activeProductSearch) hideKeyboard();
+                requestProductFocus(first);
+                return true;
+            }
+        }
         if (current == orderSummaryButton && key == android.view.KeyEvent.KEYCODE_DPAD_UP) {
             return moveFocusFromOrderSummaryToLastProduct();
         }
@@ -6727,6 +6737,7 @@ public class MainActivity extends Activity {
                 setStatus("");
                 rebuildGrid();
                 updateOrderBar();
+                focusFirstProductByDefault();
                 navigateToPendingStockProduct(saleId);
                 if (!silent) toast("✔ נטענו " + featureProducts.size() + " מוצרים", false);
             }
@@ -6825,6 +6836,18 @@ public class MainActivity extends Activity {
                 });
             } catch (Exception ignored) { }
         });
+    }
+
+    private void focusFirstProductByDefault() {
+        if (productList == null) return;
+        final ListView list = productList;
+        list.post(() -> list.post(() -> {
+            if (productList != list || screenKind != 1 || !showingOrderScreen) return;
+            View f = getCurrentFocus();
+            if (f != null && (f == activeProductSearch || isProductNavigationView(f))) return;
+            View first = firstProductNavigationTarget();
+            if (first != null) requestProductFocus(first);
+        }));
     }
 
     private void renderFeatureProducts() {
@@ -7056,6 +7079,7 @@ public class MainActivity extends Activity {
                 }
             });
         }
+        focusFirstProductByDefault();
         returnToOrderScreenOnSalesTab = false;
 
     }
