@@ -1,1 +1,1 @@
-APK for mishnat-yosef, versionName 1.4848, versionCode 393, built from commit c0e14c5f92d9f9760ae0ff9ac9ffec3b42e7ad9f.
+APK for mishnat-yosef, versionName 1.4849, versionCode 394, built from commit 8a987948aa9734046bd7fe4a259157aa57a270a6.
