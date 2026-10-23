@@ -7971,23 +7971,27 @@ public class MainActivity extends Activity {
 
         // Keep mode controls stable; show a matching delete button while in collection mode.
         LinearLayout modes = new LinearLayout(this);
-        final TextView edit = btn("✏️ עריכה", PRIMARY);
+        final TextView delete = btn(summaryFromHistory ? "✏️ עריכה" : "🗑 מחק הזמנה",
+                summaryFromHistory ? PRIMARY : DANGER);
+        delete.setTag("orderSummaryDelete");
         final TextView collect = btn(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
-        final TextView delete = btn("🗑 מחק הזמנה", RED_LIGHT);
-        edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
-        delete.setVisibility(collectMode && !summaryFromHistory && !closedOrderReadOnly ? View.VISIBLE : View.GONE);
-        delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        delete.setTextColor(RED);
-        edit.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(edit, collect); });
-        collect.setOnClickListener(v -> { collectMode = !collectMode; if (collectMode) collectionCelebrationShown = false; rebuildSummary(); updateModeButtons(edit, collect); });
-        delete.setOnClickListener(v -> confirmDeleteOrder());
-        modes.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        if (!collectMode) cp.setMarginStart(dp(8));
-        modes.addView(collect, cp);
+        collect.setTag("orderSummaryCollect");
+        if (summaryFromHistory) {
+            delete.setVisibility(collectMode ? View.GONE : View.VISIBLE);
+            delete.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(delete, collect); });
+        } else {
+            delete.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            // Match the app's semantic deletion palette, with a stronger red outline for clarity.
+            delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
+            delete.setTextColor(RED);
+            delete.setOnClickListener(v -> confirmDeleteOrder());
+        }
+        collect.setOnClickListener(v -> { collectMode = !collectMode; if (collectMode) collectionCelebrationShown = false; rebuildSummary(); updateModeButtons(delete, collect); });
         LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        if (collectMode) deleteLp.setMarginStart(dp(8));
         modes.addView(delete, deleteLp);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
+        cp.setMarginStart(dp(8));
+        modes.addView(collect, cp);
         TextView summaryActions = btn("⋯", TONAL);
         summaryActions.setTag("orderSummaryOptions");
         summaryActions.setContentDescription("אפשרויות נוספות להזמנה");
@@ -8045,11 +8049,17 @@ public class MainActivity extends Activity {
         rebuildSummary();
     }
 
-    private void updateModeButtons(TextView edit, TextView collect) {
-        edit.setVisibility(collectMode ? View.GONE : View.VISIBLE);
+    private void updateModeButtons(TextView delete, TextView collect) {
+        if (summaryFromHistory) {
+            delete.setVisibility(collectMode ? View.GONE : View.VISIBLE);
+            delete.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+            delete.setTextColor(ON_ORANGE);
+        } else {
+            delete.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
+            delete.setTextColor(RED);
+        }
         collect.setText(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף");
-        edit.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        edit.setTextColor(ON_ORANGE);
         collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         collect.setTextColor(collectMode ? ON_ORANGE : ORANGE_DARK);
     }
@@ -8077,7 +8087,9 @@ public class MainActivity extends Activity {
             }
         }
         if (total == 0) {
-            summaryList.addView(muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14), lp(-1, -2, 12, 0));
+            TextView empty = muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14);
+            empty.setTag("summaryEmptyState");
+            summaryList.addView(empty, lp(-1, -2, 12, 0));
         }
         collectedBox.setVisibility(collectMode && done > 0 ? View.VISIBLE : View.GONE);
         View title = collectedBox.findViewWithTag("collectedTitle");
@@ -8120,9 +8132,88 @@ public class MainActivity extends Activity {
         summarySub.setText(sub);
     }
 
+    /**
+     * Update a single existing order row without destroying its controls. This is deliberately
+     * separate from rebuildSummary(): removing and recreating the entire list on every tap loses
+     * Android/keyboard focus even if the scroll offset is restored afterward.
+     */
+    private boolean refreshSummaryRowInPlace(String sid) {
+        if (sid == null || sid.isEmpty() || root == null || summaryList == null || summary == null
+                || collectMode || summaryFromHistory) return false;
+        View row = root.findViewWithTag("summaryRow:" + sid);
+        int qty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+        if (qty <= 0) {
+            if (row != null && row.getParent() instanceof ViewGroup) {
+                ((ViewGroup) row.getParent()).removeView(row);
+            }
+            if (summaryList.getChildCount() == 0) {
+                TextView empty = muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14);
+                empty.setTag("summaryEmptyState");
+                summaryList.addView(empty, lp(-1, -2, 12, 0));
+            }
+            updateSummaryTotals();
+            return true;
+        }
+        if (row == null) return false;
+        OrderLine line = null;
+        for (OrderLine candidate : summary.lines) {
+            if (sid.equals(candidate.sid)) { line = candidate; break; }
+        }
+        JSONObject product = findProduct(sid);
+        View qtyView = root.findViewWithTag("summaryFocus:" + sid + ":qty");
+        View plus = root.findViewWithTag("summaryFocus:" + sid + ":plus");
+        View minus = root.findViewWithTag("summaryFocus:" + sid + ":minus");
+        View totalView = root.findViewWithTag("summaryLineTotal:" + sid);
+        if (line == null || product == null || !(qtyView instanceof TextView)
+                || !(plus instanceof View) || !(minus instanceof View) || !(totalView instanceof TextView)) {
+            return false;
+        }
+        View empty = root.findViewWithTag("summaryEmptyState");
+        if (empty != null && empty.getParent() == summaryList) summaryList.removeView(empty);
+        ((TextView) qtyView).setText(String.valueOf(qty));
+        ((TextView) totalView).setText(line.price > 0 ? money(line.price * qty) : "");
+        final int currentQty = qty;
+        plus.setOnClickListener(v -> changeBy(product, 1, summaryRefresh, this::refreshServerTotals));
+        minus.setOnClickListener(v -> {
+            if (currentQty > 0) changeBy(product, -1, summaryRefresh, this::refreshServerTotals);
+        });
+        boolean busy = pending.contains(sid);
+        setEnabledLook(plus, !busy);
+        setEnabledLook(minus, !busy && currentQty > 0);
+        updateSummaryTotals();
+        return true;
+    }
+
+    /** Refresh all visible order rows in place after the server confirms an edit. */
+    private boolean refreshSummaryRowsInPlace() {
+        if (summary == null || root == null || summaryList == null || collectMode || summaryFromHistory) return false;
+        for (OrderLine line : summary.lines) {
+            if (lineQty(line) > 0 && !refreshSummaryRowInPlace(line.sid)) return false;
+        }
+        // Rows for items removed by the server must not linger. Iterate backwards so removals are safe.
+        for (int i = summaryList.getChildCount() - 1; i >= 0; i--) {
+            View child = summaryList.getChildAt(i);
+            Object tag = child.getTag();
+            if (tag instanceof String && ((String) tag).startsWith("summaryRow:")) {
+                String sid = ((String) tag).substring("summaryRow:".length());
+                if (!featureQuantities.containsKey(sid) || featureQuantities.get(sid) <= 0) {
+                    summaryList.removeViewAt(i);
+                }
+            }
+        }
+        if (summaryList.getChildCount() == 0) {
+            TextView empty = muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14);
+            empty.setTag("summaryEmptyState");
+            summaryList.addView(empty, lp(-1, -2, 12, 0));
+        }
+        updateSummaryTotals();
+        return true;
+    }
+
     private final Runnable summaryRefresh = new Runnable() {
         @Override public void run() {
             if (summary != null && !pending.isEmpty()) summary.total = -1;
+            if (lastChangedProductSid != null && refreshSummaryRowInPlace(lastChangedProductSid)) return;
             rebuildSummary();
         }
     };
@@ -8158,10 +8249,10 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (stale(t) || featureOrderId != orderId || summary == null) return;
                     syncOrderDataFromServer(od);
-                    if (screenKind == 2) {
+                    if (screenKind == 2 && !refreshSummaryRowsInPlace()) {
                         rebuildSummary();
-                        updateSummaryTotals();
                     }
+                    if (screenKind == 2) updateSummaryTotals();
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -8233,6 +8324,7 @@ public class MainActivity extends Activity {
         }
         bottom.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
         TextView lineTotal = text(line.price > 0 ? money(line.price * qty) : "", 16, true);
+        lineTotal.setTag("summaryLineTotal:" + line.sid);
         lineTotal.setTextColor(ORANGE_DARK);
         bottom.addView(lineTotal);
         col.addView(bottom, lp(-1, -2, 6, 0));
@@ -8288,13 +8380,55 @@ public class MainActivity extends Activity {
         row.setAlpha(isDone ? 0.8f : 1f);
 
         TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? SURFACE : GREEN_LIGHT, GREEN);
+        check.setTag("collectionFocus:" + line.sid);
         LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(dp(46), dp(46));
         chkLp.setMarginEnd(dp(10));
+        row.setTag("collectionRow:" + line.sid);
         final View.OnClickListener toggle = v -> {
             v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
             boolean wasDone = collectedSet().contains(line.sid);
+            View oldRow = root == null ? null : root.findViewWithTag("collectionRow:" + line.sid);
+            boolean restoreCollectionFocus = v.isFocused()
+                    || (oldRow != null && oldRow.hasFocus());
             toggleCollected(line.sid);
-            rebuildSummary();
+            // Move only the tapped row between lists; rebuilding every row loses keyboard focus.
+            if (oldRow != null && oldRow.getParent() instanceof ViewGroup) {
+                ((ViewGroup) oldRow.getParent()).removeView(oldRow);
+            }
+            boolean nowDone = collectedSet().contains(line.sid);
+            LinearLayout target = nowDone ? collectedList : summaryList;
+            int insertAt = 0;
+            for (OrderLine candidate : summary.lines) {
+                if (candidate.sid.equals(line.sid)) break;
+                if (lineQty(candidate) > 0 && collectedSet().contains(candidate.sid) == nowDone) insertAt++;
+            }
+            View newRow = collectRow(line, lineQty(line), nowDone);
+            target.addView(newRow, Math.min(insertAt, target.getChildCount()), lp(-1, -2, 0, nowDone ? 6 : 8));
+            if (restoreCollectionFocus && root != null) {
+                root.post(() -> {
+                    View focusTarget = root.findViewWithTag("collectionFocus:" + line.sid);
+                    if (focusTarget != null && focusTarget.isShown()) focusTarget.requestFocus();
+                });
+            }
+            if (summaryList.getChildCount() == 0) {
+                TextView empty = muted("כל הפריטים נאספו.", 14);
+                empty.setTag("collectionEmptyState");
+                summaryList.addView(empty, lp(-1, -2, 12, 0));
+            } else {
+                View empty = root == null ? null : root.findViewWithTag("collectionEmptyState");
+                if (empty != null && empty.getParent() == summaryList) summaryList.removeView(empty);
+            }
+            collectedBox.setVisibility(nowDone || collectedList.getChildCount() > 0 ? View.VISIBLE : View.GONE);
+            int done = 0, total = 0;
+            for (OrderLine item : summary.lines) {
+                if (lineQty(item) <= 0) continue;
+                total++;
+                if (collectedSet().contains(item.sid)) done++;
+            }
+            View title = collectedBox.findViewWithTag("collectedTitle");
+            if (title instanceof TextView) ((TextView) title).setText("✔ נאספו (" + done + ")");
+            progressView.setText(done == total && total > 0 ? "✓ כל הפריטים נאספו! כל הכבוד!" : "נאספו " + done + " מתוך " + total + " פריטים");
+            updateSummaryTotals();
             toast((wasDone ? "↩ הוחזר לרשימה: " : "✔ נאסף: ") + line.name, false);
         };
         check.setOnClickListener(toggle);
