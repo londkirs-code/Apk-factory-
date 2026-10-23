@@ -423,9 +423,30 @@ public class MainActivity extends Activity {
         PaletteSnapshot old = new PaletteSnapshot();
         prefs.edit().putBoolean("purple_theme", usePurple).apply();
         applyPalette();
-        // Changing the in-app palette must not toggle launcher aliases while this Activity is live.
+        syncLauncherIcon(usePurple);
         rethemeActiveUi(old);
         toast(usePurple ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
+    }
+
+    /** Keep the home-screen launcher icon synchronized with the selected color theme. */
+    private void syncLauncherIcon(boolean usePurple) {
+        android.content.pm.PackageManager pm = getPackageManager();
+        android.content.ComponentName orangeAlias = new android.content.ComponentName(
+                this, getPackageName() + ".OrangeLauncher");
+        android.content.ComponentName purpleAlias = new android.content.ComponentName(
+                this, getPackageName() + ".PurpleLauncher");
+        int flags = android.content.pm.PackageManager.DONT_KILL_APP;
+        try {
+            android.content.ComponentName enabled = usePurple ? purpleAlias : orangeAlias;
+            android.content.ComponentName disabled = usePurple ? orangeAlias : purpleAlias;
+            // Enable the target first so the launcher never temporarily has no enabled icon.
+            pm.setComponentEnabledSetting(enabled,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED, flags);
+            pm.setComponentEnabledSetting(disabled,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, flags);
+        } catch (RuntimeException e) {
+            android.util.Log.w("MishnatYosef", "Could not update launcher icon for selected theme", e);
+        }
     }
 
     private void styleColorThemeOption(TextView option, boolean usePurple) {
@@ -1807,6 +1828,7 @@ public class MainActivity extends Activity {
         nightMode = prefs.getBoolean("night_mode", false);
         setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
         applyPalette();
+        syncLauncherIcon(purpleTheme);
         clearLegacyUpdateArtifacts();
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
@@ -8015,11 +8037,12 @@ public class MainActivity extends Activity {
             delete.setOnClickListener(v -> confirmDeleteOrder());
         }
         collect.setOnClickListener(v -> { collectMode = !collectMode; if (collectMode) collectionCelebrationShown = false; rebuildSummary(); updateModeButtons(delete, collect); });
-        LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        modes.addView(delete, deleteLp);
+        // RTL layout: put collection mode first so it appears to the right of delete-order.
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        cp.setMarginStart(dp(8));
         modes.addView(collect, cp);
+        LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(0, dp(44), 1);
+        deleteLp.setMarginStart(dp(8));
+        modes.addView(delete, deleteLp);
         TextView summaryActions = btn("⋯", TONAL);
         summaryActions.setTag("orderSummaryOptions");
         summaryActions.setContentDescription("אפשרויות נוספות להזמנה");
