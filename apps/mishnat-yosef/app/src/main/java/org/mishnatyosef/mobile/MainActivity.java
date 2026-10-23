@@ -10605,34 +10605,13 @@ public class MainActivity extends Activity {
             }
         }
 
-        // A compact Apple-inspired popover, anchored only to the order's three-dot button.
+        // One rounded menu surface with a compact, uninterrupted list of actions.
+        // This shared menu is used both on the active order and on cached/closed orders.
         LinearLayout popupPanel = new LinearLayout(this);
         popupPanel.setOrientation(LinearLayout.VERTICAL);
         popupPanel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        popupPanel.setPadding(dp(12), dp(10), dp(12), dp(12));
+        popupPanel.setPadding(dp(6), dp(6), dp(6), dp(6));
         popupPanel.setBackground(shape(SURFACE, 20, LINE));
-
-        LinearLayout headingRow = new LinearLayout(this);
-        headingRow.setOrientation(LinearLayout.HORIZONTAL);
-        headingRow.setGravity(Gravity.CENTER_VERTICAL);
-        headingRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        TextView heading = text("אפשרויות נוספות", 17, true);
-        heading.setTextColor(INK);
-        heading.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        headingRow.addView(heading, new LinearLayout.LayoutParams(0, dp(40), 1));
-        TextView close = btn("✕", FLAT);
-        close.setContentDescription("סגירת אפשרויות ההזמנה");
-        close.setMinHeight(dp(36));
-        close.setPadding(dp(8), dp(2), dp(8), dp(2));
-        headingRow.addView(close, new LinearLayout.LayoutParams(dp(38), dp(36)));
-        popupPanel.addView(headingRow, new LinearLayout.LayoutParams(-1, -2));
-
-        View divider = new View(this);
-        divider.setBackgroundColor(LINE);
-        LinearLayout.LayoutParams dividerLp = new LinearLayout.LayoutParams(-1, dp(1));
-        dividerLp.topMargin = dp(3);
-        dividerLp.bottomMargin = dp(7);
-        popupPanel.addView(divider, dividerLp);
 
         ScrollView menuScroll = new ScrollView(this);
         menuScroll.setFillViewport(false);
@@ -10647,13 +10626,13 @@ public class MainActivity extends Activity {
             TextView item = text(labels.get(i), 14, true);
             item.setTextColor(INK);
             item.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-            item.setMinHeight(dp(42));
-            item.setPadding(dp(12), dp(7), dp(12), dp(7));
-            item.setBackground(ripple(shape(SURFACE, 12, LINE), 12));
+            item.setMinHeight(dp(34));
+            item.setPadding(dp(10), dp(3), dp(10), dp(3));
+            item.setBackground(ripple(shape(SURFACE, 8, SURFACE), 8));
             item.setFocusable(true);
             item.setContentDescription(labels.get(i));
-            LinearLayout.LayoutParams itemLp = new LinearLayout.LayoutParams(-1, -2);
-            itemLp.bottomMargin = dp(4);
+            LinearLayout.LayoutParams itemLp = new LinearLayout.LayoutParams(-1, dp(36));
+            itemLp.bottomMargin = 0;
             menuRows.addView(item, itemLp);
             item.setOnClickListener(v -> {
                 if (popupRef[0] != null) popupRef[0].dismiss();
@@ -10662,42 +10641,13 @@ public class MainActivity extends Activity {
         }
         menuScroll.addView(menuRows, new ScrollView.LayoutParams(-1, -2));
         int displayHeight = getResources().getDisplayMetrics().heightPixels;
-        int desiredRowsHeight = dp(labels.size() * 46);
-        int maxRowsHeight = Math.min(dp(460), displayHeight * 58 / 100);
-        int rowsHeight = Math.max(dp(46), Math.min(desiredRowsHeight, maxRowsHeight));
+        int desiredRowsHeight = dp(labels.size() * 36 + 12);
+        int maxRowsHeight = Math.min(dp(420), displayHeight * 58 / 100);
+        int rowsHeight = Math.max(dp(36), Math.min(desiredRowsHeight, maxRowsHeight));
         popupPanel.addView(menuScroll, new LinearLayout.LayoutParams(-1, rowsHeight));
 
-        LinearLayout popupContent = new LinearLayout(this);
-        popupContent.setOrientation(LinearLayout.VERTICAL);
-        popupContent.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        popupContent.setPadding(0, 0, 0, 0);
-        View pointer = new View(this) {
-            private final Paint pointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            @Override protected void onDraw(Canvas canvas) {
-                super.onDraw(canvas);
-                float centerX = getWidth() - dp(24);
-                float tipY = getHeight();
-                Path triangle = new Path();
-                triangle.moveTo(centerX, 0);
-                triangle.lineTo(centerX - dp(8), tipY);
-                triangle.lineTo(centerX + dp(8), tipY);
-                triangle.close();
-                pointerPaint.setColor(SURFACE);
-                pointerPaint.setStyle(Paint.Style.FILL);
-                canvas.drawPath(triangle, pointerPaint);
-                pointerPaint.setColor(LINE);
-                pointerPaint.setStyle(Paint.Style.STROKE);
-                pointerPaint.setStrokeWidth(dp(1));
-                canvas.drawLine(centerX - dp(8), tipY, centerX, 0, pointerPaint);
-                canvas.drawLine(centerX, 0, centerX + dp(8), tipY, pointerPaint);
-            }
-        };
-        popupContent.addView(pointer, new LinearLayout.LayoutParams(-1, dp(9)));
-        popupPanel.setElevation(0);
-        popupContent.addView(popupPanel, new LinearLayout.LayoutParams(-1, -2));
-
         int popupWidth = Math.min(getResources().getDisplayMetrics().widthPixels - dp(24), dp(360));
-        PopupWindow popup = new PopupWindow(popupContent, popupWidth, -2, true);
+        PopupWindow popup = new PopupWindow(popupPanel, popupWidth, -2, true);
         popupRef[0] = popup;
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         popup.setOutsideTouchable(true);
@@ -10705,7 +10655,6 @@ public class MainActivity extends Activity {
         popup.setElevation(dp(12));
         popup.setClippingEnabled(true);
         popup.setOnDismissListener(() -> anchor.setSelected(false));
-        close.setOnClickListener(v -> popup.dismiss());
         anchor.setSelected(true);
         popup.showAsDropDown(anchor, 0, -dp(7), Gravity.START);
     }
