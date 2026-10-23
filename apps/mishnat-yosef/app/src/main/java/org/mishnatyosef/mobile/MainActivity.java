@@ -7971,15 +7971,21 @@ public class MainActivity extends Activity {
 
         // Keep mode controls stable; show a matching delete button while in collection mode.
         LinearLayout modes = new LinearLayout(this);
-        final TextView delete = btn("🗑 מחק הזמנה", DANGER);
+        final TextView delete = btn(summaryFromHistory ? "✏️ עריכה" : "🗑 מחק הזמנה",
+                summaryFromHistory ? PRIMARY : DANGER);
         delete.setTag("orderSummaryDelete");
         final TextView collect = btn(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
         collect.setTag("orderSummaryCollect");
-        delete.setVisibility(!summaryFromHistory && !closedOrderReadOnly ? View.VISIBLE : View.GONE);
-        // Match the app's semantic deletion palette, with a stronger red outline for clarity.
-        delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
-        delete.setTextColor(RED);
-        delete.setOnClickListener(v -> confirmDeleteOrder());
+        if (summaryFromHistory) {
+            delete.setVisibility(collectMode ? View.GONE : View.VISIBLE);
+            delete.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(delete, collect); });
+        } else {
+            delete.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            // Match the app's semantic deletion palette, with a stronger red outline for clarity.
+            delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
+            delete.setTextColor(RED);
+            delete.setOnClickListener(v -> confirmDeleteOrder());
+        }
         collect.setOnClickListener(v -> { collectMode = !collectMode; if (collectMode) collectionCelebrationShown = false; rebuildSummary(); updateModeButtons(delete, collect); });
         LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(0, dp(44), 1);
         modes.addView(delete, deleteLp);
@@ -8044,9 +8050,15 @@ public class MainActivity extends Activity {
     }
 
     private void updateModeButtons(TextView delete, TextView collect) {
-        delete.setVisibility(!summaryFromHistory && !closedOrderReadOnly ? View.VISIBLE : View.GONE);
-        delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
-        delete.setTextColor(RED);
+        if (summaryFromHistory) {
+            delete.setVisibility(collectMode ? View.GONE : View.VISIBLE);
+            delete.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
+            delete.setTextColor(ON_ORANGE);
+        } else {
+            delete.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
+            delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
+            delete.setTextColor(RED);
+        }
         collect.setText(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף");
         collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
         collect.setTextColor(collectMode ? ON_ORANGE : ORANGE_DARK);
