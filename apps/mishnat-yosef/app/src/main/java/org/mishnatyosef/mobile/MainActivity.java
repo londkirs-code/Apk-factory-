@@ -8194,9 +8194,10 @@ public class MainActivity extends Activity {
             st.qty.setText(String.valueOf(qty));
             boolean busyNow = pending.contains(line.sid);
             setEnabledLook(st.plus, !busyNow);
-            setEnabledLook(st.minus, !busyNow && qty > 1);
+            setEnabledLook(st.minus, !busyNow && qty > 0);
             st.plus.setOnClickListener(v -> changeBy(p, 1, summaryRefresh, this::refreshServerTotals));
-            st.minus.setOnClickListener(v -> { if (qty > 1) changeBy(p, -1, summaryRefresh, this::refreshServerTotals); });
+            // Minus decrements normally and removes the item when its quantity reaches zero.
+            st.minus.setOnClickListener(v -> { if (qty > 0) changeBy(p, -1, summaryRefresh, this::refreshServerTotals); });
             st.qty.setOnClickListener(v -> askQuantity(p, summaryRefresh, this::refreshServerTotals));
             bottom.addView(st.view);
         } else {
@@ -8228,7 +8229,7 @@ public class MainActivity extends Activity {
         remove.setTextSize(15);
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(36), dp(36));
         rp.setMarginStart(dp(8));
-        remove.setOnClickListener(v -> confirmRemove(line, p));
+        remove.setOnClickListener(v -> setItemAmount(p, 0, summaryRefresh, this::refreshServerTotals));
         row.addView(remove, rp);
         return row;
     }
