@@ -147,6 +147,7 @@ public class MainActivity extends Activity {
     // Preserve the open-sales list position while navigating to other bottom tabs.
     private int salesListScrollY = 0;
     private boolean showingSalesList = false;
+    private boolean refreshSalesOnResume = false;
     // Preserve the real ListView position when leaving the order screen.
     private int orderListFirstVisiblePosition = 0;
     private int orderListTopOffset = 0;
@@ -456,6 +457,25 @@ public class MainActivity extends Activity {
         return t;
     });
     private final Handler ui = new Handler(Looper.getMainLooper());
+    // Keep the open-sales list fresh while it is visible; the notification monitor runs independently.
+    private final Runnable openSalesAutoRefresh = new Runnable() {
+        @Override public void run() {
+            if (!showingSalesList || !hasToken() || isFinishing()
+                    || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
+            // A refresh must update the list, not auto-enter a single sale.
+            autoEnterSingle = false;
+            loadOpenSales(false);
+            ui.postDelayed(this, 30_000L);
+        }
+    };
+
+    private void scheduleOpenSalesAutoRefresh() {
+        ui.removeCallbacks(openSalesAutoRefresh);
+        if (showingSalesList && hasToken() && !isFinishing()
+                && (Build.VERSION.SDK_INT < 17 || !isDestroyed())) {
+            ui.postDelayed(openSalesAutoRefresh, 30_000L);
+        }
+    }
     private LruCache<String, Bitmap> imageCache;
     private SharedPreferences prefs;
 
@@ -3031,6 +3051,7 @@ public class MainActivity extends Activity {
             setContentView(currentScreen);
             currentScreen.requestApplyInsets();
             styleSystemBars();
+            if (showingSalesList) scheduleOpenSalesAutoRefresh();
             return;
         }
         firstOpenAction.run();
@@ -3564,6 +3585,21 @@ public class MainActivity extends Activity {
                 && Build.VERSION.SDK_INT >= 26 && getPackageManager().canRequestPackageInstalls()) {
             installDownloadedUpdate();
         }
+        // A sale may have opened while the app was in the background.
+        if (showingSalesList && hasToken()) {
+            if (refreshSalesOnResume) {
+                refreshSalesOnResume = false;
+                autoEnterSingle = false;
+                loadOpenSales(false);
+            }
+            scheduleOpenSalesAutoRefresh();
+        }
+    }
+
+    @Override protected void onPause() {
+        if (showingSalesList) refreshSalesOnResume = true;
+        ui.removeCallbacks(openSalesAutoRefresh);
+        super.onPause();
     }
 
     private void showNotificationSettings() {
@@ -5335,11 +5371,16 @@ public class MainActivity extends Activity {
         renderSales(new JSONArray());
         setStatus("ממתין לשרת…");
         loadOpenSales();
+        scheduleOpenSalesAutoRefresh();
     }
 
     private void loadOpenSales() {
+        loadOpenSales(true);
+    }
+
+    private void loadOpenSales(boolean showLoading) {
         final int t = screenToken;
-        setStatus("טוען מכירות פתוחות…");
+        if (showLoading) setStatus("טוען מכירות פתוחות…");
         executor.execute(() -> {
             try {
                 HttpResult r = api("GET", "/api/profile/open_sales", null);
@@ -5352,8 +5393,8 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     if (stale(t)) return;
-                    // Keep the offline actions visible even when the server cannot be reached.
-                    renderSales(new JSONArray());
+                    // Do not erase a previously loaded list on a transient failure.
+                    // On the first load the empty/offline actions are already on screen.
                     setStatus(errText(e, "טעינת המכירות נכשלה. אפשר לבדוק שוב באמצעות רענון."), true);
                 });
             }
