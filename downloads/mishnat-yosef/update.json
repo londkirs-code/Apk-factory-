@@ -1,9 +1,9 @@
 {
-  "versionCode": 395,
-  "versionName": "1.4850",
+  "versionCode": 396,
+  "versionName": "1.4851",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "61dceae3e9c0c50a06372e253e035db9560f4ec08a4dcdd9ca1c68583cbef034",
-  "releaseTitle": "הסרה מיידית של פריטים מההזמנה",
-  "releaseNotes": "- בעמוד „ההזמנה שלי”, לחיצה על כפתור המינוס בכמות 1 מסירה את הפריט מיד, ללא אישור נוסף.\n- כפתור ההסרה (✕) מסיר פריט מיד ללא חלונית אישור.\n- בהפחתת כמות מעל 1, הכמות יורדת באחד כרגיל; העדכון ממשיך להתבצע מול השרת.",
-  "buildCommit": "8c8dd8d9697e01d4d193f97f5295d83fc850e852"
+  "sha256": "c5b2b11071760cd7833c0d2c72331fa4f55c6669b89fa27f2cec2c2905b59c45",
+  "releaseTitle": "רענון אמין של סך ההזמנה",
+  "releaseNotes": "- בעת פתיחת „ההזמנה שלי” ובהתרעננות הסכום, ממתינים לסיום עדכוני הכמות שבדרך לפני שמציגים תשובת שרת, כדי למנוע הצגת סך הכול ישן.\n- לאחר סיום עדכוני הכמות מתבצעת קריאה חדשה לפרטי ההזמנה והסכום מתעדכן לפי תשובת השרת.",
+  "buildCommit": "e77c8615c3e931160c9f74ae4ec809d3546f8c48"
 }
