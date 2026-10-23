@@ -7972,7 +7972,9 @@ public class MainActivity extends Activity {
         // Keep mode controls stable; show a matching delete button while in collection mode.
         LinearLayout modes = new LinearLayout(this);
         final TextView delete = btn("🗑 מחק הזמנה", DANGER);
+        delete.setTag("orderSummaryDelete");
         final TextView collect = btn(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
+        collect.setTag("orderSummaryCollect");
         delete.setVisibility(!summaryFromHistory && !closedOrderReadOnly ? View.VISIBLE : View.GONE);
         // Match the app's semantic deletion palette, with a stronger red outline for clarity.
         delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
@@ -8073,7 +8075,9 @@ public class MainActivity extends Activity {
             }
         }
         if (total == 0) {
-            summaryList.addView(muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14), lp(-1, -2, 12, 0));
+            TextView empty = muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14);
+            empty.setTag("summaryEmptyState");
+            summaryList.addView(empty, lp(-1, -2, 12, 0));
         }
         collectedBox.setVisibility(collectMode && done > 0 ? View.VISIBLE : View.GONE);
         View title = collectedBox.findViewWithTag("collectedTitle");
@@ -8364,15 +8368,18 @@ public class MainActivity extends Activity {
         row.setAlpha(isDone ? 0.8f : 1f);
 
         TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? SURFACE : GREEN_LIGHT, GREEN);
+        check.setTag("collectionFocus:" + line.sid);
         LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(dp(46), dp(46));
         chkLp.setMarginEnd(dp(10));
         row.setTag("collectionRow:" + line.sid);
         final View.OnClickListener toggle = v -> {
             v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
             boolean wasDone = collectedSet().contains(line.sid);
+            View oldRow = root == null ? null : root.findViewWithTag("collectionRow:" + line.sid);
+            boolean restoreCollectionFocus = v.isFocused()
+                    || (oldRow != null && oldRow.hasFocus());
             toggleCollected(line.sid);
             // Move only the tapped row between lists; rebuilding every row loses keyboard focus.
-            View oldRow = root == null ? null : root.findViewWithTag("collectionRow:" + line.sid);
             if (oldRow != null && oldRow.getParent() instanceof ViewGroup) {
                 ((ViewGroup) oldRow.getParent()).removeView(oldRow);
             }
@@ -8385,6 +8392,12 @@ public class MainActivity extends Activity {
             }
             View newRow = collectRow(line, lineQty(line), nowDone);
             target.addView(newRow, Math.min(insertAt, target.getChildCount()), lp(-1, -2, 0, nowDone ? 6 : 8));
+            if (restoreCollectionFocus && root != null) {
+                root.post(() -> {
+                    View focusTarget = root.findViewWithTag("collectionFocus:" + line.sid);
+                    if (focusTarget != null && focusTarget.isShown()) focusTarget.requestFocus();
+                });
+            }
             if (summaryList.getChildCount() == 0) {
                 TextView empty = muted("כל הפריטים נאספו.", 14);
                 empty.setTag("collectionEmptyState");
