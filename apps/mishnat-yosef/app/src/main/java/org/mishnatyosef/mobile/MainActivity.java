@@ -7934,17 +7934,28 @@ public class MainActivity extends Activity {
         else beginScreen("ההזמנה שלי", 0, this::renderFeatureProducts);
         setStatus("טוען את ההזמנה מהשרת…");
         final int t = screenToken;
+        final long orderId = featureOrderId;
+        loadOrderSummaryFromServer(t, orderId);
+    }
+
+    /** Do not paint a possibly stale server snapshot while an item write is still in flight. */
+    private void loadOrderSummaryFromServer(final int t, final long orderId) {
+        if (stale(t) || featureOrderId != orderId) return;
         executor.execute(() -> {
             try {
-                OrderData od = fetchOrder(featureOrderId);
+                final OrderData od = fetchOrder(orderId);
                 runOnUiThread(() -> {
-                    if (stale(t)) return;
+                    if (stale(t) || featureOrderId != orderId) return;
+                    if (!pending.isEmpty()) {
+                        ui.postDelayed(() -> loadOrderSummaryFromServer(t, orderId), 400);
+                        return;
+                    }
                     summary = od;
                     syncOrderDataFromServer(od);
                     renderOrderSummary();
                 });
             } catch (Exception e) {
-                fail(t, e, "טעינת סיכום ההזמנה נכשלה.");
+                if (!stale(t)) runOnUiThread(() -> fail(t, e, "טעינת סיכום ההזמנה נכשלה."));
             }
         });
     }
@@ -8133,6 +8144,14 @@ public class MainActivity extends Activity {
                 OrderData od = fetchOrder(orderId);
                 runOnUiThread(() -> {
                     if (stale(t) || featureOrderId != orderId || summary == null) return;
+                    // A GET started before an item update completed can return the old total.
+                    // Wait for all writes to finish, then fetch a fresh authoritative snapshot.
+                    if (!pending.isEmpty()) {
+                        ui.postDelayed(() -> {
+                            if (!stale(t) && featureOrderId == orderId) refreshServerTotals();
+                        }, 400);
+                        return;
+                    }
                     syncOrderDataFromServer(od);
                     if (screenKind == 2) {
                         rebuildSummary();
