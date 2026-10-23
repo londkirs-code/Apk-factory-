@@ -325,6 +325,10 @@ jobs:
                               "repeated on one line; inspect the source before building."
                           )
           print(f"Preflight source checks passed ({checked} Java/Kotlin files checked).")
+      - name: Repository preflight guardrails
+        shell: bash
+        run: bash scripts/preflight-repository.sh
+
       - name: Build selected app or all apps
         id: build_apps
         shell: bash
