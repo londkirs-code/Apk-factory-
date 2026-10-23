@@ -8140,21 +8140,6 @@ public class MainActivity extends Activity {
         summarySub.setText(sub);
     }
 
-    /**
-     * Update a single existing order row without destroying its controls. This is deliberately
-     * separate from rebuildSummary(): removing and recreating the entire list on every tap loses
-     * Android/keyboard focus even if the scroll offset is restored afterward.
-     */
-    private boolean isDescendantOf(View child, ViewGroup ancestor) {
-        View current = child;
-        while (current != null) {
-            if (current == ancestor) return true;
-            if (!(current.getParent() instanceof View)) return false;
-            current = (View) current.getParent();
-        }
-        return false;
-    }
-
     private View findTextViewContaining(View view, String textPart) {
         if (view == null) return null;
         if (view instanceof TextView
