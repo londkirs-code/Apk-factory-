@@ -5430,24 +5430,6 @@ public class MainActivity extends Activity {
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
 
-        LinearLayout cachedOrdersBox = new LinearLayout(this);
-        cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
-        cachedOrdersBox.setGravity(Gravity.CENTER);
-        cachedOrdersBox.setPadding(dp(12), dp(9), dp(12), dp(9));
-        cachedOrdersBox.setBackground(ripple(shape(ORANGE_LIGHT, 16, LINE), 16));
-        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 18, true);
-        cachedOrders.setTextColor(ORANGE_DARK);
-        cachedOrders.setGravity(Gravity.CENTER);
-        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 12);
-        cachedOrdersNote.setGravity(Gravity.CENTER);
-        cachedOrdersBox.addView(cachedOrders, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
-        noteParams.topMargin = dp(2);
-        cachedOrdersBox.addView(cachedOrdersNote, noteParams);
-        cachedOrdersBox.setMinimumHeight(dp(62));
-        cachedOrdersBox.setContentDescription("פתיחת הזמנות מההיסטוריה המקומית");
-        cachedOrdersBox.setOnClickListener(v -> showCachedOrders());
-        root.addView(cachedOrdersBox, lp(-1, -2, 0, 10));
         // Sort by sale opening/start date, newest first. Fall back to descending ID
         // only when one or both records have no usable server date.
         List<JSONObject> sortedSales = new ArrayList<>();
@@ -5488,8 +5470,27 @@ public class MainActivity extends Activity {
                 showNotificationSettings();
             });
             notificationShortcut.addView(notificationSettingsButton, lp(-1, -2, 0, 8));
-            root.addView(notificationShortcut, lp(-1, -2, 0, 10));
+            root.addView(notificationShortcut, lp(-1, -2, 0, 4));
         }
+
+        LinearLayout cachedOrdersBox = new LinearLayout(this);
+        cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
+        cachedOrdersBox.setGravity(Gravity.CENTER);
+        cachedOrdersBox.setPadding(dp(12), dp(9), dp(12), dp(9));
+        cachedOrdersBox.setBackground(ripple(shape(ORANGE_LIGHT, 16, LINE), 16));
+        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 18, true);
+        cachedOrders.setTextColor(ORANGE_DARK);
+        cachedOrders.setGravity(Gravity.CENTER);
+        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 12);
+        cachedOrdersNote.setGravity(Gravity.CENTER);
+        cachedOrdersBox.addView(cachedOrders, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
+        noteParams.topMargin = dp(2);
+        cachedOrdersBox.addView(cachedOrdersNote, noteParams);
+        cachedOrdersBox.setMinimumHeight(dp(62));
+        cachedOrdersBox.setContentDescription("פתיחת הזמנות מההיסטוריה המקומית");
+        cachedOrdersBox.setOnClickListener(v -> showCachedOrders());
+        root.addView(cachedOrdersBox, lp(-1, -2, 0, 10));
 
         // Restore only after the sales cards have been added and measured.
         final int restoreY = salesListScrollY;
