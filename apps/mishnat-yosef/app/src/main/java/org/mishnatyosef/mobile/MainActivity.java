@@ -8068,7 +8068,9 @@ public class MainActivity extends Activity {
         if (summary == null || summaryList == null) return;
         if (collectMode) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        final int keepScroll = scrollView == null ? 0 : scrollView.getScrollY();
+        final ScrollView scrollAtStart = scrollView;
+        final View rootAtStart = root;
+        final int keepScroll = scrollAtStart == null ? 0 : scrollAtStart.getScrollY();
         final Object focusTag = getCurrentFocus() == null ? null : getCurrentFocus().getTag();
         summaryList.removeAllViews();
         collectedList.removeAllViews();
@@ -8102,13 +8104,17 @@ public class MainActivity extends Activity {
         updateSummaryTotals();
         // Rebuilding rows after every tap used to destroy the focused control and reset
         // the user's keyboard/remote selection. Restore both the viewport and its control.
-        if (scrollView != null) scrollView.post(() -> {
-            scrollView.scrollTo(0, keepScroll);
-            if (focusTag != null && root != null) {
-                View target = root.findViewWithTag(focusTag);
+        if (scrollAtStart != null) scrollAtStart.post(() -> scrollAtStart.post(() -> {
+            // Wait for the rebuilt children to complete layout before restoring scroll;
+            // otherwise ScrollView may clamp against the temporarily short content and stay at 0.
+            if (scrollView != scrollAtStart || root != rootAtStart) return;
+            int maxScroll = Math.max(0, rootAtStart.getHeight() - scrollAtStart.getHeight());
+            scrollAtStart.scrollTo(0, Math.min(keepScroll, maxScroll));
+            if (focusTag != null) {
+                View target = rootAtStart.findViewWithTag(String.valueOf(focusTag));
                 if (target != null && target.isShown()) target.requestFocus();
             }
-        });
+        }));
     }
 
     private void updateSummaryTotals() {
@@ -8196,7 +8202,15 @@ public class MainActivity extends Activity {
     private boolean refreshSummaryRowsInPlace() {
         if (summary == null || root == null || summaryList == null || collectMode || summaryFromHistory) return false;
         for (OrderLine line : summary.lines) {
-            if (lineQty(line) > 0 && !refreshSummaryRowInPlace(line.sid)) return false;
+            if (lineQty(line) <= 0) continue;
+            View existingRow = root.findViewWithTag("summaryRow:" + line.sid);
+            if (existingRow == null) return false;
+            // Some historical/server-only lines are intentionally read-only and have no
+            // quantity stepper. They must not make an otherwise in-place refresh rebuild
+            // every editable row (which used to send focus and scroll back to the top).
+            View qtyControl = root.findViewWithTag("summaryFocus:" + line.sid + ":qty");
+            if (!(qtyControl instanceof TextView)) continue;
+            if (!refreshSummaryRowInPlace(line.sid)) return false;
         }
         // Rows for items removed by the server must not linger. Iterate backwards so removals are safe.
         for (int i = summaryList.getChildCount() - 1; i >= 0; i--) {
@@ -8286,7 +8300,15 @@ public class MainActivity extends Activity {
         JSONObject known = findProduct(line.sid);
         JSONObject imageProduct = known != null ? known : line.raw;
         loadImage(iv, imageUrl(imageProduct, !fullImages()));
-        iv.setContentDescription(imageUrl(imageProduct, false));
+        final String previewUrl = imageUrl(imageProduct, false);
+        iv.setTag("summaryProductImage:" + line.sid);
+        iv.setContentDescription(previewUrl.isEmpty() ? "תמונת מוצר" : "הגדלת תמונת המוצר");
+        iv.setFocusable(!previewUrl.isEmpty());
+        iv.setFocusableInTouchMode(false);
+        iv.setClickable(!previewUrl.isEmpty());
+        if (!previewUrl.isEmpty()) {
+            iv.setOnClickListener(v -> showImagePreview(previewUrl));
+        }
         return row;
     }
 
@@ -8323,6 +8345,20 @@ public class MainActivity extends Activity {
             setEnabledLook(st.plus, !busyNow);
             setEnabledLook(st.minus, !busyNow && qty > 0);
             st.plus.setOnClickListener(v -> changeBy(p, 1, summaryRefresh, this::refreshServerTotals));
+            // In the order summary, DPAD-right from the plus button should reach the
+            // product photo directly so keyboard/TV users can open the existing zoom viewer.
+            st.plus.setOnKeyListener((v, keyCode, event) -> {
+                if (event != null
+                        && event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                        && keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    View productImage = row.findViewWithTag("summaryProductImage:" + line.sid);
+                    if (productImage != null && productImage.isShown()
+                            && productImage.isFocusable() && productImage.requestFocus()) {
+                        return true;
+                    }
+                }
+                return false;
+            });
             // Minus decrements normally and removes the item when its quantity reaches zero.
             st.minus.setOnClickListener(v -> { if (qty > 0) changeBy(p, -1, summaryRefresh, this::refreshServerTotals); });
             st.qty.setOnClickListener(v -> askQuantity(p, summaryRefresh, this::refreshServerTotals));
