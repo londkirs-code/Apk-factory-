@@ -42,6 +42,8 @@ concurrency:
 
 jobs:
   import-build:
+    # This utility is intentionally manual-only; never run it on repository pushes.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
