@@ -8180,7 +8180,7 @@ public class MainActivity extends Activity {
         if (product != null) {
             plus.setOnClickListener(v -> changeBy(product, 1, summaryRefresh, this::refreshServerTotals));
             minus.setOnClickListener(v -> {
-                if (featureQuantities.getOrDefault(sid, 0) > 0) {
+                if ((featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0) > 0) {
                     changeBy(product, -1, summaryRefresh, this::refreshServerTotals);
                 }
             });
