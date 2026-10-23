@@ -4796,11 +4796,20 @@ public class MainActivity extends Activity {
     }
 
     private HttpResult requestRaw(String method, String path, String token, JSONObject body) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(API + path).openConnection();
+        String requestPath = path;
+        // The open-sales endpoint changes as soon as a sale opens. Bypass browser/CDN/URLConnection
+        // caches so this screen cannot be left showing an old empty response after a notification.
+        if ("GET".equals(method) && "/api/profile/open_sales".equals(path)) {
+            requestPath += "?_fresh=" + System.currentTimeMillis();
+        }
+        HttpURLConnection c = (HttpURLConnection) new URL(API + requestPath).openConnection();
+        c.setUseCaches(false);
         try {
             c.setRequestMethod(method);
             c.setConnectTimeout(20000);
             c.setReadTimeout(30000);
+            c.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
+            c.setRequestProperty("Pragma", "no-cache");
             c.setRequestProperty("Accept", "application/json, text/plain, */*");
             c.setRequestProperty("Origin", "https://mishnatyosef.org");
             c.setRequestProperty("Referer", "https://mishnatyosef.org/");
