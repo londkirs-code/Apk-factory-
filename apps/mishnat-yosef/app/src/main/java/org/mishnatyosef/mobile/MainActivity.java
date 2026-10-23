@@ -5430,6 +5430,44 @@ public class MainActivity extends Activity {
         top.addView(refresh);
         root.addView(top, lp(-1, -2, 0, 8));
 
+        LinearLayout cachedOrdersBox = new LinearLayout(this);
+        cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
+        cachedOrdersBox.setGravity(Gravity.CENTER);
+        cachedOrdersBox.setPadding(dp(12), dp(9), dp(12), dp(9));
+        cachedOrdersBox.setBackground(ripple(shape(ORANGE_LIGHT, 16, LINE), 16));
+        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 18, true);
+        cachedOrders.setTextColor(ORANGE_DARK);
+        cachedOrders.setGravity(Gravity.CENTER);
+        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 12);
+        cachedOrdersNote.setGravity(Gravity.CENTER);
+        cachedOrdersBox.addView(cachedOrders, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
+        noteParams.topMargin = dp(2);
+        cachedOrdersBox.addView(cachedOrdersNote, noteParams);
+        cachedOrdersBox.setMinimumHeight(dp(62));
+        cachedOrdersBox.setContentDescription("פתיחת הזמנות מההיסטוריה המקומית");
+        cachedOrdersBox.setOnClickListener(v -> showCachedOrders());
+        root.addView(cachedOrdersBox, lp(-1, -2, 0, 10));
+        // Sort by sale opening/start date, newest first. Fall back to descending ID
+        // only when one or both records have no usable server date.
+        List<JSONObject> sortedSales = new ArrayList<>();
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject sale = rows.optJSONObject(i);
+            if (sale != null) sortedSales.add(sale);
+        }
+        Collections.sort(sortedSales, new Comparator<JSONObject>() {
+            @Override public int compare(JSONObject a, JSONObject b) {
+                Date da = parseDt(first(a, "begin", "start", "start_date", "created_at", "createdAt", "open_at"));
+                Date db = parseDt(first(b, "begin", "start", "start_date", "created_at", "createdAt", "open_at"));
+                if (da != null && db != null) return Long.compare(db.getTime(), da.getTime());
+                if (da != null) return -1;
+                if (db != null) return 1;
+                return Long.compare(b.optLong("id", 0L), a.optLong("id", 0L));
+            }
+        });
+        for (JSONObject sale : sortedSales) {
+            root.addView(saleCard(sale), lp(-1, -2, 0, 10));
+        }
         // Show this shortcut only while at least one of the two sale notifications still needs setup.
         boolean saleOpeningNotificationEnabled = prefs.getBoolean("sale_monitor_enabled", true);
         boolean saleClosingReminderEnabled = prefs.getBoolean("closing_reminder_enabled", false);
@@ -5453,28 +5491,6 @@ public class MainActivity extends Activity {
             root.addView(notificationShortcut, lp(-1, -2, 0, 10));
         }
 
-        LinearLayout cachedOrdersBox = new LinearLayout(this);
-        cachedOrdersBox.setOrientation(LinearLayout.VERTICAL);
-        cachedOrdersBox.setGravity(Gravity.CENTER);
-        cachedOrdersBox.setPadding(dp(12), dp(9), dp(12), dp(9));
-        cachedOrdersBox.setBackground(ripple(shape(ORANGE_LIGHT, 16, LINE), 16));
-        TextView cachedOrders = text("📦 הזמנות מההיסטוריה", 18, true);
-        cachedOrders.setTextColor(ORANGE_DARK);
-        cachedOrders.setGravity(Gravity.CENTER);
-        TextView cachedOrdersNote = muted("מבוסס על זיכרון המכשיר בלבד — לא מידע מהשרת", 12);
-        cachedOrdersNote.setGravity(Gravity.CENTER);
-        cachedOrdersBox.addView(cachedOrders, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
-        noteParams.topMargin = dp(2);
-        cachedOrdersBox.addView(cachedOrdersNote, noteParams);
-        cachedOrdersBox.setMinimumHeight(dp(62));
-        cachedOrdersBox.setContentDescription("פתיחת הזמנות מההיסטוריה המקומית");
-        cachedOrdersBox.setOnClickListener(v -> showCachedOrders());
-        root.addView(cachedOrdersBox, lp(-1, -2, 0, 10));
-        for (int i = 0; i < rows.length(); i++) {
-            JSONObject sale = rows.optJSONObject(i);
-            if (sale != null) root.addView(saleCard(sale), lp(-1, -2, 0, 10));
-        }
         // Restore only after the sales cards have been added and measured.
         final int restoreY = salesListScrollY;
         if (scrollView != null) scrollView.post(() -> {
@@ -6559,13 +6575,10 @@ public class MainActivity extends Activity {
         renderFeatureProducts(); // paints at once from memory (empty when nothing is cached yet)
         final int t = screenToken;
         if (inMemory) {
-            // Catalogue snapshots never contain account quantities or an order ID, so resolve
-            // the authenticated account's current order from the server even when the catalogue is fresh.
-            if (featureOrderId <= 0 || System.currentTimeMillis() - productsLoadedAt > STALE_MS) {
-                refreshProducts(sale, true);
-            } else {
-                navigateToPendingStockProduct(saleId);
-            }
+            // Cached products are only for instant first paint. Always re-read the catalogue
+            // and this account's order when reopening a sale, so new products and changed prices
+            // cannot be hidden by a still-fresh local snapshot.
+            refreshProducts(sale, true);
             return;
         }
         productsLoading = true;
