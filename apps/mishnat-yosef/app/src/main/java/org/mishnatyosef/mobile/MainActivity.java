@@ -8019,16 +8019,13 @@ public class MainActivity extends Activity {
         head.addView(progressView);
         root.addView(head, lp(-1, -2, 0, 10));
 
-        // Keep mode controls stable; show a matching delete button while in collection mode.
+        // Keep only the delete/edit action in the order summary; collection mode is managed elsewhere.
         LinearLayout modes = new LinearLayout(this);
         final TextView delete = btn(summaryFromHistory ? "✏️ עריכה" : "🗑 מחק הזמנה",
                 summaryFromHistory ? PRIMARY : DANGER);
         delete.setTag("orderSummaryDelete");
-        final TextView collect = btn(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף", collectMode ? PRIMARY : TONAL);
-        collect.setTag("orderSummaryCollect");
         if (summaryFromHistory) {
-            delete.setVisibility(collectMode ? View.GONE : View.VISIBLE);
-            delete.setOnClickListener(v -> { collectMode = false; rebuildSummary(); updateModeButtons(delete, collect); });
+            delete.setOnClickListener(v -> { collectMode = false; rebuildSummary(); });
         } else {
             delete.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
             // Match the app's semantic deletion palette, with a stronger red outline for clarity.
@@ -8036,12 +8033,7 @@ public class MainActivity extends Activity {
             delete.setTextColor(RED);
             delete.setOnClickListener(v -> confirmDeleteOrder());
         }
-        collect.setOnClickListener(v -> { collectMode = !collectMode; if (collectMode) collectionCelebrationShown = false; rebuildSummary(); updateModeButtons(delete, collect); });
-        // RTL layout: put collection mode first so it appears to the right of delete-order.
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        modes.addView(collect, cp);
         LinearLayout.LayoutParams deleteLp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        deleteLp.setMarginStart(dp(8));
         modes.addView(delete, deleteLp);
         TextView summaryActions = btn("⋯", TONAL);
         summaryActions.setTag("orderSummaryOptions");
@@ -8098,21 +8090,6 @@ public class MainActivity extends Activity {
         bottomHolder.addView(bar);
 
         rebuildSummary();
-    }
-
-    private void updateModeButtons(TextView delete, TextView collect) {
-        if (summaryFromHistory) {
-            delete.setVisibility(collectMode ? View.GONE : View.VISIBLE);
-            delete.setBackground(ripple(shape(ORANGE, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-            delete.setTextColor(ON_ORANGE);
-        } else {
-            delete.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
-            delete.setBackground(ripple(shape(RED_LIGHT, ACTION_BUTTON_RADIUS_DP, RED), ACTION_BUTTON_RADIUS_DP));
-            delete.setTextColor(RED);
-        }
-        collect.setText(collectMode ? "✓ סיום איסוף" : "☑ מצב איסוף");
-        collect.setBackground(ripple(shape(collectMode ? ORANGE : ORANGE_LIGHT, ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
-        collect.setTextColor(collectMode ? ON_ORANGE : ORANGE_DARK);
     }
 
     private void rebuildSummary() {
