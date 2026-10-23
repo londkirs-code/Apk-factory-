@@ -212,10 +212,18 @@ public class SaleMonitor extends BroadcastReceiver {
     }
 
     private HttpResult request(String method, String path, String token) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(API + path).openConnection();
+        String requestPath = path;
+        // Poll the same live data source as the sales screen without reusing a stale empty response.
+        if ("GET".equals(method) && "/api/profile/open_sales".equals(path)) {
+            requestPath += "?_fresh=" + System.currentTimeMillis();
+        }
+        HttpURLConnection c = (HttpURLConnection) new URL(API + requestPath).openConnection();
+        c.setUseCaches(false);
         c.setRequestMethod(method);
         c.setConnectTimeout(15000);
         c.setReadTimeout(20000);
+        c.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
+        c.setRequestProperty("Pragma", "no-cache");
         c.setRequestProperty("Accept", "application/json");
         c.setRequestProperty("Origin", "https://mishnatyosef.org");
         c.setRequestProperty("Referer", "https://mishnatyosef.org/");
