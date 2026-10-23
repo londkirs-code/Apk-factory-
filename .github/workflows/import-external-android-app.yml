@@ -18,7 +18,7 @@ on:
         default: "."
         type: string
       gradle_version:
-        description: "Gradle version to use when no usable wrapper exists"
+        description: "Gradle version used when the project has no wrapper"
         required: true
         default: "9.3.1"
         type: string
@@ -59,12 +59,11 @@ jobs:
           [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::Repository must be owner/name."; exit 1; }
           [[ "$SOURCE_REF" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "::error::Invalid source ref."; exit 1; }
           [[ "$PROJECT_PATH" != /* && "$PROJECT_PATH" != *".."* ]] || { echo "::error::Project path must be relative and must not contain '..'."; exit 1; }
-          [[ "$GRADLE_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "::error::Gradle version must be numeric, for example 9.3.1."; exit 1; }
+          [[ "$GRADLE_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "::error::Gradle version must be numeric."; exit 1; }
           [[ "$BUILD_TASK" =~ ^[A-Za-z0-9:_-]+$ ]] || { echo "::error::Invalid Gradle task."; exit 1; }
           [[ "$APK_PATH" != /* && "$APK_PATH" != *".."* ]] || { echo "::error::APK path must be relative and must not contain '..'."; exit 1; }
 
-      - name: Check source repository visibility and access
-        id: source-access
+      - name: Check source repository access
         shell: bash
         env:
           SOURCE_REPOSITORY: ${{ inputs.repository }}
@@ -72,38 +71,22 @@ jobs:
         run: |
           set -euo pipefail
           API_URL="https://api.github.com/repos/$SOURCE_REPOSITORY"
-          if [ -n "$SOURCE_TOKEN" ]; then
+          if [[ -n "$SOURCE_TOKEN" ]]; then
             HTTP_CODE="$(curl -sS -o "$RUNNER_TEMP/source-repo.json" -w '%{http_code}' -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $SOURCE_TOKEN" "$API_URL")"
           else
             HTTP_CODE="$(curl -sS -o "$RUNNER_TEMP/source-repo.json" -w '%{http_code}' -H "Accept: application/vnd.github+json" "$API_URL")"
           fi
-          if [ "$HTTP_CODE" != "200" ]; then
-            if [ -z "$SOURCE_TOKEN" ]; then
-              echo "::error::GitHub could not read '$SOURCE_REPOSITORY' (HTTP $HTTP_CODE). Check the owner/repository spelling and confirm it is public. If it is private, add a repository-scoped token as SOURCE_REPO_TOKEN in APK Factory."
-            else
-              echo "::error::GitHub could not read '$SOURCE_REPOSITORY' (HTTP $HTTP_CODE), even with SOURCE_REPO_TOKEN. Check the repository name and token permissions."
-            fi
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::Cannot read '$SOURCE_REPOSITORY' (HTTP $HTTP_CODE). Check its name/visibility and SOURCE_REPO_TOKEN permissions."
             cat "$RUNNER_TEMP/source-repo.json"
             exit 1
           fi
-          IS_PRIVATE="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("private", True)).lower())' "$RUNNER_TEMP/source-repo.json")"
-          DEFAULT_BRANCH="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("default_branch", ""))' "$RUNNER_TEMP/source-repo.json")"
-          if [ "$IS_PRIVATE" = "true" ] && [ -z "$SOURCE_TOKEN" ]; then
-            echo "::error::'$SOURCE_REPOSITORY' is private. Add a token with read access to that repository as SOURCE_REPO_TOKEN in APK Factory, then run the import again."
+          PRIVATE="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("private", True)).lower())' "$RUNNER_TEMP/source-repo.json")"
+          if [[ "$PRIVATE" == "true" && -z "$SOURCE_TOKEN" ]]; then
+            echo "::error::The source repository is private; configure SOURCE_REPO_TOKEN with read access."
             exit 1
           fi
-          echo "private=$IS_PRIVATE" >> "$GITHUB_OUTPUT"
-          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
-          echo "Repository access verified: $SOURCE_REPOSITORY (private=$IS_PRIVATE, default branch=$DEFAULT_BRANCH)"
-
-      - name: Checkout APK Factory tools
-        uses: actions/checkout@v4
-        with:
-          path: apk-factory
-          sparse-checkout: |
-            scripts
-            templates
-            .github
+          echo "Source repository access verified."
 
       - name: Checkout external app source
         uses: actions/checkout@v4
@@ -115,90 +98,39 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Detect project and choose compatible build runner
+      - name: Detect project and Android SDK
         id: project
         shell: bash
         env:
           PROJECT_PATH: ${{ inputs.project_path }}
-          BUILD_TASK: ${{ inputs.build_task }}
         run: |
           set -euo pipefail
           PROJECT="$GITHUB_WORKSPACE/external-source/$PROJECT_PATH"
           [[ -d "$PROJECT" ]] || { echo "::error::Project directory not found: $PROJECT_PATH"; exit 1; }
           [[ -f "$PROJECT/settings.gradle" || -f "$PROJECT/settings.gradle.kts" || -f "$PROJECT/build.gradle" || -f "$PROJECT/build.gradle.kts" ]] || {
-            echo "::error::No Gradle Android project files found in $PROJECT_PATH. This importer currently supports native Android Gradle projects, not APK-only files, Flutter, or React Native projects.";
+            echo "::error::No Gradle project files found. This workflow supports native Android Gradle projects.";
             exit 1;
           }
           if [[ -f "$PROJECT/gradlew" ]]; then
             chmod +x "$PROJECT/gradlew"
             echo "runner=wrapper" >> "$GITHUB_OUTPUT"
-            echo "Using the project's Gradle wrapper."
           else
             echo "runner=installed" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Gradle wrapper script found; using the explicitly selected Gradle version."
           fi
           echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-          echo "task=$BUILD_TASK" >> "$GITHUB_OUTPUT"
-          if [[ -f "$PROJECT/local.properties" ]]; then
-            cp "$PROJECT/local.properties" "$RUNNER_TEMP/import-local.properties"
-          fi
-
-      - name: Prepare missing debug keystore when project requires one
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-        run: |
-          set -euo pipefail
-          # Some AI Studio projects hard-code a root-level debug.keystore. Generate the standard
-          # Android debug key only when Gradle explicitly references it and the file is absent.
-          if grep -R -n --include='*.gradle' --include='*.gradle.kts' 'debug\.keystore' "$PROJECT" --exclude-dir=build >/dev/null 2>&1; then
-            if [[ ! -s "$PROJECT/debug.keystore" ]]; then
-              echo "::notice::Gradle references debug.keystore but it is absent; generating a standard CI debug key."
-              keytool -genkeypair -v \
-                -keystore "$PROJECT/debug.keystore" \
-                -storepass android \
-                -alias androiddebugkey \
-                -keypass android \
-                -dname "CN=Android Debug,O=Android,C=US" \
-                -keyalg RSA -keysize 2048 -validity 10000
-            fi
-          fi
-
-      - name: Detect Android compile SDK requirements
-        id: android-sdk
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-        run: |
-          set -euo pipefail
           python3 - "$PROJECT" "$GITHUB_OUTPUT" <<'PY'
           import re, sys
           from pathlib import Path
           root, output = Path(sys.argv[1]), Path(sys.argv[2])
-          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
-          files = [p for p in files if "build" not in p.parts and ".gradle" not in p.parts]
-          texts = []
-          for p in files:
-              try: texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-              except OSError: pass
-          source = "\n".join(texts)
-          patterns = [
-              (r"compileSdk\s*\{\s*version\s*=\s*release\(\s*(\d+)\s*\)\s*\{\s*minorApiLevel\s*=\s*(\d+)", "release"),
-              (r"compileSdk(?:Version)?\s*(?:=\s*)?(\d+)", "simple"),
-          ]
-          api, ext = None, 0
-          m = re.search(patterns[0][0], source, re.S)
-          if m:
-              api, ext = int(m.group(1)), int(m.group(2))
-          else:
-              m = re.search(patterns[1][0], source)
-              if m: api = int(m.group(1))
-          if api is None:
-              raise SystemExit("::error::Could not detect compileSdk from Gradle files. Add a numeric compileSdk declaration or set it explicitly before importing.")
-          package = f"platforms;android-{api}"  # SDK Manager installs the platform package by API level; minorApiLevel is metadata, not a separate package id.
+          gradle_files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
+          gradle_files = [p for p in gradle_files if "build" not in p.parts and ".gradle" not in p.parts]
+          source = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in gradle_files)
+          match = re.search(r"compileSdk(?:Version)?\s*(?:=\s*)?(\d+)", source)
+          if not match:
+              raise SystemExit("::error::Could not detect a numeric compileSdk declaration.")
           with output.open("a", encoding="utf-8") as f:
-              f.write(f"api={api}\nextension={ext}\nplatform_package={package}\n")
-          print(f"Detected Android compile SDK {api}, extension {ext}; SDK package {package}")
+              f.write(f"platform_package=platforms;android-{int(match.group(1))}\n")
+          print(f"Detected Android API {match.group(1)}.")
           PY
 
       - name: Set up Java
@@ -207,30 +139,17 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Locate Android SDK tools safely
-        id: sdk
+      - name: Install Android SDK platform
         shell: bash
+        env:
+          PLATFORM_PACKAGE: ${{ steps.project.outputs.platform_package }}
         run: |
           set -euo pipefail
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
-          if [[ -z "$SDKMANAGER" || ! -x "$SDKMANAGER" ]]; then
-            echo "::error::Android SDK manager was not found under $SDK_ROOT/cmdline-tools. Available SDK paths:"
-            find /usr/local/lib/android /opt -type f -name sdkmanager -print 2>/dev/null | head -20 || true
-            exit 1
-          fi
-          echo "sdkmanager=$SDKMANAGER" >> "$GITHUB_OUTPUT"
-          echo "Using SDK manager: $SDKMANAGER"
-
-      - name: Install detected Android SDK platform
-        shell: bash
-        env:
-          SDKMANAGER: ${{ steps.sdk.outputs.sdkmanager }}
-          PLATFORM_PACKAGE: ${{ steps.android-sdk.outputs.platform_package }}
-        run: |
-          set -euo pipefail
+          [[ -x "$SDKMANAGER" ]] || { echo "::error::Android SDK manager not found under $SDK_ROOT."; exit 1; }
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "$PLATFORM_PACKAGE"
+          "$SDKMANAGER" platform-tools "$PLATFORM_PACKAGE"
 
       - name: Set up Gradle when wrapper is absent
         if: steps.project.outputs.runner == 'installed'
@@ -247,23 +166,14 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT"
-          if [[ -f "$RUNNER_TEMP/import-local.properties" ]]; then
-            cp "$RUNNER_TEMP/import-local.properties" local.properties
-            if grep -q '^sdk.dir=' local.properties; then
-              sed -i "s#^sdk.dir=.*#sdk.dir=$ANDROID_HOME#" local.properties
-            else
-              printf 'sdk.dir=%s\n' "$ANDROID_HOME" >> local.properties
-            fi
-          else
-            printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
-          fi
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
           if [[ "$RUNNER_KIND" == "wrapper" ]]; then
             ./gradlew --no-daemon --stacktrace "$BUILD_TASK"
           else
             gradle --no-daemon --stacktrace "$BUILD_TASK"
           fi
 
-      - name: Validate APK, report metadata and checksum
+      - name: Validate and upload APK
         shell: bash
         env:
           PROJECT: ${{ steps.project.outputs.project }}
@@ -272,748 +182,14 @@ jobs:
           set -euo pipefail
           APK="$PROJECT/$APK_PATH"
           if [[ ! -s "$APK" ]]; then
-            echo "::error::Build finished but expected APK is missing or empty: $APK_PATH"
-            echo "APK candidates found:"
+            echo "::error::Expected APK is missing or empty: $APK_PATH"
             find "$PROJECT" -path '*/build/outputs/apk/*.apk' -type f -print 2>/dev/null || true
             exit 1
           fi
-          mkdir -p "$GITHUB_WORKSPACE/export"
-          cp "$APK" "$GITHUB_WORKSPACE/export/app.apk"
-          sha256sum "$GITHUB_WORKSPACE/export/app.apk" | tee "$GITHUB_WORKSPACE/export/SHA256SUMS.txt"
-          ls -lh "$GITHUB_WORKSPACE/export/app.apk"
-          echo "APK_PATH=$APK_PATH" >> "$GITHUB_STEP_SUMMARY"
-          echo "APK_SIZE=$(stat -c '%s' "$GITHUB_WORKSPACE/export/app.apk") bytes" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload imported APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: imported-android-app-apk
-          path: |
-            export/app.apk
-            export/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 30
-\\n%{http_code}')"
-          else
-            RESPONSE="$(curl -sS -H "Accept: application/vnd.github+json" "$API_URL" -w 
-      - name: Checkout APK Factory tools
-        uses: actions/checkout@v4
-        with:
-          path: apk-factory
-          sparse-checkout: |
-            scripts
-            templates
-            .github
-
-      - name: Checkout external app source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.repository }}
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.SOURCE_REPO_TOKEN || github.token }}
-          path: external-source
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Detect project and choose compatible build runner
-        id: project
-        shell: bash
-        env:
-          PROJECT_PATH: ${{ inputs.project_path }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          PROJECT="$GITHUB_WORKSPACE/external-source/$PROJECT_PATH"
-          [[ -d "$PROJECT" ]] || { echo "::error::Project directory not found: $PROJECT_PATH"; exit 1; }
-          [[ -f "$PROJECT/settings.gradle" || -f "$PROJECT/settings.gradle.kts" || -f "$PROJECT/build.gradle" || -f "$PROJECT/build.gradle.kts" ]] || {
-            echo "::error::No Gradle Android project files found in $PROJECT_PATH. This importer currently supports native Android Gradle projects, not APK-only files, Flutter, or React Native projects.";
-            exit 1;
-          }
-          if [[ -f "$PROJECT/gradlew" ]]; then
-            chmod +x "$PROJECT/gradlew"
-            echo "runner=wrapper" >> "$GITHUB_OUTPUT"
-            echo "Using the project's Gradle wrapper."
-          else
-            echo "runner=installed" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Gradle wrapper script found; using the explicitly selected Gradle version."
-          fi
-          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-          echo "task=$BUILD_TASK" >> "$GITHUB_OUTPUT"
-          if [[ -f "$PROJECT/local.properties" ]]; then
-            cp "$PROJECT/local.properties" "$RUNNER_TEMP/import-local.properties"
-          fi
-
-      - name: Detect Android compile SDK requirements
-        id: android-sdk
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-        run: |
-          set -euo pipefail
-          python3 - "$PROJECT" "$GITHUB_OUTPUT" <<'PY'
-          import re, sys
-          from pathlib import Path
-          root, output = Path(sys.argv[1]), Path(sys.argv[2])
-          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
-          files = [p for p in files if "build" not in p.parts and ".gradle" not in p.parts]
-          texts = []
-          for p in files:
-              try: texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-              except OSError: pass
-          source = "\n".join(texts)
-          patterns = [
-              (r"compileSdk\s*\{\s*version\s*=\s*release\(\s*(\d+)\s*\)\s*\{\s*minorApiLevel\s*=\s*(\d+)", "release"),
-              (r"compileSdk(?:Version)?\s*(?:=\s*)?(\d+)", "simple"),
-          ]
-          api, ext = None, 0
-          m = re.search(patterns[0][0], source, re.S)
-          if m:
-              api, ext = int(m.group(1)), int(m.group(2))
-          else:
-              m = re.search(patterns[1][0], source)
-              if m: api = int(m.group(1))
-          if api is None:
-              raise SystemExit("::error::Could not detect compileSdk from Gradle files. Add a numeric compileSdk declaration or set it explicitly before importing.")
-          package = f"platforms;android-{api}"  # SDK Manager installs the platform package by API level; minorApiLevel is metadata, not a separate package id.
-          with output.open("a", encoding="utf-8") as f:
-              f.write(f"api={api}\nextension={ext}\nplatform_package={package}\n")
-          print(f"Detected Android compile SDK {api}, extension {ext}; SDK package {package}")
-          PY
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Locate Android SDK tools safely
-        id: sdk
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
-          if [[ -z "$SDKMANAGER" || ! -x "$SDKMANAGER" ]]; then
-            echo "::error::Android SDK manager was not found under $SDK_ROOT/cmdline-tools. Available SDK paths:"
-            find /usr/local/lib/android /opt -type f -name sdkmanager -print 2>/dev/null | head -20 || true
-            exit 1
-          fi
-          echo "sdkmanager=$SDKMANAGER" >> "$GITHUB_OUTPUT"
-          echo "Using SDK manager: $SDKMANAGER"
-
-      - name: Install detected Android SDK platform
-        shell: bash
-        env:
-          SDKMANAGER: ${{ steps.sdk.outputs.sdkmanager }}
-          PLATFORM_PACKAGE: ${{ steps.android-sdk.outputs.platform_package }}
-        run: |
-          set -euo pipefail
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "$PLATFORM_PACKAGE"
-
-      - name: Set up Gradle when wrapper is absent
-        if: steps.project.outputs.runner == 'installed'
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ inputs.gradle_version }}
-
-      - name: Build imported Android app
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          RUNNER_KIND: ${{ steps.project.outputs.runner }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          cd "$PROJECT"
-          if [[ -f "$RUNNER_TEMP/import-local.properties" ]]; then
-            cp "$RUNNER_TEMP/import-local.properties" local.properties
-            if grep -q '^sdk.dir=' local.properties; then
-              sed -i "s#^sdk.dir=.*#sdk.dir=$ANDROID_HOME#" local.properties
-            else
-              printf '\\nsdk.dir=%s\\n' "$ANDROID_HOME" >> local.properties
-            fi
-          else
-            printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > local.properties
-          fi
-          if [[ "$RUNNER_KIND" == "wrapper" ]]; then
-            ./gradlew --no-daemon --stacktrace "$BUILD_TASK"
-          else
-            gradle --no-daemon --stacktrace "$BUILD_TASK"
-          fi
-
-      - name: Validate APK, report metadata and checksum
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          APK_PATH: ${{ inputs.apk_path }}
-        run: |
-          set -euo pipefail
-          APK="$PROJECT/$APK_PATH"
-          if [[ ! -s "$APK" ]]; then
-            echo "::error::Build finished but expected APK is missing or empty: $APK_PATH"
-            echo "APK candidates found:"
-            find "$PROJECT" -path '*/build/outputs/apk/*.apk' -type f -print 2>/dev/null || true
-            exit 1
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/export"
-          cp "$APK" "$GITHUB_WORKSPACE/export/app.apk"
-          sha256sum "$GITHUB_WORKSPACE/export/app.apk" | tee "$GITHUB_WORKSPACE/export/SHA256SUMS.txt"
-          ls -lh "$GITHUB_WORKSPACE/export/app.apk"
-          echo "APK_PATH=$APK_PATH" >> "$GITHUB_STEP_SUMMARY"
-          echo "APK_SIZE=$(stat -c '%s' "$GITHUB_WORKSPACE/export/app.apk") bytes" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload imported APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: imported-android-app-apk
-          path: |
-            export/app.apk
-            export/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 30
-\\n%{http_code}')"
-          fi
-          HTTP_CODE="\${RESPONSE##*
-      - name: Checkout APK Factory tools
-        uses: actions/checkout@v4
-        with:
-          path: apk-factory
-          sparse-checkout: |
-            scripts
-            templates
-            .github
-
-      - name: Checkout external app source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.repository }}
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.SOURCE_REPO_TOKEN || github.token }}
-          path: external-source
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Detect project and choose compatible build runner
-        id: project
-        shell: bash
-        env:
-          PROJECT_PATH: ${{ inputs.project_path }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          PROJECT="$GITHUB_WORKSPACE/external-source/$PROJECT_PATH"
-          [[ -d "$PROJECT" ]] || { echo "::error::Project directory not found: $PROJECT_PATH"; exit 1; }
-          [[ -f "$PROJECT/settings.gradle" || -f "$PROJECT/settings.gradle.kts" || -f "$PROJECT/build.gradle" || -f "$PROJECT/build.gradle.kts" ]] || {
-            echo "::error::No Gradle Android project files found in $PROJECT_PATH. This importer currently supports native Android Gradle projects, not APK-only files, Flutter, or React Native projects.";
-            exit 1;
-          }
-          if [[ -f "$PROJECT/gradlew" ]]; then
-            chmod +x "$PROJECT/gradlew"
-            echo "runner=wrapper" >> "$GITHUB_OUTPUT"
-            echo "Using the project's Gradle wrapper."
-          else
-            echo "runner=installed" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Gradle wrapper script found; using the explicitly selected Gradle version."
-          fi
-          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-          echo "task=$BUILD_TASK" >> "$GITHUB_OUTPUT"
-          if [[ -f "$PROJECT/local.properties" ]]; then
-            cp "$PROJECT/local.properties" "$RUNNER_TEMP/import-local.properties"
-          fi
-
-      - name: Detect Android compile SDK requirements
-        id: android-sdk
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-        run: |
-          set -euo pipefail
-          python3 - "$PROJECT" "$GITHUB_OUTPUT" <<'PY'
-          import re, sys
-          from pathlib import Path
-          root, output = Path(sys.argv[1]), Path(sys.argv[2])
-          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
-          files = [p for p in files if "build" not in p.parts and ".gradle" not in p.parts]
-          texts = []
-          for p in files:
-              try: texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-              except OSError: pass
-          source = "\n".join(texts)
-          patterns = [
-              (r"compileSdk\s*\{\s*version\s*=\s*release\(\s*(\d+)\s*\)\s*\{\s*minorApiLevel\s*=\s*(\d+)", "release"),
-              (r"compileSdk(?:Version)?\s*(?:=\s*)?(\d+)", "simple"),
-          ]
-          api, ext = None, 0
-          m = re.search(patterns[0][0], source, re.S)
-          if m:
-              api, ext = int(m.group(1)), int(m.group(2))
-          else:
-              m = re.search(patterns[1][0], source)
-              if m: api = int(m.group(1))
-          if api is None:
-              raise SystemExit("::error::Could not detect compileSdk from Gradle files. Add a numeric compileSdk declaration or set it explicitly before importing.")
-          package = f"platforms;android-{api}"  # SDK Manager installs the platform package by API level; minorApiLevel is metadata, not a separate package id.
-          with output.open("a", encoding="utf-8") as f:
-              f.write(f"api={api}\nextension={ext}\nplatform_package={package}\n")
-          print(f"Detected Android compile SDK {api}, extension {ext}; SDK package {package}")
-          PY
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Locate Android SDK tools safely
-        id: sdk
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
-          if [[ -z "$SDKMANAGER" || ! -x "$SDKMANAGER" ]]; then
-            echo "::error::Android SDK manager was not found under $SDK_ROOT/cmdline-tools. Available SDK paths:"
-            find /usr/local/lib/android /opt -type f -name sdkmanager -print 2>/dev/null | head -20 || true
-            exit 1
-          fi
-          echo "sdkmanager=$SDKMANAGER" >> "$GITHUB_OUTPUT"
-          echo "Using SDK manager: $SDKMANAGER"
-
-      - name: Install detected Android SDK platform
-        shell: bash
-        env:
-          SDKMANAGER: ${{ steps.sdk.outputs.sdkmanager }}
-          PLATFORM_PACKAGE: ${{ steps.android-sdk.outputs.platform_package }}
-        run: |
-          set -euo pipefail
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "$PLATFORM_PACKAGE"
-
-      - name: Set up Gradle when wrapper is absent
-        if: steps.project.outputs.runner == 'installed'
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ inputs.gradle_version }}
-
-      - name: Build imported Android app
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          RUNNER_KIND: ${{ steps.project.outputs.runner }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          cd "$PROJECT"
-          if [[ -f "$RUNNER_TEMP/import-local.properties" ]]; then
-            cp "$RUNNER_TEMP/import-local.properties" local.properties
-            if grep -q '^sdk.dir=' local.properties; then
-              sed -i "s#^sdk.dir=.*#sdk.dir=$ANDROID_HOME#" local.properties
-            else
-              printf '\\nsdk.dir=%s\\n' "$ANDROID_HOME" >> local.properties
-            fi
-          else
-            printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > local.properties
-          fi
-          if [[ "$RUNNER_KIND" == "wrapper" ]]; then
-            ./gradlew --no-daemon --stacktrace "$BUILD_TASK"
-          else
-            gradle --no-daemon --stacktrace "$BUILD_TASK"
-          fi
-
-      - name: Validate APK, report metadata and checksum
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          APK_PATH: ${{ inputs.apk_path }}
-        run: |
-          set -euo pipefail
-          APK="$PROJECT/$APK_PATH"
-          if [[ ! -s "$APK" ]]; then
-            echo "::error::Build finished but expected APK is missing or empty: $APK_PATH"
-            echo "APK candidates found:"
-            find "$PROJECT" -path '*/build/outputs/apk/*.apk' -type f -print 2>/dev/null || true
-            exit 1
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/export"
-          cp "$APK" "$GITHUB_WORKSPACE/export/app.apk"
-          sha256sum "$GITHUB_WORKSPACE/export/app.apk" | tee "$GITHUB_WORKSPACE/export/SHA256SUMS.txt"
-          ls -lh "$GITHUB_WORKSPACE/export/app.apk"
-          echo "APK_PATH=$APK_PATH" >> "$GITHUB_STEP_SUMMARY"
-          echo "APK_SIZE=$(stat -c '%s' "$GITHUB_WORKSPACE/export/app.apk") bytes" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload imported APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: imported-android-app-apk
-          path: |
-            export/app.apk
-            export/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 30
-\\n'}"
-          BODY="\${RESPONSE%
-      - name: Checkout APK Factory tools
-        uses: actions/checkout@v4
-        with:
-          path: apk-factory
-          sparse-checkout: |
-            scripts
-            templates
-            .github
-
-      - name: Checkout external app source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.repository }}
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.SOURCE_REPO_TOKEN || github.token }}
-          path: external-source
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Detect project and choose compatible build runner
-        id: project
-        shell: bash
-        env:
-          PROJECT_PATH: ${{ inputs.project_path }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          PROJECT="$GITHUB_WORKSPACE/external-source/$PROJECT_PATH"
-          [[ -d "$PROJECT" ]] || { echo "::error::Project directory not found: $PROJECT_PATH"; exit 1; }
-          [[ -f "$PROJECT/settings.gradle" || -f "$PROJECT/settings.gradle.kts" || -f "$PROJECT/build.gradle" || -f "$PROJECT/build.gradle.kts" ]] || {
-            echo "::error::No Gradle Android project files found in $PROJECT_PATH. This importer currently supports native Android Gradle projects, not APK-only files, Flutter, or React Native projects.";
-            exit 1;
-          }
-          if [[ -f "$PROJECT/gradlew" ]]; then
-            chmod +x "$PROJECT/gradlew"
-            echo "runner=wrapper" >> "$GITHUB_OUTPUT"
-            echo "Using the project's Gradle wrapper."
-          else
-            echo "runner=installed" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Gradle wrapper script found; using the explicitly selected Gradle version."
-          fi
-          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-          echo "task=$BUILD_TASK" >> "$GITHUB_OUTPUT"
-          if [[ -f "$PROJECT/local.properties" ]]; then
-            cp "$PROJECT/local.properties" "$RUNNER_TEMP/import-local.properties"
-          fi
-
-      - name: Detect Android compile SDK requirements
-        id: android-sdk
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-        run: |
-          set -euo pipefail
-          python3 - "$PROJECT" "$GITHUB_OUTPUT" <<'PY'
-          import re, sys
-          from pathlib import Path
-          root, output = Path(sys.argv[1]), Path(sys.argv[2])
-          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
-          files = [p for p in files if "build" not in p.parts and ".gradle" not in p.parts]
-          texts = []
-          for p in files:
-              try: texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-              except OSError: pass
-          source = "\n".join(texts)
-          patterns = [
-              (r"compileSdk\s*\{\s*version\s*=\s*release\(\s*(\d+)\s*\)\s*\{\s*minorApiLevel\s*=\s*(\d+)", "release"),
-              (r"compileSdk(?:Version)?\s*(?:=\s*)?(\d+)", "simple"),
-          ]
-          api, ext = None, 0
-          m = re.search(patterns[0][0], source, re.S)
-          if m:
-              api, ext = int(m.group(1)), int(m.group(2))
-          else:
-              m = re.search(patterns[1][0], source)
-              if m: api = int(m.group(1))
-          if api is None:
-              raise SystemExit("::error::Could not detect compileSdk from Gradle files. Add a numeric compileSdk declaration or set it explicitly before importing.")
-          package = f"platforms;android-{api}"  # SDK Manager installs the platform package by API level; minorApiLevel is metadata, not a separate package id.
-          with output.open("a", encoding="utf-8") as f:
-              f.write(f"api={api}\nextension={ext}\nplatform_package={package}\n")
-          print(f"Detected Android compile SDK {api}, extension {ext}; SDK package {package}")
-          PY
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Locate Android SDK tools safely
-        id: sdk
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
-          if [[ -z "$SDKMANAGER" || ! -x "$SDKMANAGER" ]]; then
-            echo "::error::Android SDK manager was not found under $SDK_ROOT/cmdline-tools. Available SDK paths:"
-            find /usr/local/lib/android /opt -type f -name sdkmanager -print 2>/dev/null | head -20 || true
-            exit 1
-          fi
-          echo "sdkmanager=$SDKMANAGER" >> "$GITHUB_OUTPUT"
-          echo "Using SDK manager: $SDKMANAGER"
-
-      - name: Install detected Android SDK platform
-        shell: bash
-        env:
-          SDKMANAGER: ${{ steps.sdk.outputs.sdkmanager }}
-          PLATFORM_PACKAGE: ${{ steps.android-sdk.outputs.platform_package }}
-        run: |
-          set -euo pipefail
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "$PLATFORM_PACKAGE"
-
-      - name: Set up Gradle when wrapper is absent
-        if: steps.project.outputs.runner == 'installed'
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ inputs.gradle_version }}
-
-      - name: Build imported Android app
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          RUNNER_KIND: ${{ steps.project.outputs.runner }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          cd "$PROJECT"
-          if [[ -f "$RUNNER_TEMP/import-local.properties" ]]; then
-            cp "$RUNNER_TEMP/import-local.properties" local.properties
-            if grep -q '^sdk.dir=' local.properties; then
-              sed -i "s#^sdk.dir=.*#sdk.dir=$ANDROID_HOME#" local.properties
-            else
-              printf '\\nsdk.dir=%s\\n' "$ANDROID_HOME" >> local.properties
-            fi
-          else
-            printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > local.properties
-          fi
-          if [[ "$RUNNER_KIND" == "wrapper" ]]; then
-            ./gradlew --no-daemon --stacktrace "$BUILD_TASK"
-          else
-            gradle --no-daemon --stacktrace "$BUILD_TASK"
-          fi
-
-      - name: Validate APK, report metadata and checksum
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          APK_PATH: ${{ inputs.apk_path }}
-        run: |
-          set -euo pipefail
-          APK="$PROJECT/$APK_PATH"
-          if [[ ! -s "$APK" ]]; then
-            echo "::error::Build finished but expected APK is missing or empty: $APK_PATH"
-            echo "APK candidates found:"
-            find "$PROJECT" -path '*/build/outputs/apk/*.apk' -type f -print 2>/dev/null || true
-            exit 1
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/export"
-          cp "$APK" "$GITHUB_WORKSPACE/export/app.apk"
-          sha256sum "$GITHUB_WORKSPACE/export/app.apk" | tee "$GITHUB_WORKSPACE/export/SHA256SUMS.txt"
-          ls -lh "$GITHUB_WORKSPACE/export/app.apk"
-          echo "APK_PATH=$APK_PATH" >> "$GITHUB_STEP_SUMMARY"
-          echo "APK_SIZE=$(stat -c '%s' "$GITHUB_WORKSPACE/export/app.apk") bytes" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload imported APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: imported-android-app-apk
-          path: |
-            export/app.apk
-            export/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 30
-\\n'*}"
-          if [[ "$HTTP_CODE" != "200" ]]; then
-            if [[ -z "\${SOURCE_TOKEN:-}" ]]; then
-              echo "::error::GitHub could not read '$SOURCE_REPOSITORY' (HTTP $HTTP_CODE). Check the owner/repository spelling and confirm it is public. If it is private, add a repository-scoped token as the SOURCE_REPO_TOKEN secret in APK Factory."
-            else
-              echo "::error::GitHub could not read '$SOURCE_REPOSITORY' (HTTP $HTTP_CODE), even with SOURCE_REPO_TOKEN. Check the repository name and token permissions."
-            fi
-            exit 1
-          fi
-          IS_PRIVATE="$(python3 -c 'import json,sys; print(str(json.load(sys.stdin).get("private", True)).lower())' <<< "$BODY")"
-          DEFAULT_BRANCH="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("default_branch", ""))' <<< "$BODY")"
-          if [[ "$IS_PRIVATE" == "true" && -z "\${SOURCE_TOKEN:-}" ]]; then
-            echo "::error::'$SOURCE_REPOSITORY' is private. Add a token with read access to that repository as the SOURCE_REPO_TOKEN secret in APK Factory, then run the import again."
-            exit 1
-          fi
-          echo "private=$IS_PRIVATE" >> "$GITHUB_OUTPUT"
-          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
-          echo "Repository access verified: $SOURCE_REPOSITORY (private=$IS_PRIVATE, default branch=$DEFAULT_BRANCH)"
-
-      - name: Checkout APK Factory tools
-        uses: actions/checkout@v4
-        with:
-          path: apk-factory
-          sparse-checkout: |
-            scripts
-            templates
-            .github
-
-      - name: Checkout external app source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.repository }}
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.SOURCE_REPO_TOKEN || github.token }}
-          path: external-source
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Detect project and choose compatible build runner
-        id: project
-        shell: bash
-        env:
-          PROJECT_PATH: ${{ inputs.project_path }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          PROJECT="$GITHUB_WORKSPACE/external-source/$PROJECT_PATH"
-          [[ -d "$PROJECT" ]] || { echo "::error::Project directory not found: $PROJECT_PATH"; exit 1; }
-          [[ -f "$PROJECT/settings.gradle" || -f "$PROJECT/settings.gradle.kts" || -f "$PROJECT/build.gradle" || -f "$PROJECT/build.gradle.kts" ]] || {
-            echo "::error::No Gradle Android project files found in $PROJECT_PATH. This importer currently supports native Android Gradle projects, not APK-only files, Flutter, or React Native projects.";
-            exit 1;
-          }
-          if [[ -f "$PROJECT/gradlew" ]]; then
-            chmod +x "$PROJECT/gradlew"
-            echo "runner=wrapper" >> "$GITHUB_OUTPUT"
-            echo "Using the project's Gradle wrapper."
-          else
-            echo "runner=installed" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Gradle wrapper script found; using the explicitly selected Gradle version."
-          fi
-          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-          echo "task=$BUILD_TASK" >> "$GITHUB_OUTPUT"
-          if [[ -f "$PROJECT/local.properties" ]]; then
-            cp "$PROJECT/local.properties" "$RUNNER_TEMP/import-local.properties"
-          fi
-
-      - name: Detect Android compile SDK requirements
-        id: android-sdk
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-        run: |
-          set -euo pipefail
-          python3 - "$PROJECT" "$GITHUB_OUTPUT" <<'PY'
-          import re, sys
-          from pathlib import Path
-          root, output = Path(sys.argv[1]), Path(sys.argv[2])
-          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
-          files = [p for p in files if "build" not in p.parts and ".gradle" not in p.parts]
-          texts = []
-          for p in files:
-              try: texts.append(p.read_text(encoding="utf-8", errors="ignore"))
-              except OSError: pass
-          source = "\n".join(texts)
-          patterns = [
-              (r"compileSdk\s*\{\s*version\s*=\s*release\(\s*(\d+)\s*\)\s*\{\s*minorApiLevel\s*=\s*(\d+)", "release"),
-              (r"compileSdk(?:Version)?\s*(?:=\s*)?(\d+)", "simple"),
-          ]
-          api, ext = None, 0
-          m = re.search(patterns[0][0], source, re.S)
-          if m:
-              api, ext = int(m.group(1)), int(m.group(2))
-          else:
-              m = re.search(patterns[1][0], source)
-              if m: api = int(m.group(1))
-          if api is None:
-              raise SystemExit("::error::Could not detect compileSdk from Gradle files. Add a numeric compileSdk declaration or set it explicitly before importing.")
-          package = f"platforms;android-{api}"  # SDK Manager installs the platform package by API level; minorApiLevel is metadata, not a separate package id.
-          with output.open("a", encoding="utf-8") as f:
-              f.write(f"api={api}\nextension={ext}\nplatform_package={package}\n")
-          print(f"Detected Android compile SDK {api}, extension {ext}; SDK package {package}")
-          PY
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Locate Android SDK tools safely
-        id: sdk
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
-          if [[ -z "$SDKMANAGER" || ! -x "$SDKMANAGER" ]]; then
-            echo "::error::Android SDK manager was not found under $SDK_ROOT/cmdline-tools. Available SDK paths:"
-            find /usr/local/lib/android /opt -type f -name sdkmanager -print 2>/dev/null | head -20 || true
-            exit 1
-          fi
-          echo "sdkmanager=$SDKMANAGER" >> "$GITHUB_OUTPUT"
-          echo "Using SDK manager: $SDKMANAGER"
-
-      - name: Install detected Android SDK platform
-        shell: bash
-        env:
-          SDKMANAGER: ${{ steps.sdk.outputs.sdkmanager }}
-          PLATFORM_PACKAGE: ${{ steps.android-sdk.outputs.platform_package }}
-        run: |
-          set -euo pipefail
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "$PLATFORM_PACKAGE"
-
-      - name: Set up Gradle when wrapper is absent
-        if: steps.project.outputs.runner == 'installed'
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ inputs.gradle_version }}
-
-      - name: Build imported Android app
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          RUNNER_KIND: ${{ steps.project.outputs.runner }}
-          BUILD_TASK: ${{ inputs.build_task }}
-        run: |
-          set -euo pipefail
-          cd "$PROJECT"
-          if [[ -f "$RUNNER_TEMP/import-local.properties" ]]; then
-            cp "$RUNNER_TEMP/import-local.properties" local.properties
-            if grep -q '^sdk.dir=' local.properties; then
-              sed -i "s#^sdk.dir=.*#sdk.dir=$ANDROID_HOME#" local.properties
-            else
-              printf '\\nsdk.dir=%s\\n' "$ANDROID_HOME" >> local.properties
-            fi
-          else
-            printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > local.properties
-          fi
-          if [[ "$RUNNER_KIND" == "wrapper" ]]; then
-            ./gradlew --no-daemon --stacktrace "$BUILD_TASK"
-          else
-            gradle --no-daemon --stacktrace "$BUILD_TASK"
-          fi
-
-      - name: Validate APK, report metadata and checksum
-        shell: bash
-        env:
-          PROJECT: ${{ steps.project.outputs.project }}
-          APK_PATH: ${{ inputs.apk_path }}
-        run: |
-          set -euo pipefail
-          APK="$PROJECT/$APK_PATH"
-          if [[ ! -s "$APK" ]]; then
-            echo "::error::Build finished but expected APK is missing or empty: $APK_PATH"
-            echo "APK candidates found:"
-            find "$PROJECT" -path '*/build/outputs/apk/*.apk' -type f -print 2>/dev/null || true
-            exit 1
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/export"
-          cp "$APK" "$GITHUB_WORKSPACE/export/app.apk"
-          sha256sum "$GITHUB_WORKSPACE/export/app.apk" | tee "$GITHUB_WORKSPACE/export/SHA256SUMS.txt"
-          ls -lh "$GITHUB_WORKSPACE/export/app.apk"
-          echo "APK_PATH=$APK_PATH" >> "$GITHUB_STEP_SUMMARY"
-          echo "APK_SIZE=$(stat -c '%s' "$GITHUB_WORKSPACE/export/app.apk") bytes" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p export
+          cp "$APK" export/app.apk
+          sha256sum export/app.apk | tee export/SHA256SUMS.txt
+          ls -lh export/app.apk
 
       - name: Upload imported APK
         uses: actions/upload-artifact@v4
