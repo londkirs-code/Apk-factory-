@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Mandatory repository guardrails before spending time on an Android release build.
-git diff --check
+git diff --check HEAD^ HEAD
 test -s AI_WORKFLOW.md || { echo "::error::Missing required AI_WORKFLOW.md development checklist."; exit 1; }
 test -s apps/mishnat-yosef/RELEASE_NOTES.md || { echo "::error::Missing release notes."; exit 1; }
 test -s apps/mishnat-yosef/CHANGELOG.md || { echo "::error::Missing changelog."; exit 1; }
