@@ -1,9 +1,9 @@
 {
-  "versionCode": 398,
-  "versionName": "1.4853",
+  "versionCode": 399,
+  "versionName": "1.4854",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "ef84e7372735bfd2968ad47a196f6417ae18a806c1613759d6e75223676c98fa",
-  "releaseTitle": "שיפור מסך ההזמנה שלי",
-  "releaseNotes": "- תיקון קפיצת הבחירה ומיקום הגלילה לאחר לחיצה על בקרי הכמות בסיכום ההזמנה.\n- כפתור „מחק הזמנה” זמין במצב איסוף, בעיצוב תואם לכפתורי המסך ועם חלון אישור.",
-  "buildCommit": "6ef9ad9d42eaffd2849dd8f292e7cbf9d5ab5e79"
+  "sha256": "2e2555cac34eee3ba78ec70ee6af14a8364f94a0cab155882014531000d422a3",
+  "releaseTitle": "מסך הזמנה יציב וכפתור מחיקה ברור",
+  "releaseNotes": "- לחיצה על שינוי כמות או סימון פריט לא בונה מחדש את כל רשימת ההזמנה; הפקדים נשארים במקומם כדי למנוע קפיצת בחירה.\n- כפתור „עריכה” הוחלף בכפתור מלא „🗑 מחק הזמנה”, במילוי אדמדם ובמסגרת אדומה תואמים לצבעי המחיקה באפליקציה, עם חלון אישור לפני מחיקה.",
+  "buildCommit": "ea62abc01d031effae9d200896c3b232fff4d8e9"
 }
