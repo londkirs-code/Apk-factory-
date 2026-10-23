@@ -1,9 +1,9 @@
 {
-  "versionCode": 396,
-  "versionName": "1.4851",
+  "versionCode": 397,
+  "versionName": "1.4852",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "c5b2b11071760cd7833c0d2c72331fa4f55c6669b89fa27f2cec2c2905b59c45",
-  "releaseTitle": "רענון אמין של סך ההזמנה",
-  "releaseNotes": "- בעת פתיחת „ההזמנה שלי” ובהתרעננות הסכום, ממתינים לסיום עדכוני הכמות שבדרך לפני שמציגים תשובת שרת, כדי למנוע הצגת סך הכול ישן.\n- לאחר סיום עדכוני הכמות מתבצעת קריאה חדשה לפרטי ההזמנה והסכום מתעדכן לפי תשובת השרת.",
-  "buildCommit": "e77c8615c3e931160c9f74ae4ec809d3546f8c48"
+  "sha256": "1d44b6de320bd9c4b07ea219eeac93c71589c16407b1dfd660e53172bf1a3522",
+  "releaseTitle": "חישוב נכון של סך ההזמנה",
+  "releaseNotes": "- סך ההזמנה מחושב מחדש ממחיר × כמות של המוצרים שמופיעים בהזמנה בפועל.\n- לא מסתמכים על total_list אם מחירי כל שורות ההזמנה זמינים, משום שהשדה עלול להציג סכום קודם.\n- אם חסרים מחירי שורות תקינים, total_list נשאר גיבוי.",
+  "buildCommit": "307627fe96603aab2185096f5b0aea3cae798cb8"
 }
