@@ -2323,14 +2323,14 @@ public class MainActivity extends Activity {
         quickActionsLp.topMargin = dp(14);
         panel.addView(quickActions, quickActionsLp);
 
-        TextView nightToggle = btn(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום", OUTLINE);
+        TextView nightToggle = btn(nightMode ? "☀️ מצב יום" : "🌙 מצב לילה", OUTLINE);
         nightToggle.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams quickActionLp = new LinearLayout.LayoutParams(0, -1, 1f);
         quickActionLp.setMarginEnd(dp(5));
         quickActions.addView(nightToggle, quickActionLp);
         nightToggle.setOnClickListener(v -> {
             toggleNightMode();
-            nightToggle.setText(nightMode ? "🌙 מצב לילה" : "☀️ מצב יום");
+            nightToggle.setText(nightMode ? "☀️ מצב יום" : "🌙 מצב לילה");
         });
 
         TextView resetDisplayButton = btn("↺ איפוס תצוגה", OUTLINE);
@@ -10583,9 +10583,6 @@ public class MainActivity extends Activity {
     private void showOrderQuickMenu(View anchor) {
         final List<String> labels = new ArrayList<>();
         final List<Integer> actions = new ArrayList<>();
-        labels.add(nightMode ? "☀️ מעבר למצב יום" : "🌙 הפעלת מצב לילה"); actions.add(11);
-        labels.add((prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false) ? "✓ " : "") + "ביטול רענון עמוד בהזמנות");
-        actions.add(14);
         if (closedOrderReadOnly) {
             labels.add("פרטי המכירה"); actions.add(0);
             labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);
@@ -10594,7 +10591,6 @@ public class MainActivity extends Activity {
         } else {
             if (!summaryFromHistory) {
                 labels.add("פרטי המכירה"); actions.add(0);
-                labels.add("רענון מוצרים"); actions.add(1);
                 labels.add("📐 שינוי גודל כרטיסי המוצרים"); actions.add(10);
             }
             if (featureOrderId > 0) {
