@@ -1,0 +1,65 @@
+name: Validate Mishnat Yosef changes
+
+on:
+  pull_request:
+    paths:
+      - "apps/mishnat-yosef/**"
+      - "templates/**"
+      - "gradle/**"
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradle.properties"
+      - "scripts/**"
+      - ".github/workflows/**"
+      - "AI_WORKFLOW.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-mishnat-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Validate repository diffs and workflow YAML
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          ruby -e 'require "yaml"; Dir.glob(".github/workflows/*.{yml,yaml}").each { |f| YAML.load_file(f, aliases: true); puts "YAML OK: #{f}" }'
+          python3 -m json.tool downloads/mishnat-yosef/update.json >/dev/null
+          test -s AI_WORKFLOW.md
+          test -s apps/mishnat-yosef/RELEASE_NOTES.md
+          test -s apps/mishnat-yosef/CHANGELOG.md
+          if grep -Eq '^  push:' .github/workflows/import-external-android-app.yml; then
+            echo "::error::External importer must be manual-only."
+            exit 1
+          fi
+
+      - name: Compile Mishnat Yosef debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/mishnat-yosef
+          gradle --no-daemon --build-cache assembleDebug
