@@ -6816,8 +6816,10 @@ public class MainActivity extends Activity {
                     if (seq != orderSyncSeq || featureOrderId != orderId) return; // a newer change is on its way
                     if (!pending.isEmpty()) { ui.postDelayed(() -> syncOrderNow(seq), 400); return; }
                     syncOrderDataFromServer(od);
-                    if (screenKind == 2) { rebuildSummary(); updateSummaryTotals(); }
-                    else refreshVisibleProductRows();
+                    if (screenKind == 2) {
+                        if (!refreshSummaryRowsInPlace()) rebuildSummary();
+                        updateSummaryTotals();
+                    } else refreshVisibleProductRows();
                 });
             } catch (Exception ignored) { }
         });
@@ -8143,6 +8145,32 @@ public class MainActivity extends Activity {
      * separate from rebuildSummary(): removing and recreating the entire list on every tap loses
      * Android/keyboard focus even if the scroll offset is restored afterward.
      */
+    private boolean isDescendantOf(View child, ViewGroup ancestor) {
+        View current = child;
+        while (current != null) {
+            if (current == ancestor) return true;
+            if (!(current.getParent() instanceof View)) return false;
+            current = (View) current.getParent();
+        }
+        return false;
+    }
+
+    private View findTextViewContaining(View view, String textPart) {
+        if (view == null) return null;
+        if (view instanceof TextView
+                && ((TextView) view).getText() != null
+                && ((TextView) view).getText().toString().contains(textPart)
+                && view.isFocusable() && view.isShown()) return view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findTextViewContaining(group.getChildAt(i), textPart);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
     private boolean refreshSummaryRowInPlace(String sid) {
         if (sid == null || sid.isEmpty() || root == null || summaryList == null || summary == null
                 || collectMode || summaryFromHistory) return false;
@@ -8150,7 +8178,42 @@ public class MainActivity extends Activity {
         int qty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
         if (qty <= 0) {
             if (row != null && row.getParent() instanceof ViewGroup) {
+                final ScrollView scrollAtRemoval = scrollView;
+                final int savedScrollY = scrollAtRemoval == null ? 0 : scrollAtRemoval.getScrollY();
+                View focused = getCurrentFocus();
+                boolean rowHadFocus = focused != null && isDescendantOf(focused, (ViewGroup) row);
+                String focusRole = "minus";
+                if (focused != null && focused.getTag() instanceof String) {
+                    String focusTag = (String) focused.getTag();
+                    String prefix = "summaryFocus:" + sid + ":";
+                    if (focusTag.startsWith(prefix)) focusRole = focusTag.substring(prefix.length());
+                }
+                if (rowHadFocus && summaryList != null) {
+                    int rowIndex = summaryList.indexOfChild(row);
+                    View target = null;
+                    for (int pass = 0; pass < 2 && target == null; pass++) {
+                        int candidateIndex = pass == 0 ? rowIndex + 1 : rowIndex - 1;
+                        int step = pass == 0 ? 1 : -1;
+                        while (candidateIndex >= 0 && candidateIndex < summaryList.getChildCount()) {
+                            View candidate = summaryList.getChildAt(candidateIndex);
+                            Object candidateTag = candidate.getTag();
+                            if (candidateTag instanceof String
+                                    && ((String) candidateTag).startsWith("summaryRow:")) {
+                                String candidateSid = ((String) candidateTag).substring("summaryRow:".length());
+                                target = candidate.findViewWithTag("summaryFocus:" + candidateSid + ":" + focusRole);
+                                if (target == null) target = candidate.findViewWithTag("summaryFocus:" + candidateSid + ":minus");
+                                if (target == null) target = candidate.findViewWithTag("summaryFocus:" + candidateSid + ":plus");
+                                if (target != null && (!target.isFocusable() || !target.isShown())) target = null;
+                                if (target != null) break;
+                            }
+                            candidateIndex += step;
+                        }
+                    }
+                    if (target == null) target = findTextViewContaining(root, "מצב איסוף");
+                    if (target != null) target.requestFocus();
+                }
                 ((ViewGroup) row.getParent()).removeView(row);
+                if (scrollAtRemoval != null) scrollAtRemoval.post(() -> scrollAtRemoval.scrollTo(0, savedScrollY));
             }
             if (summaryList.getChildCount() == 0) {
                 TextView empty = muted("ההזמנה ריקה. חזרו למוצרים כדי להוסיף.", 14);
@@ -8203,13 +8266,13 @@ public class MainActivity extends Activity {
         if (summary == null || root == null || summaryList == null || collectMode || summaryFromHistory) return false;
         for (OrderLine line : summary.lines) {
             if (lineQty(line) <= 0) continue;
-            View existingRow = root.findViewWithTag("summaryRow:" + line.sid);
-            if (existingRow == null) return false;
             // Some historical/server-only lines are intentionally read-only and have no
-            // quantity stepper. They must not make an otherwise in-place refresh rebuild
-            // every editable row (which used to send focus and scroll back to the top).
+            // quantity stepper. Check this before requiring an editable row tag: editRow()
+            // only tags rows that have quantity controls.
             View qtyControl = root.findViewWithTag("summaryFocus:" + line.sid + ":qty");
             if (!(qtyControl instanceof TextView)) continue;
+            View existingRow = root.findViewWithTag("summaryRow:" + line.sid);
+            if (existingRow == null) return false;
             if (!refreshSummaryRowInPlace(line.sid)) return false;
         }
         // Rows for items removed by the server must not linger. Iterate backwards so removals are safe.
@@ -8390,6 +8453,7 @@ public class MainActivity extends Activity {
         row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
 
         TextView remove = roundBtn("✕", 36, RED_LIGHT, RED);
+        remove.setTag("summaryFocus:" + line.sid + ":remove");
         remove.setTextSize(15);
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(36), dp(36));
         rp.setMarginStart(dp(8));
