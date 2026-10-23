@@ -503,6 +503,8 @@ public class MainActivity extends Activity {
     private boolean busy = false;
     private Runnable backAction = null;
     private int screenToken = 0;
+    // Prevent an older overlapping sales request from overwriting a newer response.
+    private int openSalesRequestToken = 0;
     private EditText activeProductSearch;
     private View productSearchClearButton;
     private android.app.Dialog imageViewerDialog;
@@ -5380,6 +5382,7 @@ public class MainActivity extends Activity {
 
     private void loadOpenSales(boolean showLoading) {
         final int t = screenToken;
+        final int requestToken = ++openSalesRequestToken;
         if (showLoading) setStatus("טוען מכירות פתוחות…");
         executor.execute(() -> {
             try {
@@ -5389,10 +5392,13 @@ public class MainActivity extends Activity {
                 }
                 JSONArray rows = arrayFrom(r.body);
                 try { SaleMonitor.scheduleClosingReminders(getApplicationContext(), rows); } catch (Exception ignored) { }
-                runOnUiThread(() -> { if (!stale(t)) renderSales(rows); });
+                runOnUiThread(() -> {
+                    if (stale(t) || requestToken != openSalesRequestToken) return;
+                    renderSales(rows);
+                });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    if (stale(t)) return;
+                    if (stale(t) || requestToken != openSalesRequestToken) return;
                     // Do not erase a previously loaded list on a transient failure.
                     // On the first load the empty/offline actions are already on screen.
                     setStatus(errText(e, "טעינת המכירות נכשלה. אפשר לבדוק שוב באמצעות רענון."), true);
