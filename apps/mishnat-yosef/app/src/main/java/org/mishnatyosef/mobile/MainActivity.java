@@ -7969,7 +7969,21 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             card.setContentDescription(productName(prod) + ". כרטיס מוצר");
             adaptCardSize();
             String sid = sidOf(prod), pid = pidOf(prod);
-            boolean disabled = truthy(prod.opt("disable")), soldOut = isSoldOut(prod), canOrder = !disabled && !soldOut;
+            boolean hasSizes = !sizeVariants(prod).isEmpty();
+            boolean hasAvailableSize = false;
+            if (hasSizes) {
+                for (JSONObject variant : sizeVariants(prod)) {
+                    int variantQty = featureQuantities.containsKey(sidOf(variant)) ? featureQuantities.get(sidOf(variant)) : 0;
+                    int variantMax = maxPerMan(variant);
+                    if (!truthy(variant.opt("disable")) && numericAvailable(variant) != 0
+                            && (variantMax <= 0 || variantQty < variantMax)) {
+                        hasAvailableSize = true;
+                        break;
+                    }
+                }
+            }
+            boolean disabled = truthy(prod.opt("disable")), soldOut = isSoldOut(prod);
+            boolean canOrder = !disabled && (!soldOut || hasAvailableSize);
             String url = imageUrl(prod, !fullImages());
             if (!url.equals(boundUrl)) {
                 boundUrl = url;
@@ -7999,7 +8013,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             unitView.setText(up);
             setCompactOptionalRow(unitView, !up.isEmpty());
 
-            boolean hasSizes = !sizeVariants(prod).isEmpty(); bindSizeButtons(prod, hasSizes);
+            bindSizeButtons(prod, hasSizes);
             add.setText(canOrder ? (hasSizes ? "הוספה" : "הוספה") : (disabled ? "לא זמין" : "אזל מהמלאי"));
             paintButton(add, canOrder ? TONAL : FLAT);
             int q = productQuantity(prod);
@@ -8034,7 +8048,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             add.setAlpha(add.isEnabled() && !busyNow ? 1f : 0.45f);
             chargeButton.setVisibility(closedOrderReadOnly ? View.VISIBLE : View.GONE);
             setEnabledLook(chargeButton, closedOrderReadOnly);
-            boolean localStockAction=!closedOrderReadOnly&&(disabled||soldOut);
+            boolean localStockAction=!closedOrderReadOnly&&(disabled||(soldOut && !hasAvailableSize));
             controls.setVisibility(localStockAction?View.GONE:View.VISIBLE);
             autoOrderPanel.setVisibility(localStockAction?View.VISIBLE:View.GONE);
             boolean existingStockAlert = stockWatchMode(prod, "alert");
