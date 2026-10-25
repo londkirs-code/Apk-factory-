@@ -8136,6 +8136,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         int next = Math.max(0, current + delta);
         if (delta > 0) {
             if (truthy(p.opt("disable")) || isSoldOut(p)) { toast("המוצר אינו זמין כרגע", false); return; }
+            int maximum = maxPerMan(p);
+            if (isClothingSizeRow(p) && maximum > 0 && current >= maximum) { toast("הגעתם למגבלת הכמות למידה הזו (" + maximum + ")", false); return; }
         }
         setItemAmount(p, next, refresh, onSuccess);
     }
