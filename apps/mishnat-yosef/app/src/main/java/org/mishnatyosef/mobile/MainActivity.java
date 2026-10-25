@@ -5290,7 +5290,117 @@ public class MainActivity extends Activity {
 
     private String sidOf(JSONObject p) {
         String id = first(p, "item_salesID", "item_sales_id", "id", "itemID");
-        return id;
+        if (!id.isEmpty()) return id;
+        JSONObject nested = p == null ? null : p.optJSONObject("product");
+        return first(nested, "item_salesID", "item_sales_id", "id", "itemID");
+    }
+
+    private String sizeVariantLabel(JSONObject variant) {
+        String label = first(variant, "size", "size_name", "sizeName", "size_value", "sizeValue",
+                "variant_name", "variantName", "option_name", "optionName", "label", "value",
+                "name", "full_name", "title", "item_name");
+        if (label.isEmpty()) label = "מידה " + sidOf(variant);
+        return cleanHtml(label);
+    }
+
+    private List<JSONObject> sizeVariants(JSONObject product) {
+        List<JSONObject> found = new ArrayList<>();
+        if (product == null) return found;
+        String parentSid = sidOf(product);
+        Set<String> seen = new LinkedHashSet<>();
+        JSONObject[] roots = {product, product.optJSONObject("product")};
+        for (JSONObject root : roots) {
+            if (root == null) continue;
+            java.util.Iterator<String> keys = root.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                Object value = root.opt(key);
+                if (value instanceof JSONObject) {
+                    JSONObject nested = (JSONObject) value;
+                    java.util.Iterator<String> nestedKeys = nested.keys();
+                    while (nestedKeys.hasNext()) {
+                        String nestedKey = nestedKeys.next();
+                        Object nestedValue = nested.opt(nestedKey);
+                        if (nestedValue instanceof JSONArray) collectSizeVariants((JSONArray) nestedValue,
+                                key + "." + nestedKey, parentSid, found, seen);
+                    }
+                } else if (value instanceof JSONArray) {
+                    collectSizeVariants((JSONArray) value, key, parentSid, found, seen);
+                }
+            }
+        }
+        return found;
+    }
+
+    private void collectSizeVariants(JSONArray rows, String containerKey, String parentSid,
+            List<JSONObject> out, Set<String> seen) {
+        if (rows == null || rows.length() == 0) return;
+        String normalizedKey = containerKey == null ? "" : containerKey.toLowerCase(Locale.ROOT);
+        boolean sizeContainer = normalizedKey.contains("size") || normalizedKey.contains("variant")
+                || normalizedKey.contains("subitem") || normalizedKey.contains("sub_item")
+                || normalizedKey.contains("מיד");
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.optJSONObject(i);
+            if (row == null) continue;
+            String sid = sidOf(row);
+            if (sid.isEmpty() || sid.equals(parentSid) || !seen.add(sid)) continue;
+            boolean explicitSize = !first(row, "size", "size_name", "sizeName", "size_value", "sizeValue",
+                    "variant_name", "variantName", "option_name", "optionName").isEmpty();
+            if (!sizeContainer && !explicitSize) continue;
+            out.add(row);
+        }
+    }
+
+    private JSONObject productWithSelectedVariant(JSONObject parent, JSONObject variant) {
+        try {
+            JSONObject merged = new JSONObject(parent.toString());
+            java.util.Iterator<String> keys = variant.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                merged.put(key, variant.opt(key));
+            }
+            String variantSid = sidOf(variant);
+            if (!variantSid.isEmpty()) merged.put("item_salesID", variantSid);
+            merged.put("amount", num(variant.opt("amount")));
+            return merged;
+        } catch (Exception ignored) {
+            return variant;
+        }
+    }
+
+    private void withSelectedSize(JSONObject product, java.util.function.Consumer<JSONObject> action) {
+        List<JSONObject> variants = sizeVariants(product);
+        if (variants.isEmpty()) {
+            action.accept(product);
+            return;
+        }
+        String[] labels = new String[variants.size()];
+        for (int i = 0; i < variants.size(); i++) {
+            JSONObject variant = variants.get(i);
+            String label = sizeVariantLabel(variant);
+            String available = first(variant, "available", "stock", "quantity");
+            labels[i] = label + (available.isEmpty() ? "" : " · מלאי " + available);
+        }
+        appDialog().setTitle("בחירת מידה — " + productName(product))
+                .setItems(labels, (dialog, which) -> {
+                    if (which >= 0 && which < variants.size()) action.accept(productWithSelectedVariant(product, variants.get(which)));
+                })
+                .setNegativeButton("ביטול", null)
+                .show();
+    }
+
+    private void changeByWithSize(JSONObject product, int delta, Runnable refresh, Runnable onSuccess) {
+        withSelectedSize(product, selected -> changeBy(selected, delta, refresh, onSuccess));
+    }
+
+    private int productQuantity(JSONObject product) {
+        if (product == null) return 0;
+        int total = featureQuantities.containsKey(sidOf(product)) ? featureQuantities.get(sidOf(product)) : 0;
+        for (JSONObject variant : sizeVariants(product)) {
+            Integer q = featureQuantities.get(sidOf(variant));
+            if (q != null && q > 0) total += q;
+        }
+        return total;
     }
 
     private String productName(JSONObject p) {
@@ -6970,6 +7080,14 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             try { p.put("amount", amount); } catch (Exception ignored) { }
             clean.add(p);
             quantities.put(sid, amount);
+            for (JSONObject variant : sizeVariants(p)) {
+                String variantSid = sidOf(variant);
+                if (variantSid.isEmpty()) continue;
+                int variantAmount = serverQty != null
+                        ? (serverQty.containsKey(variantSid) ? serverQty.get(variantSid) : 0)
+                        : Math.max(0, (int) Math.round(num(variant.opt("amount"))));
+                quantities.put(variantSid, variantAmount);
+            }
         }
         final long now = System.currentTimeMillis();
         final boolean live = featureSale != null && featureSale.optInt("id", -1) == saleId && !summaryFromHistory;
@@ -7043,8 +7161,18 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         int lines = 0, units = 0;
         double total = 0;
         for (JSONObject p : featureProducts) {
-            Integer q = featureQuantities.get(sidOf(p));
-            if (q != null && q > 0) { lines++; units += q; total += productPrice(p) * q; }
+            List<JSONObject> variants = sizeVariants(p);
+            if (!variants.isEmpty()) {
+                Integer parentQ = featureQuantities.get(sidOf(p));
+                if (parentQ != null && parentQ > 0) { lines++; units += parentQ; total += productPrice(p) * parentQ; }
+                for (JSONObject variant : variants) {
+                    Integer q = featureQuantities.get(sidOf(variant));
+                    if (q != null && q > 0) { lines++; units += q; total += productPrice(productWithSelectedVariant(p, variant)) * q; }
+                }
+            } else {
+                Integer q = featureQuantities.get(sidOf(p));
+                if (q != null && q > 0) { lines++; units += q; total += productPrice(p) * q; }
+            }
         }
         return new double[]{lines, units, total};
     }
@@ -7411,9 +7539,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             boolean isPendingStockTarget = prefs != null
                     && prefs.getInt(PREF_PENDING_STOCK_SALE_ID, -1) == currentSaleId
                     && sidOf(p).equals(prefs.getString(PREF_PENDING_STOCK_SID, ""));
-            if (hideSoldOut() && !separateSoldOutCategory() && isSoldOut(p) && !isPendingStockTarget) { Integer inCart = featureQuantities.get(sidOf(p)); if (inCart == null || inCart <= 0) continue; }
+            if (hideSoldOut() && !separateSoldOutCategory() && isSoldOut(p) && !isPendingStockTarget) { int inCart = productQuantity(p); if (inCart <= 0) continue; }
             if ("fav".equals(viewMode) && !favIds.contains(pidOf(p))) continue;
-            if ("cart".equals(viewMode)) { Integer qq = featureQuantities.get(sidOf(p)); if (qq == null || qq <= 0) continue; }
+            if ("cart".equals(viewMode) && productQuantity(p) <= 0) continue;
             String cat = separateSoldOutCategory() && isSoldOut(p) ? "פריטים שאזלו" : categoryName(p);
             if (!byCat.containsKey(cat)) byCat.put(cat, new ArrayList<JSONObject>());
             byCat.get(cat).add(p);
@@ -7638,18 +7766,18 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             stockAlertButton.setFocusable(true);
             stockAlertButton.setFocusableInTouchMode(false);
             card.setTag("productCard:" + sidOf(p));
-            add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeBy(p, 1, productsRefresh, null); });
+            add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeByWithSize(p, 1, productsRefresh, null); });
             st.plus.setOnClickListener(v -> {
                 if (p == null) return;
                 if (closedOrderReadOnly) changeCachedChargeQuantity(p, 1);
-                else changeBy(p, 1, productsRefresh, null);
+                else changeByWithSize(p, 1, productsRefresh, null);
             });
             st.minus.setOnClickListener(v -> {
                 if (p == null) return;
                 if (closedOrderReadOnly) changeCachedChargeQuantity(p, -1);
-                else changeBy(p, -1, productsRefresh, null);
+                else changeByWithSize(p, -1, productsRefresh, null);
             });
-            st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) askQuantity(p, productsRefresh, null); });
+            st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) withSelectedSize(p, selected -> askQuantity(selected, productsRefresh, null)); });
 
             View.OnFocusChangeListener focusListener = (view, focused) -> refreshVisibleProductFocusVisuals();
             for (View focusView : new View[]{card, add, st.plus, st.qty, st.minus, chargeButton,
@@ -7782,9 +7910,10 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             unitView.setText(up);
             setCompactOptionalRow(unitView, !up.isEmpty());
 
-            add.setText(canOrder ? "הוספה" : (disabled ? "לא זמין" : "אזל מהמלאי"));
+            boolean hasSizes = !sizeVariants(prod).isEmpty();
+            add.setText(canOrder ? (hasSizes ? "בחירת מידה" : "הוספה") : (disabled ? "לא זמין" : "אזל מהמלאי"));
             paintButton(add, canOrder ? TONAL : FLAT);
-            int q = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+            int q = productQuantity(prod);
             boolean busyNow = pending.contains(sid);
             add.setVisibility(closedOrderReadOnly || q > 0 ? View.GONE : View.VISIBLE);
             st.view.setVisibility(closedOrderReadOnly || q > 0 ? View.VISIBLE : View.GONE);
@@ -10674,15 +10803,27 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     private List<OrderLine> currentOrderLines() {
         List<OrderLine> out = new ArrayList<>();
         for (JSONObject p : featureProducts) {
-            Integer q = featureQuantities.get(sidOf(p));
-            if (q == null || q <= 0) continue;
-            OrderLine l = new OrderLine();
-            l.sid = sidOf(p);
-            l.name = productName(p);
-            l.price = productPrice(p);
-            l.amount = q;
-            l.raw = p;
-            out.add(l);
+            List<JSONObject> variants = sizeVariants(p);
+            if (!variants.isEmpty()) {
+                Integer parentQ = featureQuantities.get(sidOf(p));
+                if (parentQ != null && parentQ > 0) {
+                    OrderLine l = new OrderLine(); l.sid = sidOf(p); l.name = productName(p);
+                    l.price = productPrice(p); l.amount = parentQ; l.raw = p; out.add(l);
+                }
+                for (JSONObject variant : variants) {
+                    Integer q = featureQuantities.get(sidOf(variant));
+                    if (q == null || q <= 0) continue;
+                    JSONObject selected = productWithSelectedVariant(p, variant);
+                    OrderLine l = new OrderLine(); l.sid = sidOf(selected);
+                    l.name = productName(selected) + " — " + sizeVariantLabel(variant);
+                    l.price = productPrice(selected); l.amount = q; l.raw = selected; out.add(l);
+                }
+            } else {
+                Integer q = featureQuantities.get(sidOf(p));
+                if (q == null || q <= 0) continue;
+                OrderLine l = new OrderLine(); l.sid = sidOf(p); l.name = productName(p);
+                l.price = productPrice(p); l.amount = q; l.raw = p; out.add(l);
+            }
         }
         return out;
     }
