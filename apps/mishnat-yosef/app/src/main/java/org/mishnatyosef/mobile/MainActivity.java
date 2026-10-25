@@ -5408,6 +5408,7 @@ public class MainActivity extends Activity {
     private String selectedSizeSid(JSONObject product) { String id=clothingProductId(product);return id.isEmpty()?null:selectedSizeByProduct.get(id); }
     private JSONObject selectedSize(JSONObject product) { String sid=selectedSizeSid(product);if(sid==null)return null;for(JSONObject v:sizeVariants(product))if(sid.equals(sidOf(v)))return productWithSelectedVariant(product,v);return null; }
     private boolean isClothingSizeRow(JSONObject row) { if(row==null)return false;String sid=sidOf(row);for(JSONObject p:featureProducts)if(isClothingProduct(p))for(JSONObject v:sizeVariants(p))if(sid.equals(sidOf(v)))return true;return false; }
+    private JSONObject clothingParentForSize(JSONObject row) { if(row==null)return null;String sid=sidOf(row);for(JSONObject p:featureProducts)if(isClothingProduct(p))for(JSONObject v:sizeVariants(p))if(sid.equals(sidOf(v)))return p;return null; }
     private void changeByWithSize(JSONObject product, int delta, Runnable refresh, Runnable onSuccess) {
         if(sizeVariants(product).isEmpty()){changeBy(product,delta,refresh,onSuccess);return;}
         JSONObject selected=selectedSize(product);if(selected==null){toast("בחרו מידה תחילה",false);return;}changeBy(selected,delta,refresh,onSuccess);
@@ -7204,8 +7205,6 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         for (JSONObject p : featureProducts) {
             List<JSONObject> variants = sizeVariants(p);
             if (!variants.isEmpty()) {
-                Integer parentQ = featureQuantities.get(sidOf(p));
-                if (parentQ != null && parentQ > 0) { lines++; units += parentQ; total += productPrice(p) * parentQ; }
                 for (JSONObject variant : variants) {
                     Integer q = featureQuantities.get(sidOf(variant));
                     if (q != null && q > 0) { lines++; units += q; total += productPrice(productWithSelectedVariant(p, variant)) * q; }
@@ -8170,7 +8169,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             try {
                 HttpResult result=null;boolean clothing=!sizeVariants(p).isEmpty()||isClothingProduct(p)||isClothingSizeRow(p);
                 if(newQty==0){if(serverAmount>0){result=api("POST","/api/remove_item/"+orderId+"/"+sid,null);if(clothing)android.util.Log.i("MishnatClothing","remove_item sid="+sid+" HTTP="+result.code+" response="+safeBodyForDiagnostic(result.body));}}
-                else {JSONObject item;if(clothing){JSONObject parent=p;String id=clothingProductId(p);for(JSONObject candidate:featureProducts)if(!id.isEmpty()&&id.equals(clothingProductId(candidate))){parent=candidate;break;}item=buildSizedItemBody(parent,p,newQty);}
+                else {JSONObject item;if(clothing){JSONObject parent=clothingParentForSize(p);if(parent==null)parent=p;item=buildSizedItemBody(parent,p,newQty);}
                     else{item=new JSONObject(p.toString());item.put("amount",newQty);if(!item.has("selected_subitems")||item.isNull("selected_subitems"))item.put("selected_subitems",new JSONArray());}
                     if(clothing)android.util.Log.i("MishnatClothing",(serverAmount>0?"update_item":"add_item")+" sid="+sid+" body="+item.toString());
                     result=api("POST",(serverAmount>0?"/api/update_item/":"/api/add_item/")+orderId,item);
@@ -10863,11 +10862,6 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         for (JSONObject p : featureProducts) {
             List<JSONObject> variants = sizeVariants(p);
             if (!variants.isEmpty()) {
-                Integer parentQ = featureQuantities.get(sidOf(p));
-                if (parentQ != null && parentQ > 0) {
-                    OrderLine l = new OrderLine(); l.sid = sidOf(p); l.name = productName(p);
-                    l.price = productPrice(p); l.amount = parentQ; l.raw = p; out.add(l);
-                }
                 for (JSONObject variant : variants) {
                     Integer q = featureQuantities.get(sidOf(variant));
                     if (q == null || q <= 0) continue;
