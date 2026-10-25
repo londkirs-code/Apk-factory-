@@ -7842,7 +7842,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             stockAlertButton.setFocusable(true);
             stockAlertButton.setFocusableInTouchMode(false);
             card.setTag("productCard:" + sidOf(p));
-            add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) { if (!sizeVariants(p).isEmpty()) showSizePickerDialog(p, add); else changeByWithSize(p, 1, productsRefresh, null); } });
+            add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && (!isSoldOut(p) || !sizeVariants(p).isEmpty())) { if (!sizeVariants(p).isEmpty()) showSizePickerDialog(p, add); else changeByWithSize(p, 1, productsRefresh, null); } });
             st.plus.setOnClickListener(v -> {
                 if (p == null) return;
                 if (closedOrderReadOnly) changeCachedChargeQuantity(p, 1);
