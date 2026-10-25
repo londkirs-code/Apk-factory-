@@ -8154,7 +8154,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         if (pending.contains(sid) || featureOrderId <= 0) return;
         final int oldQty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
         if (newQty == oldQty) return;
-        final int serverAmount = (int) Math.round(num(p.opt("amount")));
+        // Use the account-specific quantity map, not stale catalogue JSON, to choose add vs update.
+        final int serverAmount = oldQty;
         final long orderId = featureOrderId;
         pending.add(sid);
         featureQuantities.put(sid, newQty);
