@@ -6191,6 +6191,30 @@ public class MainActivity extends Activity {
         return count;
     }
 
+    private String nestedProductArraySummary(JSONObject product) {
+        if (product == null) return "";
+        List<String> parts = new ArrayList<>();
+        java.util.Iterator<String> keys = product.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object value = product.opt(key);
+            if (value instanceof JSONArray) {
+                parts.add(key + "=" + ((JSONArray) value).length());
+            } else if (value instanceof JSONObject) {
+                JSONObject nested = (JSONObject) value;
+                java.util.Iterator<String> nestedKeys = nested.keys();
+                while (nestedKeys.hasNext()) {
+                    String nestedKey = nestedKeys.next();
+                    Object nestedValue = nested.opt(nestedKey);
+                    if (nestedValue instanceof JSONArray) {
+                        parts.add(key + "." + nestedKey + "=" + ((JSONArray) nestedValue).length());
+                    }
+                }
+            }
+        }
+        return TextUtils.join(",", parts);
+    }
+
     /**
      * Strict parser for catalogue pages. Unlike arrayFrom(), this does not silently convert
      * malformed or unrecognized JSON into an empty list, which could hide entire categories.
@@ -6230,17 +6254,21 @@ public class MainActivity extends Activity {
     private void logProductPageDiagnostic(int page, String path, String body, JSONArray array, boolean parsed, String detail) {
         int parents = 0;
         int nestedRows = 0;
+        List<String> nestedKeys = new ArrayList<>();
         if (array != null) {
             for (int i = 0; i < array.length(); i++) {
                 JSONObject item = array.optJSONObject(i);
                 if (item != null) {
                     parents++;
                     nestedRows += nestedProductRowCount(item);
+                    String summary = nestedProductArraySummary(item);
+                    if (!summary.isEmpty() && !nestedKeys.contains(summary)) nestedKeys.add(summary);
                 }
             }
         }
         String result = "עמוד " + page + ": HTTP 200; אבות=" + parents
                 + "; שורות/מערכים מקוננים=" + nestedRows
+                + "; שמות מערכים=" + (nestedKeys.isEmpty() ? "אין" : TextUtils.join(" | ", nestedKeys))
                 + "; אורך גוף=" + (body == null ? 0 : body.length())
                 + "; פענוח=" + (parsed ? "תקין" : "נכשל")
                 + (detail == null || detail.isEmpty() ? "" : "; " + detail);
