@@ -813,13 +813,13 @@ public class MainActivity extends Activity {
                 || key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
                 || key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
                 || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT;
-        if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&current!=null&&current.getTag() instanceof String&&((String)current.getTag()).startsWith("productSize:")&&(key==android.view.KeyEvent.KEYCODE_DPAD_LEFT||key==android.view.KeyEvent.KEYCODE_DPAD_RIGHT)){
-            CardHolder ch=findProductCardHolder(current);if(ch!=null){List<TextView> bs=new ArrayList<>(ch.sizeButtons.values());int ix=bs.indexOf(current);int step=key==android.view.KeyEvent.KEYCODE_DPAD_RIGHT?-1:1;for(int n=ix+step;n>=0&&n<bs.size();n+=step)if(requestProductFocus(bs.get(n)))return true;return true;}}
         if (event.getAction() != android.view.KeyEvent.ACTION_DOWN || !direction
                 || screenKind != 1 || productList == null) {
             return super.dispatchKeyEvent(event);
         }
         View current = getCurrentFocus();
+        if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&current!=null&&current.getTag() instanceof String&&((String)current.getTag()).startsWith("productSize:")&&(key==android.view.KeyEvent.KEYCODE_DPAD_LEFT||key==android.view.KeyEvent.KEYCODE_DPAD_RIGHT)){
+            CardHolder ch=findProductCardHolder(current);if(ch!=null){List<TextView> bs=new ArrayList<>(ch.sizeButtons.values());int ix=bs.indexOf(current);int step=key==android.view.KeyEvent.KEYCODE_DPAD_RIGHT?-1:1;for(int n=ix+step;n>=0&&n<bs.size();n+=step)if(requestProductFocus(bs.get(n)))return true;return true;}}
         if (activeProductSearch != null && activeProductSearch.hasFocus()
                 && isSoftKeyboardVisible()) {
             return super.dispatchKeyEvent(event);
@@ -7097,6 +7097,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             if (sid.isEmpty()) continue;
             featureProducts.add(p);
             if (!featureQuantities.containsKey(sid)) featureQuantities.put(sid, Math.max(0, (int) Math.round(num(p.opt("amount")))));
+            for (JSONObject variant : sizeVariants(p)) { String variantSid = sidOf(variant); if (!variantSid.isEmpty() && !featureQuantities.containsKey(variantSid)) featureQuantities.put(variantSid, Math.max(0, (int) Math.round(num(variant.opt("amount"))))); }
         }
         setStatus("טוען מוצרים… " + featureProducts.size() + (total > 0 ? " מתוך " + total : ""));
         rebuildGrid();
@@ -7125,6 +7126,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                 int variantAmount = serverQty != null
                         ? (serverQty.containsKey(variantSid) ? serverQty.get(variantSid) : 0)
                         : Math.max(0, (int) Math.round(num(variant.opt("amount"))));
+                try { variant.put("amount", variantAmount); } catch (Exception ignored) { }
                 quantities.put(variantSid, variantAmount);
             }
         }
