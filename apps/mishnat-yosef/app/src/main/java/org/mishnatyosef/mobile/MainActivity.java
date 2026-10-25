@@ -7806,6 +7806,15 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             autoOrderStepper.minus.setOnClickListener(v->{if(p!=null)adjustStockDraft(p,-1,autoOrderStepper);});
             autoOrderSaveButton.setOnClickListener(v->{if(p!=null)saveAutoOrder(p,stockDraftQty(p));});
             stockAlertButton.setOnClickListener(v->{if(p!=null)saveStockAlert(p);});
+            stockAlertButton.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                        && (keyCode == android.view.KeyEvent.KEYCODE_ENTER
+                        || keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER)) {
+                    v.performClick();
+                    return true;
+                }
+                return false;
+            });
 
             card.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
             imageBox.setOnClickListener(v -> { if (p != null) showProductDetails(p); });
@@ -8028,12 +8037,22 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             boolean localStockAction=!closedOrderReadOnly&&(disabled||soldOut);
             controls.setVisibility(localStockAction?View.GONE:View.VISIBLE);
             autoOrderPanel.setVisibility(localStockAction?View.VISIBLE:View.GONE);
-            stockAlertButton.setVisibility(localStockAction?View.VISIBLE:View.GONE);
+            boolean existingStockAlert = stockWatchMode(prod, "alert");
+            boolean showStockAlert = !closedOrderReadOnly && (localStockAction || existingStockAlert);
+            stockAlertButton.setVisibility(showStockAlert ? View.VISIBLE : View.GONE);
+            stockAlertButton.setFocusable(true);
+            stockAlertButton.setFocusableInTouchMode(false);
+            stockAlertButton.setEnabled(showStockAlert);
             if(localStockAction){
                 autoOrderStepper.qty.setText(String.valueOf(stockDraftQty(prod)));
                 autoOrderSaveButton.setText(stockWatchMode(prod,"auto")?"✓ מנוהל בהזמנה אוטומטית":"שמירה להזמנה אוטומטית");
-                stockAlertButton.setText(stockWatchMode(prod,"alert")?"🔔 ההתראה פעילה · ניהול":"🔔 התראה כשהמוצר חוזר למלאי");
                 autoOrderPanel.setBackground(shape(disabled&&!soldOut?RED_LIGHT:ORANGE_LIGHT,10,disabled&&!soldOut?RED:ORANGE));
+            }
+            if (showStockAlert) {
+                stockAlertButton.setText(existingStockAlert ? "🔔 ההתראה פעילה · ניהול" : "🔔 התראה כשהמוצר חוזר למלאי");
+                stockAlertButton.setContentDescription(existingStockAlert
+                        ? "ניהול התראת חזרה למלאי עבור " + productName(prod)
+                        : "הפעלת התראת חזרה למלאי עבור " + productName(prod));
             }
             rememberNormalFocusBackgrounds();
             updateFocusVisuals();
