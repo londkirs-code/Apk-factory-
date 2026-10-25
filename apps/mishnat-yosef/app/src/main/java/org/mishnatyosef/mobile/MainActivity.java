@@ -4976,6 +4976,7 @@ public class MainActivity extends Activity {
         // Keep the download URL in a keyed tag: summary rows use the ordinary tag
         // to locate their image later, so storing the URL there prevents first-load
         // callbacks from matching and silently discarding the downloaded bitmap.
+        // Restored the prior image-loading tag behavior after the crash report.
         iv.setTag(url);
         if (TextUtils.isEmpty(iv.getContentDescription())) iv.setContentDescription(url);
         iv.setOnClickListener(v -> {
