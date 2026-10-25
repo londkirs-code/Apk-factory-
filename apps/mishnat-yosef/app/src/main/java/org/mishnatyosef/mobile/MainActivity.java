@@ -9929,7 +9929,7 @@ public class MainActivity extends Activity {
                 row.addView(remove, removeLp);
                 open.setOnClickListener(v -> {
                     if (dialogRef[0] != null) dialogRef[0].dismiss();
-                    promptApiGrepFilter(new JsonEndpointChoice("כתובת שמורה", path));
+                    promptCustomApiPath(path, loadCustomApiFilter(path));
                 });
                 rows.addView(row, lp(-1, dp(44), 0, 3));
             }
@@ -9983,6 +9983,27 @@ public class MainActivity extends Activity {
         prefs.edit().putString("api_custom_paths", saved.toString()).apply();
     }
 
+    private JSONObject loadCustomApiFilters() {
+        try {
+            return new JSONObject(prefs.getString("api_custom_filters", "{}"));
+        } catch (Exception ignored) {
+            return new JSONObject();
+        }
+    }
+
+    private String loadCustomApiFilter(String path) {
+        return loadCustomApiFilters().optString(path, "");
+    }
+
+    private void persistCustomApiFilter(String path, String filter) {
+        JSONObject filters = loadCustomApiFilters();
+        try {
+            if (filter == null || filter.trim().isEmpty()) filters.remove(path);
+            else filters.put(path, filter.trim());
+            prefs.edit().putString("api_custom_filters", filters.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
     private void saveCustomApiPath(String path) {
         List<String> paths = loadCustomApiPaths();
         paths.remove(path);
@@ -9995,6 +10016,9 @@ public class MainActivity extends Activity {
         List<String> paths = loadCustomApiPaths();
         paths.remove(path);
         persistCustomApiPaths(paths);
+        JSONObject filters = loadCustomApiFilters();
+        filters.remove(path);
+        prefs.edit().putString("api_custom_filters", filters.toString()).apply();
         SharedPreferences.Editor editor = prefs.edit();
         if (path.equals(prefs.getString("api_custom_path", ""))) {
             editor.putString("api_custom_path", paths.isEmpty() ? "/api/orders?search=" : paths.get(0));
@@ -10007,14 +10031,20 @@ public class MainActivity extends Activity {
      * Restrict input to relative /api/ paths so credentials are never sent to another host.
      */
     private void promptCustomApiPath() {
-        String previous = prefs.getString("api_custom_path", "/api/orders?search=");
+        promptCustomApiPath(prefs.getString("api_custom_path", "/api/orders?search="),
+                prefs.getString("api_custom_filter", ""));
+    }
+
+    private void promptCustomApiPath(String initialPath, String initialFilter) {
+        final String originalPath = initialPath == null ? "" : initialPath.trim();
+        String previous = originalPath.isEmpty() ? "/api/orders?search=" : originalPath;
         final EditText pathInput = field("למשל /api/orders?search=שמן", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         pathInput.setSingleLine(true);
         pathInput.setTextDirection(View.TEXT_DIRECTION_LTR);
         pathInput.setText(previous);
         final EditText filterInput = field("מילים לסינון, מופרדות בפסיק (ריק = הכול)", InputType.TYPE_CLASS_TEXT);
         filterInput.setSingleLine(true);
-        filterInput.setText(prefs.getString("api_custom_filter", ""));
+        filterInput.setText(initialFilter == null ? "" : initialFilter);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -10022,7 +10052,8 @@ public class MainActivity extends Activity {
         addClearableApiInput(content, pathInput, "מחיקת הכתובת");
         addClearableApiInput(content, filterInput, "מחיקת פרמטרי הסינון");
 
-        AlertDialog dialog = appDialog().setTitle("כתובת API מותאמת אישית")
+        AlertDialog dialog = appDialog().setTitle(originalPath.isEmpty() || !loadCustomApiPaths().contains(originalPath)
+                        ? "כתובת API מותאמת אישית" : "עריכת כתובת API שמורה")
                 .setView(content)
                 .setNegativeButton("ביטול", null)
                 .setNeutralButton("הרץ בלי סינון", null)
@@ -10041,8 +10072,10 @@ public class MainActivity extends Activity {
             return;
         }
         String filter = useFilter ? filterInput.getText().toString().trim() : "";
+        String filterForSaving = filterInput.getText().toString().trim();
         saveCustomApiPath(path);
-        prefs.edit().putString("api_custom_filter", filterInput.getText().toString().trim()).apply();
+        prefs.edit().putString("api_custom_filter", filterForSaving).apply();
+        persistCustomApiFilter(path, filterForSaving);
         dialog.dismiss();
         runSingleJsonEndpoint(new JsonEndpointChoice("כתובת מותאמת אישית", path), filter);
     }
