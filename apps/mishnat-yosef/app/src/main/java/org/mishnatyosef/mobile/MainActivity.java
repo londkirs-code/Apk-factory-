@@ -6219,7 +6219,8 @@ public class MainActivity extends Activity {
      * Strict parser for catalogue pages. Unlike arrayFrom(), this does not silently convert
      * malformed or unrecognized JSON into an empty list, which could hide entire categories.
      */
-    private JSONArray parseProductPageArray(String body, int page, String path) throws Exception {
+    // Keep API row totals separate from top-level product counts: size variants may be nested rows.
+private JSONArray parseProductPageArray(String body, int page, String path) throws Exception {
         Object parsed;
         try {
             parsed = new JSONTokener(body == null ? "" : body).nextValue();
