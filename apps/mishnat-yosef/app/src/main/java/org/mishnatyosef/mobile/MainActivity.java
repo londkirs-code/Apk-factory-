@@ -5288,6 +5288,8 @@ public class MainActivity extends Activity {
         return prod != null ? prod : p;
     }
 
+    private interface SizeSelectionCallback { void onSelected(JSONObject selected); }
+
     private String sidOf(JSONObject p) {
         String id = first(p, "item_salesID", "item_sales_id", "id", "itemID");
         if (!id.isEmpty()) return id;
@@ -5368,10 +5370,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void withSelectedSize(JSONObject product, java.util.function.Consumer<JSONObject> action) {
+    private void withSelectedSize(JSONObject product, SizeSelectionCallback action) {
         List<JSONObject> variants = sizeVariants(product);
         if (variants.isEmpty()) {
-            action.accept(product);
+            action.onSelected(product);
             return;
         }
         String[] labels = new String[variants.size()];
@@ -5383,7 +5385,7 @@ public class MainActivity extends Activity {
         }
         appDialog().setTitle("בחירת מידה — " + productName(product))
                 .setItems(labels, (dialog, which) -> {
-                    if (which >= 0 && which < variants.size()) action.accept(productWithSelectedVariant(product, variants.get(which)));
+                    if (which >= 0 && which < variants.size()) action.onSelected(productWithSelectedVariant(product, variants.get(which)));
                 })
                 .setNegativeButton("ביטול", null)
                 .show();
