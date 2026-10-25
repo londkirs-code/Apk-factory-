@@ -4976,7 +4976,7 @@ public class MainActivity extends Activity {
         // Keep the download URL in a keyed tag: summary rows use the ordinary tag
         // to locate their image later, so storing the URL there prevents first-load
         // callbacks from matching and silently discarding the downloaded bitmap.
-        iv.setTag(android.R.id.content, url);
+        iv.setTag(url);
         if (TextUtils.isEmpty(iv.getContentDescription())) iv.setContentDescription(url);
         iv.setOnClickListener(v -> {
             Object full = iv.getContentDescription();
@@ -4999,7 +4999,7 @@ public class MainActivity extends Activity {
                 imageCache.put(url, bmp);
                 final Bitmap loaded = bmp;
                 runOnUiThread(() -> {
-                    if (url.equals(iv.getTag(android.R.id.content))) {
+                    if (url.equals(iv.getTag())) {
                         iv.setImageBitmap(loaded);
                         iv.invalidate();
                     }
