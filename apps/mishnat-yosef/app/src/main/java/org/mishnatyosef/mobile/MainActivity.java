@@ -12084,14 +12084,60 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
 
     @Override protected void onStop() {
         super.onStop();
-        unlockExpiry = 0L; // the lock closes whenever the app leaves the screen
+    }
+
+    private long validUnlockExpiry() {
+        long now = System.currentTimeMillis();
+        long expiry = prefs.getLong("child_unlock_until", 0L);
+        if (expiry < now || expiry > now + UNLOCK_WINDOW_MS) {
+            prefs.edit().remove("child_unlock_until").apply();
+            unlockExpiry = 0L;
+            return 0L;
+        }
+        unlockExpiry = expiry;
+        return expiry;
+    }
+
+    private void setUnlockExpiry(long expiry) {
+        unlockExpiry = expiry;
+        if (childLockOn() && expiry > System.currentTimeMillis()) {
+            prefs.edit().putLong("child_unlock_until", expiry).apply();
+        } else {
+            prefs.edit().remove("child_unlock_until").apply();
+        }
+    }
+
+    private long childLockBlockedUntil() {
+        long now = System.currentTimeMillis();
+        long until = prefs.getLong("child_lock_blocked_until", 0L);
+        if (until > now) return until;
+        if (until != 0L) prefs.edit().remove("child_lock_blocked_until").putInt("child_lock_failures", 0).apply();
+        return 0L;
+    }
+
+    private int recordChildLockFailure() {
+        int failures = prefs.getInt("child_lock_failures", 0) + 1;
+        if (failures >= 5) {
+            prefs.edit().putInt("child_lock_failures", 5)
+                    .putLong("child_lock_blocked_until", System.currentTimeMillis() + UNLOCK_WINDOW_MS).apply();
+            return 0;
+        }
+        prefs.edit().putInt("child_lock_failures", failures).apply();
+        return 5 - failures;
+    }
+
+    private void resetChildLockFailures() {
+        prefs.edit().remove("child_lock_failures").remove("child_lock_blocked_until").apply();
+        mathFailures = 0;
+        mathLockoutUntil = 0L;
     }
 
     /** Runs the action at once when the lock is off or recently solved; otherwise asks for the challenge first. */
     private void requireUnlock(final Runnable action) {
         long now = System.currentTimeMillis();
-        if (!childLockOn() || now < unlockExpiry) {
-            if (childLockOn()) unlockExpiry = now + UNLOCK_WINDOW_MS;
+        long expiry = validUnlockExpiry();
+        if (!childLockOn() || now < expiry) {
+            if (childLockOn()) setUnlockExpiry(now + UNLOCK_WINDOW_MS);
             action.run();
             return;
         }
@@ -12245,7 +12291,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     }
 
     private void showChildLockChallenge(final Runnable onSuccess, final Runnable onCancel) {
-        long wait = mathLockoutUntil - System.currentTimeMillis();
+        long wait = childLockBlockedUntil() - System.currentTimeMillis();
         if (wait > 0) {
             toast("יותר מדי טעויות. נסו שוב בעוד " + (wait / 1000 + 1) + " שניות", true);
             if (onCancel != null) onCancel.run();
@@ -12359,22 +12405,20 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                 return;
             }
             if (current[0] != null && childLockAnswerMatches(current[0].name, value)) {
-                mathFailures = 0;
-                unlockExpiry = System.currentTimeMillis() + UNLOCK_WINDOW_MS;
+                resetChildLockFailures();
+                setUnlockExpiry(System.currentTimeMillis() + UNLOCK_WINDOW_MS);
                 ref[0].dismiss();
                 onSuccess.run();
                 return;
             }
 
-            mathFailures++;
-            if (mathFailures >= 3) {
-                mathFailures = 0;
-                mathLockoutUntil = System.currentTimeMillis() + 30000L;
+            int remaining = recordChildLockFailure();
+            if (remaining == 0) {
                 ref[0].dismiss();
-                toast("3 טעויות. אפשר לנסות שוב בעוד 30 שניות", true);
+                toast("נחסמתם ל־5 דקות לאחר 5 טעויות", true);
                 if (onCancel != null) onCancel.run();
             } else {
-                toast("תשובה שגויה. נסו לזהות מוצר אחר", false);
+                toast("תשובה שגויה. נותרו " + remaining + " ניסיונות", false);
                 next[0].run();
             }
         };
@@ -12476,20 +12520,18 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             catch (Exception e) { toast("הקלידו מספר", false); return; }
             long now = System.currentTimeMillis();
             if (val == answer[0]) {
-                mathFailures = 0;
-                unlockExpiry = now + UNLOCK_WINDOW_MS;
+                resetChildLockFailures();
+                setUnlockExpiry(now + UNLOCK_WINDOW_MS);
                 ref[0].dismiss();
                 onSuccess.run();
             } else {
-                mathFailures++;
-                if (mathFailures >= 3) {
-                    mathFailures = 0;
-                    mathLockoutUntil = now + 30000L;
+                int remaining = recordChildLockFailure();
+                if (remaining == 0) {
                     ref[0].dismiss();
-                    toast("3 טעויות. אפשר לנסות שוב בעוד 30 שניות", true);
+                    toast("נחסמתם ל־5 דקות לאחר 5 טעויות", true);
                     if (onCancel != null) onCancel.run();
                 } else {
-                    toast("תשובה שגויה. תרגיל חדש", false);
+                    toast("תשובה שגויה. נותרו " + remaining + " ניסיונות. תרגיל חדש", false);
                     next.run();
                 }
             }
@@ -12605,11 +12647,17 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         card.addView(sectionTitle("🛡️ בטיחות"));
         card.addView(switchRow("נעילת ילדים", "זיהוי מוצר לפי תמונה לפני פעולות בהזמנה ושליחת זיכויים וחיובים. אם אין תמונה מתאימה, יוצג תרגיל חשבון. אחרי פתרון הנעילה פתוחה 5 דקות", childLockOn(), (b, checked) -> {
             if (checked) {
-                prefs.edit().putBoolean("child_lock_enabled", true).apply();
-                unlockExpiry = 0L;
+                prefs.edit().putBoolean("child_lock_enabled", true).remove("child_unlock_until").apply();
+                setUnlockExpiry(0L);
+                resetChildLockFailures();
                 toast("🔒 נעילת ילדים הופעלה", false);
             } else {
-                showChildLockChallenge(() -> { prefs.edit().putBoolean("child_lock_enabled", false).apply(); toast("🔓 נעילת ילדים כובתה", false); }, () -> showAccount());
+                showChildLockChallenge(() -> {
+                    prefs.edit().putBoolean("child_lock_enabled", false).remove("child_unlock_until").apply();
+                    setUnlockExpiry(0L);
+                    resetChildLockFailures();
+                    toast("🔓 נעילת ילדים כובתה", false);
+                }, () -> showAccount());
             }
         }));
         root.addView(card, lp(-1, -2, 0, 10));
