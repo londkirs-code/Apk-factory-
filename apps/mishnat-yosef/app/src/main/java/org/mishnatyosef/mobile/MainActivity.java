@@ -6235,10 +6235,10 @@ public class MainActivity extends Activity {
             }
         } else if (lastPage > 1) {
             final int pages = Math.min(lastPage, 100);
-            ExecutorCompletionService<List<JSONObject>> ecs = new ExecutorCompletionService<>(fetchPool);
+            List<Future<List<JSONObject>>> pageFutures = new ArrayList<>();
             for (int page = 2; page <= pages; page++) {
                 final int pg = page;
-                ecs.submit(new Callable<List<JSONObject>>() {
+                pageFutures.add(fetchPool.submit(new Callable<List<JSONObject>>() {
                     @Override public List<JSONObject> call() throws Exception {
                         Exception last = null;
                         for (int attempt = 0; attempt < 2; attempt++) {
@@ -6254,12 +6254,14 @@ public class MainActivity extends Activity {
                         }
                         throw last == null ? new Exception("טעינת עמוד נכשלה") : last;
                     }
-                });
+                }));
             }
             int failures = 0;
-            for (int page = 2; page <= pages; page++) {
+            // Retrieve results in page order even though the network requests run concurrently.
+            // This keeps the server's category order stable in the product list.
+            for (Future<List<JSONObject>> future : pageFutures) {
                 try {
-                    List<JSONObject> items = ecs.take().get();
+                    List<JSONObject> items = future.get();
                     List<JSONObject> unique = new ArrayList<>();
                     for (JSONObject item : items) {
                         if (item != null && seen.add(productPageKey(item))) unique.add(item);
