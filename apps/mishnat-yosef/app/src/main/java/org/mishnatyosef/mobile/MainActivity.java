@@ -4986,9 +4986,16 @@ public class MainActivity extends Activity {
         try {
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(url, 480);
+                if (bmp == null) bmp = downloadBitmap(url, 480); // one retry for transient first-load failures
                 if (bmp == null) return;
                 imageCache.put(url, bmp);
-                runOnUiThread(() -> { if (url.equals(iv.getTag())) iv.setImageBitmap(bmp); });
+                final Bitmap loaded = bmp;
+                runOnUiThread(() -> {
+                    if (url.equals(iv.getTag())) {
+                        iv.setImageBitmap(loaded);
+                        iv.invalidate();
+                    }
+                });
             });
         } catch (Exception ignored) { }
     }
@@ -8394,13 +8401,23 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     // ======================================================================== order summary (like the order page: images, quantities, remove, collect mode)
 
     private JSONObject findProduct(String sid) {
-        for (JSONObject p : featureProducts) if (sid.equals(sidOf(p))) return p;
+        for (JSONObject p : featureProducts) {
+            if (sid.equals(sidOf(p))) return p;
+            for (JSONObject variant : sizeVariants(p)) {
+                if (sid.equals(sidOf(variant))) return p;
+            }
+        }
         return null;
     }
 
     private JSONObject productForLine(OrderLine line) {
         JSONObject known = findProduct(line.sid);
-        if (known != null) return known;
+        if (known != null) {
+            for (JSONObject variant : sizeVariants(known)) {
+                if (line.sid.equals(sidOf(variant))) return productWithSelectedVariant(known, variant);
+            }
+            return known;
+        }
         JSONObject stub = new JSONObject();
         try {
             stub.put("item_salesID", line.sid);
