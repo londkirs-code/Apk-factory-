@@ -6171,6 +6171,82 @@ public class MainActivity extends Activity {
         return id.trim();
     }
 
+    /** Counts immediate arrays inside a product, useful for spotting nested size/variant rows. */
+    private int nestedProductRowCount(JSONObject product) {
+        if (product == null) return 0;
+        int count = 0;
+        java.util.Iterator<String> keys = product.keys();
+        while (keys.hasNext()) {
+            Object value = product.opt(keys.next());
+            if (value instanceof JSONArray) count += ((JSONArray) value).length();
+            else if (value instanceof JSONObject) {
+                JSONObject nested = (JSONObject) value;
+                java.util.Iterator<String> nestedKeys = nested.keys();
+                while (nestedKeys.hasNext()) {
+                    Object nestedValue = nested.opt(nestedKeys.next());
+                    if (nestedValue instanceof JSONArray) count += ((JSONArray) nestedValue).length();
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Strict parser for catalogue pages. Unlike arrayFrom(), this does not silently convert
+     * malformed or unrecognized JSON into an empty list, which could hide entire categories.
+     */
+    private JSONArray parseProductPageArray(String body, int page, String path) throws Exception {
+        Object parsed;
+        try {
+            parsed = new JSONTokener(body == null ? "" : body).nextValue();
+        } catch (Exception e) {
+            logProductPageDiagnostic(page, path, body, null, false, "JSON לא תקין");
+            throw new Exception("עמוד " + page + " החזיר JSON שלא ניתן לפענח (אורך " + (body == null ? 0 : body.length()) + ").");
+        }
+        JSONArray array = null;
+        if (parsed instanceof JSONArray) {
+            array = (JSONArray) parsed;
+        } else if (parsed instanceof JSONObject) {
+            JSONObject root = (JSONObject) parsed;
+            array = root.optJSONArray("data");
+            if (array == null) array = root.optJSONArray("items");
+            if (array == null) array = root.optJSONArray("products");
+            if (array == null) {
+                JSONObject data = root.optJSONObject("data");
+                if (data != null) {
+                    array = data.optJSONArray("items");
+                    if (array == null) array = data.optJSONArray("products");
+                }
+            }
+        }
+        if (array == null) {
+            logProductPageDiagnostic(page, path, body, null, false, "לא נמצא מערך מוצרים במבנה התשובה");
+            throw new Exception("עמוד " + page + " החזיר JSON תקין אך ללא מערך מוצרים מוכר (אורך " + (body == null ? 0 : body.length()) + ").");
+        }
+        logProductPageDiagnostic(page, path, body, array, true, "");
+        return array;
+    }
+
+    private void logProductPageDiagnostic(int page, String path, String body, JSONArray array, boolean parsed, String detail) {
+        int parents = 0;
+        int nestedRows = 0;
+        if (array != null) {
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject item = array.optJSONObject(i);
+                if (item != null) {
+                    parents++;
+                    nestedRows += nestedProductRowCount(item);
+                }
+            }
+        }
+        String result = "עמוד " + page + ": HTTP 200; אבות=" + parents
+                + "; שורות/מערכים מקוננים=" + nestedRows
+                + "; אורך גוף=" + (body == null ? 0 : body.length())
+                + "; פענוח=" + (parsed ? "תקין" : "נכשל")
+                + (detail == null || detail.isEmpty() ? "" : "; " + detail);
+        logApi("PAGE", path, result, 0, null);
+    }
+
     /** Load every catalogue page. The API may expose pagination at the top level, meta, or data.meta. */
     private int fetchPagesFor(final long id, PageCallback cb) throws Exception {
         int limit = PAGE_LIMIT;
@@ -6183,7 +6259,8 @@ public class MainActivity extends Activity {
             throw new Exception("טעינת מוצרי המכירה נכשלה (" + first.code + ").");
         }
 
-        JSONArray firstArray = arrayFrom(first.body);
+        final String firstPath = itemsPath(id, 1, limit);
+        JSONArray firstArray = parseProductPageArray(first.body, 1, firstPath);
         JSONObject firstRoot = paginationRoot(first.body);
         int total = paginationInt(firstRoot, "total", "total_count", "totalCount");
         int perPage = paginationInt(firstRoot, "per_page", "perPage", "limit");
@@ -6191,7 +6268,7 @@ public class MainActivity extends Activity {
 
         List<JSONObject> firstItems = toObjects(firstArray);
         if (firstItems.isEmpty()) {
-            if (total > 0) throw new Exception("השרת דיווח על " + total + " מוצרים, אך לא החזיר מוצרים בעמוד הראשון.");
+            if (total > 0) throw new Exception("השרת דיווח על " + total + " שורות, אך לא החזיר מוצרים בעמוד הראשון.");
             return 0;
         }
 
@@ -6215,9 +6292,10 @@ public class MainActivity extends Activity {
         // until the server explicitly says there is no next page or a page is empty/short.
         if (lastPage <= 1 && (firstArray.length() >= lim || Boolean.TRUE.equals(hasNext) || (total > count))) {
             for (int page = 2; page <= 100; page++) {
-                HttpResult r = api("GET", itemsPath(id, page, lim), null);
+                String path = itemsPath(id, page, lim);
+                HttpResult r = api("GET", path, null);
                 if (r.code < 200 || r.code >= 300) throw new Exception("טעינת עמוד " + page + " נכשלה (" + r.code + ").");
-                JSONArray pageArray = arrayFrom(r.body);
+                JSONArray pageArray = parseProductPageArray(r.body, page, path);
                 JSONObject pageRoot = paginationRoot(r.body);
                 Boolean pageHasNext = paginationHasNext(pageRoot);
                 List<JSONObject> unique = new ArrayList<>();
@@ -6242,25 +6320,44 @@ public class MainActivity extends Activity {
                 pageFutures.add(fetchPool.submit(new Callable<List<JSONObject>>() {
                     @Override public List<JSONObject> call() throws Exception {
                         Exception last = null;
-                        for (int attempt = 0; attempt < 2; attempt++) {
+                        String path = itemsPath(id, pg, lim);
+                        int lastBodyLength = 0;
+                        String lastProblem = "תשובה ריקה";
+                        for (int attempt = 1; attempt <= 3; attempt++) {
                             try {
-                                HttpResult r = api("GET", itemsPath(id, pg, lim), null);
-                                if (r.code >= 200 && r.code < 300) return toObjects(arrayFrom(r.body));
-                                last = new Exception(apiError(r));
+                                HttpResult r = api("GET", path, null);
+                                lastBodyLength = r.body == null ? 0 : r.body.length();
+                                if (r.code < 200 || r.code >= 300) {
+                                    lastProblem = "HTTP " + r.code;
+                                    last = new Exception(apiError(r));
+                                } else {
+                                    JSONArray pageArray = parseProductPageArray(r.body, pg, path);
+                                    if (pageArray.length() == 0) {
+                                        lastProblem = "200 אך 0 שורות במערך (אורך גוף " + lastBodyLength + ")";
+                                        last = new Exception(lastProblem);
+                                    } else {
+                                        return toObjects(pageArray);
+                                    }
+                                }
                             } catch (AuthException ae) {
                                 throw ae;
                             } catch (Exception e) {
                                 last = e;
+                                if (e.getMessage() != null) lastProblem = e.getMessage();
                             }
                         }
-                        throw last == null ? new Exception("טעינת עמוד נכשלה") : last;
+                        throw new Exception("עמוד " + pg + " נכשל אחרי 3 ניסיונות; אורך גוף אחרון=" + lastBodyLength
+                                + "; סיבה=" + lastProblem, last);
                     }
                 }));
             }
             int failures = 0;
+            StringBuilder failureDetails = new StringBuilder();
             // Retrieve results in page order even though the network requests run concurrently.
             // This keeps the server's category order stable in the product list.
-            for (Future<List<JSONObject>> future : pageFutures) {
+            for (int i = 0; i < pageFutures.size(); i++) {
+                Future<List<JSONObject>> future = pageFutures.get(i);
+                int pageNumber = i + 2;
                 try {
                     List<JSONObject> items = future.get();
                     List<JSONObject> unique = new ArrayList<>();
@@ -6274,18 +6371,22 @@ public class MainActivity extends Activity {
                 } catch (ExecutionException ee) {
                     if (ee.getCause() instanceof AuthException) throw (AuthException) ee.getCause();
                     failures++;
+                    if (failureDetails.length() > 0) failureDetails.append("; ");
+                    failureDetails.append("עמוד ").append(pageNumber).append(": ")
+                            .append(ee.getCause() == null ? "שגיאה לא ידועה" : ee.getCause().getMessage());
                 }
             }
-            if (failures > 0) throw new Exception("נטענו " + count + " מוצרים, אבל " + failures + " עמודים לא נטענו.");
+            if (failures > 0) throw new Exception("נטענו " + count + " מוצרים, אבל " + failures + " עמודים לא נטענו. " + failureDetails);
             if (lastPage > 100) throw new Exception("השרת דיווח על יותר מ־100 עמודים; הטעינה נעצרה להגנה מפני לולאה.");
         }
 
-        if (total > 0 && count < total) {
-            throw new Exception("נטענו " + count + " מתוך " + total + " מוצרים לפי נתוני השרת. הרשימה לא הושלמה ולכן יש לרענן ולנסות שוב.");
+        // The API total counts rows (including nested size rows), not necessarily unique parents.
+        // Compare against product count only if pagination metadata was unavailable.
+        if (lastPage <= 1 && total > 0 && count < total) {
+            throw new Exception("נטענו " + count + " מוצרים מתוך לפחות " + total + " שורות לפי נתוני השרת. הרשימה לא הושלמה ולכן יש לרענן ולנסות שוב.");
         }
         return count;
     }
-
     private void fetchProductPages(long orderId, int saleId, PageCallback cb) throws Exception {
         long[] ids = saleId > 0 && saleId != orderId ? new long[]{orderId, saleId} : new long[]{orderId};
         for (long id : ids) if (fetchPagesFor(id, cb) > 0) return;
