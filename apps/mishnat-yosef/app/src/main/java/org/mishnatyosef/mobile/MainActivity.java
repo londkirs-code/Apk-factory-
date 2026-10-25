@@ -9883,17 +9883,123 @@ public class MainActivity extends Activity {
                 new JsonEndpointChoice("מסך פרטי מכירה: טעינת מוצרים (מזהה מכירה לדוגמה 171584)", "/api/get_items_for_sale/171584/null?page=1&limit=100"),
                 new JsonEndpointChoice("מסך מוצרים: המועדפים במכירה לדוגמה 171584", "/api/get_favourites/171584")
         };
-        final String[] labels = new String[endpoints.length + 1];
-        for (int i = 0; i < endpoints.length; i++) labels[i] = endpoints[i].label;
-        labels[endpoints.length] = "✏️ כתובת API מותאמת אישית…";
-        appDialog()
+        showJsonEndpointPicker(endpoints);
+    }
+
+    /** Shows custom paths first and gives every saved custom path its own real delete action. */
+    private void showJsonEndpointPicker(final JsonEndpointChoice[] endpoints) {
+        final AlertDialog[] dialogRef = new AlertDialog[1];
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setPadding(dp(8), dp(6), dp(8), dp(6));
+
+        TextView custom = btn("✏️ כתובת API מותאמת אישית…", TONAL);
+        custom.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        custom.setMinHeight(dp(48));
+        custom.setOnClickListener(v -> {
+            if (dialogRef[0] != null) dialogRef[0].dismiss();
+            promptCustomApiPath();
+        });
+        rows.addView(custom, lp(-1, dp(48), 0, 4));
+
+        List<String> savedPaths = loadCustomApiPaths();
+        if (!savedPaths.isEmpty()) {
+            rows.addView(muted("כתובות ששמרת", 13), lp(-1, -2, 0, 6));
+            for (String savedPath : savedPaths) {
+                final String path = savedPath;
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                TextView open = btn(path, TONAL);
+                open.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+                open.setSingleLine(true);
+                open.setEllipsize(TextUtils.TruncateAt.END);
+                open.setTextSize(13);
+                row.addView(open, new LinearLayout.LayoutParams(0, dp(44), 1f));
+                TextView remove = roundBtn("✕", 36, RED_LIGHT, RED);
+                remove.setContentDescription("מחיקת הכתובת השמורה " + path);
+                remove.setOnClickListener(v -> {
+                    removeSavedCustomApiPath(path);
+                    if (dialogRef[0] != null) dialogRef[0].dismiss();
+                    toast("הכתובת השמורה נמחקה", false);
+                    showJsonEndpointPicker(endpoints);
+                });
+                LinearLayout.LayoutParams removeLp = new LinearLayout.LayoutParams(dp(36), dp(36));
+                removeLp.setMarginStart(dp(4));
+                row.addView(remove, removeLp);
+                open.setOnClickListener(v -> {
+                    if (dialogRef[0] != null) dialogRef[0].dismiss();
+                    promptApiGrepFilter(new JsonEndpointChoice("כתובת שמורה", path));
+                });
+                rows.addView(row, lp(-1, dp(44), 0, 3));
+            }
+        }
+
+        rows.addView(muted("כתובות מובנות", 13), lp(-1, -2, 0, 8));
+        for (JsonEndpointChoice endpoint : endpoints) {
+            TextView option = btn(endpoint.label, TONAL);
+            option.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            option.setMinHeight(dp(46));
+            option.setTextSize(13);
+            option.setOnClickListener(v -> {
+                if (dialogRef[0] != null) dialogRef[0].dismiss();
+                promptApiGrepFilter(endpoint);
+            });
+            rows.addView(option, lp(-1, dp(46), 0, 3));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(rows);
+        dialogRef[0] = appDialog()
                 .setTitle("בחר כתובת לבדיקה • התוצאה תועתק ללוח")
-                .setItems(labels, (dialog, which) -> {
-                    if (which == endpoints.length) promptCustomApiPath();
-                    else promptApiGrepFilter(endpoints[which]);
-                })
-                .setNegativeButton("ביטול", null)
-                .show();
+                .setView(scroll)
+                .setNegativeButton("סגירה", null)
+                .create();
+        dialogRef[0].show();
+    }
+
+    private List<String> loadCustomApiPaths() {
+        List<String> paths = new ArrayList<>();
+        if (prefs.contains("api_custom_paths")) {
+            try {
+                JSONArray saved = new JSONArray(prefs.getString("api_custom_paths", "[]"));
+                for (int i = 0; i < saved.length(); i++) {
+                    String path = saved.optString(i, "").trim();
+                    if (isValidCustomApiPath(path) && !paths.contains(path)) paths.add(path);
+                }
+            } catch (Exception ignored) { }
+        } else {
+            // Migrate the previously remembered path into the new saved-path list.
+            String legacy = prefs.getString("api_custom_path", "");
+            if (isValidCustomApiPath(legacy) && !"/api/orders?search=".equals(legacy)) paths.add(legacy);
+        }
+        return paths;
+    }
+
+    private void persistCustomApiPaths(List<String> paths) {
+        JSONArray saved = new JSONArray();
+        for (String path : paths) saved.put(path);
+        prefs.edit().putString("api_custom_paths", saved.toString()).apply();
+    }
+
+    private void saveCustomApiPath(String path) {
+        List<String> paths = loadCustomApiPaths();
+        paths.remove(path);
+        paths.add(0, path);
+        persistCustomApiPaths(paths);
+        prefs.edit().putString("api_custom_path", path).apply();
+    }
+
+    private void removeSavedCustomApiPath(String path) {
+        List<String> paths = loadCustomApiPaths();
+        paths.remove(path);
+        persistCustomApiPaths(paths);
+        SharedPreferences.Editor editor = prefs.edit();
+        if (path.equals(prefs.getString("api_custom_path", ""))) {
+            editor.putString("api_custom_path", paths.isEmpty() ? "/api/orders?search=" : paths.get(0));
+        }
+        editor.apply();
     }
 
     /**
@@ -9906,24 +10012,67 @@ public class MainActivity extends Activity {
         pathInput.setSingleLine(true);
         pathInput.setTextDirection(View.TEXT_DIRECTION_LTR);
         pathInput.setText(previous);
+        final EditText filterInput = field("מילים לסינון, מופרדות בפסיק (ריק = הכול)", InputType.TYPE_CLASS_TEXT);
+        filterInput.setSingleLine(true);
+        filterInput.setText(prefs.getString("api_custom_filter", ""));
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(4), dp(8), dp(4), dp(4));
-        content.addView(muted("הזן נתיב יחסי של ה־API, כולל פרמטרים אם צריך. מתחילים ב־/api/ ולא מזינים כתובת אתר מלאה. הנתיב האחרון נשמר לשימוש הבא. הבדיקה היא GET בלבד.", 13));
-        content.addView(pathInput, lp(-1, dp(52), 0, 8));
-        appDialog().setTitle("כתובת API מותאמת אישית")
+        content.addView(muted("הזן נתיב יחסי של ה־API שמתחיל ב־/api/. אפשר להוסיף סינון באותו חלון. הבדיקה היא GET בלבד.", 13));
+        addClearableApiInput(content, pathInput, "מחיקת הכתובת");
+        addClearableApiInput(content, filterInput, "מחיקת פרמטרי הסינון");
+
+        AlertDialog dialog = appDialog().setTitle("כתובת API מותאמת אישית")
                 .setView(content)
                 .setNegativeButton("ביטול", null)
-                .setNeutralButton("בדיקת כתובת", (d, w) -> {
-                    String path = pathInput.getText().toString().trim();
-                    if (!isValidCustomApiPath(path)) {
-                        toast("כתובת לא תקינה. יש להזין נתיב שמתחיל ב־/api/ ללא רווחים או כתובת אתר מלאה.", true);
-                        return;
-                    }
-                    prefs.edit().putString("api_custom_path", path).apply();
-                    promptApiGrepFilter(new JsonEndpointChoice("כתובת מותאמת אישית", path));
-                })
+                .setNeutralButton("הרץ בלי סינון", null)
+                .setPositiveButton("הרץ עם סינון", null)
                 .show();
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v ->
+                runCustomApiPath(dialog, pathInput, filterInput, false));
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v ->
+                runCustomApiPath(dialog, pathInput, filterInput, true));
+    }
+
+    private void runCustomApiPath(AlertDialog dialog, EditText pathInput, EditText filterInput, boolean useFilter) {
+        String path = pathInput.getText().toString().trim();
+        if (!isValidCustomApiPath(path)) {
+            toast("כתובת לא תקינה. יש להזין נתיב שמתחיל ב־/api/ ללא רווחים או כתובת אתר מלאה.", true);
+            return;
+        }
+        String filter = useFilter ? filterInput.getText().toString().trim() : "";
+        saveCustomApiPath(path);
+        prefs.edit().putString("api_custom_filter", filterInput.getText().toString().trim()).apply();
+        dialog.dismiss();
+        runSingleJsonEndpoint(new JsonEndpointChoice("כתובת מותאמת אישית", path), filter);
+    }
+
+    private void addClearableApiInput(LinearLayout parent, EditText input, String clearDescription) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(input, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        TextView clear = text("×", 22, true);
+        clear.setGravity(Gravity.CENTER);
+        clear.setTextColor(MUTED);
+        clear.setBackground(ripple(shape(SURFACE, ACTION_BUTTON_RADIUS_DP, LINE), ACTION_BUTTON_RADIUS_DP));
+        clear.setContentDescription(clearDescription);
+        clear.setVisibility(input.length() == 0 ? View.GONE : View.VISIBLE);
+        LinearLayout.LayoutParams clearLp = new LinearLayout.LayoutParams(dp(36), dp(40));
+        clearLp.setMarginStart(dp(4));
+        row.addView(clear, clearLp);
+        clear.setOnClickListener(v -> {
+            input.setText("");
+            input.requestFocus();
+        });
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                clear.setVisibility(s.length() == 0 ? View.GONE : View.VISIBLE);
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+        parent.addView(row, lp(-1, dp(52), 0, 8));
     }
 
     private boolean isValidCustomApiPath(String path) {
@@ -9943,7 +10092,7 @@ public class MainActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(4), dp(8), dp(4), dp(4));
         content.addView(muted("אפשר להקליד מילה או כמה ביטויים. יועתקו רק שורות שמכילות לפחות אחד מהם, ללא תלות באותיות גדולות/קטנות.", 13));
-        content.addView(filter, lp(-1, dp(52), 8, 0));
+        addClearableApiInput(content, filter, "מחיקת פרמטרי הסינון");
         appDialog().setTitle("סינון פלט API • " + endpoint.path)
                 .setView(content)
                 .setNegativeButton("ביטול", null)
