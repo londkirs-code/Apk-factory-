@@ -276,7 +276,12 @@ jobs:
           text = source.read_text(encoding="utf-8").strip()
           lines = text.splitlines()
           title = lines[0].lstrip("# ").strip() if lines else ""
-          details = "\n".join(lines[1:]).strip() if len(lines) > 1 else title
+          details_lines = []
+          for line in lines[1:]:
+              if line.lstrip().startswith("#"):
+                  break
+              details_lines.append(line)
+          details = "\n".join(details_lines).strip() or title
           if not title or not details:
               raise SystemExit("RELEASE_NOTES.md must contain a title and release details")
           # Android string resources use escaped newline sequences.
@@ -475,7 +480,12 @@ jobs:
           release_text = release_notes_file.read_text(encoding="utf-8").strip()
           release_lines = release_text.splitlines()
           title = release_lines[0].lstrip("# ").strip() if release_lines else "עדכון אפליקציה"
-          notes = "\n".join(release_lines[1:]).strip() if len(release_lines) > 1 else title
+          notes_lines = []
+          for line in release_lines[1:]:
+              if line.lstrip().startswith("#"):
+                  break
+              notes_lines.append(line)
+          notes = "\n".join(notes_lines).strip() or title
           if not title or not notes:
               raise SystemExit("RELEASE_NOTES.md must contain a title and release details")
           commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
