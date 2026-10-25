@@ -4973,7 +4973,10 @@ public class MainActivity extends Activity {
 
     private void loadImage(final ImageView iv, final String url) {
         if (url == null || url.isEmpty()) return;
-        iv.setTag(url);
+        // Keep the download URL in a keyed tag: summary rows use the ordinary tag
+        // to locate their image later, so storing the URL there prevents first-load
+        // callbacks from matching and silently discarding the downloaded bitmap.
+        iv.setTag(android.R.id.content, url);
         if (TextUtils.isEmpty(iv.getContentDescription())) iv.setContentDescription(url);
         iv.setOnClickListener(v -> {
             Object full = iv.getContentDescription();
@@ -4996,7 +4999,7 @@ public class MainActivity extends Activity {
                 imageCache.put(url, bmp);
                 final Bitmap loaded = bmp;
                 runOnUiThread(() -> {
-                    if (url.equals(iv.getTag())) {
+                    if (url.equals(iv.getTag(android.R.id.content))) {
                         iv.setImageBitmap(loaded);
                         iv.invalidate();
                     }
