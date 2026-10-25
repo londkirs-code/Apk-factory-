@@ -6094,7 +6094,83 @@ public class MainActivity extends Activity {
         return "/api/get_items_for_sale/" + id + "/null?page=" + page + "&limit=" + limit;
     }
 
-    /** First page on this thread (so the screen can start at once), the remaining pages in parallel. */
+    private JSONObject paginationRoot(String body) {
+        try {
+            Object parsed = new JSONTokener(body == null ? "" : body).nextValue();
+            return parsed instanceof JSONObject ? (JSONObject) parsed : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private JSONObject nestedPaginationObject(JSONObject root, String key) {
+        if (root == null) return null;
+        JSONObject direct = root.optJSONObject(key);
+        if (direct != null) return direct;
+        JSONObject data = root.optJSONObject("data");
+        if (data != null) {
+            direct = data.optJSONObject(key);
+            if (direct != null) return direct;
+        }
+        return null;
+    }
+
+    private int paginationInt(JSONObject root, String... keys) {
+        JSONObject meta = nestedPaginationObject(root, "meta");
+        JSONObject pagination = nestedPaginationObject(root, "pagination");
+        JSONObject data = root == null ? null : root.optJSONObject("data");
+        JSONObject dataMeta = data == null ? null : data.optJSONObject("meta");
+        JSONObject dataPagination = data == null ? null : data.optJSONObject("pagination");
+        for (String key : keys) {
+            int value = root == null ? 0 : root.optInt(key, 0);
+            if (value > 0) return value;
+            value = meta == null ? 0 : meta.optInt(key, 0);
+            if (value > 0) return value;
+            value = pagination == null ? 0 : pagination.optInt(key, 0);
+            if (value > 0) return value;
+            value = data == null ? 0 : data.optInt(key, 0);
+            if (value > 0) return value;
+            value = dataMeta == null ? 0 : dataMeta.optInt(key, 0);
+            if (value > 0) return value;
+            value = dataPagination == null ? 0 : dataPagination.optInt(key, 0);
+            if (value > 0) return value;
+        }
+        return 0;
+    }
+
+    private Boolean paginationHasNext(JSONObject root) {
+        JSONObject meta = nestedPaginationObject(root, "meta");
+        JSONObject pagination = nestedPaginationObject(root, "pagination");
+        JSONObject data = root == null ? null : root.optJSONObject("data");
+        JSONObject dataMeta = data == null ? null : data.optJSONObject("meta");
+        JSONObject dataPagination = data == null ? null : data.optJSONObject("pagination");
+        JSONObject[] candidates = {root, meta, pagination, data, dataMeta, dataPagination};
+        String[] keys = {"has_next_page", "has_more_pages", "hasMorePages"};
+        for (JSONObject candidate : candidates) {
+            if (candidate == null) continue;
+            for (String key : keys) {
+                if (!candidate.has(key) || candidate.isNull(key)) continue;
+                Object value = candidate.opt(key);
+                if (value instanceof Boolean) return (Boolean) value;
+                if (value instanceof Number) return ((Number) value).intValue() != 0;
+                if (value instanceof String) {
+                    String text = ((String) value).trim();
+                    if ("true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text)) return true;
+                    if ("false".equalsIgnoreCase(text) || "0".equals(text) || "no".equalsIgnoreCase(text)) return false;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String productPageKey(JSONObject item) {
+        String id = sidOf(item);
+        if (id == null || id.trim().isEmpty()) id = first(item.optJSONObject("product"), "item_salesID", "item_sales_id", "id", "itemID");
+        if (id == null || id.trim().isEmpty()) id = productName(item) + "|" + categoryName(item);
+        return id.trim();
+    }
+
+    /** Load every catalogue page. The API may expose pagination at the top level, meta, or data.meta. */
     private int fetchPagesFor(final long id, PageCallback cb) throws Exception {
         int limit = PAGE_LIMIT;
         HttpResult first = api("GET", itemsPath(id, 1, limit), null);
@@ -6102,35 +6178,65 @@ public class MainActivity extends Activity {
             limit = 50;
             first = api("GET", itemsPath(id, 1, limit), null);
         }
-        if (first.code < 200 || first.code >= 300) return 0;
+        if (first.code < 200 || first.code >= 300) {
+            throw new Exception("טעינת מוצרי המכירה נכשלה (" + first.code + ").");
+        }
+
         JSONArray firstArray = arrayFrom(first.body);
-        if (firstArray.length() == 0) return 0;
-        int lastPage = 1, total = 0;
-        try {
-            JSONObject o = new JSONObject(first.body);
-            lastPage = Math.max(1, o.optInt("last_page", 1));
-            total = o.optInt("total", 0);
-        } catch (Exception ignored) { }
+        JSONObject firstRoot = paginationRoot(first.body);
+        int total = paginationInt(firstRoot, "total", "total_count", "totalCount");
+        int perPage = paginationInt(firstRoot, "per_page", "perPage", "limit");
+        if (perPage <= 0) perPage = limit;
+
         List<JSONObject> firstItems = toObjects(firstArray);
-        cb.onPage(firstItems, total);
-        int count = firstItems.size();
+        if (firstItems.isEmpty()) {
+            if (total > 0) throw new Exception("השרת דיווח על " + total + " מוצרים, אך לא החזיר מוצרים בעמוד הראשון.");
+            return 0;
+        }
+
+        int lastPage = paginationInt(firstRoot, "last_page", "lastPage", "total_pages", "totalPages");
+        if (lastPage <= 1 && total > 0 && perPage > 0) {
+            lastPage = (int) Math.min(100, Math.max(1, ((long) total + perPage - 1L) / perPage));
+        }
+        Boolean hasNext = paginationHasNext(firstRoot);
+        if (lastPage <= 1 && Boolean.TRUE.equals(hasNext)) lastPage = 2;
+
         final int lim = limit;
-        if (lastPage <= 1 && firstArray.length() >= lim) {
-            // no pagination info in the answer: keep reading until a short page
+        final Set<String> seen = new LinkedHashSet<>();
+        List<JSONObject> uniqueFirst = new ArrayList<>();
+        for (JSONObject item : firstItems) {
+            if (item != null && seen.add(productPageKey(item))) uniqueFirst.add(item);
+        }
+        cb.onPage(uniqueFirst, total);
+        int count = uniqueFirst.size();
+
+        // Older API versions omit usable page counts. In that case, walk pages sequentially
+        // until the server explicitly says there is no next page or a page is empty/short.
+        if (lastPage <= 1 && (firstArray.length() >= lim || Boolean.TRUE.equals(hasNext) || (total > count))) {
             for (int page = 2; page <= 100; page++) {
                 HttpResult r = api("GET", itemsPath(id, page, lim), null);
-                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת עמוד " + page + " נכשלה");
-                List<JSONObject> items = toObjects(arrayFrom(r.body));
-                if (items.isEmpty()) break;
-                cb.onPage(items, total);
-                count += items.size();
-                if (items.size() < lim) break;
+                if (r.code < 200 || r.code >= 300) throw new Exception("טעינת עמוד " + page + " נכשלה (" + r.code + ").");
+                JSONArray pageArray = arrayFrom(r.body);
+                JSONObject pageRoot = paginationRoot(r.body);
+                Boolean pageHasNext = paginationHasNext(pageRoot);
+                List<JSONObject> unique = new ArrayList<>();
+                for (JSONObject item : toObjects(pageArray)) {
+                    if (item != null && seen.add(productPageKey(item))) unique.add(item);
+                }
+                if (!unique.isEmpty()) {
+                    cb.onPage(unique, total);
+                    count += unique.size();
+                }
+                if (pageArray.length() == 0 || Boolean.FALSE.equals(pageHasNext)
+                        || (pageArray.length() < lim && !Boolean.TRUE.equals(pageHasNext))) break;
+                if (page == 100 && (total <= 0 || count < total)) {
+                    throw new Exception("השרת החזיר יותר מ־100 עמודים או שלא ניתן לאמת את שלמות רשימת המוצרים.");
+                }
             }
-            return count;
-        }
-        if (lastPage > 1) {
+        } else if (lastPage > 1) {
+            final int pages = Math.min(lastPage, 100);
             ExecutorCompletionService<List<JSONObject>> ecs = new ExecutorCompletionService<>(fetchPool);
-            for (int page = 2; page <= lastPage; page++) {
+            for (int page = 2; page <= pages; page++) {
                 final int pg = page;
                 ecs.submit(new Callable<List<JSONObject>>() {
                     @Override public List<JSONObject> call() throws Exception {
@@ -6146,22 +6252,33 @@ public class MainActivity extends Activity {
                                 last = e;
                             }
                         }
-                        throw last == null ? new Exception("page failed") : last;
+                        throw last == null ? new Exception("טעינת עמוד נכשלה") : last;
                     }
                 });
             }
             int failures = 0;
-            for (int i = 2; i <= lastPage; i++) {
+            for (int page = 2; page <= pages; page++) {
                 try {
                     List<JSONObject> items = ecs.take().get();
-                    cb.onPage(items, total);
-                    count += items.size();
+                    List<JSONObject> unique = new ArrayList<>();
+                    for (JSONObject item : items) {
+                        if (item != null && seen.add(productPageKey(item))) unique.add(item);
+                    }
+                    if (!unique.isEmpty()) {
+                        cb.onPage(unique, total);
+                        count += unique.size();
+                    }
                 } catch (ExecutionException ee) {
                     if (ee.getCause() instanceof AuthException) throw (AuthException) ee.getCause();
                     failures++;
                 }
             }
-            if (failures > 0) throw new Exception("נטענו " + count + " מוצרים, אבל " + failures + " עמודים לא נטענו");
+            if (failures > 0) throw new Exception("נטענו " + count + " מוצרים, אבל " + failures + " עמודים לא נטענו.");
+            if (lastPage > 100) throw new Exception("השרת דיווח על יותר מ־100 עמודים; הטעינה נעצרה להגנה מפני לולאה.");
+        }
+
+        if (total > 0 && count < total) {
+            throw new Exception("נטענו " + count + " מתוך " + total + " מוצרים לפי נתוני השרת. הרשימה לא הושלמה ולכן יש לרענן ולנסות שוב.");
         }
         return count;
     }
