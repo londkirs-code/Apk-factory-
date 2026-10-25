@@ -542,6 +542,7 @@ public class MainActivity extends Activity {
     private long featureOrderId = -1;
     private final List<JSONObject> featureProducts = new ArrayList<>();
     private final Map<String, Integer> featureQuantities = new LinkedHashMap<>();
+    private final Map<String, String> selectedSizeByProduct = new HashMap<>();
     private final Map<String, Integer> stockDraftQuantities = new LinkedHashMap<>();
     private final Set<String> pending = new HashSet<>();
     private String filterText = "";
@@ -812,6 +813,8 @@ public class MainActivity extends Activity {
                 || key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
                 || key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
                 || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT;
+        if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&current!=null&&current.getTag() instanceof String&&((String)current.getTag()).startsWith("productSize:")&&(key==android.view.KeyEvent.KEYCODE_DPAD_LEFT||key==android.view.KeyEvent.KEYCODE_DPAD_RIGHT)){
+            CardHolder ch=findProductCardHolder(current);if(ch!=null){List<TextView> bs=new ArrayList<>(ch.sizeButtons.values());int ix=bs.indexOf(current);int step=key==android.view.KeyEvent.KEYCODE_DPAD_RIGHT?-1:1;for(int n=ix+step;n>=0&&n<bs.size();n+=step)if(requestProductFocus(bs.get(n)))return true;return true;}}
         if (event.getAction() != android.view.KeyEvent.ACTION_DOWN || !direction
                 || screenKind != 1 || productList == null) {
             return super.dispatchKeyEvent(event);
@@ -1419,6 +1422,7 @@ public class MainActivity extends Activity {
     private String navigationRole(View view) {
         if (view == orderSummaryButton) return "order";
         Object tag = view == null ? null : view.getTag();
+        if (tag instanceof String && ((String)tag).startsWith("productSize:")) return "size";
         if ("productPlus".equals(tag) || "autoOrderPlus".equals(tag)) return "plus";
         if ("productMinus".equals(tag) || "autoOrderMinus".equals(tag)) return "minus";
         if ("productQty".equals(tag) || "autoOrderQty".equals(tag)) return "qty";
@@ -1446,6 +1450,7 @@ public class MainActivity extends Activity {
 
     private View navigationTargetForRole(CardHolder card, String role) {
         if (card == null || card.p == null) return null;
+        if("size".equals(role)){for(TextView b:card.sizeButtons.values())if(canTakeProductFocus(b))return b;}
         if ("plus".equals(role)) {
             if (canTakeProductFocus(card.st.plus)) return card.st.plus;
             if (canTakeProductFocus(card.autoOrderStepper.plus)) return card.autoOrderStepper.plus;
@@ -1558,6 +1563,7 @@ public class MainActivity extends Activity {
         List<String> roles = new ArrayList<>();
         roles.add("card");
         if (card == null || card.p == null) return roles;
+        if(!card.sizeButtons.isEmpty())roles.add("size");
         if (canTakeProductFocus(card.add)) {
             roles.add("add");
         } else if (card.autoOrderPanel.isShown()) {
@@ -5297,40 +5303,48 @@ public class MainActivity extends Activity {
         return first(nested, "item_salesID", "item_sales_id", "id", "itemID");
     }
 
+    private String clothingProductId(JSONObject p) {
+        if (p == null) return "";
+        String id = first(p, "id");
+        if (id.isEmpty()) id = first(p.optJSONObject("product"), "id");
+        return id.trim();
+    }
+    private boolean isClothingProduct(JSONObject p) {
+        if (p == null || !"ביגוד".equals(categoryName(p))) return false;
+        JSONObject nested = p.optJSONObject("product");
+        JSONArray rows = nested == null ? null : nested.optJSONArray("sub_items");
+        return rows != null && rows.length() > 0;
+    }
     private String sizeVariantLabel(JSONObject variant) {
         String label = first(variant, "size", "size_name", "sizeName", "size_value", "sizeValue",
-                "variant_name", "variantName", "option_name", "optionName", "label", "value",
-                "name", "full_name", "title", "item_name");
-        if (label.isEmpty()) label = "מידה " + sidOf(variant);
-        return cleanHtml(label);
+                "variant_name", "variantName", "option_name", "optionName", "label", "value");
+        if (!label.isEmpty()) return cleanHtml(label);
+        String name = cleanHtml(first(variant, "name", "full_name", "title", "item_name"));
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)מידה\\s*([A-Z0-9]+)").matcher(name);
+        if (m.find()) return m.group(1).toUpperCase(Locale.ROOT);
+        m = java.util.regex.Pattern.compile("(?i)(?:^|\\s)(XXXS|XXS|XS|S|M|L|XL|XXL|3XL|4XL|5XL)(?:\\s|$)").matcher(name);
+        if (m.find()) return m.group(1).toUpperCase(Locale.ROOT);
+        return name.isEmpty() ? "מידה " + sidOf(variant) : name;
+    }
+    private int sizeOrder(String label) {
+        String n = label == null ? "" : label.toUpperCase(Locale.ROOT).replace("מידה", "").replaceAll("[^A-Z0-9]", "");
+        String[] order = {"XXXS","XXS","XS","S","M","L","XL","XXL","XXXL","3XL","XXXXL","4XL","5XL"};
+        for (int i=0;i<order.length;i++) if(order[i].equals(n)) return i;
+        return 1000;
     }
 
     private List<JSONObject> sizeVariants(JSONObject product) {
         List<JSONObject> found = new ArrayList<>();
-        if (product == null) return found;
-        String parentSid = sidOf(product);
+        if (!isClothingProduct(product)) return found;
+        JSONObject nested = product.optJSONObject("product");
+        JSONArray rows = nested == null ? null : nested.optJSONArray("sub_items");
+        if (rows == null) return found;
         Set<String> seen = new LinkedHashSet<>();
-        JSONObject[] roots = {product, product.optJSONObject("product")};
-        for (JSONObject root : roots) {
-            if (root == null) continue;
-            java.util.Iterator<String> keys = root.keys();
-            while (keys.hasNext()) {
-                String key = keys.next();
-                Object value = root.opt(key);
-                if (value instanceof JSONObject) {
-                    JSONObject nested = (JSONObject) value;
-                    java.util.Iterator<String> nestedKeys = nested.keys();
-                    while (nestedKeys.hasNext()) {
-                        String nestedKey = nestedKeys.next();
-                        Object nestedValue = nested.opt(nestedKey);
-                        if (nestedValue instanceof JSONArray) collectSizeVariants((JSONArray) nestedValue,
-                                key + "." + nestedKey, parentSid, found, seen);
-                    }
-                } else if (value instanceof JSONArray) {
-                    collectSizeVariants((JSONArray) value, key, parentSid, found, seen);
-                }
-            }
+        for (int i=0;i<rows.length();i++) {
+            JSONObject row=rows.optJSONObject(i); if(row==null) continue;
+            String sid=sidOf(row); if(!sid.isEmpty()&&seen.add(sid)) found.add(row);
         }
+        Collections.sort(found,(a,b)->{int x=sizeOrder(sizeVariantLabel(a)),y=sizeOrder(sizeVariantLabel(b));return x!=y?Integer.compare(x,y):sizeVariantLabel(a).compareToIgnoreCase(sizeVariantLabel(b));});
         return found;
     }
 
@@ -5391,13 +5405,18 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private String selectedSizeSid(JSONObject product) { String id=clothingProductId(product);return id.isEmpty()?null:selectedSizeByProduct.get(id); }
+    private JSONObject selectedSize(JSONObject product) { String sid=selectedSizeSid(product);if(sid==null)return null;for(JSONObject v:sizeVariants(product))if(sid.equals(sidOf(v)))return productWithSelectedVariant(product,v);return null; }
+    private boolean isClothingSizeRow(JSONObject row) { if(row==null)return false;String sid=sidOf(row);for(JSONObject p:featureProducts)if(isClothingProduct(p))for(JSONObject v:sizeVariants(p))if(sid.equals(sidOf(v)))return true;return false; }
     private void changeByWithSize(JSONObject product, int delta, Runnable refresh, Runnable onSuccess) {
-        withSelectedSize(product, selected -> changeBy(selected, delta, refresh, onSuccess));
+        if(sizeVariants(product).isEmpty()){changeBy(product,delta,refresh,onSuccess);return;}
+        JSONObject selected=selectedSize(product);if(selected==null){toast("בחרו מידה תחילה",false);return;}changeBy(selected,delta,refresh,onSuccess);
     }
 
     private int productQuantity(JSONObject product) {
         if (product == null) return 0;
-        int total = featureQuantities.containsKey(sidOf(product)) ? featureQuantities.get(sidOf(product)) : 0;
+        if(sizeVariants(product).isEmpty())return featureQuantities.containsKey(sidOf(product))?featureQuantities.get(sidOf(product)):0;
+        int total = 0;
         for (JSONObject variant : sizeVariants(product)) {
             Integer q = featureQuantities.get(sidOf(variant));
             if (q != null && q > 0) total += q;
@@ -5427,7 +5446,7 @@ public class MainActivity extends Activity {
         return -1;
     }
 
-    private boolean isSoldOut(JSONObject p) { return numericAvailable(p) == 0; }
+    private boolean isSoldOut(JSONObject p) { List<JSONObject> v=sizeVariants(p); if(!v.isEmpty()){for(JSONObject x:v)if(numericAvailable(x)!=0)return false;return true;} return numericAvailable(p)==0; }
 
     /** max_per_man: the most a single customer may order of this item (0 = no limit). */
     private int maxPerMan(JSONObject p) {
@@ -6276,6 +6295,21 @@ public class MainActivity extends Activity {
         return null;
     }
 
+    private List<JSONObject> mergeClothingProducts(List<JSONObject> source) {
+        List<JSONObject> out=new ArrayList<>(); Map<String,JSONObject> byId=new LinkedHashMap<>();
+        for(JSONObject item:source){if(item==null)continue;if(!isClothingProduct(item)){out.add(item);continue;}
+            String id=clothingProductId(item);if(id.isEmpty()){out.add(item);continue;}
+            JSONObject existing=byId.get(id);if(existing==null){byId.put(id,item);out.add(item);}else mergeClothingFragment(existing,item);}
+        return out;
+    }
+    private void mergeClothingFragment(JSONObject target, JSONObject fragment) {
+        try { JSONObject tp=target.optJSONObject("product"),fp=fragment.optJSONObject("product");if(tp==null||fp==null)return;
+            JSONArray merged=tp.optJSONArray("sub_items");if(merged==null)merged=new JSONArray();Set<String> seen=new LinkedHashSet<>();
+            for(int i=0;i<merged.length();i++){JSONObject row=merged.optJSONObject(i);if(row!=null)seen.add(sidOf(row));}
+            JSONArray incoming=fp.optJSONArray("sub_items");if(incoming!=null)for(int i=0;i<incoming.length();i++){JSONObject row=incoming.optJSONObject(i);if(row==null)continue;String sid=sidOf(row);if(!sid.isEmpty()&&seen.add(sid))merged.put(new JSONObject(row.toString()));}
+            tp.put("sub_items",merged);
+        } catch(Exception ignored){}
+    }
     private String productPageKey(JSONObject item) {
         String id = sidOf(item);
         if (id == null || id.trim().isEmpty()) id = first(item.optJSONObject("product"), "item_salesID", "item_sales_id", "id", "itemID");
@@ -6846,6 +6880,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             snap.saleInfo = publicSaleMetadata(o.optJSONObject("sale_info"));
             snap.saleName = o.optString("sale_name", "").trim();
             if (snap.saleName.isEmpty()) snap.saleName = saleTitle(snap.saleInfo);
+            List<JSONObject> cached = new ArrayList<>();
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject p = arr.optJSONObject(i);
                 if (p == null) continue;
@@ -6853,9 +6888,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                 String sid = sidOf(catalogueProduct);
                 if (sid.isEmpty()) continue;
                 try { catalogueProduct.put("amount", 0); } catch (Exception ignored) { }
-                snap.products.add(catalogueProduct);
-                snap.quantities.put(sid, 0);
+                cached.add(catalogueProduct);
             }
+            for (JSONObject catalogueProduct : mergeClothingProducts(cached)) { snap.products.add(catalogueProduct); snap.quantities.put(sidOf(catalogueProduct), 0); }
             // Favourites are account-specific and intentionally never restored from disk.
             return snap.products.isEmpty() ? null : snap;
         } catch (Exception e) {
@@ -7055,6 +7090,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         if (stale(t) || featureSale == null || featureSale.optInt("id", -1) != saleId || summaryFromHistory) return;
         productsPartial = true;
         featureOrderId = orderId;
+        partial = mergeClothingProducts(partial);
         featureProducts.clear();
         for (JSONObject p : partial) {
             String sid = sidOf(p);
@@ -7075,6 +7111,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         }
         List<JSONObject> clean = new ArrayList<>();
         Map<String, Integer> quantities = new LinkedHashMap<>();
+        all = mergeClothingProducts(all);
         for (JSONObject p : all) {
             String sid = sidOf(p);
             if (sid.isEmpty() || productName(p).isEmpty()) continue;
@@ -7607,6 +7644,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         final FrameLayout imageBox;
         final FrameLayout controls;
         final TextView badge, star, name, pack, price, maxView, savedView, unitView, add;
+        final LinearLayout sizesRow;
+        final Map<String, TextView> sizeButtons = new LinkedHashMap<>();
         final View actionSpacer;
         final Stepper st;
         final TextView chargeButton;
@@ -7684,6 +7723,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             card.addView(maxView);
             savedView = muted("", 9);
             card.addView(savedView);
+            sizesRow = new LinearLayout(MainActivity.this); sizesRow.setOrientation(LinearLayout.HORIZONTAL); sizesRow.setGravity(Gravity.CENTER); sizesRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); sizesRow.setVisibility(View.GONE);
+            card.addView(sizesRow, lp(-1, -2, 0, 3));
 
             // Equalization space stays above the price, grouping price with the bottom order controls.
             actionSpacer = new View(MainActivity.this);
@@ -7786,6 +7827,17 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                     autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
                     autoOrderSaveButton, stockAlertButton}) focusView.setOnFocusChangeListener(focusListener);
         }
+
+        private void bindSizeButtons(JSONObject prod, boolean hasSizes) {
+            sizesRow.removeAllViews();sizeButtons.clear();sizesRow.setVisibility(hasSizes?View.VISIBLE:View.GONE);if(!hasSizes)return;
+            for(JSONObject variant:sizeVariants(prod)){String sid=sidOf(variant),label=sizeVariantLabel(variant);int q=featureQuantities.containsKey(sid)?featureQuantities.get(sid):0;
+                TextView b=btn(label+(q>0?" ×"+q:""),OUTLINE);b.setTag("productSize:"+sid);b.setFocusable(true);b.setFocusableInTouchMode(false);b.setEnabled(numericAvailable(variant)!=0);b.setAlpha(b.isEnabled()?1f:0.38f);b.setMinHeight(dp(28));b.setTextSize(cardColumns()>=4?9:11);b.setPadding(dp(3),dp(1),dp(3),dp(1));
+                b.setContentDescription("מידה "+label+(q>0?", בהזמנה "+q:"")+(b.isEnabled()?"":", אזלה מהמלאי"));
+                b.setOnClickListener(v->{if(!b.isEnabled()){toast("המידה הזו אזלה מהמלאי",false);return;}selectedSizeByProduct.put(clothingProductId(p),sid);updateSizeButtonStyles();});
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(30),1f);bp.setMargins(dp(1),0,dp(1),0);sizesRow.addView(b,bp);sizeButtons.put(sid,b);}
+            updateSizeButtonStyles();
+        }
+        void updateSizeButtonStyles(){String selected=selectedSizeSid(p);for(Map.Entry<String,TextView> e:sizeButtons.entrySet()){TextView b=e.getValue();boolean chosen=e.getKey().equals(selected);paintButton(b,chosen?PRIMARY:OUTLINE);if(!b.isEnabled()){b.setTextColor(MUTED);b.setAlpha(0.38f);}else b.setAlpha(1f);b.setElevation(chosen?dp(2):0);}}
 
         private void rememberNormalFocusBackgrounds() {
             for (View focusView : new View[]{add, st.plus, st.qty, st.minus, chargeButton,
@@ -7912,8 +7964,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             unitView.setText(up);
             setCompactOptionalRow(unitView, !up.isEmpty());
 
-            boolean hasSizes = !sizeVariants(prod).isEmpty();
-            add.setText(canOrder ? (hasSizes ? "בחירת מידה" : "הוספה") : (disabled ? "לא זמין" : "אזל מהמלאי"));
+            boolean hasSizes = !sizeVariants(prod).isEmpty(); bindSizeButtons(prod, hasSizes);
+            add.setText(canOrder ? (hasSizes ? "בחרו מידה ואז +" : "הוספה") : (disabled ? "לא זמין" : "אזל מהמלאי"));
             paintButton(add, canOrder ? TONAL : FLAT);
             int q = productQuantity(prod);
             boolean busyNow = pending.contains(sid);
@@ -8092,6 +8144,10 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         requireUnlock(() -> doSetItemAmount(p, newQty, refresh, onSuccess));
     }
 
+    /** TODO: confirm against GET /api/orders/{orderId}; temporary assumption: parent body + amount + complete chosen size row in selected_subitems. */
+    private JSONObject buildSizedItemBody(JSONObject parent, JSONObject chosenSize, int qty) throws Exception {
+        JSONObject body=new JSONObject((parent==null?chosenSize:parent).toString());body.put("amount",qty);JSONArray selected=new JSONArray();selected.put(new JSONObject(chosenSize.toString()));body.put("selected_subitems",selected);return body;
+    }
     private void doSetItemAmount(final JSONObject p, final int newQty, final Runnable refresh, final Runnable onSuccess) {
         final String sid = sidOf(p);
         if (pending.contains(sid) || featureOrderId <= 0) return;
@@ -8110,16 +8166,14 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             String error = null;
             boolean needLogin = false;
             try {
-                HttpResult result = null;
-                if (newQty == 0) {
-                    if (serverAmount > 0) result = api("POST", "/api/remove_item/" + orderId + "/" + sid, null);
-                } else {
-                    JSONObject item = new JSONObject(p.toString());
-                    item.put("amount", newQty);
-                    if (!item.has("selected_subitems") || item.isNull("selected_subitems")) item.put("selected_subitems", new JSONArray());
-                    result = api("POST", (serverAmount > 0 ? "/api/update_item/" : "/api/add_item/") + orderId, item);
-                }
-                if (result != null && (result.code < 200 || result.code >= 300)) error = apiError(result);
+                HttpResult result=null;boolean clothing=!sizeVariants(p).isEmpty()||isClothingProduct(p)||isClothingSizeRow(p);
+                if(newQty==0){if(serverAmount>0){result=api("POST","/api/remove_item/"+orderId+"/"+sid,null);if(clothing)android.util.Log.i("MishnatClothing","remove_item sid="+sid+" HTTP="+result.code+" response="+safeBodyForDiagnostic(result.body));}}
+                else {JSONObject item;if(clothing){JSONObject parent=p;String id=clothingProductId(p);for(JSONObject candidate:featureProducts)if(!id.isEmpty()&&id.equals(clothingProductId(candidate))){parent=candidate;break;}item=buildSizedItemBody(parent,p,newQty);}
+                    else{item=new JSONObject(p.toString());item.put("amount",newQty);if(!item.has("selected_subitems")||item.isNull("selected_subitems"))item.put("selected_subitems",new JSONArray());}
+                    if(clothing)android.util.Log.i("MishnatClothing",(serverAmount>0?"update_item":"add_item")+" sid="+sid+" body="+item.toString());
+                    result=api("POST",(serverAmount>0?"/api/update_item/":"/api/add_item/")+orderId,item);
+                    if(clothing)android.util.Log.i("MishnatClothing",(serverAmount>0?"update_item":"add_item")+" HTTP="+result.code+" response="+safeBodyForDiagnostic(result.body));}
+                if(result!=null&&(result.code<200||result.code>=300))error=apiError(result);
             } catch (AuthException e) {
                 needLogin = true;
                 error = e.getMessage();
