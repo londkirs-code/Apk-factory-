@@ -10936,6 +10936,31 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         }
     }
 
+    /**
+     * Exports the complete catalog currently loaded for this sale, not just products in the cart.
+     * Each product is preserved as the full API JSON object, including nested variants and image metadata.
+     */
+    private String buildSaleCatalogExportJson() {
+        try {
+            JSONArray products = new JSONArray();
+            for (JSONObject product : featureProducts) {
+                if (product != null) products.put(new JSONObject(product.toString()));
+            }
+            JSONObject result = new JSONObject();
+            result.put("format", "mishnat-sale-catalog");
+            result.put("version", 1);
+            result.put("exported_at", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(new Date()));
+            result.put("sale_id", featureSale == null ? 0 : featureSale.optLong("id", 0));
+            result.put("sale_title", currentTitle());
+            result.put("sale_details", featureSale == null ? JSONObject.NULL : new JSONObject(featureSale.toString()));
+            result.put("product_count", products.length());
+            result.put("products", products);
+            return result.toString(2);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     private void startExport(String name, String json) {
         if (json == null || json.isEmpty()) { toast("אין מה לייצא", false); return; }
         pendingExport = json;
@@ -11233,6 +11258,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             if (featureOrderId > 0) {
                 labels.add("📤 שיתוף סיכום ההזמנה"); actions.add(2);
                 labels.add("📦 ייצוא הזמנה לקובץ"); actions.add(3);
+                if (!summaryFromHistory && featureProducts != null && !featureProducts.isEmpty()) {
+                    labels.add("🗂 ייצוא כל פרטי המכירה וכל המוצרים"); actions.add(15);
+                }
                 labels.add("📥 ייבוא הזמנה מקובץ"); actions.add(4);
                 labels.add("📝 הדבקת רשימת קניות"); actions.add(5);
                 labels.add("⭐ טעינת מועדפים להזמנה"); actions.add(6);
@@ -11316,6 +11344,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                 boolean skipPageRefresh = !prefs.getBoolean("experimental_skip_cached_quantity_grid_rebuild", false);
                 prefs.edit().putBoolean("experimental_skip_cached_quantity_grid_rebuild", skipPageRefresh).apply();
                 toast(skipPageRefresh ? "ביטול רענון עמוד הופעל בהזמנות" : "רענון עמוד ההזמנות הוחזר", false);
+                break;
+            case 15:
+                startExport("כל פרטי המכירה " + currentTitle(), buildSaleCatalogExportJson());
                 break;
         }
     }
