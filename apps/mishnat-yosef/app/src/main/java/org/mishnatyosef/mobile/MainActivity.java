@@ -10060,12 +10060,12 @@ public class MainActivity extends Activity {
                 .setPositiveButton("הרץ עם סינון", null)
                 .show();
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v ->
-                runCustomApiPath(dialog, pathInput, filterInput, false));
+                runCustomApiPath(dialog, pathInput, filterInput, false, originalPath));
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v ->
-                runCustomApiPath(dialog, pathInput, filterInput, true));
+                runCustomApiPath(dialog, pathInput, filterInput, true, originalPath));
     }
 
-    private void runCustomApiPath(AlertDialog dialog, EditText pathInput, EditText filterInput, boolean useFilter) {
+    private void runCustomApiPath(AlertDialog dialog, EditText pathInput, EditText filterInput, boolean useFilter, String originalPath) {
         String path = pathInput.getText().toString().trim();
         if (!isValidCustomApiPath(path)) {
             toast("כתובת לא תקינה. יש להזין נתיב שמתחיל ב־/api/ ללא רווחים או כתובת אתר מלאה.", true);
@@ -10073,6 +10073,15 @@ public class MainActivity extends Activity {
         }
         String filter = useFilter ? filterInput.getText().toString().trim() : "";
         String filterForSaving = filterInput.getText().toString().trim();
+        if (originalPath != null && !originalPath.isEmpty() && !originalPath.equals(path)
+                && loadCustomApiPaths().contains(originalPath)) {
+            List<String> paths = loadCustomApiPaths();
+            paths.remove(originalPath);
+            persistCustomApiPaths(paths);
+            JSONObject oldFilters = loadCustomApiFilters();
+            oldFilters.remove(originalPath);
+            prefs.edit().putString("api_custom_filters", oldFilters.toString()).apply();
+        }
         saveCustomApiPath(path);
         prefs.edit().putString("api_custom_filter", filterForSaving).apply();
         persistCustomApiFilter(path, filterForSaving);
