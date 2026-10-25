@@ -1471,7 +1471,7 @@ public class MainActivity extends Activity {
             if (canTakeProductFocus(card.st.plus)) return card.st.plus;
             if (canTakeProductFocus(card.autoOrderStepper.plus)) return card.autoOrderStepper.plus;
         }
-        if ("charge".equals(role) && canTakeProductFocus(card.chargeButton)) return card.chargeButton;
+        if ("removeSizes".equals(role) && canTakeProductFocus(card.removeSizesButton)) return card.removeSizesButton;\n        if ("charge".equals(role) && canTakeProductFocus(card.chargeButton)) return card.chargeButton;
         if ("autoSave".equals(role) && canTakeProductFocus(card.autoOrderSaveButton)) return card.autoOrderSaveButton;
         if ("stockAlert".equals(role) && canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
         if ("order".equals(role)) return orderSummaryButton;
@@ -1503,7 +1503,7 @@ public class MainActivity extends Activity {
             if (canTakeProductFocus(card.autoOrderStepper.minus)) return card.autoOrderStepper.minus;
             if (canTakeProductFocus(card.autoOrderSaveButton)) return card.autoOrderSaveButton;
         }
-        if (canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
+        if (canTakeProductFocus(card.removeSizesButton)) return card.removeSizesButton;\n        if (canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
         if (canTakeProductFocus(card.chargeButton)) return card.chargeButton;
         return null;
     }
@@ -1574,7 +1574,7 @@ public class MainActivity extends Activity {
             if (canTakeProductFocus(card.st.plus) || canTakeProductFocus(card.st.qty)
                     || canTakeProductFocus(card.st.minus)) roles.add("plus");
         }
-        if (canTakeProductFocus(card.stockAlertButton)) roles.add("stockAlert");
+        if (canTakeProductFocus(card.removeSizesButton)) roles.add("removeSizes");\n        if (canTakeProductFocus(card.stockAlertButton)) roles.add("stockAlert");
         if (canTakeProductFocus(card.chargeButton)) roles.add("charge");
         return roles;
     }
@@ -5334,10 +5334,16 @@ public class MainActivity extends Activity {
         return name.isEmpty() ? "מידה " + sidOf(variant) : name;
     }
     private int sizeOrder(String label) {
-        String n = label == null ? "" : label.toUpperCase(Locale.ROOT).replace("מידה", "").replaceAll("[^A-Z0-9]", "");
-        String[] order = {"XXXS","XXS","XS","S","M","L","XL","XXL","XXXL","3XL","XXXXL","4XL","5XL"};
-        for (int i=0;i<order.length;i++) if(order[i].equals(n)) return i;
-        return 1000;
+        String raw = label == null ? "" : label.toUpperCase(Locale.ROOT).trim().replace("מידה", "").trim();
+        java.util.regex.Matcher months = java.util.regex.Pattern.compile("^(\\d{1,2})\\s*[-–]\\s*(\\d{1,2})$").matcher(raw);
+        if (months.find()) return Integer.parseInt(months.group(1)) == 12 && Integer.parseInt(months.group(2)) == 18 ? 0
+                : Integer.parseInt(months.group(1)) == 18 && Integer.parseInt(months.group(2)) == 24 ? 1
+                : 2 + Integer.parseInt(months.group(1));
+        String n = raw.replaceAll("[^A-Z0-9]", "");
+        if (n.matches("\\d+")) return 100 + Integer.parseInt(n);
+        String[] order = {"XXXS","XXS","XS","S","M","L","XL","XXL","3XL","4XL","5XL"};
+        for (int i=0;i<order.length;i++) if(order[i].equals(n)) return 1000 + i;
+        return 100000;
     }
 
     private List<JSONObject> sizeVariants(JSONObject product) {
@@ -7651,7 +7657,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         final ImageView image;
         final FrameLayout imageBox;
         final FrameLayout controls;
-        final TextView badge, star, name, pack, price, maxView, savedView, unitView, add;
+        final TextView badge, star, name, pack, price, maxView, savedView, unitView, add, sizeSummary, removeSizesButton;
         final LinearLayout sizesRow;
         final Map<String, TextView> sizeButtons = new LinkedHashMap<>();
         final View actionSpacer;
@@ -7733,6 +7739,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             card.addView(savedView);
             sizesRow = new LinearLayout(MainActivity.this); sizesRow.setOrientation(LinearLayout.HORIZONTAL); sizesRow.setGravity(Gravity.CENTER); sizesRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); sizesRow.setVisibility(View.GONE);
             card.addView(sizesRow, lp(-1, -2, 0, 3));
+            sizeSummary = muted("", 10);
+            sizeSummary.setFocusable(false);
+            card.addView(sizeSummary, lp(-1, -2, 0, 2));
 
             // Equalization space stays above the price, grouping price with the bottom order controls.
             actionSpacer = new View(MainActivity.this);
@@ -7755,6 +7764,13 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             sp.gravity = Gravity.CENTER;
             controls.addView(st.view, sp);
             card.addView(controls, lp(-1, dp(34), 6, 0));
+            removeSizesButton = btn("הסרת כל המידות", DANGER);
+            removeSizesButton.setTextSize(11);
+            removeSizesButton.setFocusable(true);
+            removeSizesButton.setFocusableInTouchMode(false);
+            removeSizesButton.setVisibility(View.GONE);
+            card.addView(removeSizesButton, lp(-1, dp(30), 3, 0));
+            removeSizesButton.setOnClickListener(v -> { if (p != null) removeAllClothingSizes(p); });
             chargeButton = smallChip("הוסף לחיובים", PRIMARY);
             chargeButton.setTextSize(12);
             chargeButton.setOnClickListener(v -> { if (closedOrderReadOnly && p != null) addCachedProductCharge(p); });
@@ -7817,7 +7833,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             stockAlertButton.setFocusable(true);
             stockAlertButton.setFocusableInTouchMode(false);
             card.setTag("productCard:" + sidOf(p));
-            add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) changeByWithSize(p, 1, productsRefresh, null); });
+            add.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null && !truthy(p.opt("disable")) && !isSoldOut(p)) { if (!sizeVariants(p).isEmpty()) showSizePickerDialog(p, add); else changeByWithSize(p, 1, productsRefresh, null); } });
             st.plus.setOnClickListener(v -> {
                 if (p == null) return;
                 if (closedOrderReadOnly) changeCachedChargeQuantity(p, 1);
@@ -7831,7 +7847,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             st.qty.setOnClickListener(v -> { if (!closedOrderReadOnly && p != null) withSelectedSize(p, selected -> askQuantity(selected, productsRefresh, null)); });
 
             View.OnFocusChangeListener focusListener = (view, focused) -> refreshVisibleProductFocusVisuals();
-            for (View focusView : new View[]{card, add, st.plus, st.qty, st.minus, chargeButton,
+            for (View focusView : new View[]{card, add, removeSizesButton, st.plus, st.qty, st.minus, chargeButton,
                     autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
                     autoOrderSaveButton, stockAlertButton}) focusView.setOnFocusChangeListener(focusListener);
         }
@@ -7848,7 +7864,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         void updateSizeButtonStyles(){String selected=selectedSizeSid(p);for(Map.Entry<String,TextView> e:sizeButtons.entrySet()){TextView b=e.getValue();boolean chosen=e.getKey().equals(selected);paintButton(b,chosen?PRIMARY:OUTLINE);if(!b.isEnabled()){b.setTextColor(MUTED);b.setAlpha(0.38f);}else b.setAlpha(1f);b.setElevation(chosen?dp(2):0);}}
 
         private void rememberNormalFocusBackgrounds() {
-            for (View focusView : new View[]{add, st.plus, st.qty, st.minus, chargeButton,
+            for (View focusView : new View[]{add, removeSizesButton, st.plus, st.qty, st.minus, chargeButton,
                     autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
                     autoOrderSaveButton, stockAlertButton}) {
                 normalFocusBackgrounds.put(focusView, focusView.getBackground());
@@ -7882,7 +7898,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                 if (focusedChild == st.plus || focusedChild == autoOrderStepper.plus) { fill = ORANGE; foreground = ON_ORANGE; radius = 99; }
                 else if (focusedChild == st.minus || focusedChild == autoOrderStepper.minus) { fill = MINUS_FILL; foreground = ORANGE_DARK; radius = 99; }
                 else if (focusedChild == st.qty || focusedChild == autoOrderStepper.qty) { fill = nightMode ? SURFACE : ORANGE_LIGHT; foreground = INK; radius = 8; }
-                else if (focusedChild == add) { fill = ORANGE_LIGHT; foreground = ORANGE_DARK; }
+                else if (focusedChild == add || focusedChild == removeSizesButton) { fill = ORANGE_LIGHT; foreground = ORANGE_DARK; }
                 else if (focusedChild == chargeButton || focusedChild == autoOrderSaveButton) { fill = ORANGE; foreground = ON_ORANGE; }
                 else if (focusedChild == stockAlertButton) { fill = SURFACE; foreground = ORANGE_DARK; }
                 focusedChild.setBackground(ripple(shape(fill, radius, nightMode ? Color.WHITE : INK, 2), radius));
@@ -7924,6 +7940,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             star.setLayoutParams(new FrameLayout.LayoutParams(dp(columns >= 4 ? 22 : 32), dp(columns >= 4 ? 22 : 32), Gravity.TOP | Gravity.START));
             add.setTextSize(14 * scale);
             add.setMinHeight(dp(controlHeight));
+            sizeSummary.setTextSize(10 * scale);
+            removeSizesButton.setTextSize(11 * scale);
             st.qty.setTextSize(16 * scale);
             st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(columns >= 4 ? 18 : 28), dp(controlHeight)));
             st.minus.setLayoutParams(new LinearLayout.LayoutParams(dp(controlHeight), dp(controlHeight)));
@@ -7973,12 +7991,25 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             setCompactOptionalRow(unitView, !up.isEmpty());
 
             boolean hasSizes = !sizeVariants(prod).isEmpty(); bindSizeButtons(prod, hasSizes);
-            add.setText(canOrder ? (hasSizes ? "בחרו מידה ואז +" : "הוספה") : (disabled ? "לא זמין" : "אזל מהמלאי"));
+            add.setText(canOrder ? (hasSizes ? "הוספה" : "הוספה") : (disabled ? "לא זמין" : "אזל מהמלאי"));
             paintButton(add, canOrder ? TONAL : FLAT);
             int q = productQuantity(prod);
             boolean busyNow = pending.contains(sid);
-            add.setVisibility(closedOrderReadOnly || q > 0 ? View.GONE : View.VISIBLE);
-            st.view.setVisibility(closedOrderReadOnly || q > 0 ? View.VISIBLE : View.GONE);
+            add.setVisibility(closedOrderReadOnly || (!hasSizes && q > 0) ? View.GONE : View.VISIBLE);
+            st.view.setVisibility(closedOrderReadOnly || hasSizes || q <= 0 ? View.GONE : View.VISIBLE);
+            removeSizesButton.setVisibility(!closedOrderReadOnly && hasSizes && q > 0 ? View.VISIBLE : View.GONE);
+            StringBuilder sizeOrderSummary = new StringBuilder();
+            if (hasSizes) {
+                for (JSONObject variant : sizeVariants(prod)) {
+                    int sizeQty = featureQuantities.containsKey(sidOf(variant)) ? featureQuantities.get(sidOf(variant)) : 0;
+                    if (sizeQty <= 0) continue;
+                    if (sizeOrderSummary.length() > 0) sizeOrderSummary.append(" · ");
+                    sizeOrderSummary.append(sizeVariantLabel(variant)).append("×").append(sizeQty);
+                }
+            }
+            sizeSummary.setText(sizeOrderSummary.length() == 0 ? "" : "הוזמן: " + sizeOrderSummary);
+            sizeSummary.setVisibility(sizeOrderSummary.length() == 0 ? View.GONE : View.VISIBLE);
+            removeSizesButton.setContentDescription("הסרת כל המידות שהוזמנו במוצר " + productName(prod));
             st.qty.setText(String.valueOf(q));
             st.plus.setVisibility(View.VISIBLE);
             st.minus.setVisibility(View.VISIBLE);
@@ -8132,6 +8163,113 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     // Repeated taps made while the previous request for the same product is still running (fast +,+,+).
     private final Map<String, Integer> queuedDeltas = new LinkedHashMap<>();
 
+    private void showSizePickerDialog(JSONObject product, View returnFocus) {
+        List<JSONObject> variants = sizeVariants(product);
+        if (variants.isEmpty()) return;
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setPadding(dp(12), dp(8), dp(12), dp(8));
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(rows);
+        final AlertDialog[] dialog = new AlertDialog[1];
+        final List<TextView> choices = new ArrayList<>();
+        for (JSONObject variant : variants) {
+            String sid = sidOf(variant);
+            int qty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+            int max = maxPerMan(variant);
+            boolean available = !truthy(variant.opt("disable")) && numericAvailable(variant) != 0 && !(max > 0 && qty >= max);
+            TextView choice = btn(sizeVariantLabel(variant) + (qty > 0 ? " · בהזמנה: " + qty : "") +
+                    (available && max > 0 ? " · מקסימום " + max : ""), available ? OUTLINE : FLAT);
+            choice.setFocusable(true);
+            choice.setFocusableInTouchMode(false);
+            choice.setEnabled(available);
+            choice.setAlpha(available ? 1f : 0.4f);
+            choice.setContentDescription("מידה " + sizeVariantLabel(variant) + (qty > 0 ? ", בהזמנה " + qty : "") + (available ? "" : ", לא זמינה"));
+            choice.setOnClickListener(v -> {
+                int current = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+                int limit = maxPerMan(variant);
+                if (numericAvailable(variant) == 0 || (limit > 0 && current >= limit)) {
+                    toast(limit > 0 && current >= limit ? "הגעתם למגבלת הכמות למידה הזו" : "המידה אינה זמינה", true);
+                    return;
+                }
+                dialog[0].dismiss();
+                setItemAmount(variant, current + 1, productsRefresh, null);
+            });
+            rows.addView(choice, lp(-1, dp(42), 0, 5));
+            choices.add(choice);
+        }
+        dialog[0] = appDialog().setTitle("בחירת מידה — " + productName(product))
+                .setView(scroll).setNegativeButton("ביטול", null).create();
+        dialog[0].setOnDismissListener(d -> {
+            if (returnFocus != null) returnFocus.post(() -> { if (returnFocus.isShown() && returnFocus.isEnabled()) returnFocus.requestFocus(); });
+        });
+        dialog[0].show();
+        styleAppDialog(dialog[0]);
+        for (TextView choice : choices) {
+            if (choice.isEnabled()) { choice.requestFocus(); break; }
+        }
+    }
+
+    private void removeAllClothingSizes(JSONObject product) {
+        List<JSONObject> selected = new ArrayList<>();
+        for (JSONObject variant : sizeVariants(product)) {
+            int qty = featureQuantities.containsKey(sidOf(variant)) ? featureQuantities.get(sidOf(variant)) : 0;
+            if (qty > 0) selected.add(variant);
+        }
+        if (selected.isEmpty()) return;
+        StringBuilder description = new StringBuilder("המידות שיוסרו:\n");
+        for (JSONObject variant : selected) {
+            int qty = featureQuantities.containsKey(sidOf(variant)) ? featureQuantities.get(sidOf(variant)) : 0;
+            description.append("• ").append(sizeVariantLabel(variant)).append(" × ").append(qty).append("\n");
+        }
+        Runnable remove = () -> requireUnlock(() -> removeClothingSizeRows(selected));
+        if (selected.size() > 1) {
+            appDialog().setTitle("הסרת מידות מההזמנה").setMessage(description.toString())
+                    .setNegativeButton("ביטול", null).setPositiveButton("הסרת כולן", (d, w) -> remove.run()).show();
+        } else remove.run();
+    }
+
+    private void removeClothingSizeRows(List<JSONObject> selected) {
+        final long orderId = featureOrderId;
+        if (orderId <= 0) return;
+        executor.execute(() -> {
+            final List<JSONObject> removed = new ArrayList<>();
+            final List<String> errors = new ArrayList<>();
+            boolean authLost = false;
+            for (JSONObject variant : selected) {
+                String sid = sidOf(variant);
+                int qty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+                if (qty <= 0) continue;
+                try {
+                    HttpResult result = api("POST", "/api/remove_item/" + orderId + "/" + sid, null);
+                    if (result.code >= 200 && result.code < 300) removed.add(variant);
+                    else errors.add(sizeVariantLabel(variant) + ": " + apiError(result));
+                } catch (AuthException e) {
+                    authLost = true;
+                    errors.add(sizeVariantLabel(variant) + ": " + errText(e, "נדרשת התחברות"));
+                } catch (Exception e) {
+                    errors.add(sizeVariantLabel(variant) + ": " + errText(e, "ההסרה נכשלה"));
+                }
+            }
+            final boolean login = authLost;
+            runOnUiThread(() -> {
+                for (JSONObject variant : removed) {
+                    String sid = sidOf(variant);
+                    featureQuantities.put(sid, 0);
+                    try { variant.put("amount", 0); } catch (Exception ignored) { }
+                }
+                persistQuantities();
+                scheduleOrderSync();
+                productsRefresh.run();
+                if (!errors.isEmpty()) showTextDialog("תוצאות הסרת המידות",
+                        "הוסרו " + removed.size() + " מתוך " + selected.size() + " מידות.\n\n" + TextUtils.join("\n", errors));
+                else toast("✔ הוסרו כל המידות מההזמנה", false);
+                if (login) showLogin();
+            });
+        });
+    }
+
     private void changeBy(JSONObject p, int delta, Runnable refresh, Runnable onSuccess) {
         String sid = sidOf(p);
         if (pending.contains(sid)) {
@@ -8251,6 +8389,19 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         return out.toString().trim();
     }
 
+    private void updateDetailsSizeTotals(List<JSONObject> variants, List<TextView> qtyLabels, TextView totals) {
+        int units = 0;
+        double total = 0;
+        for (int i = 0; i < variants.size(); i++) {
+            JSONObject variant = variants.get(i);
+            int qty = featureQuantities.containsKey(sidOf(variant)) ? featureQuantities.get(sidOf(variant)) : 0;
+            units += qty;
+            total += qty * productPrice(variant);
+            qtyLabels.get(i).setText("בהזמנה: " + qty);
+        }
+        totals.setText("סה״כ: " + units + " יחידות · " + money(total));
+    }
+
     private void showProductDetails(JSONObject p) {
         if (p == null) return;
         JSONObject prod = productOf(p);
@@ -8280,7 +8431,47 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         if (!line.trim().isEmpty()) panel.addView(text(line, 14, true));
         if (!unitPriceText(p).isEmpty()) panel.addView(muted(unitPriceText(p), 12));
         if (isSoldOut(p)) panel.addView(text("⛔ אזל מהמלאי", 13, true));
-        if (showMax() && maxPerMan(p) > 0) panel.addView(text("מקסימום " + maxPerMan(p), 13, true));
+        if (showMax() && maxPerMan(p) > 0) panel.addView(text("מקסימום " + maxPerMan(p), 13, true));\n\n        if (isClothingProduct(p) && !closedOrderReadOnly && featureOrderId > 0) {
+            panel.addView(text("מידות בהזמנה", 15, true), lp(-1, -2, 12, 4));
+            final List<JSONObject> variants = sizeVariants(p);
+            final List<TextView> qtyLabels = new ArrayList<>();
+            final TextView totals = text("", 14, true);
+            for (JSONObject variant : variants) {
+                LinearLayout sizeRow = new LinearLayout(this);
+                sizeRow.setOrientation(LinearLayout.HORIZONTAL);
+                sizeRow.setGravity(Gravity.CENTER_VERTICAL);
+                sizeRow.setPadding(dp(4), dp(4), dp(4), dp(4));
+                sizeRow.setBackground(shape(SURFACE, 10, LINE));
+                String sid = sidOf(variant);
+                int qty = featureQuantities.containsKey(sid) ? featureQuantities.get(sid) : 0;
+                boolean available = numericAvailable(variant) != 0 && !truthy(variant.opt("disable"));
+                LinearLayout info = new LinearLayout(this);
+                info.setOrientation(LinearLayout.VERTICAL);
+                TextView label = text(sizeVariantLabel(variant) + " · " + (productPrice(variant) > 0 ? money(productPrice(variant)) : "מחיר לא זמין"), 13, true);
+                info.addView(label);
+                TextView availability = muted(available ? "זמינות: " + first(variant, "available", "stock", "quantity") : "אזלה מהמלאי", 11);
+                info.addView(availability);
+                TextView qtyLabel = text("בהזמנה: " + qty, 12, true);
+                qtyLabels.add(qtyLabel);
+                info.addView(qtyLabel);
+                sizeRow.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+                TextView minus = smallChip("−", TONAL);
+                TextView plus = smallChip("+", PRIMARY);
+                minus.setFocusable(true); minus.setFocusableInTouchMode(false);
+                plus.setFocusable(true); plus.setFocusableInTouchMode(false);
+                minus.setEnabled(qty > 0);
+                plus.setEnabled(available && !(maxPerMan(variant) > 0 && qty >= maxPerMan(variant)));
+                minus.setContentDescription("הפחתת מידה " + sizeVariantLabel(variant));
+                plus.setContentDescription("הוספת מידה " + sizeVariantLabel(variant));
+                minus.setOnClickListener(v -> changeBy(variant, -1, () -> updateDetailsSizeTotals(variants, qtyLabels, totals), null));
+                plus.setOnClickListener(v -> changeBy(variant, 1, () -> updateDetailsSizeTotals(variants, qtyLabels, totals), null));
+                sizeRow.addView(minus, new LinearLayout.LayoutParams(dp(38), dp(38)));
+                sizeRow.addView(plus, new LinearLayout.LayoutParams(dp(38), dp(38)));
+                panel.addView(sizeRow, lp(-1, -2, 0, 5));
+            }
+            panel.addView(totals, lp(-1, -2, 0, 8));
+            updateDetailsSizeTotals(variants, qtyLabels, totals);
+        }
 
         String[][] blocks = {
                 {"", cleanHtml(first(prod, "description"))},
@@ -8303,7 +8494,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
 
         // Keep all product-card actions in this shared details dialog, so the same
         // controls appear consistently wherever a product can be opened.
-        if ((closedOrderReadOnly || featureOrderId > 0) && findProduct(sidOf(p)) != null && !pid.isEmpty()) {
+        if (!isClothingProduct(p) && (closedOrderReadOnly || featureOrderId > 0) && findProduct(sidOf(p)) != null && !pid.isEmpty()) {
             if (!closedOrderReadOnly && featureOrderId > 0) {
                 LinearLayout orderControls = new LinearLayout(this);
                 orderControls.setOrientation(LinearLayout.HORIZONTAL);
