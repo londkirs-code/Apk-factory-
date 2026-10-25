@@ -1427,6 +1427,7 @@ public class MainActivity extends Activity {
         if ("productMinus".equals(tag) || "autoOrderMinus".equals(tag)) return "minus";
         if ("productQty".equals(tag) || "autoOrderQty".equals(tag)) return "qty";
         if ("productAdd".equals(tag)) return "add";
+        if ("productRemoveSizes".equals(tag)) return "removeSizes";
         if ("productCharge".equals(tag)) return "charge";
         if ("autoOrderSave".equals(tag)) return "autoSave";
         if ("stockAlert".equals(tag)) return "stockAlert";
@@ -1438,6 +1439,7 @@ public class MainActivity extends Activity {
             if ("productMinus".equals(t) || "autoOrderMinus".equals(t)) return "minus";
             if ("productQty".equals(t) || "autoOrderQty".equals(t)) return "qty";
             if ("productAdd".equals(t)) return "add";
+            if ("productRemoveSizes".equals(t)) return "removeSizes";
             if ("productCharge".equals(t)) return "charge";
             if ("autoOrderSave".equals(t)) return "autoSave";
             if ("stockAlert".equals(t)) return "stockAlert";
@@ -1471,7 +1473,8 @@ public class MainActivity extends Activity {
             if (canTakeProductFocus(card.st.plus)) return card.st.plus;
             if (canTakeProductFocus(card.autoOrderStepper.plus)) return card.autoOrderStepper.plus;
         }
-        if ("removeSizes".equals(role) && canTakeProductFocus(card.removeSizesButton)) return card.removeSizesButton;\n        if ("charge".equals(role) && canTakeProductFocus(card.chargeButton)) return card.chargeButton;
+        if ("removeSizes".equals(role) && canTakeProductFocus(card.removeSizesButton)) return card.removeSizesButton;
+        if ("charge".equals(role) && canTakeProductFocus(card.chargeButton)) return card.chargeButton;
         if ("autoSave".equals(role) && canTakeProductFocus(card.autoOrderSaveButton)) return card.autoOrderSaveButton;
         if ("stockAlert".equals(role) && canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
         if ("order".equals(role)) return orderSummaryButton;
@@ -1503,7 +1506,8 @@ public class MainActivity extends Activity {
             if (canTakeProductFocus(card.autoOrderStepper.minus)) return card.autoOrderStepper.minus;
             if (canTakeProductFocus(card.autoOrderSaveButton)) return card.autoOrderSaveButton;
         }
-        if (canTakeProductFocus(card.removeSizesButton)) return card.removeSizesButton;\n        if (canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
+        if (canTakeProductFocus(card.removeSizesButton)) return card.removeSizesButton;
+        if (canTakeProductFocus(card.stockAlertButton)) return card.stockAlertButton;
         if (canTakeProductFocus(card.chargeButton)) return card.chargeButton;
         return null;
     }
@@ -1574,7 +1578,8 @@ public class MainActivity extends Activity {
             if (canTakeProductFocus(card.st.plus) || canTakeProductFocus(card.st.qty)
                     || canTakeProductFocus(card.st.minus)) roles.add("plus");
         }
-        if (canTakeProductFocus(card.removeSizesButton)) roles.add("removeSizes");\n        if (canTakeProductFocus(card.stockAlertButton)) roles.add("stockAlert");
+        if (canTakeProductFocus(card.removeSizesButton)) roles.add("removeSizes");
+        if (canTakeProductFocus(card.stockAlertButton)) roles.add("stockAlert");
         if (canTakeProductFocus(card.chargeButton)) roles.add("charge");
         return roles;
     }
@@ -7766,6 +7771,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             card.addView(controls, lp(-1, dp(34), 6, 0));
             removeSizesButton = btn("הסרת כל המידות", DANGER);
             removeSizesButton.setTextSize(11);
+            removeSizesButton.setTag("productRemoveSizes");
             removeSizesButton.setFocusable(true);
             removeSizesButton.setFocusableInTouchMode(false);
             removeSizesButton.setVisibility(View.GONE);
@@ -8464,7 +8470,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         if (!line.trim().isEmpty()) panel.addView(text(line, 14, true));
         if (!unitPriceText(p).isEmpty()) panel.addView(muted(unitPriceText(p), 12));
         if (isSoldOut(p)) panel.addView(text("⛔ אזל מהמלאי", 13, true));
-        if (showMax() && maxPerMan(p) > 0) panel.addView(text("מקסימום " + maxPerMan(p), 13, true));\n\n        if (isClothingProduct(p) && !closedOrderReadOnly && featureOrderId > 0) {
+        if (showMax() && maxPerMan(p) > 0) panel.addView(text("מקסימום " + maxPerMan(p), 13, true));
+
+        if (isClothingProduct(p) && !closedOrderReadOnly && featureOrderId > 0) {
             panel.addView(text("מידות בהזמנה", 15, true), lp(-1, -2, 12, 4));
             final List<JSONObject> variants = sizeVariants(p);
             final List<TextView> qtyLabels = new ArrayList<>();
