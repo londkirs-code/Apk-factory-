@@ -9,7 +9,7 @@ android {
         minSdk 21
         targetSdk 35
         versionCode 418
-        versionName '1.4873'
+        versionName '0.4873'
     }
 }
 
