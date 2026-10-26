@@ -18,10 +18,13 @@ import android.database.Cursor;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
+import android.graphics.BlurMaskFilter;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.PorterDuff;
 import android.graphics.PixelFormat;
 import android.graphics.Path;
 import android.graphics.Rect;
@@ -2156,38 +2159,74 @@ public class MainActivity extends Activity {
         }
     }
 
+    private final LruCache<String, Bitmap> softMaskCache = new LruCache<>(32);
+
+    // מסכה מטושטשת (ALPHA_8, זיכרון קטן) שמשותפת לכל התמונות באותו גודל
+    private Bitmap softMask(int w, int h, float inset, float blur, float radius) {
+        String key = w + "x" + h + ":" + Math.round(inset) + ":" + Math.round(blur) + ":" + Math.round(radius);
+        Bitmap m = softMaskCache.get(key);
+        if (m != null) return m;
+        m = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.BLACK);
+        p.setMaskFilter(new BlurMaskFilter(Math.max(1f, blur), BlurMaskFilter.Blur.NORMAL));
+        new Canvas(m).drawRoundRect(new RectF(inset, inset, w - inset, h - inset), radius, radius, p);
+        softMaskCache.put(key, m);
+        return m;
+    }
+
     private final class GlowBitmapDrawable extends Drawable {
+        // ---- כוונון ----
+        static final float SHRINK = 0.10f;    // הקטנה כוללת של התמונה בלילה (10%)
+        static final float FEATHER = 0.14f;   // רוחב הקצה הדוהה של התמונה (חלק מהצלע הקצרה)
+        static final int GLOW_ALPHA = 230;    // עוצמת ההילה, 0-255
         final Bitmap bmp;
-        final int pad = dp(18); // פי 3 מהשוליים המקוריים, כדי להרחיב את ההילה
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint maskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-        GlowBitmapDrawable(Bitmap b) { bmp = b; }
+        GlowBitmapDrawable(Bitmap b) {
+            bmp = b;
+            glowPaint.setColor(Color.WHITE);
+            glowPaint.setAlpha(GLOW_ALPHA);
+            maskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+        }
 
-        @Override public int getIntrinsicWidth() { return bmp.getWidth() + 2 * pad; }
-
-        @Override public int getIntrinsicHeight() { return bmp.getHeight() + 2 * pad; }
+        @Override public int getIntrinsicWidth() { return bmp.getWidth(); }
+        @Override public int getIntrinsicHeight() { return bmp.getHeight(); }
 
         @Override public void draw(Canvas canvas) {
             Rect b = getBounds();
-            if (nightMode) {
-                // הילה: מלבנים מעוגלים לבנים שקופים מבחוץ פנימה, כל שכבה קצת פחות שקופה
-                int layers = 6;
-                for (int i = 0; i < layers; i++) {
-                    float inset = (pad * (float) i) / layers;
-                    glowPaint.setStyle(Paint.Style.FILL);
-                    glowPaint.setColor(Color.argb(14 + i * 10, 255, 255, 255));
-                    canvas.drawRoundRect(new RectF(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset), dp(24), dp(24), glowPaint);
-                }
+            int bw = b.width(), bh = b.height();
+            if (bw <= 0 || bh <= 0) return;
+            if (!nightMode) {
+                canvas.drawBitmap(bmp, null, b, paint);
+                return;
             }
-            Rect dst = new Rect(b.left + pad, b.top + pad, b.right - pad, b.bottom - pad);
-            canvas.drawBitmap(bmp, null, dst, bitmapPaint);
+
+            // 1. הילה לבנה מטושטשת מאחורי התמונה, דועכת לאפס בקצה התא
+            float m = Math.min(bw, bh);
+            float g = 0.06f * m;
+            canvas.drawBitmap(softMask(bw, bh, g, g * 0.9f, 0.12f * m), b.left, b.top, glowPaint);
+
+            // 2. התמונה מוקטנת במרכז, עם קצוות דוהים לשקוף
+            int dx = Math.round(bw * SHRINK / 2f), dy = Math.round(bh * SHRINK / 2f);
+            Rect dst = new Rect(b.left + dx, b.top + dy, b.right - dx, b.bottom - dy);
+            int dw = dst.width(), dh = dst.height();
+            if (dw <= 0 || dh <= 0) return;
+            float f = FEATHER * Math.min(dw, dh);
+            Bitmap soft = softMask(dw, dh, f * 0.75f, f * 0.75f, 0.1f * Math.min(dw, dh));
+            int sc = canvas.saveLayer(dst.left, dst.top, dst.right, dst.bottom, null);
+            canvas.drawBitmap(bmp, null, dst, paint);
+            canvas.drawBitmap(soft, dst.left, dst.top, maskPaint);
+            canvas.restoreToCount(sc);
         }
 
-        @Override public void setAlpha(int a) { glowPaint.setAlpha(a); bitmapPaint.setAlpha(a); }
-
-        @Override public void setColorFilter(ColorFilter cf) { glowPaint.setColorFilter(cf); bitmapPaint.setColorFilter(cf); }
-
+        @Override public void setAlpha(int a) { paint.setAlpha(a); glowPaint.setAlpha(a); }
+        @Override public void setColorFilter(ColorFilter cf) {
+            paint.setColorFilter(cf);
+            glowPaint.setColorFilter(cf);
+        }
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 
@@ -5173,11 +5212,6 @@ public class MainActivity extends Activity {
             Drawable photoDrawable = preview.getDrawable();
             int photoWidth = photoDrawable.getIntrinsicWidth();
             int photoHeight = photoDrawable.getIntrinsicHeight();
-            if (photoDrawable instanceof GlowBitmapDrawable) {
-                GlowBitmapDrawable glow = (GlowBitmapDrawable) photoDrawable;
-                photoWidth -= 2 * glow.pad;
-                photoHeight -= 2 * glow.pad;
-            }
             if (photoWidth <= 0 || photoHeight <= 0) return;
 
             float scale = Math.min(
