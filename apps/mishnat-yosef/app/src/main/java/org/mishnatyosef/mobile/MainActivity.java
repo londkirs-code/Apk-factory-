@@ -220,7 +220,8 @@ public class MainActivity extends Activity {
         if (color == old.redLight) return RED_LIGHT;
         if (color == old.onOrange) return ON_ORANGE;
         // The inactive bottom-navigation icons use this dedicated dark-brown color.
-        if (color == AppPalette.NAV_INACTIVE_DAY || color == AppPalette.NAV_INACTIVE_PURPLE) return INK;
+        if (color == AppPalette.NAV_INACTIVE_DAY || color == AppPalette.NAV_INACTIVE_PURPLE
+                || color == AppPalette.NAV_INACTIVE_GREEN) return INK;
         return color;
     }
 
@@ -442,11 +443,10 @@ public class MainActivity extends Activity {
                 .putBoolean("purple_theme", purpleTheme)
                 .apply();
         applyPalette();
-        // Finish recoloring the active view tree before changing launcher components. Some
-        // launchers react to alias changes by refreshing/restarting the task; posting this work
-        // keeps PackageManager changes out of the settings click callback.
+        // Finish recoloring the active view tree now; defer launcher-alias changes until
+        // the activity leaves the foreground to avoid launcher-triggered task termination.
         rethemeActiveUi(old);
-        getWindow().getDecorView().post(() -> syncLauncherIcon(themeIndex));
+        prefs.edit().putInt("pending_launcher_theme", themeIndex).apply();
         toast(themeIndex == 2 ? "ערכת הירוק הופעלה"
                 : themeIndex == 1 ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
     }
@@ -470,7 +470,7 @@ public class MainActivity extends Activity {
                 pm.setComponentEnabledSetting(disabled,
                         android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, flags);
             }
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
             android.util.Log.w("MishnatYosef", "Could not update launcher icon for selected theme", e);
         }
     }
@@ -1872,7 +1872,6 @@ public class MainActivity extends Activity {
         nightMode = prefs.getBoolean("night_mode", false);
         setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
         applyPalette();
-        syncLauncherIcon(colorTheme);
         clearLegacyUpdateArtifacts();
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
@@ -12341,6 +12340,11 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
 
     @Override protected void onStop() {
         super.onStop();
+        int pending = prefs.getInt("pending_launcher_theme", -1);
+        if (pending >= 0) {
+            prefs.edit().remove("pending_launcher_theme").apply();
+            syncLauncherIcon(pending);
+        }
     }
 
     private long validUnlockExpiry() {
