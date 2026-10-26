@@ -1792,7 +1792,7 @@ public class MainActivity extends Activity {
         config.setLayoutDirection(hebrew);
         int percent = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getInt("ui_scale_percent", 100);
-        percent = Math.max(80, Math.min(150, percent));
+        percent = Math.max(70, Math.min(130, percent));
         config.fontScale = config.fontScale * (percent / 100.0f);
         super.attachBaseContext(base.createConfigurationContext(config));
     }
@@ -7364,7 +7364,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         search.setTag("orderToolbarSearch");
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setText(filterText);
-        search.setTextSize(14);
+        search.setTextSize(liveFontSize(14));
         search.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         search.setPadding(dp(9), 0, dp(9), 0);
         search.setHint("חיפוש מוצר…");
@@ -7944,23 +7944,23 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             card.setPadding(dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 3 : 6));
             imageBox.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(imageHeight)));
             image.setLayoutParams(new FrameLayout.LayoutParams(-1, dp(imageHeight)));
-            name.setTextSize(12 * scale);
+            name.setTextSize(liveFontSize(12 * scale));
             int nameLines = columns >= 4 ? 2 : 3;
             name.setMinLines(1);
             name.setMaxLines(nameLines);
-            pack.setTextSize(10 * scale);
-            price.setTextSize(14 * scale);
-            maxView.setTextSize(10 * scale);
-            savedView.setTextSize(9 * scale);
-            unitView.setTextSize(9 * scale);
-            badge.setTextSize(11 * scale);
+            pack.setTextSize(liveFontSize(10 * scale));
+            price.setTextSize(liveFontSize(14 * scale));
+            maxView.setTextSize(liveFontSize(10 * scale));
+            savedView.setTextSize(liveFontSize(9 * scale));
+            unitView.setTextSize(liveFontSize(9 * scale));
+            badge.setTextSize(liveFontSize(11 * scale));
             badge.setPadding(dp(columns >= 4 ? 2 : 8), dp(1), dp(columns >= 4 ? 2 : 8), dp(1));
-            star.setTextSize(20 * scale);
+            star.setTextSize(liveFontSize(20 * scale));
             star.setLayoutParams(new FrameLayout.LayoutParams(dp(columns >= 4 ? 22 : 32), dp(columns >= 4 ? 22 : 32), Gravity.TOP | Gravity.START));
-            add.setTextSize(14 * scale);
+            add.setTextSize(liveFontSize(14 * scale));
             add.setMinHeight(dp(controlHeight));
-            removeSizesButton.setTextSize(11 * scale);
-            st.qty.setTextSize(16 * scale);
+            removeSizesButton.setTextSize(liveFontSize(11 * scale));
+            st.qty.setTextSize(liveFontSize(16 * scale));
             st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(columns >= 4 ? 18 : 28), dp(controlHeight)));
             st.minus.setLayoutParams(new LinearLayout.LayoutParams(dp(controlHeight), dp(controlHeight)));
             st.plus.setLayoutParams(new LinearLayout.LayoutParams(dp(controlHeight), dp(controlHeight)));
