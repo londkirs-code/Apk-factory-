@@ -67,3 +67,11 @@ jobs:
           set -euo pipefail
           cd apps/mishnat-yosef
           gradle --no-daemon --build-cache assembleDebug
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mishnat-yosef-night-image-glow-debug-apk
+          path: apps/mishnat-yosef/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
