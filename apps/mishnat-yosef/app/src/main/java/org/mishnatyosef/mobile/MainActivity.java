@@ -501,6 +501,8 @@ public class MainActivity extends Activity {
         }
     }
     private LruCache<String, Bitmap> imageCache;
+    // Track image requests separately from View tags, which order/collection rows use for navigation.
+    private final Map<ImageView, String> imageRequestUrls = Collections.synchronizedMap(new java.util.WeakHashMap<ImageView, String>());
     private SharedPreferences prefs;
 
     // ---- current screen
@@ -4989,12 +4991,16 @@ public class MainActivity extends Activity {
     }
 
     private void loadImage(final ImageView iv, final String url) {
-        if (url == null || url.isEmpty()) return;
-        // Keep the download URL in a keyed tag: summary rows use the ordinary tag
-        // to locate their image later, so storing the URL there prevents first-load
-        // callbacks from matching and silently discarding the downloaded bitmap.
-        // Keep the previous image-loading tag behavior after the reported crash.
-        iv.setTag(url);
+        // Do not use the ordinary View tag to validate requests: order and collection
+        // rows replace that tag with their own navigation key after calling loadImage().
+        // A separate weak map keeps recycled rows safe without retaining detached views.
+        final String requestUrl = url == null ? "" : url;
+        imageRequestUrls.put(iv, requestUrl);
+        if (requestUrl.isEmpty()) {
+            iv.setImageDrawable(null);
+            return;
+        }
+        iv.setTag(requestUrl);
         if (TextUtils.isEmpty(iv.getContentDescription())) iv.setContentDescription(url);
         iv.setOnClickListener(v -> {
             Object full = iv.getContentDescription();
@@ -5017,7 +5023,7 @@ public class MainActivity extends Activity {
                 imageCache.put(url, bmp);
                 final Bitmap loaded = bmp;
                 runOnUiThread(() -> {
-                    if (url.equals(iv.getTag())) {
+                    if (url.equals(imageRequestUrls.get(iv))) {
                         iv.setImageBitmap(loaded);
                         iv.invalidate();
                     }
