@@ -1,9 +1,9 @@
 {
-  "versionCode": 427,
-  "versionName": "0.4882",
+  "versionCode": 428,
+  "versionName": "0.4883",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "cb4ebb409b157ce1d8dcc9fe26ccf0ed61604304ef8e63a59734b7df31371728",
+  "sha256": "d2c26effeea43fcd92ecb14280c80a1a314b51c87fd7107e163508c91e69bb5a",
   "releaseTitle": "תיקון טעינת תמונות בהזמנה ובמצב איסוף",
   "releaseNotes": "- תמונות המוצרים בהזמנה שלי ובמצב איסוף נטענות כעת גם לאחר שהשורה מקבלת תגית ניווט משלה.\n- תוקן אימות בקשות התמונות ברקע כך שלא יתנגש בתגיות שמשמשות למיקוד ולניווט.\n- נשמרו פעולות ההזמנה, סימון פריטים שנאספו והגדלת התמונות.",
-  "buildCommit": "38bd5ed505e726be6a1e4ae7bdba851df7208b1b"
+  "buildCommit": "b3d71df996b24d536a1119b67e581285722b9f4c"
 }
