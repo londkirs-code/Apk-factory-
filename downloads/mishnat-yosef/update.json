@@ -1,9 +1,9 @@
 {
-  "versionCode": 431,
-  "versionName": "0.4886",
+  "versionCode": 432,
+  "versionName": "0.4887",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "c4d807d4c023a8db97cc9cc594304efc184cb3608038cd74135a416b28847f7b",
-  "releaseTitle": "תיקון קריסה בעת החלפת ערכת צבעים",
-  "releaseNotes": "- החלפת אייקון מסך הבית נדחית עד שהאפליקציה יוצאת מהמסך, כדי למנוע סגירה בזמן בחירת ערכת צבעים.\n- הוסרה החלפת האייקון האוטומטית בכל פתיחת האפליקציה.\n- תוקן מיפוי צבע סרגל הניווט הלא־פעיל בערכת הירוק.",
-  "buildCommit": "2f99e1d3ca53c5a041ed4ef9897880172f98b42f"
+  "sha256": "23e6213b2fec976686a2691d272ed5fa395015ae3f3998fb7b8165a3e63d6865",
+  "releaseTitle": "הילה לבנה לתמונות במצב לילה",
+  "releaseNotes": "- נוספה הילה לבנה רכה סביב תמונות המוצרים כשהאפליקציה במצב לילה, כדי להבליט אותן על הרקע הכהה.\n- במצב יום ההילה כבויה; פיקסלי התמונה המקורית אינם משתנים.\n- העדכון חל בתמונות ברשימות, בסיכום ההזמנה, בפרטי מוצר ובתצוגת התמונה המוגדלת.",
+  "buildCommit": "adbbe197851e8cc8adbdc7a33bea8abe5cec8eb5"
 }
