@@ -22,8 +22,11 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PixelFormat;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.ColorFilter;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -2151,6 +2154,40 @@ public class MainActivity extends Activity {
                 styleDialogInputs(group.getChildAt(i));
             }
         }
+    }
+
+    private final class GlowBitmapDrawable extends Drawable {
+        final Bitmap bmp;
+        final int pad = dp(6);
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+
+        GlowBitmapDrawable(Bitmap b) { bmp = b; }
+
+        @Override public int getIntrinsicWidth() { return bmp.getWidth() + 2 * pad; }
+
+        @Override public int getIntrinsicHeight() { return bmp.getHeight() + 2 * pad; }
+
+        @Override public void draw(Canvas canvas) {
+            Rect b = getBounds();
+            if (nightMode) {
+                // הילה: מלבנים מעוגלים לבנים שקופים מבחוץ פנימה, כל שכבה קצת פחות שקופה
+                int layers = 6;
+                for (int i = 0; i < layers; i++) {
+                    float inset = (pad * (float) i) / layers;
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(Color.argb(14 + i * 10, 255, 255, 255));
+                    canvas.drawRoundRect(new RectF(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset), dp(8), dp(8), paint);
+                }
+            }
+            Rect dst = new Rect(b.left + pad, b.top + pad, b.right - pad, b.bottom - pad);
+            canvas.drawBitmap(bmp, null, dst, paint);
+        }
+
+        @Override public void setAlpha(int a) { paint.setAlpha(a); }
+
+        @Override public void setColorFilter(ColorFilter cf) { paint.setColorFilter(cf); }
+
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 
     private static final class AppGradientDrawable extends GradientDrawable {
@@ -5041,7 +5078,7 @@ public class MainActivity extends Activity {
         iv.setFocusable(false);
         iv.setFocusableInTouchMode(false);
         Bitmap cached = imageCache.get(url);
-        if (cached != null) { iv.setImageBitmap(cached); return; }
+        if (cached != null) { setGlowBitmap(iv, cached); return; }
         try {
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(url, 480);
@@ -5051,12 +5088,16 @@ public class MainActivity extends Activity {
                 final Bitmap loaded = bmp;
                 runOnUiThread(() -> {
                     if (url.equals(imageRequestUrls.get(iv))) {
-                        iv.setImageBitmap(loaded);
+                        setGlowBitmap(iv, loaded);
                         iv.invalidate();
                     }
                 });
             });
         } catch (Exception ignored) { }
+    }
+
+    private void setGlowBitmap(ImageView iv, Bitmap bmp) {
+        iv.setImageDrawable(bmp == null ? null : new GlowBitmapDrawable(bmp));
     }
 
     /**
@@ -5128,8 +5169,14 @@ public class MainActivity extends Activity {
 
         Runnable positionCloseOnPhoto = () -> {
             if (preview.getDrawable() == null || preview.getWidth() <= 0 || preview.getHeight() <= 0) return;
-            int photoWidth = preview.getDrawable().getIntrinsicWidth();
-            int photoHeight = preview.getDrawable().getIntrinsicHeight();
+            Drawable photoDrawable = preview.getDrawable();
+            int photoWidth = photoDrawable.getIntrinsicWidth();
+            int photoHeight = photoDrawable.getIntrinsicHeight();
+            if (photoDrawable instanceof GlowBitmapDrawable) {
+                GlowBitmapDrawable glow = (GlowBitmapDrawable) photoDrawable;
+                photoWidth -= 2 * glow.pad;
+                photoHeight -= 2 * glow.pad;
+            }
             if (photoWidth <= 0 || photoHeight <= 0) return;
 
             float scale = Math.min(
@@ -5179,7 +5226,7 @@ public class MainActivity extends Activity {
                     if (!dialog.isShowing()) return;
                     if (bmp != null) {
                         loading.setVisibility(View.GONE);
-                        preview.setImageBitmap(bmp);
+                        setGlowBitmap(preview, bmp);
                         preview.post(positionCloseOnPhoto);
                     } else {
                         loading.setText("לא ניתן לטעון את התמונה. אפשר לסגור ולנסות שוב.");
@@ -8485,7 +8532,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             iv.setContentDescription(full);
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(full, 900);
-                if (bmp != null) runOnUiThread(() -> { if (full.equals(iv.getTag())) iv.setImageBitmap(bmp); });
+                if (bmp != null) runOnUiThread(() -> { if (full.equals(iv.getTag())) setGlowBitmap(iv, bmp); });
             });
         }
         panel.addView(text(productName(p), 17, true), lp(-1, -2, 8, 0));
@@ -12647,7 +12694,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                             failedUrls.add(selected.imageUrl);
                             next[0].run();
                         } else {
-                            productImage.setImageBitmap(loaded);
+                            setGlowBitmap(productImage, loaded);
                             imageStatus.setVisibility(View.GONE);
                         }
                     });
