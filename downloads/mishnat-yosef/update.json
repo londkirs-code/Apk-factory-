@@ -1,9 +1,9 @@
 {
-  "versionCode": 428,
-  "versionName": "0.4883",
+  "versionCode": 429,
+  "versionName": "0.4884",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "d2c26effeea43fcd92ecb14280c80a1a314b51c87fd7107e163508c91e69bb5a",
-  "releaseTitle": "תיקון טעינת תמונות בהזמנה ובמצב איסוף",
-  "releaseNotes": "- תמונות המוצרים בהזמנה שלי ובמצב איסוף נטענות כעת גם לאחר שהשורה מקבלת תגית ניווט משלה.\n- תוקן אימות בקשות התמונות ברקע כך שלא יתנגש בתגיות שמשמשות למיקוד ולניווט.\n- נשמרו פעולות ההזמנה, סימון פריטים שנאספו והגדלת התמונות.",
-  "buildCommit": "b3d71df996b24d536a1119b67e581285722b9f4c"
+  "sha256": "b7b6d7e82b1960d0ddbd95e5dce56c74b2e6c50150591fe317134fbd73b07dc9",
+  "releaseTitle": "ערכת צבעים ירוקה חדשה",
+  "releaseNotes": "- נוספה ערכת צבעים ירוקה בהשראת אייקון משנת יוסף, עם התאמה מלאה לממשק ביום ובלילה.\n- בחירת הערכה מחליפה גם את אייקון האפליקציה במסך הבית.\n- נשמרו ערכות הכתום והסגול והבחירה נשמרת גם לאחר הפעלה מחדש.",
+  "buildCommit": "83e0f94b83688d78aceadba766ba26cdc1840c40"
 }
