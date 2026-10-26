@@ -5288,7 +5288,7 @@ public class MainActivity extends Activity {
     }
 
     /** Disk first, then the network (and the downloaded bytes are kept for next time). */
-    private Bitmap downloadBitmapRaw(String url, int maxPx) {
+    private Bitmap downloadBitmap(String url, int maxPx) {
         File f = imageFile(url);
         if (f.exists() && f.length() > 0) {
             Bitmap cached = decodeFile(f, maxPx);
@@ -5299,104 +5299,6 @@ public class MainActivity extends Activity {
         if (data == null) return null;
         writeImageFile(f, data);
         return decodeBytes(data, maxPx);
-    }
-
-    private Bitmap downloadBitmap(String url, int maxPx) {
-        Bitmap raw = downloadBitmapRaw(url, maxPx);
-        return raw == null ? null : removeWhiteBackground(raw);
-    }
-
-    private static final int BG_WHITE_MIN = 242;
-    private static final int BG_MAX_PIXELS = 2_500_000;
-
-    private static boolean isBgWhite(int c) {
-        return (c >>> 24) >= 250
-                && ((c >> 16) & 0xFF) >= BG_WHITE_MIN
-                && ((c >> 8) & 0xFF) >= BG_WHITE_MIN
-                && (c & 0xFF) >= BG_WHITE_MIN;
-    }
-
-    /** מסיר רק רקע לבן שמחובר לשולי התמונה. לבן בתוך המוצר לא נפגע. אם משהו נראה חשוד מחזיר את המקור. */
-    private Bitmap removeWhiteBackground(Bitmap src) {
-        if (src == null) return null;
-        try {
-            Bitmap work = src;
-            int w = src.getWidth(), h = src.getHeight();
-            if ((long) w * h > BG_MAX_PIXELS) {
-                float s = (float) Math.sqrt((double) BG_MAX_PIXELS / ((double) w * h));
-                w = Math.max(1, Math.round(w * s));
-                h = Math.max(1, Math.round(h * s));
-                work = Bitmap.createScaledBitmap(src, w, h, true);
-            }
-            if (w < 8 || h < 8) return src;
-            int n = w * h;
-            int[] px = new int[n];
-            work.getPixels(px, 0, w, 0, 0, w, h);
-
-            // 1. בדיקת שוליים: אם פחות מ-60% מהם לבנים, זו לא תמונה עם רקע לבן (או שכבר שקופה). לא נוגעים.
-            int borderTotal = 0, borderWhite = 0;
-            for (int x = 0; x < w; x++) {
-                borderTotal += 2;
-                if (isBgWhite(px[x])) borderWhite++;
-                if (isBgWhite(px[(h - 1) * w + x])) borderWhite++;
-            }
-            for (int y = 1; y < h - 1; y++) {
-                borderTotal += 2;
-                if (isBgWhite(px[y * w])) borderWhite++;
-                if (isBgWhite(px[y * w + (w - 1)])) borderWhite++;
-            }
-            if (borderWhite < borderTotal * 0.6f) return src;
-
-            // 2. flood-fill מהשוליים פנימה, רק דרך פיקסלים לבנים מחוברים
-            byte[] bg = new byte[n];
-            int[] queue = new int[n];
-            int head = 0, tail = 0;
-            for (int x = 0; x < w; x++) {
-                int top = x, bottom = (h - 1) * w + x;
-                if (bg[top] == 0 && isBgWhite(px[top])) { bg[top] = 1; queue[tail++] = top; }
-                if (bg[bottom] == 0 && isBgWhite(px[bottom])) { bg[bottom] = 1; queue[tail++] = bottom; }
-            }
-            for (int y = 1; y < h - 1; y++) {
-                int left = y * w, right = y * w + (w - 1);
-                if (bg[left] == 0 && isBgWhite(px[left])) { bg[left] = 1; queue[tail++] = left; }
-                if (bg[right] == 0 && isBgWhite(px[right])) { bg[right] = 1; queue[tail++] = right; }
-            }
-            while (head < tail) {
-                int i = queue[head++];
-                int x = i % w, y = i / w;
-                if (x > 0 && bg[i - 1] == 0 && isBgWhite(px[i - 1])) { bg[i - 1] = 1; queue[tail++] = i - 1; }
-                if (x < w - 1 && bg[i + 1] == 0 && isBgWhite(px[i + 1])) { bg[i + 1] = 1; queue[tail++] = i + 1; }
-                if (y > 0 && bg[i - w] == 0 && isBgWhite(px[i - w])) { bg[i - w] = 1; queue[tail++] = i - w; }
-                if (y < h - 1 && bg[i + w] == 0 && isBgWhite(px[i + w])) { bg[i + w] = 1; queue[tail++] = i + w; }
-            }
-            int removed = tail;
-            // 3. רשת ביטחון: אם כמעט לא הוסר כלום, או שהוסר יותר מ-85% (סימן לזליגה לתוך המוצר), מחזירים את המקור
-            if (removed < n * 0.01f || removed > n * 0.85f) return src;
-
-            // 4. קצה רך: פיקסלים שצמודים לרקע שהוסר מקבלים שקיפות לפי כמה הם קרובים ללבן
-            int[] out = new int[n];
-            for (int i = 0; i < n; i++) {
-                if (bg[i] == 1) { out[i] = 0; continue; }
-                int c = px[i];
-                int x = i % w, y = i / w;
-                boolean nearBg = (x > 0 && bg[i - 1] == 1) || (x < w - 1 && bg[i + 1] == 1)
-                        || (y > 0 && bg[i - w] == 1) || (y < h - 1 && bg[i + w] == 1);
-                if (nearBg) {
-                    int m = Math.min((c >> 16) & 0xFF, Math.min((c >> 8) & 0xFF, c & 0xFF));
-                    if (m > 200) {
-                        int a = Math.max(0, Math.min(255, (255 - m) * 255 / 55));
-                        c = (a << 24) | (c & 0x00FFFFFF);
-                    }
-                }
-                out[i] = c;
-            }
-            Bitmap result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            result.setPixels(out, 0, w, 0, 0, w, h);
-            if (work != src) work.recycle();
-            return result;
-        } catch (Throwable t) {
-            return src;   // כל כשל (כולל חוסר זיכרון): התמונה המקורית, כמו היום
-        }
     }
 
     /** Quietly downloads every product picture in the background so the next opening is instant. */
