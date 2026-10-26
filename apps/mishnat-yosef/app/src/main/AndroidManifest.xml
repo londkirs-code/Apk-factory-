@@ -51,6 +51,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+        <activity-alias
+            android:name=".GreenLauncher"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_theme_new"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <provider android:name=".JsonReportProvider" android:authorities="org.mishnatyosef.mobile.jsonreports" android:exported="false" android:grantUriPermissions="true" />
         <receiver
             android:name=".StockMonitor"

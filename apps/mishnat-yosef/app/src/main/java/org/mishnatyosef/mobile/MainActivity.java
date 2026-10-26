@@ -142,6 +142,8 @@ public class MainActivity extends Activity {
     private int SWITCH_OFF_TRACK = activePalette.switchTrackOff;
     private boolean nightMode = false;
     private boolean purpleTheme = false;
+    private boolean greenTheme = false;
+    private int colorTheme = 0; // 0 = classic orange, 1 = royal purple, 2 = forest green
     // Global UI scale: text follows Android fontScale; dp-based layout metrics scale in dp().
     private float uiScale = 1.0f;
     private float uiScaleAtActivityStart = 1.0f;
@@ -163,8 +165,12 @@ public class MainActivity extends Activity {
 
     private void applyPalette() {
         nightMode = prefs.getBoolean("night_mode", false);
-        purpleTheme = prefs.getBoolean("purple_theme", false);
-        activePalette = AppPalette.forTheme(nightMode, purpleTheme);
+        String savedColorTheme = prefs.getString("color_theme", "");
+        colorTheme = "green".equals(savedColorTheme) ? 2
+                : ("purple".equals(savedColorTheme) || prefs.getBoolean("purple_theme", false)) ? 1 : 0;
+        purpleTheme = colorTheme == 1;
+        greenTheme = colorTheme == 2;
+        activePalette = AppPalette.forTheme(nightMode, purpleTheme, greenTheme);
         ORANGE = activePalette.orange;
         ORANGE_DARK = activePalette.orangeDark;
         ORANGE_LIGHT = activePalette.orangeLight;
@@ -319,9 +325,11 @@ public class MainActivity extends Activity {
                         ACTION_BUTTON_RADIUS_DP, 0), ACTION_BUTTON_RADIUS_DP));
             }
             if ("colorThemeOrangeOption".equals(textView.getTag())) {
-                styleColorThemeOption(textView, false);
+                styleColorThemeOption(textView, 0);
             } else if ("colorThemePurpleOption".equals(textView.getTag())) {
-                styleColorThemeOption(textView, true);
+                styleColorThemeOption(textView, 1);
+            } else if ("colorThemeGreenOption".equals(textView.getTag())) {
+                styleColorThemeOption(textView, 2);
             }
             if ("nightModeToggle".equals(textView.getTag())) {
                 textView.setText(nightToggleLabel());
@@ -386,7 +394,7 @@ public class MainActivity extends Activity {
 
     /** Keep both Android system bars synchronized with the selected semantic palette. */
     private void updateSystemBarColors() {
-        getWindow().setStatusBarColor(AppPalette.systemBar(nightMode, purpleTheme));
+        getWindow().setStatusBarColor(AppPalette.systemBar(nightMode, purpleTheme, greenTheme));
         getWindow().setNavigationBarColor(SURFACE);
     }
 
@@ -419,47 +427,59 @@ public class MainActivity extends Activity {
         refreshKeyboardFocusHighlight();
     }
 
-    private void changeColorTheme(boolean usePurple) {
-        if (purpleTheme == usePurple) return;
+    private void changeColorTheme(int themeIndex) {
+        if (colorTheme == themeIndex || themeIndex < 0 || themeIndex > 2) return;
         PaletteSnapshot old = new PaletteSnapshot();
-        prefs.edit().putBoolean("purple_theme", usePurple).apply();
+        colorTheme = themeIndex;
+        purpleTheme = themeIndex == 1;
+        greenTheme = themeIndex == 2;
+        prefs.edit()
+                .putString("color_theme", themeIndex == 2 ? "green" : themeIndex == 1 ? "purple" : "orange")
+                .putBoolean("purple_theme", purpleTheme)
+                .apply();
         applyPalette();
-        syncLauncherIcon(usePurple);
+        syncLauncherIcon(themeIndex);
         rethemeActiveUi(old);
-        toast(usePurple ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
+        toast(themeIndex == 2 ? "ערכת הירוק הופעלה"
+                : themeIndex == 1 ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
     }
 
-    /** Keep the home-screen launcher icon synchronized with the selected color theme. */
-    private void syncLauncherIcon(boolean usePurple) {
+    /** Keep exactly one home-screen launcher icon synchronized with the selected color theme. */
+    private void syncLauncherIcon(int themeIndex) {
         android.content.pm.PackageManager pm = getPackageManager();
-        android.content.ComponentName orangeAlias = new android.content.ComponentName(
-                this, getPackageName() + ".OrangeLauncher");
-        android.content.ComponentName purpleAlias = new android.content.ComponentName(
-                this, getPackageName() + ".PurpleLauncher");
+        String[] aliases = {".OrangeLauncher", ".PurpleLauncher", ".GreenLauncher"};
         int flags = android.content.pm.PackageManager.DONT_KILL_APP;
         try {
-            android.content.ComponentName enabled = usePurple ? purpleAlias : orangeAlias;
-            android.content.ComponentName disabled = usePurple ? orangeAlias : purpleAlias;
+            android.content.ComponentName enabled = new android.content.ComponentName(
+                    this, getPackageName() + aliases[themeIndex]);
             // Enable the target first so the launcher never temporarily has no enabled icon.
             pm.setComponentEnabledSetting(enabled,
                     android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED, flags);
-            pm.setComponentEnabledSetting(disabled,
-                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, flags);
+            for (int i = 0; i < aliases.length; i++) {
+                if (i == themeIndex) continue;
+                android.content.ComponentName disabled = new android.content.ComponentName(
+                        this, getPackageName() + aliases[i]);
+                pm.setComponentEnabledSetting(disabled,
+                        android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, flags);
+            }
         } catch (RuntimeException e) {
             android.util.Log.w("MishnatYosef", "Could not update launcher icon for selected theme", e);
         }
     }
 
-    private void styleColorThemeOption(TextView option, boolean usePurple) {
-        boolean selected = purpleTheme == usePurple;
-        int swatch = usePurple ? AppPalette.PURPLE_SWATCH : AppPalette.ORANGE_SWATCH;
-        option.setText((selected ? "✓  " : "") + (usePurple ? "סגול מלכותי" : "כתום קלאסי"));
+    private void styleColorThemeOption(TextView option, int themeIndex) {
+        boolean selected = colorTheme == themeIndex;
+        int swatch = themeIndex == 2 ? AppPalette.GREEN_SWATCH
+                : themeIndex == 1 ? AppPalette.PURPLE_SWATCH : AppPalette.ORANGE_SWATCH;
+        String label = themeIndex == 2 ? "ירוק טבעי"
+                : themeIndex == 1 ? "סגול מלכותי" : "כתום קלאסי";
+        option.setText((selected ? "✓  " : "") + label);
         option.setTextColor(Color.WHITE);
         option.setGravity(Gravity.CENTER);
         option.setBackground(ripple(shape(swatch, 12, selected ? ORANGE : LINE, selected ? 3 : 1), 12));
         option.setElevation(selected ? dp(2) : 0);
-        option.setPadding(dp(8), dp(10), dp(8), dp(10));
-        option.setContentDescription((usePurple ? "סגול מלכותי" : "כתום קלאסי")
+        option.setPadding(dp(6), dp(10), dp(6), dp(10));
+        option.setContentDescription(label
                 + (selected ? ", ערכת הצבעים הנבחרת" : ", בחירת ערכת צבעים"));
         option.setSelected(selected);
     }
@@ -1844,7 +1864,7 @@ public class MainActivity extends Activity {
         nightMode = prefs.getBoolean("night_mode", false);
         setTheme(nightMode ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
         applyPalette();
-        syncLauncherIcon(purpleTheme);
+        syncLauncherIcon(colorTheme);
         clearLegacyUpdateArtifacts();
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false); // one behaviour on every Android 11+ device; insets are handled in beginScreen
         int cacheKb = (int) (Runtime.getRuntime().maxMemory() / 1024 / 8);
@@ -2866,7 +2886,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < labels.length; i++) {
                 final int index = i;
                 boolean active = i == tab;
-                int tint = active ? ORANGE : (nightMode ? INK : AppPalette.navInactive(purpleTheme));
+                int tint = active ? ORANGE : (nightMode ? INK : AppPalette.navInactive(purpleTheme, greenTheme));
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setGravity(Gravity.CENTER);
@@ -13037,18 +13057,25 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         themeOptionsLp.bottomMargin = dp(6);
         TextView orangeThemeOption = text("", 14, true);
         orangeThemeOption.setTag("colorThemeOrangeOption");
-        styleColorThemeOption(orangeThemeOption, false);
-        orangeThemeOption.setOnClickListener(v -> changeColorTheme(false));
+        styleColorThemeOption(orangeThemeOption, 0);
+        orangeThemeOption.setOnClickListener(v -> changeColorTheme(0));
         TextView purpleThemeOption = text("", 14, true);
         purpleThemeOption.setTag("colorThemePurpleOption");
-        styleColorThemeOption(purpleThemeOption, true);
-        purpleThemeOption.setOnClickListener(v -> changeColorTheme(true));
+        styleColorThemeOption(purpleThemeOption, 1);
+        purpleThemeOption.setOnClickListener(v -> changeColorTheme(1));
+        TextView greenThemeOption = text("", 14, true);
+        greenThemeOption.setTag("colorThemeGreenOption");
+        styleColorThemeOption(greenThemeOption, 2);
+        greenThemeOption.setOnClickListener(v -> changeColorTheme(2));
         LinearLayout.LayoutParams themeOptionLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        themeOptionLp.setMarginStart(dp(5));
+        themeOptionLp.setMarginStart(dp(4));
         themeOptions.addView(orangeThemeOption, themeOptionLp);
         LinearLayout.LayoutParams purpleOptionLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        purpleOptionLp.setMarginStart(dp(5));
+        purpleOptionLp.setMarginStart(dp(4));
         themeOptions.addView(purpleThemeOption, purpleOptionLp);
+        LinearLayout.LayoutParams greenOptionLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        greenOptionLp.setMarginStart(dp(4));
+        themeOptions.addView(greenThemeOption, greenOptionLp);
         controls.addView(themeOptions, themeOptionsLp);
 
         View themeDivider = new View(this);
@@ -13428,7 +13455,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(12));
         bg.setColor(activeCategory ? SURFACE : (activeMode || activeMenu ? ORANGE : ORANGE_LIGHT));
-        if (focused) bg.setStroke(dp(2), AppPalette.categoryFocusBorder(purpleTheme));
+        if (focused) bg.setStroke(dp(2), AppPalette.categoryFocusBorder(purpleTheme, greenTheme));
         else if (activeCategory) bg.setStroke(dp(2), ORANGE);
         chip.setBackground(ripple(bg, 12));
         chip.setTextColor(activeMode || activeMenu ? ON_ORANGE : ORANGE_DARK);
