@@ -470,6 +470,8 @@ public class MainActivity extends Activity {
     private static final String[] HEB_DAYS = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    // Keep launch-time update checks independent from order/API work queued on the main executor.
+    private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService imageExecutor = Executors.newFixedThreadPool(4);
     private final ExecutorService loadExecutor = Executors.newSingleThreadExecutor();   // product loading (keeps `executor` free for order updates)
     private final ExecutorService fetchPool = Executors.newFixedThreadPool(4);          // parallel product pages
@@ -3740,37 +3742,52 @@ public class MainActivity extends Activity {
     private void checkForUpdatesOnLaunch() {
         if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
         if (!prefs.getBoolean("update_auto_check_on_launch", true)) return;
-        executor.execute(() -> {
-            try {
-                JSONObject manifest = fetchUpdateManifest();
-                int code = manifest.getInt("versionCode");
-                String name = manifest.getString("versionName");
-                String sha = manifest.getString("sha256");
-                String notes = manifest.optString("releaseNotes", "").trim();
-                int installed = installedVersionCode();
-                prefs.edit().putInt("update_latest_code", code)
-                        .putString("update_latest_name", name)
-                        .putString("update_latest_sha256", sha)
-                        .putString("update_release_notes", notes).apply();
-                if (code == installed) return;
-                runOnUiThread(() -> {
-                    if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
-                    appDialog()
-                            .setTitle("📲 נמצאה גרסה שונה ב־GitHub")
-                            .setMessage("נמצאה גרסה שונה ב־GitHub של משנת יוסף: " + name + " (" + code + ")."
-                                    + (notes.isEmpty() ? "" : "\n\n" + notes)
-                                    + "\n\nרוצה לעבור לעמוד העדכונים ולהתחיל אוטומטית את ההורדה וההתקנה?")
-                            .setNegativeButton("לא עכשיו", null)
-                            .setPositiveButton("כן, לעדכן", (dialog, which) -> {
-                                autoDownloadAfterCheck = true;
-                                showUpdateSettings();
-                                checkForAppUpdate();
-                            })
-                            .show();
-                });
-            } catch (Exception ignored) {
-                // Network or manifest failures must never block app startup or show a false update prompt.
+        // Do not queue the update check behind order, login, or product requests.
+        // Retry once on transient GitHub/network errors; failures are logged for diagnosis.
+        updateExecutor.execute(() -> {
+            Exception lastError = null;
+            for (int attempt = 0; attempt < 2; attempt++) {
+                try {
+                    JSONObject manifest = fetchUpdateManifest();
+                    int code = manifest.getInt("versionCode");
+                    String name = manifest.getString("versionName");
+                    String sha = manifest.getString("sha256");
+                    String notes = manifest.optString("releaseNotes", "").trim();
+                    int installed = installedVersionCode();
+                    prefs.edit().putInt("update_latest_code", code)
+                            .putString("update_latest_name", name)
+                            .putString("update_latest_sha256", sha)
+                            .putString("update_release_notes", notes).apply();
+                    if (code <= installed) return;
+                    runOnUiThread(() -> {
+                        if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
+                        appDialog()
+                                .setTitle("📲 נמצאה גרסה חדשה")
+                                .setMessage("נמצאה גרסה חדשה של משנת יוסף: " + name + " (" + code + ")."
+                                        + (notes.isEmpty() ? "" : "\n\n" + notes)
+                                        + "\n\nרוצה לעבור לעמוד העדכונים ולהתחיל אוטומטית את ההורדה וההתקנה?")
+                                .setNegativeButton("לא עכשיו", null)
+                                .setPositiveButton("כן, לעדכן", (dialog, which) -> {
+                                    autoDownloadAfterCheck = true;
+                                    showUpdateSettings();
+                                    checkForAppUpdate();
+                                })
+                                .show();
+                    });
+                    return;
+                } catch (Exception error) {
+                    lastError = error;
+                    if (attempt == 0) {
+                        try {
+                            Thread.sleep(800L);
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                    }
+                }
             }
+            android.util.Log.w("MishnatYosef", "Automatic update check failed after retry", lastError);
         });
     }
 
