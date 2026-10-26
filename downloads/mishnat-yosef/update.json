@@ -1,9 +1,9 @@
 {
-  "versionCode": 430,
-  "versionName": "0.4885",
+  "versionCode": 431,
+  "versionName": "0.4886",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "405994a91a8206e42512c11c85bc96c055d2c193a0f5904497cc97658c684fe9",
-  "releaseTitle": "תיקון קריסת החלפת ערכת נושא",
-  "releaseNotes": "- תוקן מסלול החלפת ערכת הצבעים כדי לצמצם התנגשויות בזמן עדכון אייקון מסך הבית.\n- הוקשח עדכון צבעי בקרי התקדמות במהלך צביעה מחדש של הממשק.",
-  "buildCommit": "6101050b20e18712070f65e63bb996395e2c3b16"
+  "sha256": "c4d807d4c023a8db97cc9cc594304efc184cb3608038cd74135a416b28847f7b",
+  "releaseTitle": "תיקון קריסה בעת החלפת ערכת צבעים",
+  "releaseNotes": "- החלפת אייקון מסך הבית נדחית עד שהאפליקציה יוצאת מהמסך, כדי למנוע סגירה בזמן בחירת ערכת צבעים.\n- הוסרה החלפת האייקון האוטומטית בכל פתיחת האפליקציה.\n- תוקן מיפוי צבע סרגל הניווט הלא־פעיל בערכת הירוק.",
+  "buildCommit": "2f99e1d3ca53c5a041ed4ef9897880172f98b42f"
 }
