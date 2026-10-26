@@ -8,6 +8,20 @@ Read this file at the start of every coding task in this repository, before edit
 3. Identify which workflows run for the files being changed. A failed unrelated workflow is not an APK build failure; inspect its name, status, and job/step logs before drawing conclusions.
 4. Create/use a focused feature branch. Do not push application edits directly to `main`. Keep the patch limited to the requested behavior.
 
+## Mandatory release-note gate for every app-source change
+
+This rule is mandatory even for a tiny one-file fix, a revert, a visual adjustment, or a change that seems self-explanatory. Never commit a change to any `apps/mishnat-yosef/**/*.java` or `.kt` file until BOTH files below are updated in the same commit:
+- `apps/mishnat-yosef/CHANGELOG.md`: prepend a dated entry describing what the new code actually does.
+- `apps/mishnat-yosef/RELEASE_NOTES.md`: replace the current user-facing notes so they describe the behavior in the APK being built now, not a previous or reverted implementation.
+
+Before committing, explicitly run the equivalent of:
+`git diff --name-only BASE..HEAD`
+and confirm that both documentation paths are in the same change range as the source edit. Then inspect the actual text of both documents against the final code diff. A file merely existing is not enough: its content must be accurate. In particular, when reverting a feature, remove/replace release-note claims that describe the feature being reverted; do not leave stale instructions or promises about behavior that no longer exists.
+
+The repository preflight script `scripts/preflight-repository.sh` enforces that both documentation files are changed whenever Java/Kotlin app source changes. Treat this as a pre-commit requirement, not as a surprise CI check. Run/review the guard logic before pushing, and do not trigger an APK build until the guard is expected to pass.
+
+If a workflow fails, inspect the failed job and exact failed step logs before explaining the cause. Distinguish preflight/metadata/documentation failures from compilation failures: if the build step was skipped, do not describe it as a Java/Gradle compile error and do not claim an APK was produced.
+
 ## Before opening or merging a PR
 1. Review the full diff for accidental unrelated changes, duplicate declarations, malformed YAML, stale references, and UI behavior regressions.
 2. For every user-visible app change, update `apps/mishnat-yosef/RELEASE_NOTES.md` (latest update only) and prepend a dated entry to `apps/mishnat-yosef/CHANGELOG.md`.
