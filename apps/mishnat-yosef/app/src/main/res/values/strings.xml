@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">משנת יוסף</string>
-    <string name="release_notes_title">ערכת צבעים ירוקה חדשה</string>
-    <string name="release_notes_details">- נוספה ערכת צבעים ירוקה בהשראת אייקון משנת יוסף, עם התאמה מלאה לממשק ביום ובלילה.\n- בחירת הערכה מחליפה גם את אייקון האפליקציה במסך הבית.\n- נשמרו ערכות הכתום והסגול והבחירה נשמרת גם לאחר הפעלה מחדש.</string>
+    <string name="release_notes_title">תיקון קריסת החלפת ערכת נושא</string>
+    <string name="release_notes_details">- תוקן מסלול החלפת ערכת הצבעים כדי לצמצם התנגשויות בזמן עדכון אייקון מסך הבית.\n- הוקשח עדכון צבעי בקרי התקדמות במהלך צביעה מחדש של הממשק.</string>
 </resources>

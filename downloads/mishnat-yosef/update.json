@@ -1,9 +1,9 @@
 {
-  "versionCode": 429,
-  "versionName": "0.4884",
+  "versionCode": 430,
+  "versionName": "0.4885",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "b7b6d7e82b1960d0ddbd95e5dce56c74b2e6c50150591fe317134fbd73b07dc9",
-  "releaseTitle": "ערכת צבעים ירוקה חדשה",
-  "releaseNotes": "- נוספה ערכת צבעים ירוקה בהשראת אייקון משנת יוסף, עם התאמה מלאה לממשק ביום ובלילה.\n- בחירת הערכה מחליפה גם את אייקון האפליקציה במסך הבית.\n- נשמרו ערכות הכתום והסגול והבחירה נשמרת גם לאחר הפעלה מחדש.",
-  "buildCommit": "83e0f94b83688d78aceadba766ba26cdc1840c40"
+  "sha256": "405994a91a8206e42512c11c85bc96c055d2c193a0f5904497cc97658c684fe9",
+  "releaseTitle": "תיקון קריסת החלפת ערכת נושא",
+  "releaseNotes": "- תוקן מסלול החלפת ערכת הצבעים כדי לצמצם התנגשויות בזמן עדכון אייקון מסך הבית.\n- הוקשח עדכון צבעי בקרי התקדמות במהלך צביעה מחדש של הממשק.",
+  "buildCommit": "6101050b20e18712070f65e63bb996395e2c3b16"
 }
