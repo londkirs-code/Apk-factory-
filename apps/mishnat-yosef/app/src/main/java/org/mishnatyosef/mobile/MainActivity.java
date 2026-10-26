@@ -7666,8 +7666,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         final ImageView image;
         final FrameLayout imageBox;
         final FrameLayout controls;
-        final TextView badge, star, name, pack, price, maxView, savedView, unitView, add, sizeSummary, removeSizesButton;
-        final LinearLayout sizesRow;
+        final TextView badge, star, name, pack, price, maxView, savedView, unitView, add, removeSizesButton;
         final Map<String, TextView> sizeButtons = new LinkedHashMap<>();
         final View actionSpacer;
         final Stepper st;
@@ -7746,11 +7745,6 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             card.addView(maxView);
             savedView = muted("", 9);
             card.addView(savedView);
-            sizesRow = new LinearLayout(MainActivity.this); sizesRow.setOrientation(LinearLayout.HORIZONTAL); sizesRow.setGravity(Gravity.CENTER); sizesRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); sizesRow.setVisibility(View.GONE);
-            card.addView(sizesRow, lp(-1, -2, 0, 3));
-            sizeSummary = muted("", 10);
-            sizeSummary.setFocusable(false);
-            card.addView(sizeSummary, lp(-1, -2, 0, 2));
 
             // Equalization space stays above the price, grouping price with the bottom order controls.
             actionSpacer = new View(MainActivity.this);
@@ -7871,17 +7865,6 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                     autoOrderSaveButton, stockAlertButton}) focusView.setOnFocusChangeListener(focusListener);
         }
 
-        private void bindSizeButtons(JSONObject prod, boolean hasSizes) {
-            sizesRow.removeAllViews();sizeButtons.clear();sizesRow.setVisibility(hasSizes?View.VISIBLE:View.GONE);if(!hasSizes)return;
-            for(JSONObject variant:sizeVariants(prod)){String sid=sidOf(variant),label=sizeVariantLabel(variant);int q=featureQuantities.containsKey(sid)?featureQuantities.get(sid):0;
-                TextView b=btn(label+(q>0?" ×"+q:""),OUTLINE);b.setTag("productSize:"+sid);b.setFocusable(true);b.setFocusableInTouchMode(false);b.setEnabled(numericAvailable(variant)!=0);b.setAlpha(b.isEnabled()?1f:0.38f);b.setMinHeight(dp(28));b.setTextSize(cardColumns()>=4?9:11);b.setPadding(dp(3),dp(1),dp(3),dp(1));
-                b.setContentDescription("מידה "+label+(q>0?", בהזמנה "+q:"")+(b.isEnabled()?"":", אזלה מהמלאי"));
-                b.setOnClickListener(v->{if(!b.isEnabled()){toast("המידה הזו אזלה מהמלאי",false);return;}selectedSizeByProduct.put(clothingProductId(p),sid);updateSizeButtonStyles();});
-                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(30),1f);bp.setMargins(dp(1),0,dp(1),0);sizesRow.addView(b,bp);sizeButtons.put(sid,b);}
-            updateSizeButtonStyles();
-        }
-        void updateSizeButtonStyles(){String selected=selectedSizeSid(p);for(Map.Entry<String,TextView> e:sizeButtons.entrySet()){TextView b=e.getValue();boolean chosen=e.getKey().equals(selected);paintButton(b,chosen?PRIMARY:OUTLINE);if(!b.isEnabled()){b.setTextColor(MUTED);b.setAlpha(0.38f);}else b.setAlpha(1f);b.setElevation(chosen?dp(2):0);}}
-
         private void rememberNormalFocusBackgrounds() {
             for (View focusView : new View[]{add, removeSizesButton, st.plus, st.qty, st.minus, chargeButton,
                     autoOrderStepper.plus, autoOrderStepper.qty, autoOrderStepper.minus,
@@ -7959,7 +7942,6 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             star.setLayoutParams(new FrameLayout.LayoutParams(dp(columns >= 4 ? 22 : 32), dp(columns >= 4 ? 22 : 32), Gravity.TOP | Gravity.START));
             add.setTextSize(14 * scale);
             add.setMinHeight(dp(controlHeight));
-            sizeSummary.setTextSize(10 * scale);
             removeSizesButton.setTextSize(11 * scale);
             st.qty.setTextSize(16 * scale);
             st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(columns >= 4 ? 18 : 28), dp(controlHeight)));
@@ -8023,7 +8005,6 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             unitView.setText(up);
             setCompactOptionalRow(unitView, !up.isEmpty());
 
-            bindSizeButtons(prod, hasSizes);
             add.setText(canOrder ? (hasSizes ? "הוספה" : "הוספה") : (disabled ? "לא זמין" : "אזל מהמלאי"));
             paintButton(add, canOrder ? TONAL : FLAT);
             int q = productQuantity(prod);
@@ -8031,17 +8012,6 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             add.setVisibility(closedOrderReadOnly || (!hasSizes && q > 0) ? View.GONE : View.VISIBLE);
             st.view.setVisibility(closedOrderReadOnly || hasSizes || q <= 0 ? View.GONE : View.VISIBLE);
             removeSizesButton.setVisibility(!closedOrderReadOnly && hasSizes && q > 0 ? View.VISIBLE : View.GONE);
-            StringBuilder sizeOrderSummary = new StringBuilder();
-            if (hasSizes) {
-                for (JSONObject variant : sizeVariants(prod)) {
-                    int sizeQty = featureQuantities.containsKey(sidOf(variant)) ? featureQuantities.get(sidOf(variant)) : 0;
-                    if (sizeQty <= 0) continue;
-                    if (sizeOrderSummary.length() > 0) sizeOrderSummary.append(" · ");
-                    sizeOrderSummary.append(sizeVariantLabel(variant)).append("×").append(sizeQty);
-                }
-            }
-            sizeSummary.setText(sizeOrderSummary.length() == 0 ? "" : "הוזמן: " + sizeOrderSummary);
-            sizeSummary.setVisibility(sizeOrderSummary.length() == 0 ? View.GONE : View.VISIBLE);
             removeSizesButton.setContentDescription("הסרת כל המידות שהוזמנו במוצר " + productName(prod));
             st.qty.setText(String.valueOf(q));
             st.plus.setVisibility(View.VISIBLE);
