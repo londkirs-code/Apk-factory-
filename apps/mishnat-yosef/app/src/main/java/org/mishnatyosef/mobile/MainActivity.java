@@ -411,7 +411,11 @@ public class MainActivity extends Activity {
         rethemeViewTree(currentScreen, old, visited);
         // Dialogs/popups have separate window roots, so refresh all live bars independently of the
         // main screen tree. Weak references avoid keeping dismissed popup contents alive.
-        for (ProgressBar bar : progressControls) tintProgressControl(bar);
+        // Snapshot the weak set before tinting: tintProgressControl registers controls, and
+        // iterating the live WeakHashMap-backed set can otherwise fail if its entries change.
+        for (ProgressBar bar : new ArrayList<>(progressControls)) {
+            if (bar != null) tintProgressControl(bar);
+        }
         // Cached tabs and product rows must change too, or old colors can reappear on navigation/scroll.
         Set<ProductAdapter> adapters = new HashSet<>();
         if (productAdapter != null) adapters.add(productAdapter);
@@ -438,14 +442,18 @@ public class MainActivity extends Activity {
                 .putBoolean("purple_theme", purpleTheme)
                 .apply();
         applyPalette();
-        syncLauncherIcon(themeIndex);
+        // Finish recoloring the active view tree before changing launcher components. Some
+        // launchers react to alias changes by refreshing/restarting the task; posting this work
+        // keeps PackageManager changes out of the settings click callback.
         rethemeActiveUi(old);
+        getWindow().getDecorView().post(() -> syncLauncherIcon(themeIndex));
         toast(themeIndex == 2 ? "ערכת הירוק הופעלה"
                 : themeIndex == 1 ? "ערכת הסגול הופעלה" : "ערכת הכתום הופעלה", false);
     }
 
     /** Keep exactly one home-screen launcher icon synchronized with the selected color theme. */
     private void syncLauncherIcon(int themeIndex) {
+        if (themeIndex < 0 || themeIndex > 2 || isFinishing() || isDestroyed()) return;
         android.content.pm.PackageManager pm = getPackageManager();
         String[] aliases = {".OrangeLauncher", ".PurpleLauncher", ".GreenLauncher"};
         int flags = android.content.pm.PackageManager.DONT_KILL_APP;
