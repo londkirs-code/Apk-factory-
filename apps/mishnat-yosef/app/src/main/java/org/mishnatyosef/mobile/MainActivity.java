@@ -18,13 +18,10 @@ import android.database.Cursor;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
-import android.graphics.BlurMaskFilter;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.PorterDuffXfermode;
-import android.graphics.PorterDuff;
 import android.graphics.PixelFormat;
 import android.graphics.Path;
 import android.graphics.Rect;
@@ -2157,77 +2154,6 @@ public class MainActivity extends Activity {
                 styleDialogInputs(group.getChildAt(i));
             }
         }
-    }
-
-    private final LruCache<String, Bitmap> softMaskCache = new LruCache<>(32);
-
-    // מסכה מטושטשת (ALPHA_8, זיכרון קטן) שמשותפת לכל התמונות באותו גודל
-    private Bitmap softMask(int w, int h, float inset, float blur, float radius) {
-        String key = w + "x" + h + ":" + Math.round(inset) + ":" + Math.round(blur) + ":" + Math.round(radius);
-        Bitmap m = softMaskCache.get(key);
-        if (m != null) return m;
-        m = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8);
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(Color.BLACK);
-        p.setMaskFilter(new BlurMaskFilter(Math.max(1f, blur), BlurMaskFilter.Blur.NORMAL));
-        new Canvas(m).drawRoundRect(new RectF(inset, inset, w - inset, h - inset), radius, radius, p);
-        softMaskCache.put(key, m);
-        return m;
-    }
-
-    private final class GlowBitmapDrawable extends Drawable {
-        // ---- כוונון ----
-        static final float SHRINK = 0.10f;    // הקטנה כוללת של התמונה בלילה (10%)
-        static final float FEATHER = 0.14f;   // רוחב הקצה הדוהה של התמונה (חלק מהצלע הקצרה)
-        static final int GLOW_ALPHA = 230;    // עוצמת ההילה, 0-255
-        final Bitmap bmp;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint maskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-        GlowBitmapDrawable(Bitmap b) {
-            bmp = b;
-            glowPaint.setColor(Color.WHITE);
-            glowPaint.setAlpha(GLOW_ALPHA);
-            maskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
-        }
-
-        @Override public int getIntrinsicWidth() { return bmp.getWidth(); }
-        @Override public int getIntrinsicHeight() { return bmp.getHeight(); }
-
-        @Override public void draw(Canvas canvas) {
-            Rect b = getBounds();
-            int bw = b.width(), bh = b.height();
-            if (bw <= 0 || bh <= 0) return;
-            if (!nightMode) {
-                canvas.drawBitmap(bmp, null, b, paint);
-                return;
-            }
-
-            // 1. הילה לבנה מטושטשת מאחורי התמונה, דועכת לאפס בקצה התא
-            float m = Math.min(bw, bh);
-            float g = 0.06f * m;
-            canvas.drawBitmap(softMask(bw, bh, g, g * 0.9f, 0.12f * m), b.left, b.top, glowPaint);
-
-            // 2. התמונה מוקטנת במרכז, עם קצוות דוהים לשקוף
-            int dx = Math.round(bw * SHRINK / 2f), dy = Math.round(bh * SHRINK / 2f);
-            Rect dst = new Rect(b.left + dx, b.top + dy, b.right - dx, b.bottom - dy);
-            int dw = dst.width(), dh = dst.height();
-            if (dw <= 0 || dh <= 0) return;
-            float f = FEATHER * Math.min(dw, dh);
-            Bitmap soft = softMask(dw, dh, f * 0.75f, f * 0.75f, 0.1f * Math.min(dw, dh));
-            int sc = canvas.saveLayer(dst.left, dst.top, dst.right, dst.bottom, null);
-            canvas.drawBitmap(bmp, null, dst, paint);
-            canvas.drawBitmap(soft, dst.left, dst.top, maskPaint);
-            canvas.restoreToCount(sc);
-        }
-
-        @Override public void setAlpha(int a) { paint.setAlpha(a); glowPaint.setAlpha(a); }
-        @Override public void setColorFilter(ColorFilter cf) {
-            paint.setColorFilter(cf);
-            glowPaint.setColorFilter(cf);
-        }
-        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 
     private static final class AppGradientDrawable extends GradientDrawable {
@@ -5118,7 +5044,7 @@ public class MainActivity extends Activity {
         iv.setFocusable(false);
         iv.setFocusableInTouchMode(false);
         Bitmap cached = imageCache.get(url);
-        if (cached != null) { setGlowBitmap(iv, cached); return; }
+        if (cached != null) { iv.setImageBitmap(cached); return; }
         try {
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(url, 480);
@@ -5128,16 +5054,12 @@ public class MainActivity extends Activity {
                 final Bitmap loaded = bmp;
                 runOnUiThread(() -> {
                     if (url.equals(imageRequestUrls.get(iv))) {
-                        setGlowBitmap(iv, loaded);
+                        iv.setImageBitmap(loaded);
                         iv.invalidate();
                     }
                 });
             });
         } catch (Exception ignored) { }
-    }
-
-    private void setGlowBitmap(ImageView iv, Bitmap bmp) {
-        iv.setImageDrawable(bmp == null ? null : new GlowBitmapDrawable(bmp));
     }
 
     /**
@@ -5261,7 +5183,7 @@ public class MainActivity extends Activity {
                     if (!dialog.isShowing()) return;
                     if (bmp != null) {
                         loading.setVisibility(View.GONE);
-                        setGlowBitmap(preview, bmp);
+                        preview.setImageBitmap(bmp);
                         preview.post(positionCloseOnPhoto);
                     } else {
                         loading.setText("לא ניתן לטעון את התמונה. אפשר לסגור ולנסות שוב.");
@@ -5366,7 +5288,7 @@ public class MainActivity extends Activity {
     }
 
     /** Disk first, then the network (and the downloaded bytes are kept for next time). */
-    private Bitmap downloadBitmap(String url, int maxPx) {
+    private Bitmap downloadBitmapRaw(String url, int maxPx) {
         File f = imageFile(url);
         if (f.exists() && f.length() > 0) {
             Bitmap cached = decodeFile(f, maxPx);
@@ -5377,6 +5299,104 @@ public class MainActivity extends Activity {
         if (data == null) return null;
         writeImageFile(f, data);
         return decodeBytes(data, maxPx);
+    }
+
+    private Bitmap downloadBitmap(String url, int maxPx) {
+        Bitmap raw = downloadBitmapRaw(url, maxPx);
+        return raw == null ? null : removeWhiteBackground(raw);
+    }
+
+    private static final int BG_WHITE_MIN = 242;
+    private static final int BG_MAX_PIXELS = 2_500_000;
+
+    private static boolean isBgWhite(int c) {
+        return (c >>> 24) >= 250
+                && ((c >> 16) & 0xFF) >= BG_WHITE_MIN
+                && ((c >> 8) & 0xFF) >= BG_WHITE_MIN
+                && (c & 0xFF) >= BG_WHITE_MIN;
+    }
+
+    /** מסיר רק רקע לבן שמחובר לשולי התמונה. לבן בתוך המוצר לא נפגע. אם משהו נראה חשוד מחזיר את המקור. */
+    private Bitmap removeWhiteBackground(Bitmap src) {
+        if (src == null) return null;
+        try {
+            Bitmap work = src;
+            int w = src.getWidth(), h = src.getHeight();
+            if ((long) w * h > BG_MAX_PIXELS) {
+                float s = (float) Math.sqrt((double) BG_MAX_PIXELS / ((double) w * h));
+                w = Math.max(1, Math.round(w * s));
+                h = Math.max(1, Math.round(h * s));
+                work = Bitmap.createScaledBitmap(src, w, h, true);
+            }
+            if (w < 8 || h < 8) return src;
+            int n = w * h;
+            int[] px = new int[n];
+            work.getPixels(px, 0, w, 0, 0, w, h);
+
+            // 1. בדיקת שוליים: אם פחות מ-60% מהם לבנים, זו לא תמונה עם רקע לבן (או שכבר שקופה). לא נוגעים.
+            int borderTotal = 0, borderWhite = 0;
+            for (int x = 0; x < w; x++) {
+                borderTotal += 2;
+                if (isBgWhite(px[x])) borderWhite++;
+                if (isBgWhite(px[(h - 1) * w + x])) borderWhite++;
+            }
+            for (int y = 1; y < h - 1; y++) {
+                borderTotal += 2;
+                if (isBgWhite(px[y * w])) borderWhite++;
+                if (isBgWhite(px[y * w + (w - 1)])) borderWhite++;
+            }
+            if (borderWhite < borderTotal * 0.6f) return src;
+
+            // 2. flood-fill מהשוליים פנימה, רק דרך פיקסלים לבנים מחוברים
+            byte[] bg = new byte[n];
+            int[] queue = new int[n];
+            int head = 0, tail = 0;
+            for (int x = 0; x < w; x++) {
+                int top = x, bottom = (h - 1) * w + x;
+                if (bg[top] == 0 && isBgWhite(px[top])) { bg[top] = 1; queue[tail++] = top; }
+                if (bg[bottom] == 0 && isBgWhite(px[bottom])) { bg[bottom] = 1; queue[tail++] = bottom; }
+            }
+            for (int y = 1; y < h - 1; y++) {
+                int left = y * w, right = y * w + (w - 1);
+                if (bg[left] == 0 && isBgWhite(px[left])) { bg[left] = 1; queue[tail++] = left; }
+                if (bg[right] == 0 && isBgWhite(px[right])) { bg[right] = 1; queue[tail++] = right; }
+            }
+            while (head < tail) {
+                int i = queue[head++];
+                int x = i % w, y = i / w;
+                if (x > 0 && bg[i - 1] == 0 && isBgWhite(px[i - 1])) { bg[i - 1] = 1; queue[tail++] = i - 1; }
+                if (x < w - 1 && bg[i + 1] == 0 && isBgWhite(px[i + 1])) { bg[i + 1] = 1; queue[tail++] = i + 1; }
+                if (y > 0 && bg[i - w] == 0 && isBgWhite(px[i - w])) { bg[i - w] = 1; queue[tail++] = i - w; }
+                if (y < h - 1 && bg[i + w] == 0 && isBgWhite(px[i + w])) { bg[i + w] = 1; queue[tail++] = i + w; }
+            }
+            int removed = tail;
+            // 3. רשת ביטחון: אם כמעט לא הוסר כלום, או שהוסר יותר מ-85% (סימן לזליגה לתוך המוצר), מחזירים את המקור
+            if (removed < n * 0.01f || removed > n * 0.85f) return src;
+
+            // 4. קצה רך: פיקסלים שצמודים לרקע שהוסר מקבלים שקיפות לפי כמה הם קרובים ללבן
+            int[] out = new int[n];
+            for (int i = 0; i < n; i++) {
+                if (bg[i] == 1) { out[i] = 0; continue; }
+                int c = px[i];
+                int x = i % w, y = i / w;
+                boolean nearBg = (x > 0 && bg[i - 1] == 1) || (x < w - 1 && bg[i + 1] == 1)
+                        || (y > 0 && bg[i - w] == 1) || (y < h - 1 && bg[i + w] == 1);
+                if (nearBg) {
+                    int m = Math.min((c >> 16) & 0xFF, Math.min((c >> 8) & 0xFF, c & 0xFF));
+                    if (m > 200) {
+                        int a = Math.max(0, Math.min(255, (255 - m) * 255 / 55));
+                        c = (a << 24) | (c & 0x00FFFFFF);
+                    }
+                }
+                out[i] = c;
+            }
+            Bitmap result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            result.setPixels(out, 0, w, 0, 0, w, h);
+            if (work != src) work.recycle();
+            return result;
+        } catch (Throwable t) {
+            return src;   // כל כשל (כולל חוסר זיכרון): התמונה המקורית, כמו היום
+        }
     }
 
     /** Quietly downloads every product picture in the background so the next opening is instant. */
@@ -8567,7 +8587,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             iv.setContentDescription(full);
             imageExecutor.execute(() -> {
                 Bitmap bmp = downloadBitmap(full, 900);
-                if (bmp != null) runOnUiThread(() -> { if (full.equals(iv.getTag())) setGlowBitmap(iv, bmp); });
+                if (bmp != null) runOnUiThread(() -> { if (full.equals(iv.getTag())) iv.setImageBitmap(bmp); });
             });
         }
         panel.addView(text(productName(p), 17, true), lp(-1, -2, 8, 0));
@@ -12729,7 +12749,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                             failedUrls.add(selected.imageUrl);
                             next[0].run();
                         } else {
-                            setGlowBitmap(productImage, loaded);
+                            productImage.setImageBitmap(loaded);
                             imageStatus.setVisibility(View.GONE);
                         }
                     });
