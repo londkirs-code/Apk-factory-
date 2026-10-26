@@ -2159,7 +2159,8 @@ public class MainActivity extends Activity {
     private final class GlowBitmapDrawable extends Drawable {
         final Bitmap bmp;
         final int pad = dp(6);
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
 
         GlowBitmapDrawable(Bitmap b) { bmp = b; }
 
@@ -2174,18 +2175,18 @@ public class MainActivity extends Activity {
                 int layers = 6;
                 for (int i = 0; i < layers; i++) {
                     float inset = (pad * (float) i) / layers;
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(Color.argb(14 + i * 10, 255, 255, 255));
-                    canvas.drawRoundRect(new RectF(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset), dp(8), dp(8), paint);
+                    glowPaint.setStyle(Paint.Style.FILL);
+                    glowPaint.setColor(Color.argb(14 + i * 10, 255, 255, 255));
+                    canvas.drawRoundRect(new RectF(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset), dp(8), dp(8), glowPaint);
                 }
             }
             Rect dst = new Rect(b.left + pad, b.top + pad, b.right - pad, b.bottom - pad);
-            canvas.drawBitmap(bmp, null, dst, paint);
+            canvas.drawBitmap(bmp, null, dst, bitmapPaint);
         }
 
-        @Override public void setAlpha(int a) { paint.setAlpha(a); }
+        @Override public void setAlpha(int a) { glowPaint.setAlpha(a); bitmapPaint.setAlpha(a); }
 
-        @Override public void setColorFilter(ColorFilter cf) { paint.setColorFilter(cf); }
+        @Override public void setColorFilter(ColorFilter cf) { glowPaint.setColorFilter(cf); bitmapPaint.setColorFilter(cf); }
 
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
