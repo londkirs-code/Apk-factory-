@@ -2158,7 +2158,7 @@ public class MainActivity extends Activity {
 
     private final class GlowBitmapDrawable extends Drawable {
         final Bitmap bmp;
-        final int pad = dp(6);
+        final int pad = dp(18); // פי 3 מהשוליים המקוריים, כדי להרחיב את ההילה
         private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
 
@@ -2177,7 +2177,7 @@ public class MainActivity extends Activity {
                     float inset = (pad * (float) i) / layers;
                     glowPaint.setStyle(Paint.Style.FILL);
                     glowPaint.setColor(Color.argb(14 + i * 10, 255, 255, 255));
-                    canvas.drawRoundRect(new RectF(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset), dp(8), dp(8), glowPaint);
+                    canvas.drawRoundRect(new RectF(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset), dp(24), dp(24), glowPaint);
                 }
             }
             Rect dst = new Rect(b.left + pad, b.top + pad, b.right - pad, b.bottom - pad);
