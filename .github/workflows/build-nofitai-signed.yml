@@ -104,6 +104,10 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "Existing APK Factory signing key validated."
 
+          # The upstream project hard-codes the alias "upload". Use the validated alias
+          # from the existing APK Factory signing key instead, without changing the key.
+          sed -i 's/keyAlias = "upload"/keyAlias = System.getenv("KEY_ALIAS") ?: "upload"/' nofitAI/app/build.gradle.kts
+
       - name: Set up Android SDK
         if: steps.check.outputs.build_needed == 'true'
         uses: android-actions/setup-android@v3
@@ -140,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           gradle --no-daemon --console=plain :app:dependencyInsight --dependency androidx.fragment:fragment --configuration releaseRuntimeClasspath | tee ../fragment-dependency-check.log
-          if ! grep -Eq 'androidx\\.fragment:fragment(-ktx)?:1\\.[3-9][0-9]*\\.[0-9]+' ../fragment-dependency-check.log; then
+          if ! grep -Eq 'androidx[.]fragment:fragment(-ktx)?:1[.][3-9][0-9]*[.][0-9]+' ../fragment-dependency-check.log; then
             echo "::error::AndroidX Fragment resolved version is missing or older than the minimum required by Activity Result APIs. Refusing to start Release lint/build."
             exit 1
           fi
