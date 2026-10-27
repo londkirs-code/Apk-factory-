@@ -133,6 +133,18 @@ jobs:
           fi
           grep -n 'androidx.fragment:fragment-ktx' app/build.gradle.kts
 
+      - name: Verify AndroidX Fragment runtime version before Release build
+        if: steps.check.outputs.build_needed == 'true'
+        working-directory: nofitAI
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --console=plain :app:dependencyInsight --dependency androidx.fragment:fragment --configuration releaseRuntimeClasspath | tee ../fragment-dependency-check.log
+          if ! grep -Eq 'androidx\\.fragment:fragment(-ktx)?:1\\.[3-9][0-9]*\\.[0-9]+' ../fragment-dependency-check.log; then
+            echo "::error::AndroidX Fragment resolved version is missing or older than the minimum required by Activity Result APIs. Refusing to start Release lint/build."
+            exit 1
+          fi
+
       - name: Set increasing versionCode and build signed Release APK
         if: steps.check.outputs.build_needed == 'true'
         working-directory: nofitAI
