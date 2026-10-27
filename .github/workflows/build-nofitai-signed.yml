@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: nofitai-signed-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -113,7 +113,7 @@ jobs:
           set -euo pipefail
           # Ensure each generated APK can be installed as an update over the previous one.
           sed -i -E "s/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*[0-9]+/    versionCode = $NEXT_VERSION_CODE/" app/build.gradle.kts
-          gradle --no-daemon --stacktrace :app:assembleRelease
+          ./gradlew --no-daemon --console=plain --stacktrace --info :app:assembleRelease 2>&1 | tee ../export/build.log
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           apksigner verify --verbose --print-certs "$APK"
@@ -131,6 +131,15 @@ jobs:
             export/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+
+      - name: Preserve build log on failure
+        if: failure() && steps.check.outputs.build_needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: NotifAI-build-log
+          path: export/build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Record successfully built source commit
         if: steps.check.outputs.build_needed == 'true' && success()
