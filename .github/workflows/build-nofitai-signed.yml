@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: nofitai-signed-build
+  group: nofitai-signed-build-diagnostics
   cancel-in-progress: true
 
 jobs:
