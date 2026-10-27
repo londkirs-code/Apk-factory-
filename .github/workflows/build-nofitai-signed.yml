@@ -104,6 +104,7 @@ jobs:
             echo "KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
+      # Source fix: include androidx.fragment:fragment-ktx for Activity Result API lint.
       - name: Set increasing versionCode and build signed Release APK
         if: steps.check.outputs.build_needed == 'true'
         working-directory: nofitAI
