@@ -12,9 +12,11 @@ on:
 permissions:
   contents: write
 
+# Do not cancel a build already in progress when the next scheduled poll starts.
+# The source repo is checked every 15 minutes because it cannot trigger this repo directly.
 concurrency:
   group: nofitai-signed-build-diagnostics
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -92,7 +94,6 @@ jobs:
               exit 1
             fi
           done
-          # Match APK Factory's established signing setup: normalize alias whitespace.
           APK_SIGNING_KEY_ALIAS="$(printf "%s" "$APK_SIGNING_KEY_ALIAS" | tr -d "[:space:]")"
           printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > nofitAI/my-upload-key.jks
           test -s nofitAI/my-upload-key.jks
@@ -104,7 +105,6 @@ jobs:
             echo "KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
-      # Source build includes a targeted lint suppression for the ComponentActivity result-launcher false positive.
       - name: Set increasing versionCode and build signed Release APK
         if: steps.check.outputs.build_needed == 'true'
         working-directory: nofitAI
@@ -112,14 +112,12 @@ jobs:
           NEXT_VERSION_CODE: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          # Ensure each generated APK can be installed as an update over the previous one.
           sed -i -E "s/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*[0-9]+/    versionCode = $NEXT_VERSION_CODE/" app/build.gradle.kts
           mkdir -p ../export
           gradle --no-daemon --console=plain --stacktrace --info :app:assembleRelease 2>&1 | tee ../export/build.log
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
-          mkdir -p ../export
           cp "$APK" ../export/NotifAI.apk
           sha256sum ../export/NotifAI.apk | tee ../export/SHA256SUMS.txt
 
