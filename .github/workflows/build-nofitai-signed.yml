@@ -120,6 +120,18 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
+      # The upstream ScreenCaptureActivity uses registerForActivityResult from FragmentActivity.
+      # Pin a modern Fragment dependency so Android Lint does not fail the release build on an old transitive version.
+      - name: Apply AndroidX Fragment compatibility fix
+        if: steps.check.outputs.build_needed == 'true'
+        working-directory: nofitAI
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'androidx.fragment:fragment-ktx' app/build.gradle.kts || \\
+            sed -i '/implementation(libs.androidx.activity.compose)/a\\  implementation("androidx.fragment:fragment-ktx:1.8.9")' app/build.gradle.kts
+          grep -n 'androidx.fragment:fragment-ktx' app/build.gradle.kts
+
       - name: Set increasing versionCode and build signed Release APK
         if: steps.check.outputs.build_needed == 'true'
         working-directory: nofitAI
