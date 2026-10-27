@@ -71,12 +71,6 @@ jobs:
         if: steps.check.outputs.build_needed == 'true'
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install Gradle
-        if: steps.check.outputs.build_needed == 'true'
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "9.3.1"
-
       - name: Prepare the existing APK Factory signing key
         if: steps.check.outputs.build_needed == 'true'
         env:
