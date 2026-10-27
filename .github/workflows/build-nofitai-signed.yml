@@ -113,6 +113,7 @@ jobs:
           set -euo pipefail
           # Ensure each generated APK can be installed as an update over the previous one.
           sed -i -E "s/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*[0-9]+/    versionCode = $NEXT_VERSION_CODE/" app/build.gradle.kts
+          mkdir -p ../export
           ./gradlew --no-daemon --console=plain --stacktrace --info :app:assembleRelease 2>&1 | tee ../export/build.log
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
