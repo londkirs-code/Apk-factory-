@@ -92,6 +92,8 @@ jobs:
               exit 1
             fi
           done
+          # Match APK Factory's established signing setup: normalize alias whitespace.
+          APK_SIGNING_KEY_ALIAS="$(printf "%s" "$APK_SIGNING_KEY_ALIAS" | tr -d "[:space:]")"
           printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > nofitAI/my-upload-key.jks
           test -s nofitAI/my-upload-key.jks
           keytool -list -keystore nofitAI/my-upload-key.jks -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
