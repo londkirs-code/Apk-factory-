@@ -12,8 +12,6 @@ on:
 permissions:
   contents: write
 
-# Do not cancel a build already in progress when the next scheduled poll starts.
-# The source repo is checked every 15 minutes because it cannot trigger this repo directly.
 concurrency:
   group: nofitai-signed-build-diagnostics
   cancel-in-progress: false
@@ -63,6 +61,49 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # Fail fast before downloading Android SDK packages or installing Gradle.
+      - name: Validate and prepare the existing APK Factory signing key
+        if: steps.check.outputs.build_needed == 'true'
+        shell: bash
+        env:
+          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "$APK_SIGNING_KEY_BASE64" ] || missing+=("APK_SIGNING_KEY_BASE64")
+          [ -n "$APK_SIGNING_STORE_PASSWORD" ] || missing+=("APK_SIGNING_STORE_PASSWORD")
+          [ -n "$APK_SIGNING_KEY_ALIAS" ] || missing+=("APK_SIGNING_KEY_ALIAS")
+          [ -n "$APK_SIGNING_KEY_PASSWORD" ] || missing+=("APK_SIGNING_KEY_PASSWORD")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Missing APK Factory Actions secret(s): %s. The key must be configured in londkirs-code/Apk-factory- (not only in the nofitAI repository).\n' "${missing[*]}"
+            exit 1
+          fi
+
+          APK_SIGNING_KEY_ALIAS="$(printf "%s" "$APK_SIGNING_KEY_ALIAS" | tr -d "[:space:]")"
+          if ! printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/apk-factory-release.jks"; then
+            echo "::error::APK_SIGNING_KEY_BASE64 is not valid Base64. Copy the complete value from APK_SIGNING_KEY_BASE64.txt without a sha256: prefix."
+            exit 1
+          fi
+          if [ ! -s "$RUNNER_TEMP/apk-factory-release.jks" ]; then
+            echo "::error::The decoded APK Factory keystore is empty."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$RUNNER_TEMP/apk-factory-release.jks" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::The APK Factory keystore could not be opened with this password/alias. Check the existing APK Factory signing secrets."
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/apk-factory-release.jks" nofitAI/my-upload-key.jks
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/nofitAI/my-upload-key.jks"
+            echo "STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+            echo "KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
+            echo "KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Existing APK Factory signing key validated."
+
       - name: Set up Android SDK
         if: steps.check.outputs.build_needed == 'true'
         uses: android-actions/setup-android@v3
@@ -79,32 +120,6 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Prepare the existing APK Factory signing key
-        if: steps.check.outputs.build_needed == 'true'
-        env:
-          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
-          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
-          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
-          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          for name in APK_SIGNING_KEY_BASE64 APK_SIGNING_STORE_PASSWORD APK_SIGNING_KEY_ALIAS APK_SIGNING_KEY_PASSWORD; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Missing APK Factory signing secret: $name. This workflow must use the existing APK Factory signing secrets."
-              exit 1
-            fi
-          done
-          APK_SIGNING_KEY_ALIAS="$(printf "%s" "$APK_SIGNING_KEY_ALIAS" | tr -d "[:space:]")"
-          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > nofitAI/my-upload-key.jks
-          test -s nofitAI/my-upload-key.jks
-          keytool -list -keystore nofitAI/my-upload-key.jks -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
-          {
-            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/nofitAI/my-upload-key.jks"
-            echo "STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
-            echo "KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
-            echo "KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
-
       - name: Set increasing versionCode and build signed Release APK
         if: steps.check.outputs.build_needed == 'true'
         working-directory: nofitAI
@@ -120,6 +135,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
           cp "$APK" ../export/NotifAI.apk
           sha256sum ../export/NotifAI.apk | tee ../export/SHA256SUMS.txt
+          rm -f my-upload-key.jks
 
       - name: Publish signed APK artifact
         if: steps.check.outputs.build_needed == 'true'
