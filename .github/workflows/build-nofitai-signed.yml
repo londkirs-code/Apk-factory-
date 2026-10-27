@@ -118,7 +118,7 @@ jobs:
           gradle --no-daemon --console=plain --stacktrace --info :app:assembleRelease 2>&1 | tee ../export/build.log
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          apksigner verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
           mkdir -p ../export
           cp "$APK" ../export/NotifAI.apk
           sha256sum ../export/NotifAI.apk | tee ../export/SHA256SUMS.txt
