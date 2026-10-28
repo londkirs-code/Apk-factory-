@@ -222,7 +222,37 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add downloads/NotifAI.apk downloads/NotifAI-build-info.txt external-build-state/nofitAI.sha
           git commit -m "release: publish latest signed NotifAI APK (source $SOURCE_SHA)"
-          git push origin HEAD:main
+
+          # Other legitimate commits (for example skill/workflow fixes) can land
+          # on main while the Android build is running. A plain push then fails
+          # with "fetch first" even though the APK built and was signed correctly.
+          # Rebase our publication commit onto the latest main and retry a bounded
+          # number of times. Never force-push, and never silently ignore conflicts.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "::error::APK publication rebase conflicted with concurrent changes on main. Do not treat the artifact as published; inspect the conflict and retry the build after resolving it."
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "Published APK commit successfully on attempt $attempt."
+              break
+            fi
+            if [[ "$attempt" -eq 5 ]]; then
+              echo "::error::Could not publish APK after 5 fetch/rebase/push attempts because main kept moving."
+              exit 1
+            fi
+            echo "main changed during push attempt $attempt; fetching and retrying."
+            sleep "$((attempt * 2))"
+          done
+
+          # Verify the remote metadata now points at this run and exact source.
+          git fetch origin main
+          git show origin/main:downloads/NotifAI-build-info.txt > "$RUNNER_TEMP/NotifAI-build-info.txt"
+          grep -Fx "source_sha=$SOURCE_SHA" "$RUNNER_TEMP/NotifAI-build-info.txt"
+          grep -Fx "workflow_run_id=$GITHUB_RUN_ID" "$RUNNER_TEMP/NotifAI-build-info.txt"
+          grep -Fx "version_code=$VERSION_CODE" "$RUNNER_TEMP/NotifAI-build-info.txt"
 
       - name: Preserve build log on failure
         if: failure() && steps.check.outputs.build_needed == 'true'
