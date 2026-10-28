@@ -133,3 +133,30 @@ After starting a build:
 - Reuse the same proven APK Factory pattern: checkout source, use the existing shared APK Factory signing key, build a signed Release APK, upload a named Actions artifact, copy the APK to a stable repository path, write metadata/checksum, commit/push, and notify subscribers.
 - Never generate a new key for convenience. A successful Gradle build alone is not delivery; stable-file publication and metadata verification are required.
 - If a build takes several minutes, the user-facing response should reflect actual stage evidence. It is acceptable to give a brief accurate interim status, but not to say the APK is unavailable without polling the workflow through completion.
+
+## Mandatory upstream synchronization before every requested APK build
+
+This ordering is required. **Building from the fork's current files without first completing a successful upstream sync is a process failure, even if the APK build itself succeeds.**
+
+Canonical source relationship:
+- Upstream source of truth: https://github.com/ofirver-png/nofitAI (branch `main`)
+- User's fork to synchronize: https://github.com/londkirs-code/nofitAI (branch `main`)
+- Fork sync workflow: `.github/workflows/sync-and-build.yml` in `londkirs-code/nofitAI`
+- APK Factory signed build workflow: `.github/workflows/build-nofitai-signed.yml` in `londkirs-code/Apk-factory-`
+
+For every explicit user request to build/update NotifAI, perform these stages in this exact order:
+
+1. **Start a fresh upstream-sync run first.** Trigger the fork's `Sync nofitAI source from upstream` workflow using `workflow_dispatch` if available. If no dispatch action is available, use a supported trigger that causes that workflow to run (for example, a harmless temporary file commit outside `.github/workflows/sync-and-build.yml`, because the workflow's push trigger ignores only its own workflow file). Do not start the APK build yet.
+2. **Wait for the sync workflow to finish.** Verify its run is `completed` with conclusion `success`. A run merely starting, a scheduled run from earlier, or a commit being created is not sufficient.
+3. **Verify fork HEAD equals upstream HEAD.** Read the latest commit SHA of `ofirver-png/nofitAI:main` and `londkirs-code/nofitAI:main` after the sync has completed. They must match exactly. Also verify the successful sync log shows it fetched upstream `main` and completed the force-sync/push, or explicitly reports the fork already matched upstream. If SHAs do not match, diagnose and retry synchronization; do not build.
+4. **Only then trigger a fresh signed APK build** in APK Factory. Never use an APK build that began before the verified sync as the requested result. The APK workflow must check out the newly synchronized fork HEAD.
+5. **Tie the APK to the synchronized SHA.** After the build finishes, compare `source_sha` in `downloads/NotifAI-build-info.txt` with the exact fork/upstream SHA verified in step 3. They must match. If the source moved again during the build, repeat the sync/verify/build sequence against the new HEAD.
+6. Complete all existing build validation requirements: successful signed Release build, artifact upload, publication of `downloads/NotifAI.apk`, current metadata/checksum, and success notification. Do not return the stable APK link as the newly updated APK until all checks pass.
+7. If sync fails, **do not build**. Inspect the first failed sync step, fix the smallest causal problem, and rerun sync. Report no new APK until sync succeeds and the downstream build is verified.
+
+### Required workflow hardening
+- Keep the source-sync and APK-build workflows as separate stages with a strict sync-success gate between them.
+- Prefer a single orchestration workflow that triggers/awaits sync and then builds only after SHA equality is verified, if reliable cross-repository dispatch permissions are available. Do not assume the default `GITHUB_TOKEN` can dispatch workflows in another repository; confirm the actual configured mechanism before relying on it.
+- At minimum, the operator/skill must explicitly trigger and verify the sync workflow before every user-requested build. The 15-minute schedule is not a substitute for a fresh, verified sync on demand.
+- Never interpret “the APK workflow succeeded” as proof it used current upstream source. The source SHA in the build metadata must equal the upstream SHA verified immediately before the build.
+- In the final response, state both the synchronized source SHA and the APK build run. If the source synchronization could not be proven, clearly state that and do not present an old APK as fresh.
