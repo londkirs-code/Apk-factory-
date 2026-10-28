@@ -94,3 +94,42 @@ Reply in Hebrew, concise and action-oriented. If a new build is requested, wait 
 - Success messages include the stable APK link, versionCode, source commit, and workflow-run logs. Failure messages include the run link and state that the previous APK must not be treated as newly built.
 - GitHub sends email based on the account's notification/watch settings for that issue. Do not promise email delivery unless the user's GitHub notification subscription/settings support it; the workflow comment itself is the auditable notification record.
 - The workflow needs `issues: write` permission for this notification step. Never add SMTP passwords or other mail secrets unless the repository is explicitly configured for a separate SMTP provider.
+
+
+## Lessons from the 2026-10-28 run — mandatory operational checklist
+
+This section is a permanent rule, not optional advice.
+
+### What actually happened in run 40760523413
+- The workflow was triggered successfully by posting `/build-notifai` to issue #1 because the available GitHub connector did not expose a direct `workflow_dispatch` action. That is a limitation of the available action interface, **not proof that the user has not granted GitHub access**.
+- Run #31 completed successfully. The signed Release build, artifact upload, standalone APK publication, and notification step all succeeded.
+- Published metadata now reports:
+  - `workflow_run_id=40760523413`
+  - `version_code=31`
+  - `source_sha=61c688ed64a426648cefe72f10a8953196457cae`
+  - `published_utc=2026-10-28T20:11:20Z`
+  - `sha256=f26d07cf330a1775031f2422256b8972cdbeaaab9ed7b0056c0d874b787f4465`
+- The artifact `NotifAI-signed-APK` exists for that run (15,709,909 bytes), the tracked `downloads/NotifAI.apk` exists, and the success notification comment was posted to issue #1.
+- Therefore, the delay/error in the conversation was **not a Gradle/build failure**. The assistant checked while the workflow was still publishing, then answered too early that publication was not yet confirmed. Do not repeat that premature stop: continue polling and re-check all final evidence before replying.
+
+### Access: diagnose the exact missing capability, never make a blanket claim
+- The configured GitHub connector can read repository files, inspect runs and jobs, read artifacts metadata, create issue comments, and commit file changes where its enabled actions permit.
+- A missing direct `workflow_dispatch` operation means only that this particular action is unavailable through the current tool interface. It does not mean repository access is absent. Use the tested `/build-notifai` issue-comment fallback and verify that it created a new run.
+- When the user asks to change the skill, edit `skills/build-notifai-apk/SKILL.md` in this repository using the GitHub file update action, then re-read the committed file and report the commit. Do not merely explain what should be changed.
+- When a requested GitHub operation is unavailable, identify the precise unavailable operation and use another supported route where possible. Do not tell the user to configure access again unless an actual permission/API error demonstrates that access is missing.
+- Do not confuse tool discovery or a missing operation with a 403/401 permission failure. Record the exact error and endpoint/action before diagnosing permissions.
+
+### Mandatory wait-and-verify gate — do not respond mid-publication
+After starting a build:
+1. Poll the exact run until `status=completed`; do not stop at the Release build or artifact-upload step.
+2. Confirm the run conclusion is `success`, and these steps all succeeded: signed Release build, `Publish signed APK artifact`, `Publish standalone APK to repository`, and `Notify APK Factory issue subscribers about the NotifAI build`.
+3. Re-read `downloads/NotifAI-build-info.txt` from the default branch. Its `workflow_run_id` must equal the run just checked, its `version_code` must be newer than the prior shipped version, and `published_utc` must be recent.
+4. Confirm `downloads/NotifAI.apk` exists on the default branch and its GitHub file/blob SHA changed with the publication commit. The metadata SHA-256 is calculated by the workflow from the exact APK bytes immediately before commit. Do not claim an independent binary re-hash unless the binary was actually downloaded and hashed.
+5. Confirm the Actions artifact exists for the same run and the success comment appears on issue #1. A comment is proof the notification step ran, **not** proof an email reached the inbox; email delivery depends on GitHub settings.
+6. If the metadata still shows an older run, keep checking the publication step/run. Do not provide the direct link as the newly updated build until metadata matches. If a step fails, retrieve logs and fix the earliest causal error.
+7. Only after these checks, answer in Hebrew with the direct APK URL and the run URL. State plainly that physical-device installation has not been tested unless it was actually tested.
+
+### Learn from the successful Mishnat Yosef APK workflow
+- Reuse the same proven APK Factory pattern: checkout source, use the existing shared APK Factory signing key, build a signed Release APK, upload a named Actions artifact, copy the APK to a stable repository path, write metadata/checksum, commit/push, and notify subscribers.
+- Never generate a new key for convenience. A successful Gradle build alone is not delivery; stable-file publication and metadata verification are required.
+- If a build takes several minutes, the user-facing response should reflect actual stage evidence. It is acceptable to give a brief accurate interim status, but not to say the APK is unavailable without polling the workflow through completion.
