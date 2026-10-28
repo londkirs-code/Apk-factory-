@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: nofitai-signed-build-diagnostics
@@ -227,6 +228,56 @@ jobs:
           path: export/build.log
           if-no-files-found: ignore
           retention-days: 7
+
+      # Match APK Factory's existing email-notification mechanism: comment on the
+      # persistent notification issue and mention the triggering GitHub account.
+      # GitHub sends email according to the account's issue-watch/notification settings.
+      - name: Notify APK Factory issue subscribers about the NotifAI build
+        if: always() && steps.check.outputs.build_needed == 'true'
+        uses: actions/github-script@v7
+        env:
+          BUILD_STATUS: ${{ job.status }}
+          SOURCE_SHA: ${{ steps.check.outputs.source_sha }}
+          VERSION_CODE: ${{ github.run_number }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          APK_URL: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk
+        with:
+          script: |
+            const status = process.env.BUILD_STATUS;
+            const actor = process.env.ACTOR;
+            const runUrl = process.env.RUN_URL;
+            const sourceSha = process.env.SOURCE_SHA || "לא זוהה";
+            const versionCode = process.env.VERSION_CODE;
+            const apkUrl = process.env.APK_URL;
+            const success = status === "success";
+            const body = success
+              ? [
+                  `✅ @${actor} בניית NotifAI הסתיימה בהצלחה וה-APK נחתם ופורסם.`,
+                  "",
+                  `- versionCode: ${versionCode}`,
+                  `- source commit: ${sourceSha}`,
+                  `- [הורדת APK ישירה](${apkUrl})`,
+                  `- [צפייה בפרטי הבנייה והלוגים](${runUrl})`,
+                  "",
+                  "_הודעה אוטומטית מ-APK Factory. הודעת דוא״ל נשלחת לפי הגדרות ההתראות והמנוי לדיון הזה ב-GitHub._"
+                ].join("\n")
+              : [
+                  `⚠️ @${actor} בניית NotifAI נכשלה.`,
+                  "",
+                  `- source commit: ${sourceSha}`,
+                  `- [פתיחת הבנייה ובדיקת שלב הכשל](${runUrl})`,
+                  "",
+                  "ה-APK הקודם לא נחשב לגרסה חדשה. יש לבדוק את השלב הראשון שנכשל לפני ניסיון חוזר.",
+                  "",
+                  "_הודעה אוטומטית מ-APK Factory._"
+                ].join("\n");
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 1,
+              body
+            });
 
 # The APK is published as a standalone tracked file at downloads/NotifAI.apk.
 # Its stable direct-download URL is https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk.
