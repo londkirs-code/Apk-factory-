@@ -160,3 +160,30 @@ For every explicit user request to build/update NotifAI, perform these stages in
 - At minimum, the operator/skill must explicitly trigger and verify the sync workflow before every user-requested build. The 15-minute schedule is not a substitute for a fresh, verified sync on demand.
 - Never interpret “the APK workflow succeeded” as proof it used current upstream source. The source SHA in the build metadata must equal the upstream SHA verified immediately before the build.
 - In the final response, state both the synchronized source SHA and the APK build run. If the source synchronization could not be proven, clearly state that and do not present an old APK as fresh.
+
+## Postmortem: run 40762225858 — signed build succeeded, publication push was rejected
+
+This failure was investigated from the actual GitHub Actions job log, not guessed from the final status.
+
+- Run: https://github.com/londkirs-code/Apk-factory-/actions/runs/40762225858
+- Upstream sync had succeeded before this APK build. The build checked out fork source SHA `e6d626e50513fea5e6f5257b57a93eda9bdfa3f6` (versionCode 32).
+- Signing validation, Android SDK/Gradle setup, AndroidX Fragment runtime check, Release build, APK signature verification, and signed APK artifact upload all succeeded.
+- The failure was in **Publish standalone APK to repository**, not Gradle and not signing. The log showed:
+  `! [rejected] HEAD -> main (fetch first)`
+  `error: failed to push some refs`
+  GitHub's `main` advanced after this workflow checked it out / while the APK was compiling. The workflow then tried to push a commit containing the APK, metadata, and source-state file without first incorporating the newer remote commit. Git correctly rejected a non-fast-forward push.
+- The signed APK artifact was uploaded (artifact ID `12848048246`), but `downloads/NotifAI.apk` and its metadata were **not** updated by this failed run. Do not mistake artifact upload or a successful compile for successful stable-link publication.
+- The harmless Gradle cache reservation warnings in post-job cleanup were not the cause of failure.
+
+### Fix now present in the build workflow
+
+The publication step now fetches `origin/main`, rebases its local APK-publication commit onto the latest main, and retries push up to five times with a short increasing delay. It never force-pushes. A real rebase conflict or five unsuccessful attempts fails explicitly. After push, it fetches the remote metadata and asserts that `source_sha`, `workflow_run_id`, and `version_code` match the current run. This workflow fix is in commit `0708f5a4b73e4eec563724a7516671e56000eea1`.
+
+### Mandatory prevention / verification rules for future runs
+
+1. Treat APK creation, artifact upload, and publication as separate milestones. Only publication success means the stable APK URL was updated.
+2. For a publication push rejection such as `fetch first` / non-fast-forward, do not rerun the entire build blindly and do not report success. Fetch the full log, confirm the failure is only a remote-branch race, then rebase/retry publication if the artifact is still available and source/version metadata are trustworthy; otherwise start a fresh build using the fixed workflow.
+3. Never use `git push --force` to publish the APK. Preserve concurrent documentation/workflow/source changes.
+4. Use a bounded fetch/rebase/push retry loop and then verify the remote metadata directly. If the rebase conflicts because another build changed the APK/metadata/state files, stop and run a fresh build against the current main/source rather than overwriting another release.
+5. Before returning the stable direct APK link, read `downloads/NotifAI-build-info.txt` from remote `main` and require `workflow_run_id` to equal the current run, `source_sha` to equal the verified synchronized source SHA, and `version_code` to equal the current run's version. Also confirm the run concludes `success`, including the standalone publication step and notification step.
+6. If a build failed at publication, the old stable link remains the old APK. Clearly tell the user that a signed artifact exists but stable publication failed; do not call the old link the new APK.
