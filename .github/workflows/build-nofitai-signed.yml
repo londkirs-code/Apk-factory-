@@ -2,6 +2,9 @@ name: Build signed nofitAI APK using APK Factory key
 
 on:
   workflow_dispatch:
+  # Tool-driven fallback: commenting exactly /build-notifai on issue #1 requests a fresh build.
+  issue_comment:
+    types: [created]
   push:
     branches: [main]
     paths:
@@ -19,6 +22,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'issue_comment' || (github.event.issue.number == 1 && github.event.comment.body == '/build-notifai')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
