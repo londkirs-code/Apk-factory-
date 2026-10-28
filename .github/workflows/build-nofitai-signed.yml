@@ -36,22 +36,39 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Skip if this exact source commit was already built
+      - name: Skip if repository APK is newer than source and matches its commit
         id: check
         shell: bash
         run: |
           set -euo pipefail
           SOURCE_SHA="$(git -C nofitAI rev-parse HEAD)"
+          SOURCE_TIMESTAMP="$(git -C nofitAI show -s --format=%ct HEAD)"
           STATE_FILE="external-build-state/nofitAI.sha"
+          INFO_FILE="downloads/NotifAI-build-info.txt"
+          APK_FILE="downloads/NotifAI.apk"
           PREVIOUS_SHA=""
+          INFO_SHA=""
+          APK_COMMIT_TIMESTAMP=0
+
           if [[ -s "$STATE_FILE" ]]; then PREVIOUS_SHA="$(tr -d '[:space:]' < "$STATE_FILE")"; fi
+          if [[ -s "$INFO_FILE" ]]; then
+            INFO_SHA="$(sed -n 's/^source_sha=//p' "$INFO_FILE" | head -n 1 | tr -d '[:space:]')"
+          fi
+          if [[ -s "$APK_FILE" ]]; then
+            APK_COMMIT_TIMESTAMP="$(git log -1 --format=%ct -- "$APK_FILE" || echo 0)"
+          fi
+
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          if [[ "$SOURCE_SHA" == "$PREVIOUS_SHA" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+          echo "source_timestamp=$SOURCE_TIMESTAMP" >> "$GITHUB_OUTPUT"
+          echo "APK last repository modification timestamp: $APK_COMMIT_TIMESTAMP"
+          echo "Latest source commit timestamp: $SOURCE_TIMESTAMP"
+
+          if [[ -s "$APK_FILE" && "$APK_COMMIT_TIMESTAMP" -gt "$SOURCE_TIMESTAMP" && "$INFO_SHA" == "$SOURCE_SHA" && "$PREVIOUS_SHA" == "$SOURCE_SHA" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
             echo "build_needed=false" >> "$GITHUB_OUTPUT"
-            echo "This exact nofitAI commit was already built successfully; skipping."
+            echo "The standalone APK is newer than the source commit and metadata confirms this exact source SHA was built. Skipping build."
           else
             echo "build_needed=true" >> "$GITHUB_OUTPUT"
-            echo "A new source commit or manual build requires an APK."
+            echo "No verified up-to-date repository APK; a new signed build is required."
           fi
 
       - name: Set up Java
@@ -104,8 +121,7 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "Existing APK Factory signing key validated."
 
-          # The upstream project hard-codes the alias "upload". Use the validated alias
-          # from the existing APK Factory signing key instead, without changing the key.
+          # Honor the existing validated alias without replacing the signing key.
           sed -i 's/keyAlias = "upload"/keyAlias = System.getenv("KEY_ALIAS") ?: "upload"/' nofitAI/app/build.gradle.kts
 
       - name: Set up Android SDK
@@ -124,8 +140,6 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      # The upstream ScreenCaptureActivity uses registerForActivityResult from FragmentActivity.
-      # Pin a modern Fragment dependency so Android Lint does not fail the release build on an old transitive version.
       - name: Apply AndroidX Fragment compatibility fix
         if: steps.check.outputs.build_needed == 'true'
         working-directory: nofitAI
@@ -177,6 +191,34 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Publish standalone APK to repository
+        if: steps.check.outputs.build_needed == 'true' && success()
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.check.outputs.source_sha }}
+          SOURCE_TIMESTAMP: ${{ steps.check.outputs.source_timestamp }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          test -s export/NotifAI.apk
+          mkdir -p downloads external-build-state
+          cp export/NotifAI.apk downloads/NotifAI.apk
+          CHECKSUM="$(sha256sum downloads/NotifAI.apk | awk '{print $1}')"
+          {
+            echo "source_sha=$SOURCE_SHA"
+            echo "source_commit_timestamp=$SOURCE_TIMESTAMP"
+            echo "version_code=$VERSION_CODE"
+            echo "workflow_run_id=$GITHUB_RUN_ID"
+            echo "sha256=$CHECKSUM"
+            echo "published_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > downloads/NotifAI-build-info.txt
+          printf '%s\n' "$SOURCE_SHA" > external-build-state/nofitAI.sha
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/NotifAI.apk downloads/NotifAI-build-info.txt external-build-state/nofitAI.sha
+          git commit -m "release: publish latest signed NotifAI APK (source $SOURCE_SHA)"
+          git push origin HEAD:main
+
       - name: Preserve build log on failure
         if: failure() && steps.check.outputs.build_needed == 'true'
         uses: actions/upload-artifact@v4
@@ -186,19 +228,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Record successfully built source commit
-        if: steps.check.outputs.build_needed == 'true' && success()
-        shell: bash
-        env:
-          SOURCE_SHA: ${{ steps.check.outputs.source_sha }}
-        run: |
-          set -euo pipefail
-          mkdir -p external-build-state
-          printf '%s\n' "$SOURCE_SHA" > external-build-state/nofitAI.sha
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add external-build-state/nofitAI.sha
-          git commit -m "ci: record successful nofitAI APK build" || exit 0
-          git push origin HEAD:main
-
-# Explicit rebuild trigger: workflow changes build the current nofitAI main commit.
+# The APK is published as a standalone tracked file at downloads/NotifAI.apk.
+# Its stable direct-download URL is https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk.
+# Scheduled checks run every 15 minutes; if the current source SHA already matches the published APK metadata and its repository timestamp is newer, they skip the build.
