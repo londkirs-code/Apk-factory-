@@ -63,7 +63,7 @@ jobs:
           echo "APK last repository modification timestamp: $APK_COMMIT_TIMESTAMP"
           echo "Latest source commit timestamp: $SOURCE_TIMESTAMP"
 
-          if [[ -s "$APK_FILE" && "$APK_COMMIT_TIMESTAMP" -gt "$SOURCE_TIMESTAMP" && "$INFO_SHA" == "$SOURCE_SHA" && "$PREVIOUS_SHA" == "$SOURCE_SHA" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+          if [[ -s "$APK_FILE" && "$APK_COMMIT_TIMESTAMP" -gt "$SOURCE_TIMESTAMP" && "$INFO_SHA" == "$SOURCE_SHA" && "$PREVIOUS_SHA" == "$SOURCE_SHA" && "${{ github.event_name }}" == "schedule" ]]; then
             echo "build_needed=false" >> "$GITHUB_OUTPUT"
             echo "The standalone APK is newer than the source commit and metadata confirms this exact source SHA was built. Skipping build."
           else
