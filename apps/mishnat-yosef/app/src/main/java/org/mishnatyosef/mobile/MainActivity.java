@@ -8730,6 +8730,33 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         String meta = "הזמנה #" + summary.id + (summary.when.isEmpty() ? "" : " · הוזמן: " + summary.when);
         head.addView(muted(meta, 12));
         if (summaryFromHistory && !summary.status.isEmpty()) head.addView(muted("סטטוס: " + summary.status, 12));
+        if (collectMode && featureSale != null) {
+            LinearLayout pickupInfo = card(10);
+            pickupInfo.setTag("collectionPickupInfo");
+            TextView pickupTitle = text("📦 פרטי מקום האיסוף", 15, true);
+            pickupTitle.setTextColor(ORANGE_DARK);
+            pickupInfo.addView(pickupTitle);
+            Date pickupDay = pickupDate(featureSale);
+            pickupInfo.addView(muted("🗓️ יום: " + (pickupDay == null ? "לא ידוע" : fmtDay(pickupDay, false)), 13));
+            JSONObject pickupSite = featureSale.optJSONObject("site");
+            JSONObject pickupOrder = featureSale.optJSONObject("order");
+            String pickupHours = first(pickupOrder, "times");
+            if (pickupHours.isEmpty()) {
+                String startHour = first(featureSale, "startHour", "start_hour");
+                String endHour = first(featureSale, "endHour", "end_hour");
+                if (!startHour.isEmpty() || !endHour.isEmpty()) pickupHours = startHour + (endHour.isEmpty() ? "" : "-" + endHour);
+            }
+            pickupInfo.addView(muted("🕒 שעה: " + (pickupHours.isEmpty() ? "לא צוינה במידע הזמין" : pickupHours), 13));
+            String pickupStreet = first(pickupSite, "street", "address");
+            String pickupCity = first(pickupSite, "city");
+            String pickupAddress = pickupStreet.isEmpty() ? pickupCity : (pickupCity.isEmpty() ? pickupStreet : pickupStreet + ", " + pickupCity);
+            String pickupSiteName = first(pickupSite, "name");
+            if (!pickupSiteName.isEmpty()) pickupInfo.addView(muted("📍 תחנה: " + pickupSiteName, 13));
+            pickupInfo.addView(muted("📍 כתובת: " + (pickupAddress.isEmpty() ? "לא צוינה במידע הזמין" : pickupAddress), 13));
+            String pickupDescription = first(pickupSite, "address_description");
+            if (!pickupDescription.isEmpty()) pickupInfo.addView(muted(pickupDescription, 12));
+            root.addView(pickupInfo, lp(-1, -2, 0, 8));
+        }
         progressView = text("", 13, true);
         progressView.setTextColor(GREEN);
         head.addView(progressView);
@@ -8737,11 +8764,19 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
 
         // Keep only the delete/edit action in the order summary; collection mode is managed elsewhere.
         LinearLayout modes = new LinearLayout(this);
-        final TextView delete = btn(summaryFromHistory ? "✏️ עריכה" : "🗑 מחק הזמנה",
-                summaryFromHistory ? PRIMARY : DANGER);
+        final TextView delete = btn(collectMode ? "✏️ חזרה לעריכה"
+                        : (summaryFromHistory ? "📦 מעבר למצב איסוף" : "🗑 מחק הזמנה"),
+                collectMode || summaryFromHistory ? PRIMARY : DANGER);
         delete.setTag("orderSummaryDelete");
-        if (summaryFromHistory) {
-            delete.setOnClickListener(v -> { collectMode = false; rebuildSummary(); });
+        if (collectMode || summaryFromHistory) {
+            delete.setOnClickListener(v -> {
+                collectMode = !collectMode;
+                String heading = collectMode ? "איסוף הזמנה"
+                        : (summaryFromHistory ? "הזמנה #" + featureOrderId : "ההזמנה שלי");
+                beginScreen(heading, summaryFromHistory ? historyTab : 0,
+                        summaryFromHistory ? this::loadFeatureOrders : this::renderFeatureProducts);
+                renderOrderSummary();
+            });
         } else {
             delete.setVisibility(closedOrderReadOnly ? View.GONE : View.VISIBLE);
             // Match the app's semantic deletion palette, with a stronger red outline for clarity.
@@ -9105,7 +9140,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     private View editRow(final OrderLine line, final int qty) {
         final JSONObject p = productForLine(line);
         final boolean editable = findProduct(line.sid) != null;
-        LinearLayout row = (LinearLayout) rowShell(line, 96);
+        LinearLayout row = (LinearLayout) rowShell(line, 76);
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -9211,7 +9246,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     }
 
     private View collectRow(final OrderLine line, final int qty, final boolean isDone) {
-        LinearLayout row = (LinearLayout) rowShell(line, isDone ? 60 : 88);
+        LinearLayout row = (LinearLayout) rowShell(line, isDone ? 52 : 68);
         row.setAlpha(isDone ? 0.8f : 1f);
 
         TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? SURFACE : GREEN_LIGHT, GREEN);
