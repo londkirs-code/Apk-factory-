@@ -1,12 +1,12 @@
 ---
 name: build-notifai-apk
-description: Build and publish the latest signed NotifAI APK as a stable standalone file in APK Factory, skip unnecessary builds when the repository APK is verified current, and return its direct download link.
+description: Always attempt a fresh signed NotifAI APK build when requested, publish it as a stable standalone file in APK Factory, and return its direct download link.
 ---
 
 # Skill: Build NotifAI APK through APK Factory
 
 ## Purpose
-Repeatably build and deliver an up-to-date signed NotifAI APK. Prefer the established APK Factory workflow so updates remain compatible with the installed app.
+Whenever the user asks to build, update, recreate, or provide the latest NotifAI APK, **always attempt a fresh signed build**. Do not decide to skip a requested build based on timestamps, matching SHAs, metadata, or an existing APK. This rule exists because a source update can be missed by a stale or incomplete freshness check.
 
 ## Canonical repositories and workflow
 - APK Factory: https://github.com/londkirs-code/Apk-factory-
@@ -29,15 +29,16 @@ Use the exact repository names above; do not confuse `nofitAI` with differently 
 5. Never provide a stale APK as the latest build. Tie each APK to its exact source commit via build metadata.
 6. Do not expose signing secrets, keystore files, passwords, access tokens, or private credentials in logs or responses.
 
-## Fast path: check before building
-1. Check the latest commit on `londkirs-code/nofitAI` main.
-2. Check the repository's `downloads/NotifAI.apk` and `downloads/NotifAI-build-info.txt`.
-3. Compare the APK's last Git modification timestamp with the latest source commit timestamp. A newer APK timestamp is only a freshness heuristic, not proof by itself.
-4. Verify `source_sha` in build metadata equals the current source SHA and `external-build-state/nofitAI.sha` also matches. The workflow's skip guard additionally requires the APK commit timestamp to be newer than the source commit timestamp.
-5. If all checks pass, **do not rebuild**. Return the stable direct APK URL immediately: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk
-6. If the APK is absent, the metadata/state is missing or mismatched, the source SHA changed, or the APK timestamp is not newer, trigger/allow the established workflow and wait for it to finish.
+## Mandatory build behavior when the user asks for an APK
+1. Always initiate a fresh workflow run for each explicit request to build/update/recreate the APK, even if the existing APK appears current.
+2. Use the manual workflow dispatch, which intentionally forces a rebuild. If dispatch is unavailable, use an equivalent safe trigger that starts the workflow; do not claim that a build was started unless a run is verifiably present.
+3. Wait for the run to complete. Inspect its status and relevant job steps/logs. If it fails, identify the first causal error, make the smallest targeted fix, and retry instead of repeatedly running the same broken build.
+4. Confirm the build used the latest `main` commit from `londkirs-code/nofitAI`.
+5. Verify the successful signed APK artifact and the published `downloads/NotifAI.apk`; confirm the published metadata SHA-256 matches the file where possible.
+6. Return the stable direct download URL only after verifying publication. If any check cannot be completed, state exactly what remains unverified and do not claim success.
 
-The workflow checks every 15 minutes and also supports manual dispatch. A manual dispatch intentionally forces a rebuild. When the workflow builds successfully, it replaces `downloads/NotifAI.apk` in the repository with the new signed APK and updates build metadata and the successful source-SHA marker in the same commit. The Actions artifact remains available as an additional backup.
+## Automatic scheduled freshness checks
+The workflow may continue checking every 15 minutes and use its freshness guard to avoid unnecessary scheduled builds. **That optimization must never override an explicit user request**: an explicit request always requires a forced fresh build.
 
 ## Preserve and validate signing
 The expected secrets are referenced only by name:
@@ -51,15 +52,13 @@ Do not read or reveal their values. If key validation fails, diagnose the workfl
 ## Monitor and diagnose builds
 Wait for a completed workflow and inspect the relevant steps:
 - Checkout shared signing configuration and latest NotifAI source
-- Freshness guard
+- Freshness guard (must not skip a user-requested build)
 - Validate and prepare existing signing key
 - Set up Android SDK and Gradle
 - AndroidX Fragment compatibility fix and runtime-version validation
 - Set increasing versionCode and build signed Release APK
 - Publish Actions artifact
 - Publish standalone APK to `downloads/NotifAI.apk` and update metadata
-
-If a run fails, inspect the first causal error and make the smallest targeted correction before retrying. Do not repeatedly trigger identical builds without a fix.
 
 Known failure patterns:
 - Source may not include `gradlew`; install/use compatible Gradle.
@@ -77,4 +76,4 @@ Known failure patterns:
 - Never reuse an old sandbox path unless it exists and is verified in the current session.
 
 ## Response style
-Reply in Hebrew, concise and action-oriented. If the stable APK is already current, simply give the direct APK link and say a rebuild was unnecessary. If a new build is needed, wait for success before claiming the APK was updated.
+Reply in Hebrew, concise and action-oriented. If a new build is requested, wait for success before claiming the APK was updated.
