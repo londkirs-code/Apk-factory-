@@ -30,12 +30,14 @@ Use the exact repository names above; do not confuse `nofitAI` with differently 
 6. Do not expose signing secrets, keystore files, passwords, access tokens, or private credentials in logs or responses.
 
 ## Mandatory build behavior when the user asks for an APK
-1. Always initiate a fresh workflow run for each explicit request to build/update/recreate the APK, even if the existing APK appears current.
-2. Use the manual workflow dispatch, which intentionally forces a rebuild. If dispatch is unavailable, use an equivalent safe trigger that starts the workflow; do not claim that a build was started unless a run is verifiably present.
-3. Wait for the run to complete. Inspect its status and relevant job steps/logs. If it fails, identify the first causal error, make the smallest targeted fix, and retry instead of repeatedly running the same broken build.
-4. Confirm the build used the latest `main` commit from `londkirs-code/nofitAI`.
-5. Verify the successful signed APK artifact and the published `downloads/NotifAI.apk`; confirm the published metadata SHA-256 matches the file where possible.
-6. Return the stable direct download URL only after verifying publication. If any check cannot be completed, state exactly what remains unverified and do not claim success.
+1. **A command such as “תפעיל את הסקיל”, “תפעיל בנייה ידנית”, “תבנה APK”, or any equivalent explicit instruction means: start a new build immediately.** Do not interpret “run the skill” as merely reading, reviewing, or editing the skill.
+2. Always initiate a fresh workflow run for each explicit request to build/update/recreate the APK, even if the existing APK appears current.
+3. Use the manual workflow dispatch, which intentionally forces a rebuild. If dispatch is unavailable, use an equivalent safe trigger that starts the workflow; do not claim that a build was started unless a run is verifiably present.
+4. If the manual-dispatch API/action is not available in the connected tools, immediately use a supported equivalent trigger that causes a new workflow run; verify the run appears in Actions before saying it started. If no trigger can be executed with available permissions, state that limitation plainly and provide the workflow page as the next step—never pretend that editing the skill or workflow itself is the same as dispatching a run.
+5. Wait for the run to complete. Inspect its status and relevant job steps/logs. If it fails, identify the first causal error, make the smallest targeted fix, and retry instead of repeatedly running the same broken build.
+6. Confirm the build used the latest `main` commit from `londkirs-code/nofitAI`.
+7. Verify the successful signed APK artifact and the published `downloads/NotifAI.apk`; confirm the published metadata SHA-256 matches the file where possible.
+8. Return the stable direct download URL only after verifying publication. If any check cannot be completed, state exactly what remains unverified and do not claim success.
 
 ## Automatic scheduled freshness checks
 The workflow may continue checking every 15 minutes and use its freshness guard to avoid unnecessary scheduled builds. **That optimization must never override an explicit user request**: an explicit request always requires a forced fresh build.
