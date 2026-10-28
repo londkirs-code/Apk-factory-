@@ -200,3 +200,5 @@ jobs:
           git add external-build-state/nofitAI.sha
           git commit -m "ci: record successful nofitAI APK build" || exit 0
           git push origin HEAD:main
+
+# Explicit rebuild trigger: workflow changes build the current nofitAI main commit.
