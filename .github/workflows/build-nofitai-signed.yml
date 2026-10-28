@@ -231,3 +231,5 @@ jobs:
 # The APK is published as a standalone tracked file at downloads/NotifAI.apk.
 # Its stable direct-download URL is https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk.
 # Scheduled checks run every 15 minutes; if the current source SHA already matches the published APK metadata and its repository timestamp is newer, they skip the build.
+
+# Trigger a fresh signed NotifAI build after validating the stable APK was missing.
