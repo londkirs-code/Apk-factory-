@@ -1,8 +1,9 @@
 name: Build signed נץ החמה APK using APK Factory key
-# Manual rebuild requested 2026-10-29: force a fresh signed release build.
 
 on:
   workflow_dispatch:
+  issue_comment:
+    types: [created]
   push:
     branches: [main]
     paths:
@@ -12,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: netzhachama-signed-build
@@ -19,6 +21,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'issue_comment' || (github.event.issue.number == 1 && github.event.comment.body == '/build-netzhachama')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -146,6 +149,7 @@ jobs:
           fi
 
       - name: Set increasing versionCode and build signed Release APK
+        id: build
         if: steps.check.outputs.build_needed == 'true'
         working-directory: netzhachama
         env:
@@ -153,6 +157,7 @@ jobs:
         run: |
           set -euo pipefail
           NEXT_VERSION_CODE="$((10000 + RUN_NUMBER))"
+          echo "version_code=$NEXT_VERSION_CODE" >> "$GITHUB_OUTPUT"
           sed -i -E "s/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*[0-9]+/    versionCode = $NEXT_VERSION_CODE/" app/build.gradle.kts
           mkdir -p ../export
           gradle --no-daemon --console=plain --stacktrace --info :app:assembleRelease 2>&1 | tee ../export/build.log
@@ -183,17 +188,55 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Record successfully built source commit
+      - name: Publish stable APK, metadata, and source state to repository
         if: steps.check.outputs.build_needed == 'true' && success()
         shell: bash
         env:
           SOURCE_SHA: ${{ steps.check.outputs.source_sha }}
+          VERSION_CODE: ${{ steps.build.outputs.version_code }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          mkdir -p external-build-state
+          mkdir -p downloads external-build-state
+          cp export/NetzHachama.apk downloads/NetzHachama.apk
+          SHA256="$(sha256sum downloads/NetzHachama.apk | cut -d ' ' -f1)"
+          PUBLISHED_UTC="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          printf 'app=NetzHachama\nworkflow_run_id=%s\nrun_number=%s\nversion_code=%s\nsource_sha=%s\npublished_utc=%s\nsha256=%s\napk_path=downloads/NetzHachama.apk\n' "$RUN_ID" "$RUN_NUMBER" "$VERSION_CODE" "$SOURCE_SHA" "$PUBLISHED_UTC" "$SHA256" > downloads/NetzHachama-build-info.txt
           printf '%s\n' "$SOURCE_SHA" > external-build-state/netzhachama.sha
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add external-build-state/netzhachama.sha
-          git commit -m "ci: record successful נץ החמה APK build" || exit 0
-          git push origin HEAD:main
+          git add downloads/NetzHachama.apk downloads/NetzHachama-build-info.txt external-build-state/netzhachama.sha
+          git commit -m "release: publish signed Netz Hachama APK $VERSION_CODE"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then break; fi
+            else
+              git rebase --abort || true
+              echo "::error::Could not rebase APK publication safely; refusing to overwrite main."
+              exit 1
+            fi
+            if [ "$attempt" -eq 5 ]; then echo "::error::Failed to publish APK after five attempts."; exit 1; fi
+            sleep "$((attempt * 2))"
+          done
+          git fetch origin main
+          REMOTE_INFO="$(git show origin/main:downloads/NetzHachama-build-info.txt)"
+          grep -Fx "workflow_run_id=$RUN_ID" <<< "$REMOTE_INFO"
+          grep -Fx "source_sha=$SOURCE_SHA" <<< "$REMOTE_INFO"
+          grep -Fx "version_code=$VERSION_CODE" <<< "$REMOTE_INFO"
+          grep -Fx "sha256=$SHA256" <<< "$REMOTE_INFO"
+          git cat-file -e origin/main:downloads/NetzHachama.apk
+          echo "Published stable APK: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk"
+
+      - name: Notify APK Factory issue subscribers about the Netz Hachama build
+        if: always() && steps.check.outputs.build_needed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const success = '${{ job.status }}' === 'success';
+            const runUrl = 'https://github.com/londkirs-code/Apk-factory-/actions/runs/${{ github.run_id }}';
+            const body = success
+              ? ['## נץ החמה — בניית APK הושלמה בהצלחה', '', 'ה־APK החתום פורסם:', 'https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk', '', 'מידע בנייה: https://github.com/londkirs-code/Apk-factory-/blob/main/downloads/NetzHachama-build-info.txt', 'versionCode: ${{ steps.build.outputs.version_code }}', 'source SHA: ${{ steps.check.outputs.source_sha }}', 'ריצת Actions: ' + runUrl].join('\n')
+              : ['## נץ החמה — בניית APK נכשלה', '', 'אין להתייחס ל־APK הקיים כחדש. פרטי הכשל:', runUrl].join('\n');
+            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: 1, body });
