@@ -39,3 +39,10 @@ If a workflow fails, inspect the failed job and exact failed step logs before ex
 ## Workflow ownership
 - `.github/workflows/build-apk.yml` builds and publishes the app APK.
 - `.github/workflows/import-external-android-app.yml` is a separate manual utility for importing an unrelated external Android project. It must not run on ordinary pushes to this repository.
+
+## APK requests for external app projects (mandatory)
+When the user asks for an APK for NotifAI or נץ החמה, read the matching skill in `skills/` and execute it, rather than merely describing or editing the procedure:
+- NotifAI: `skills/build-notifai-apk/SKILL.md`
+- נץ החמה: `skills/build-netzhachama-apk/SKILL.md`
+
+For נץ החמה, the source is the user's own repository `londkirs-code/-` on `main`; do not add an unnecessary upstream-fork sync. For each explicit APK request, trigger a fresh signed build even if the source SHA looks unchanged. If direct workflow dispatch is unavailable, use the skill's exact issue-comment trigger and verify a new run appeared. Wait for the exact run to complete, then verify signature, Actions artifact, stable Git-tracked APK at `downloads/NetzHachama.apk`, and matching `downloads/NetzHachama-build-info.txt` metadata. A temporary sandbox link or an Actions artifact ZIP is not the final delivery when a stable direct APK URL is requested. Never claim success until remote repository publication and run-specific metadata are verified. Never generate a new signing key or expose signing secrets.
