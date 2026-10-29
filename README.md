@@ -67,3 +67,9 @@
 - מעבר מאפליקציה קיימת שנחתמה במפתח אחר למפתח הקבוע עלול לדרוש התקנה מחדש חד־פעמית. לאחר מכן, העדכונים יכולים להתקין מעל הגרסה הקיימת.
 
 לכלי צבעים אופציונלי למפתחים (אינו מופעל באף אפליקציה כברירת מחדל), ראו [`tools.md`](tools.md).
+
+## Builds on demand — stable APK links
+
+- נץ החמה: [APK יציב](https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk) · [סקיל בנייה](skills/build-netzhachama-apk/SKILL.md)
+- NotifAI: [APK יציב](https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk) · [סקיל בנייה](skills/build-notifai-apk/SKILL.md)
+- הוראות עבודה מחייבות לעוזר: [PROJECT_INSTRUCTIONS.md](PROJECT_INSTRUCTIONS.md)
