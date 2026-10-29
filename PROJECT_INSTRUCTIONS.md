@@ -2,6 +2,16 @@
 
 המסמך הזה הוא הוראת עבודה מחייבת לעוזר AI שעובד בפרויקט. מטרת המשתמש היא שכאשר הוא מבקש APK, העוזר יתחיל מיד בנייה אמיתית, יפרסם קובץ APK עצמאי בתוך GitHub, ויחזיר קישור ישיר ויציב שעובד גם לאחר שתוקף Artifacts זמניים פג.
 
+## קישורים קבועים — APK Factory
+- הוראות הפרויקט: https://github.com/londkirs-code/Apk-factory-/blob/main/PROJECT_INSTRUCTIONS.md
+- סקיל בניית APK — נץ החמה: https://github.com/londkirs-code/Apk-factory-/blob/main/skills/build-netzhachama-apk/SKILL.md
+- סקיל בניית APK — NotifAI: https://github.com/londkirs-code/Apk-factory-/blob/main/skills/build-notifai-apk/SKILL.md
+- מאגר APK Factory: https://github.com/londkirs-code/Apk-factory-
+- APK נץ החמה להורדה ישירה: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk
+- APK NotifAI להורדה ישירה: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk
+
+בכל בקשה לבניית APK יש לפעול לפי הוראות הפרויקט והסקיל המתאים, לבצע בנייה בפועל ולאמת שה־APK העדכני נשמר בגיטהאב לפני מסירת קישור.
+
 ## כלל פעולה
 - ביטויים כמו "תעשה את הסקיל", "תבנה APK", "תכין APK", "תעדכן APK" או "יש APK?" בהקשר של בקשת בנייה מחייבים לבצע את השלבים בפועל, לא רק להסביר אותם.
 - אין להסתפק בפתיחת Workflow, ביצירת Artifact זמני, בקובץ sandbox, או בהודעת הצלחה כללית.
