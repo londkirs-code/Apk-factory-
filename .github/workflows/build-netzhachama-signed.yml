@@ -47,7 +47,7 @@ jobs:
           PREVIOUS_SHA=""
           if [[ -s "$STATE_FILE" ]]; then PREVIOUS_SHA="$(tr -d '[:space:]' < "$STATE_FILE")"; fi
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          if [[ "$SOURCE_SHA" == "$PREVIOUS_SHA" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+          if [[ "$SOURCE_SHA" == "$PREVIOUS_SHA" && "${{ github.event_name }}" == "schedule" ]]; then
             echo "build_needed=false" >> "$GITHUB_OUTPUT"
             echo "This exact נץ החמה source commit was already built successfully; skipping."
           else
