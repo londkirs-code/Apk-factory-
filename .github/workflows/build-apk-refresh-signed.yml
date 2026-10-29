@@ -1,0 +1,172 @@
+name: Build signed Apk_refresh APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-apk-refresh-signed.yml"
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-refresh-signed-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout APK Factory
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Checkout Apk_refresh source
+        uses: actions/checkout@v4
+        with:
+          repository: londkirs-code/Apk_refresh
+          ref: main
+          path: apk-refresh
+          token: ${{ secrets.APK_REFRESH_SOURCE_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify source project and required Gradle files
+        working-directory: apk-refresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s settings.gradle.kts
+          test -s app/build.gradle.kts
+          test -s app/src/main/AndroidManifest.xml
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          grep -q 'signingConfig = signingConfigs.getByName("release")' app/build.gradle.kts
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Validate APK Factory signing key
+        shell: bash
+        env:
+          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "$APK_SIGNING_KEY_BASE64" ] || missing+=("APK_SIGNING_KEY_BASE64")
+          [ -n "$APK_SIGNING_STORE_PASSWORD" ] || missing+=("APK_SIGNING_STORE_PASSWORD")
+          [ -n "$APK_SIGNING_KEY_ALIAS" ] || missing+=("APK_SIGNING_KEY_ALIAS")
+          [ -n "$APK_SIGNING_KEY_PASSWORD" ] || missing+=("APK_SIGNING_KEY_PASSWORD")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Missing APK Factory signing secret(s): %s\n' "${missing[*]}"
+            exit 1
+          fi
+          APK_SIGNING_KEY_ALIAS="$(printf "%s" "$APK_SIGNING_KEY_ALIAS" | tr -d '[:space:]')"
+          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/apk-factory-release.jks"
+          test -s "$RUNNER_TEMP/apk-factory-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/apk-factory-release.jks" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
+          cp "$RUNNER_TEMP/apk-factory-release.jks" apk-refresh/my-upload-key.jks
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/apk-refresh/my-upload-key.jks"
+            echo "STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+            echo "KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
+            echo "KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          sed -i 's/keyAlias = "upload"/keyAlias = System.getenv("KEY_ALIAS") ?: "upload"/' apk-refresh/app/build.gradle.kts
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          sdkmanager "platform-tools" "platforms;android-36" "platforms;android-36-ext1" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Build release APK
+        id: build
+        working-directory: apk-refresh
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_CODE="$((10000 + RUN_NUMBER))"
+          sed -i -E "s/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*[0-9]+/    versionCode = $VERSION_CODE/" app/build.gradle.kts
+          mkdir -p ../export
+          gradle --no-daemon --console=plain --stacktrace :app:assembleRelease 2>&1 | tee ../export/build.log
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" ../export/Apk_refresh.apk
+          sha256sum ../export/Apk_refresh.apk | tee ../export/SHA256SUMS.txt
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          rm -f my-upload-key.jks
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Apk_refresh-signed-APK
+          path: |
+            export/Apk_refresh.apk
+            export/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log if build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Apk_refresh-build-log
+          path: export/build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Publish stable APK to APK Factory
+        shell: bash
+        env:
+          VERSION_CODE: ${{ steps.build.outputs.version_code }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          mkdir -p downloads
+          cp export/Apk_refresh.apk downloads/Apk_refresh.apk
+          SHA256="$(sha256sum downloads/Apk_refresh.apk | cut -d ' ' -f1)"
+          printf 'app=Apk_refresh\nworkflow_run_id=%s\nrun_number=%s\nversion_code=%s\nsource_sha=%s\nsha256=%s\napk_path=downloads/Apk_refresh.apk\n' "$RUN_ID" "$RUN_NUMBER" "$VERSION_CODE" "$SOURCE_SHA" "$SHA256" > downloads/Apk_refresh-build-info.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/Apk_refresh.apk downloads/Apk_refresh-build-info.txt
+          git commit -m "release: publish signed Apk_refresh APK $VERSION_CODE"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then break; fi
+            else
+              git rebase --abort || true
+              echo "::error::Could not safely rebase APK publication."
+              exit 1
+            fi
+            if [ "$attempt" -eq 5 ]; then echo "::error::Could not publish APK after five attempts."; exit 1; fi
+            sleep "$((attempt * 2))"
+          done
+          git fetch origin main
+          git show origin/main:downloads/Apk_refresh-build-info.txt | grep -Fx "sha256=$SHA256"
+          test -s downloads/Apk_refresh.apk
