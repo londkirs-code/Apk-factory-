@@ -1,4 +1,5 @@
 name: Build signed נץ החמה APK using APK Factory key
+# Manual rebuild requested 2026-10-29: force a fresh signed release build.
 
 on:
   workflow_dispatch:
