@@ -33,7 +33,7 @@ jobs:
           repository: londkirs-code/Apk_refresh
           ref: main
           path: apk-refresh
-          token: ${{ secrets.APK_REFRESH_SOURCE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN || secrets.APK_REFRESH_SOURCE_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
 
