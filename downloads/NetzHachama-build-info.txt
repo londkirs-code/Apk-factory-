@@ -1,8 +1,8 @@
 app=NetzHachama
-workflow_run_id=40851677181
-run_number=12
-version_code=10012
+workflow_run_id=40851964235
+run_number=14
+version_code=10014
 source_sha=49a444d12f06501d34db6a66281f4b6e4c0a9cf4
-published_utc=2026-10-29T09:44:26Z
-sha256=07c0bb61f3c7a71405b1c5e3a07dad5c70cf35c8baa7c8e5440c1708284b10c5
+published_utc=2026-10-29T09:47:01Z
+sha256=f98a6ca84141a0dbbfdfa3af65ed8add7cf9085f4c864500bfc627a9134fab84
 apk_path=downloads/NetzHachama.apk
