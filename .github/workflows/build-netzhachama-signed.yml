@@ -240,3 +240,5 @@ jobs:
               ? ['## נץ החמה — בניית APK הושלמה בהצלחה', '', 'ה־APK החתום פורסם:', 'https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk', '', 'מידע בנייה: https://github.com/londkirs-code/Apk-factory-/blob/main/downloads/NetzHachama-build-info.txt', 'versionCode: ${{ steps.build.outputs.version_code }}', 'source SHA: ${{ steps.check.outputs.source_sha }}', 'ריצת Actions: ' + runUrl].join('\n')
               : ['## נץ החמה — בניית APK נכשלה', '', 'אין להתייחס ל־APK הקיים כחדש. פרטי הכשל:', runUrl].join('\n');
             await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: 1, body });
+
+# Manual build requested on 2026-10-29; this comment intentionally triggers a fresh signed build.
