@@ -44,13 +44,22 @@ object DebtManager {
             hotelsInBank = (s.hotelsInBank + hotelsReturned).coerceAtMost(12)
         )
         val activeIndices = players.indices.filter { !players[it].bankrupt }
+        val nextIndex = activeIndices.firstOrNull()?.let { first ->
+            (1..players.size).map { (s.currentPlayerIndex + it) % players.size }.firstOrNull { !players[it].bankrupt } ?: first
+        } ?: 0
         val finished = when {
             activeIndices.size == 1 -> next.copy(phase = GamePhase.GAME_OVER, winnerId = players[activeIndices.first()].id)
             activeIndices.isEmpty() -> next.copy(phase = GamePhase.GAME_OVER, winnerId = null)
-            else -> {
-                val nextIndex = (1..players.size).map { (s.currentPlayerIndex + it) % players.size }.first { !players[it].bankrupt }
-                next.copy(currentPlayerIndex = nextIndex, phase = GamePhase.ROLL, turnRolled = false, consecutiveDoubles = 0)
+            creditorId == null && owned.isNotEmpty() -> {
+                val eligible = activeIndices.map { players[it].id }
+                next.copy(
+                    currentPlayerIndex = nextIndex, phase = GamePhase.AUCTION,
+                    auction = AuctionState(owned.first().squareId, eligible),
+                    bankruptcyAuctionQueue = owned.drop(1).map { it.squareId },
+                    turnRolled = false, consecutiveDoubles = 0
+                )
             }
+            else -> next.copy(currentPlayerIndex = nextIndex, phase = GamePhase.ROLL, turnRolled = false, consecutiveDoubles = 0)
         }
         val recipient = creditorId?.let { id -> players.firstOrNull { it.id == id }?.name } ?: "הבנק"
         return EngineResult(finished, listOf(debtor.name + " פשט רגל. נכסיו הועברו אל " + recipient + "."))
