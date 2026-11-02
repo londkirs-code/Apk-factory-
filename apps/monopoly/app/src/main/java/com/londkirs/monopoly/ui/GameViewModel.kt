@@ -17,6 +17,7 @@ data class MonopolyUiState(val board: BoardData? = null, val snapshot: GameSnaps
 
 class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val storage = GameStorage(application)
+    private val feedback = GameFeedback(application)
     private val mutable = MutableStateFlow(MonopolyUiState())
     val uiState: StateFlow<MonopolyUiState> = mutable
     private var engine: MonopolyEngine? = null
@@ -31,21 +32,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }.onFailure { mutable.value = MonopolyUiState(loading = false, error = it.message ?: "שגיאה בטעינת המשחק") }
     }
 
-    fun startGame(names: List<String>, humanFlags: List<Boolean>, startingCash: Int, rules: HouseRules, aiLevel: AiLevel) {
+    fun startGame(names: List<String>, humanFlags: List<Boolean>, startingCash: Int, rules: HouseRules, aiLevel: AiLevel, soundEnabled: Boolean, vibrationEnabled: Boolean) {
         val board = mutable.value.board ?: return
         val colors = listOf(0xFFE85D4A, 0xFF2878D0, 0xFF25A56A, 0xFF9B59B6, 0xFFF1B82D, 0xFF4D5966)
         val players = names.take(6).mapIndexed { index, name ->
             Player(id = "p$index", name = name.ifBlank { "שחקן \${index + 1}" }, color = colors[index],
                 isHuman = humanFlags.getOrElse(index) { true }, aiLevel = aiLevel)
         }
-        val settings = GameSettings(startingCash = startingCash.coerceAtLeast(500), houseRules = rules)
+        val settings = GameSettings(startingCash = startingCash.coerceAtLeast(500), houseRules = rules, soundEnabled = soundEnabled, vibrationEnabled = vibrationEnabled)
         val snapshot = engine!!.newGame(players, settings)
         storage.save(snapshot)
         mutable.value = mutable.value.copy(snapshot = snapshot)
         runAiIfNeeded()
     }
 
-    fun roll() = dispatch { engine!!.roll(it) }
+    fun roll() {
+        mutable.value.snapshot?.settings?.let { feedback.dice(it.soundEnabled, it.vibrationEnabled) }
+        dispatch { engine!!.roll(it) }
+    }
     fun buy() = dispatch { engine!!.buy(it) }
     fun decline() = dispatch { engine!!.declinePurchase(it) }
     fun bid(amount: Int) = dispatch { engine!!.auctionBid(it, amount) }
