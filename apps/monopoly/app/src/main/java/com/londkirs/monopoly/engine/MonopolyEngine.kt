@@ -304,7 +304,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                 else s = move(s, playerId, steps, events, settings, utilityMultiplier = 10)
             }
             "collect" -> s = changeCash(s, playerId, card.amount)
-            "pay" -> s = payCardAmount(s, playerId, card.amount, settings, events)
+            "pay" -> s = payCardAmount(s, playerId, card.amount, events)
             "jail" -> s = sendToJail(s, playerId)
             "jailCard" -> s = updatePlayer(s, playerId) { it.copy(jailFreeCards = it.jailFreeCards + 1) }
             "payEach" -> s.players.filter { it.id != playerId && !it.bankrupt }.forEach { other ->
@@ -316,7 +316,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
             "repairs" -> {
                 val owned = s.properties.filter { it.ownerId == playerId }
                 val cost = owned.sumOf { it.houses * card.house + if (it.hotel) card.hotel else 0 }
-                s = payCardAmount(s, playerId, cost, settings, events)
+                s = payCardAmount(s, playerId, cost, events)
                 events += "עלות התיקונים: $cost."
             }
         }
@@ -326,13 +326,11 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         return s
     }
 
-    private fun payCardAmount(s: GameState, playerId: String, amount: Int, settings: GameSettings, events: MutableList<String>): GameState {
+    private fun payCardAmount(s: GameState, playerId: String, amount: Int, events: MutableList<String>): GameState {
         if (amount <= 0) return s
         val player = s.players.first { it.id == playerId }
         return if (player.cash >= amount) {
-            var next = changeCash(s, playerId, -amount)
-            if (settings.houseRules.freeParkingPot) next = next.copy(freeParkingPot = next.freeParkingPot + amount)
-            next
+            changeCash(s, playerId, -amount)
         } else {
             events += player.name + " אינו יכול לשלם " + amount + " ונדרש לגייס " + (amount - player.cash) + "."
             s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = amount, debtCreditorId = null)
