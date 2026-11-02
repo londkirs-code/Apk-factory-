@@ -58,7 +58,7 @@ import kotlinx.serialization.Serializable
     val pendingRent: Int = 0, val pendingDebt: Int = 0, val debtCreditorId: String? = null,
     val pendingSquareId: Int? = null, val auction: AuctionState? = null,
     val chanceDeck: List<CardDefinition> = emptyList(), val chestDeck: List<CardDefinition> = emptyList(),
-    val freeParkingPot: Int = 0, val startedAtEpochMillis: Long = 0L,
+    val freeParkingPot: Int = 0, val housesInBank: Int = 32, val hotelsInBank: Int = 12, val startedAtEpochMillis: Long = 0L,
     val log: List<String> = emptyList(), val winnerId: String? = null,
     val turnRolled: Boolean = false
 ) {
