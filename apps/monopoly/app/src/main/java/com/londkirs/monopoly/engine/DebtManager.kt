@@ -66,7 +66,7 @@ object DebtManager {
         }
         val creditorIndex = creditorId?.let { id -> players.indexOfFirst { it.id == id } } ?: -1
         val finalState = if (creditorId != null && interestDue > 0 && !creditorCanPayInterest && creditorIndex >= 0) {
-            finished.copy(currentPlayerIndex = creditorIndex, phase = GamePhase.PAY_DEBT, pendingDebt = interestDue, debtCreditorId = null)
+            finished.copy(currentPlayerIndex = creditorIndex, phase = GamePhase.PAY_DEBT, pendingDebt = interestDue, debtCreditorId = null, turnRolled = false, consecutiveDoubles = 0)
         } else finished
         val recipient = creditorId?.let { id -> players.firstOrNull { it.id == id }?.name } ?: "הבנק"
         val interestMessage = if (creditorId != null && interestDue > 0) " ריבית המשכון: " + interestDue + "." else ""
