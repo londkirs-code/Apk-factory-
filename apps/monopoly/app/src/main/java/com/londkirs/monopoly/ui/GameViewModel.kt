@@ -7,6 +7,7 @@ import com.londkirs.monopoly.ai.MonopolyAI
 import com.londkirs.monopoly.data.BoardDataLoader
 import com.londkirs.monopoly.engine.*
 import com.londkirs.monopoly.storage.GameStorage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val mutable = MutableStateFlow(MonopolyUiState())
     val uiState: StateFlow<MonopolyUiState> = mutable
     private var engine: MonopolyEngine? = null
+    private var aiJob: Job? = null
 
     init {
         runCatching {
@@ -124,7 +126,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun runAiIfNeeded() {
-        viewModelScope.launch {
+        aiJob?.cancel()
+        aiJob = viewModelScope.launch {
             repeat(40) {
                 val snapshot = mutable.value.snapshot ?: return@launch
                 val state = snapshot.state
