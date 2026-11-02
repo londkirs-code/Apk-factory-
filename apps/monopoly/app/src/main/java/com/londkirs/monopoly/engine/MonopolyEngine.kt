@@ -133,9 +133,9 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         val p = s.properties.firstOrNull { it.squareId == squareId } ?: return result(s, "נכס לא נמצא.")
         val sq = board.squares[squareId]
         if (p.ownerId != s.currentPlayer.id || (p.houses == 0 && !p.hotel)) return result(s, "אין מבנה למכירה.")
-        val groupProps = s.properties.filter { board.squares[it.squareId].group == sq.group }
-        val level = if (p.hotel) 5 else p.houses
-        if (groupProps.any { (if (it.hotel) 5 else it.houses) < level }) return result(s, "יש למכור באופן שווה בין הנכסים.")
+        val groupProps = s.properties.filter { board.squares[it.squareId].group == sq.group && it.squareId != squareId }
+        val levelAfterSale = if (p.hotel) 4 else p.houses - 1
+        if (groupProps.any { (if (it.hotel) 5 else it.houses) > levelAfterSale + 1 }) return result(s, "יש למכור באופן שווה בין הנכסים.")
         if (p.hotel && s.housesInBank < 4) return result(s, "אין בבנק ארבעה בתים להחלפת המלון.")
         val refund = sq.houseCost / 2
         val updated = s.properties.map { if (it.squareId == squareId) {
