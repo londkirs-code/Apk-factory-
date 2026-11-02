@@ -1,0 +1,206 @@
+package com.londkirs.monopoly.engine
+
+import org.junit.Assert.*
+import org.junit.Test
+
+internal object TestFixtures {
+    fun board(): BoardData {
+        val squares = (0..39).map { id ->
+            when (id) {
+                1 -> SquareDefinition(1, "Mediterranean", SquareType.PROPERTY, 60, "brown", listOf(2, 10, 30, 90, 160, 250), 50)
+                3 -> SquareDefinition(3, "Baltic", SquareType.PROPERTY, 60, "brown", listOf(4, 20, 60, 180, 320, 450), 50)
+                5, 15, 25, 35 -> SquareDefinition(id, "Railroad $id", SquareType.RAILROAD, 200)
+                12, 28 -> SquareDefinition(id, "Utility $id", SquareType.UTILITY, 150)
+                4, 38 -> SquareDefinition(id, "Tax", SquareType.TAX, 100)
+                10 -> SquareDefinition(id, "Jail", SquareType.JAIL)
+                20 -> SquareDefinition(id, "Parking", SquareType.FREE_PARKING)
+                30 -> SquareDefinition(id, "Go Jail", SquareType.GO_TO_JAIL)
+                else -> SquareDefinition(id, "Square $id", SquareType.GO)
+            }
+        }
+        return BoardData(squares, emptyList(), emptyList())
+    }
+    fun players() = listOf(Player("a", "Alice", 0xFFFF0000, cash = 1500), Player("b", "Bob", 0xFF0000FF, cash = 1500))
+    fun snapshot(properties: List<PropertyState>, phase: GamePhase = GamePhase.ROLL, pending: Int? = null, currentPlayerIndex: Int = 0): GameSnapshot {
+        val board = board()
+        val players = players()
+        val state = GameState(players = players, properties = properties, phase = phase, pendingSquareId = pending, currentPlayerIndex = currentPlayerIndex)
+        return GameSnapshot(board, GameSettings(), state)
+    }
+}
+
+class RentCalculatorTest {
+    @Test fun monopolyDoublesUndevelopedRent() {
+        val board = TestFixtures.board()
+        val props = listOf(PropertyState(1, "a"), PropertyState(3, "a"))
+        val snapshot = TestFixtures.snapshot(props, currentPlayerIndex = 1)
+        assertEquals(4, RentCalculator.calculate(board, snapshot.state, 1, 7))
+    }
+
+    @Test fun railroadRentScalesByOwnedRailroads() {
+        val board = TestFixtures.board()
+        val props = listOf(PropertyState(5, "a"), PropertyState(15, "a"), PropertyState(25, "a"))
+        val snapshot = TestFixtures.snapshot(props, currentPlayerIndex = 1)
+        assertEquals(100, RentCalculator.calculate(board, snapshot.state, 5, 7))
+    }
+
+    @Test fun utilityRentUsesFourOrTenTimesDice() {
+        val board = TestFixtures.board()
+        val one = TestFixtures.snapshot(listOf(PropertyState(12, "a")), currentPlayerIndex = 1)
+        val two = TestFixtures.snapshot(listOf(PropertyState(12, "a"), PropertyState(28, "a")), currentPlayerIndex = 1)
+        assertEquals(28, RentCalculator.calculate(board, one.state, 12, 7))
+        assertEquals(70, RentCalculator.calculate(board, two.state, 12, 7))
+    }
+}
+
+class BuildingManagerTest {
+    @Test fun buildingMustBeEven() {
+        val board = TestFixtures.board()
+        val snapshot = TestFixtures.snapshot(listOf(PropertyState(1, "a"), PropertyState(3, "a", houses = 1)))
+        val engine = MonopolyEngine(board)
+        assertTrue(engine.build(snapshot, 1).state.properties.first { it.squareId == 1 }.houses == 1)
+        assertTrue(engine.build(snapshot, 3).events.any { it.contains("שווה") })
+    }
+
+    @Test fun mortgagePaysHalfPriceAndRequiresNoBuildings() {
+        val board = TestFixtures.board()
+        val blocked = TestFixtures.snapshot(listOf(PropertyState(1, "a", houses = 1), PropertyState(3, "a")))
+        assertTrue(MonopolyEngine(board).mortgage(blocked, 1).events.any { it.contains("למכור") })
+        val clear = TestFixtures.snapshot(listOf(PropertyState(1, "a"), PropertyState(3, "a")))
+        val result = MonopolyEngine(board).mortgage(clear, 1)
+        assertEquals(1530, result.state.currentPlayer.cash)
+        assertTrue(result.state.properties.first { it.squareId == 1 }.mortgaged)
+    }
+
+    @Test fun sellingBuildingsMustRemainEvenAndReturnsHalfCost() {
+        val board = TestFixtures.board()
+        val snapshot = TestFixtures.snapshot(listOf(PropertyState(1, "a", houses = 2), PropertyState(3, "a", houses = 1)))
+        val engine = MonopolyEngine(board)
+        val sale = engine.sellBuilding(snapshot, 1)
+        assertEquals(1525, sale.state.currentPlayer.cash)
+        assertEquals(1, sale.state.properties.first { it.squareId == 1 }.houses)
+        val blocked = engine.sellBuilding(snapshot, 3)
+        assertTrue(blocked.events.any { it.contains("שווה") })
+    }
+}
+
+class JailManagerTest {
+    @Test fun jailExitOptionsAreCalculated() {
+        val jailed = Player("a", "A", 1, cash = 50, inJail = true, failedJailRolls = 2, jailFreeCards = 1)
+        assertTrue(JailManager.canPay(jailed))
+        assertTrue(JailManager.canUseCard(jailed))
+        assertEquals(1, JailManager.attemptsRemaining(jailed))
+    }
+
+    @Test fun thirdFailedAttemptForcesPaymentAndMovement() {
+        val board = TestFixtures.board()
+        val players = TestFixtures.players().map { if (it.id == "a") it.copy(position = 10, inJail = true, failedJailRolls = 2) else it }
+        val state = GameState(players = players, properties = emptyList())
+        val result = MonopolyEngine(board).roll(GameSnapshot(board, GameSettings(), state), listOf(1, 2)).state
+        val alice = result.players.first { it.id == "a" }
+        assertFalse(alice.inJail)
+        assertEquals(1450, alice.cash)
+        assertEquals(13, alice.position)
+    }
+
+    @Test fun threeConsecutiveDoublesSendPlayerToJail() {
+        val board = TestFixtures.board()
+        val engine = MonopolyEngine(board)
+        var snapshot = GameSnapshot(board, GameSettings(), GameState(players = TestFixtures.players(), properties = emptyList()))
+        snapshot = snapshot.copy(state = engine.roll(snapshot, listOf(1, 1)).state)
+        snapshot = snapshot.copy(state = engine.roll(snapshot, listOf(1, 1)).state)
+        snapshot = snapshot.copy(state = engine.roll(snapshot, listOf(1, 1)).state)
+        val alice = snapshot.state.players.first { it.id == "a" }
+        assertTrue(alice.inJail)
+        assertEquals(10, alice.position)
+        assertEquals(1, snapshot.state.currentPlayerIndex)
+    }
+
+    @Test fun usedJailFreeCardReturnsToItsOriginalDeck() {
+        val board = TestFixtures.board().copy(chanceCards = listOf(CardDefinition("Get out of jail", "jailCard")))
+        val players = TestFixtures.players().map { if (it.id == "a") it.copy(inJail = true, jailFreeCards = 1, jailFreeCardSources = listOf("chance")) else it }
+        val snapshot = GameSnapshot(board, GameSettings(), GameState(players = players, properties = emptyList()))
+        val result = MonopolyEngine(board).useJailCard(snapshot).state
+        val alice = result.players.first { it.id == "a" }
+        assertFalse(alice.inJail)
+        assertEquals(0, alice.jailFreeCards)
+        assertEquals(1, result.chanceDeck.size)
+    }
+}
+
+class DebtManagerTest {
+    @Test fun bankruptcyTransfersAssetsToCreditorAndMarksPlayer() {
+        val snapshot = TestFixtures.snapshot(listOf(PropertyState(1, "a"), PropertyState(3, "a", mortgaged = true)))
+        val result = DebtManager.declareBankruptcy(snapshot, "a", "b")
+        assertTrue(result.state.players.first { it.id == "a" }.bankrupt)
+        assertTrue(result.state.properties.all { it.ownerId == "b" })
+        assertEquals("b", result.state.properties.first { it.squareId == 3 }.ownerId)
+        assertEquals(2997, result.state.players.first { it.id == "b" }.cash)
+    }
+
+    @Test fun bankruptcyToBankStartsAuctionsForEveryAsset() {
+        val base = TestFixtures.snapshot(listOf(PropertyState(1, "a"), PropertyState(3, "a")))
+        val snapshot = base.copy(state = base.state.copy(players = base.state.players + Player("c", "Carol", 0xFF00FF00)))
+        val result = DebtManager.declareBankruptcy(snapshot, "a", null).state
+        assertEquals(GamePhase.AUCTION, result.phase)
+        assertEquals(1, result.auction?.squareId)
+        assertEquals(listOf(3), result.bankruptcyAuctionQueue)
+        assertTrue(result.bankruptcyAuctionActive)
+    }
+
+    @Test fun deferredMultiPlayerPaymentsAreDistributedAfterSettlement() {
+        val base = TestFixtures.snapshot(emptyList())
+        val players = base.state.players.map { if (it.id == "a") it.copy(cash = 200) else it } + Player("c", "Carol", 0xFF00FF00)
+        val state = base.state.copy(players = players, pendingDebt = 100, pendingPayments = listOf(DebtPayment("b", 50), DebtPayment("c", 50)), phase = GamePhase.PAY_DEBT)
+        val result = DebtManager.settle(base.copy(state = state), "a", 100).state
+        assertEquals(100, result.players.first { it.id == "a" }.cash)
+        assertEquals(1550, result.players.first { it.id == "b" }.cash)
+        assertEquals(1550, result.players.first { it.id == "c" }.cash)
+        assertTrue(result.pendingPayments.isEmpty())
+    }
+
+    @Test fun delayedTaxDebtFeedsFreeParkingPot() {
+        val base = TestFixtures.snapshot(emptyList())
+        val players = base.state.players.map { if (it.id == "a") it.copy(cash = 250) else it }
+        val settings = GameSettings(houseRules = HouseRules(freeParkingPot = true))
+        val state = base.state.copy(players = players, pendingDebt = 200, pendingDebtToParkingPot = true, phase = GamePhase.PAY_DEBT)
+        val result = DebtManager.settle(base.copy(settings = settings, state = state), "a", 200).state
+        assertEquals(200, result.freeParkingPot)
+        assertFalse(result.pendingDebtToParkingPot)
+    }
+
+    @Test fun birthdayCollectionRecordsDebtAndCollectsItOnDebtorsTurn() {
+        val card = CardDefinition("Birthday", "collectEach", amount = 50)
+        val base = TestFixtures.board()
+        val board = base.copy(
+            squares = base.squares.map { if (it.id == 2) it.copy(type = SquareType.CHEST) else it },
+            communityChestCards = listOf(card)
+        )
+        val players = TestFixtures.players().map { if (it.id == "b") it.copy(cash = 20) else it }
+        val state = GameState(players = players, properties = emptyList(), chestDeck = listOf(card))
+        val engine = MonopolyEngine(board)
+        val drawn = engine.roll(GameSnapshot(board, GameSettings(), state), listOf(1, 1)).state
+        assertEquals(50, drawn.players.first { it.id == "b" }.debts["a"])
+        val debtorTurn = drawn.copy(
+            currentPlayerIndex = 1, phase = GamePhase.ROLL, turnRolled = false, pendingCard = null,
+            players = drawn.players.map { if (it.id == "b") it.copy(cash = 60) else it }
+        )
+        val paid = engine.roll(GameSnapshot(board, GameSettings(), debtorTurn), listOf(1, 2)).state
+        assertEquals(10, paid.players.first { it.id == "b" }.cash)
+        assertEquals(1550, paid.players.first { it.id == "a" }.cash)
+        assertFalse(paid.players.first { it.id == "b" }.debts.containsKey("a"))
+    }
+}
+
+class AuctionManagerTest {
+    @Test fun highestBidderWinsAfterOtherPlayerPasses() {
+        val board = TestFixtures.board()
+        val snapshot = TestFixtures.snapshot(listOf(PropertyState(1)), GamePhase.BUY_OR_AUCTION, pending = 1)
+        val engine = MonopolyEngine(board)
+        val auction = engine.declinePurchase(snapshot).state
+        val bid = engine.auctionBid(GameSnapshot(board, snapshot.settings, auction), 70).state
+        val result = engine.auctionPass(GameSnapshot(board, snapshot.settings, bid)).state
+        assertEquals("a", result.properties.first { it.squareId == 1 }.ownerId)
+        assertEquals(70, result.players.first { it.id == "a" }.cash.let { 1500 - it })
+    }
+}
