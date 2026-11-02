@@ -19,7 +19,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - uses: android-actions/setup-android@v3
       - name: Run unit tests and assemble debug APK
         working-directory: apps/monopoly
         run: gradle --no-daemon testDebugUnitTest assembleDebug
