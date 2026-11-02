@@ -353,7 +353,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         if (remaining.isEmpty()) {
             val cleared = s0.copy(auction = null, pendingSquareId = null, phase = GamePhase.ROLL)
             val ev = events + "המכרז הסתיים ללא הצעות זוכות."
-            return EngineResult(appendLog(finishTurn(cleared, false), ev), ev)
+            return completeAuction(cleared, ev)
         }
         if (remaining.size == 1 && a.highBidderId == remaining.first()) {
             val winner = s0.players.first { it.id == a.highBidderId }
@@ -363,11 +363,27 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                 auction = null, pendingSquareId = null, phase = GamePhase.ROLL
             )
             val ev = events + (winner.name + " זכה ב-" + square.name + " במכרז תמורת " + a.highBid + ".")
-            return EngineResult(appendLog(finishTurn(state, false), ev), ev)
+            return completeAuction(state, ev)
         }
         val nextIndex = (1..a.eligiblePlayerIds.size).map { (a.activePlayerIndex + it) % a.eligiblePlayerIds.size }
             .firstOrNull { a.eligiblePlayerIds[it] in remaining } ?: a.activePlayerIndex
         return EngineResult(appendLog(s0.copy(auction = a.copy(activePlayerIndex = nextIndex)), events))
+    }
+
+    private fun completeAuction(state: GameState, events: List<String>): EngineResult {
+        if (state.bankruptcyAuctionQueue.isNotEmpty()) {
+            val nextSquare = state.bankruptcyAuctionQueue.first()
+            val remaining = state.bankruptcyAuctionQueue.drop(1)
+            val eligible = state.activePlayers.map { it.id }
+            val next = state.copy(
+                phase = GamePhase.AUCTION,
+                auction = AuctionState(nextSquare, eligible),
+                bankruptcyAuctionQueue = remaining
+            )
+            return EngineResult(appendLog(next, events), events)
+        }
+        val next = finishTurn(state.copy(auction = null, bankruptcyAuctionQueue = emptyList()), false)
+        return EngineResult(appendLog(next, events), events)
     }
 
     private fun updatePlayer(s: GameState, id: String, transform: (Player) -> Player) =
