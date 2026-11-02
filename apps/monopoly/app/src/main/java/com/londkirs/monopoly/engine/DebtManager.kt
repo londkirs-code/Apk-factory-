@@ -17,7 +17,7 @@ object DebtManager {
             }
         }
         return EngineResult(
-            s.copy(players = players, pendingDebt = 0, debtCreditorId = null, phase = GamePhase.ROLL),
+            s.copy(players = players, pendingDebt = 0, debtCreditorId = null, pendingDebtToParkingPot = false, freeParkingPot = if (s.pendingDebtToParkingPot) s.freeParkingPot + amount else s.freeParkingPot, phase = GamePhase.ROLL),
             listOf(debtor.name + " שילם חוב של " + amount + ".")
         )
     }
@@ -42,7 +42,7 @@ object DebtManager {
             }
         }
         val next = s.copy(
-            players = players, properties = properties, pendingDebt = 0, debtCreditorId = null,
+            players = players, properties = properties, pendingDebt = 0, debtCreditorId = null, pendingDebtToParkingPot = false,
             housesInBank = (s.housesInBank + housesReturned).coerceAtMost(32),
             hotelsInBank = (s.hotelsInBank + hotelsReturned).coerceAtMost(12)
         )
