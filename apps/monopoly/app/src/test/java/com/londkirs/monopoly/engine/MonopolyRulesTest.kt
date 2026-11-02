@@ -113,6 +113,7 @@ class DebtManagerTest {
         assertTrue(result.state.players.first { it.id == "a" }.bankrupt)
         assertTrue(result.state.properties.all { it.ownerId == "b" })
         assertEquals("b", result.state.properties.first { it.squareId == 3 }.ownerId)
+        assertEquals(2997, result.state.players.first { it.id == "b" }.cash)
     }
 
     @Test fun bankruptcyToBankStartsAuctionsForEveryAsset() {
