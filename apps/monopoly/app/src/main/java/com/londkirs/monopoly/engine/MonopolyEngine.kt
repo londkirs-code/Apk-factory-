@@ -19,6 +19,19 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
     fun roll(snapshot: GameSnapshot, forcedDice: List<Int>? = null): EngineResult {
         val s = snapshot.state
         if (s.phase != GamePhase.ROLL || s.currentPlayer.bankrupt) return result(s, "אי אפשר לזרוק קוביות עכשיו.")
+        val outstandingDebt = s.currentPlayer.debts.entries.firstOrNull()
+        if (outstandingDebt != null) {
+            val debtor = s.currentPlayer
+            val creditor = s.players.firstOrNull { it.id == outstandingDebt.key && !it.bankrupt }
+            if (debtor.cash >= outstandingDebt.value) {
+                var paid = changeCash(s, debtor.id, -outstandingDebt.value)
+                if (creditor != null) paid = changeCash(paid, creditor.id, outstandingDebt.value)
+                paid = updatePlayer(paid, debtor.id) { it.copy(debts = it.debts - outstandingDebt.key) }
+                return result(paid, debtor.name + " שילם חוב של " + outstandingDebt.value + " ל-" + (creditor?.name ?: "הבנק") + ".")
+            }
+            return result(s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = outstandingDebt.value, debtCreditorId = outstandingDebt.key),
+                debtor.name + " חייב " + outstandingDebt.value + " לפני שיוכל לזרוק קוביות.")
+        }
         val dice = forcedDice ?: listOf(random.nextInt(1, 7), random.nextInt(1, 7))
         require(dice.size == 2 && dice.all { it in 1..6 })
         val total = dice.sum()
