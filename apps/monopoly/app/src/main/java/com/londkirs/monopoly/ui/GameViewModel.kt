@@ -86,14 +86,37 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     val activeId = state.auction?.eligiblePlayerIds?.getOrNull(state.auction.activePlayerIndex)
                     state.players.firstOrNull { it.id == activeId } ?: return@launch
                 } else state.currentPlayer
-                if (player.isHuman || state.phase == GamePhase.GAME_OVER || state.phase == GamePhase.PAY_DEBT || state.phase == GamePhase.JAIL_DECISION) return@launch
+                if (player.isHuman || state.phase == GamePhase.GAME_OVER || state.phase == GamePhase.JAIL_DECISION) return@launch
                 delay(Random.nextLong(500, 1501))
                 val current = mutable.value.snapshot ?: return@launch
                 val result = when (current.state.phase) {
-                    GamePhase.ROLL -> if (current.state.turnRolled && current.state.consecutiveDoubles == 0) engine!!.endTurn(current) else engine!!.roll(current)
+                    GamePhase.ROLL -> {
+                        if (current.state.turnRolled && current.state.consecutiveDoubles == 0) {
+                            val buildId = current.state.properties.firstOrNull { it.ownerId == player.id && MonopolyAI.shouldBuild(current, it.squareId) }?.squareId
+                            if (buildId != null) engine!!.build(current, buildId) else engine!!.endTurn(current)
+                        } else engine!!.roll(current)
+                    }
                     GamePhase.BUY_OR_AUCTION -> {
                         val id = current.state.pendingSquareId ?: return@launch
                         if (MonopolyAI.shouldBuy(current, id)) engine!!.buy(current) else engine!!.declinePurchase(current)
+                    }
+                    GamePhase.PAY_DEBT -> {
+                        val debtor = current.state.currentPlayer
+                        if (debtor.cash >= current.state.pendingDebt) {
+                            DebtManager.settle(current, debtor.id, current.state.pendingDebt, current.state.debtCreditorId)
+                        } else {
+                            val building = current.state.properties.firstOrNull { it.ownerId == debtor.id && (it.houses > 0 || it.hotel) }
+                            val mortgageable = current.state.properties.firstOrNull { property ->
+                                property.ownerId == debtor.id && !property.mortgaged &&
+                                    current.board.squares.filter { it.group == current.board.squares[property.squareId].group }
+                                        .none { groupSquare -> current.state.properties.any { it.squareId == groupSquare.id && (it.houses > 0 || it.hotel) } }
+                            }
+                            when {
+                                building != null -> engine!!.sellBuilding(current, building.squareId)
+                                mortgageable != null -> engine!!.mortgage(current, mortgageable.squareId)
+                                else -> DebtManager.declareBankruptcy(current, debtor.id, current.state.debtCreditorId)
+                            }
+                        }
                     }
                     GamePhase.AUCTION -> {
                         val auction = current.state.auction ?: return@launch
