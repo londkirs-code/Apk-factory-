@@ -40,6 +40,7 @@ object MonopolyAI {
 
     fun proposeMonopolyCompletionTrade(snapshot: GameSnapshot, playerId: String): TradeOffer? {
         val player = snapshot.state.players.firstOrNull { it.id == playerId && !it.isHuman && !it.bankrupt } ?: return null
+        if (player.aiLevel != AiLevel.HARD) return null
         val groups = snapshot.board.squares.filter { it.type == SquareType.PROPERTY && it.group != null }.groupBy { it.group }
         for ((_, group) in groups) {
             val missing = group.filter { square -> snapshot.state.properties.firstOrNull { it.squareId == square.id }?.ownerId != playerId }
