@@ -194,7 +194,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         return EngineResult(finishTurn(s, false), emptyList())
     }
 
-    private fun move(state0: GameState, playerId: String, steps: Int, events: MutableList<String>, settings: GameSettings): GameState {
+    private fun move(state0: GameState, playerId: String, steps: Int, events: MutableList<String>, settings: GameSettings, rentMultiplier: Int = 1, utilityMultiplier: Int? = null): GameState {
         var state = state0
         val player = state.players.first { it.id == playerId }
         val raw = player.position + steps
@@ -212,10 +212,10 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         }
         state = updatePlayer(state, playerId) { it.copy(position = destination) }
         events += "${player.name} התקדם ל-${board.squares[destination].name}."
-        return resolveLanding(state, playerId, destination, events, settings)
+        return resolveLanding(state, playerId, destination, events, settings, rentMultiplier, utilityMultiplier)
     }
 
-    private fun resolveLanding(s0: GameState, playerId: String, squareId: Int, events: MutableList<String>, settings: GameSettings): GameState {
+    private fun resolveLanding(s0: GameState, playerId: String, squareId: Int, events: MutableList<String>, settings: GameSettings, rentMultiplier: Int = 1, utilityMultiplier: Int? = null): GameState {
         var s = s0
         val square = board.squares[squareId]
         val player = s.players.first { it.id == playerId }
@@ -246,7 +246,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                     s = s.copy(phase = GamePhase.BUY_OR_AUCTION, pendingSquareId = squareId)
                     events += "${square.name} פנוי לרכישה במחיר ${square.price}."
                 } else if (p.ownerId != playerId && !p.mortgaged) {
-                    val rent = RentCalculator.calculate(board, s, squareId, s.dice.sum())
+                    val rent = if (square.type == SquareType.UTILITY && utilityMultiplier != null) s.dice.sum() * utilityMultiplier else RentCalculator.calculate(board, s, squareId, s.dice.sum()) * rentMultiplier
                     if (player.cash >= rent) {
                         s = changeCash(s, playerId, -rent)
                         s = changeCash(s, p.ownerId, rent)
@@ -285,7 +285,9 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                 val current = s.players.first { it.id == playerId }.position
                 val wanted = if (card.kind == "nearestRailroad") SquareType.RAILROAD else SquareType.UTILITY
                 val target = (1..40).map { (current + it) % 40 }.first { board.squares[it].type == wanted }
-                s = move(s, playerId, (target - current + 40) % 40, events, settings)
+                val steps = (target - current + 40) % 40
+                if (card.kind == "nearestRailroad") s = move(s, playerId, steps, events, settings, rentMultiplier = 2)
+                else s = move(s, playerId, steps, events, settings, utilityMultiplier = 10)
             }
             "collect" -> s = changeCash(s, playerId, card.amount)
             "pay" -> {
