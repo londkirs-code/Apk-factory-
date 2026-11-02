@@ -382,7 +382,10 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
             )
             return EngineResult(appendLog(next, events), events)
         }
-        val next = finishTurn(state.copy(auction = null, bankruptcyAuctionQueue = emptyList()), false)
+        val cleared = state.copy(auction = null, bankruptcyAuctionQueue = emptyList())
+        val next = if (state.bankruptcyAuctionActive) {
+            cleared.copy(phase = GamePhase.ROLL, bankruptcyAuctionActive = false, turnRolled = false, consecutiveDoubles = 0)
+        } else finishTurn(cleared, false)
         return EngineResult(appendLog(next, events), events)
     }
 
