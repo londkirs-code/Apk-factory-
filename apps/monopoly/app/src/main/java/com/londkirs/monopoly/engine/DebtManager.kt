@@ -12,8 +12,8 @@ object DebtManager {
         val players = s.players.map { p ->
             val queuedPayment = s.pendingPayments.filter { it.creditorId == p.id }.sumOf { it.amount }
             when (p.id) {
-                playerId -> p.copy(cash = p.cash - amount)
-                creditorId -> p.copy(cash = p.cash + amount)
+                playerId -> p.copy(cash = p.cash - amount, debts = if (creditorId == null) p.debts else p.debts - creditorId)
+                creditorId -> if (p.bankrupt) p else p.copy(cash = p.cash + amount)
                 else -> if (queuedPayment > 0) p.copy(cash = p.cash + queuedPayment) else p
             }
         }
@@ -37,7 +37,7 @@ object DebtManager {
         }
         val players = s.players.map { p ->
             when (p.id) {
-                playerId -> p.copy(cash = 0, bankrupt = true)
+                playerId -> p.copy(cash = 0, debts = emptyMap(), bankrupt = true)
                 creditorId -> p.copy(cash = p.cash + debtor.cash - if (creditorCanPayInterest) interestDue else 0)
                 else -> p
             }
