@@ -113,13 +113,19 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         if (groupProps.any { it.ownerId != owner.id || it.mortgaged }) return result(s, "נדרש מונופול ללא נכסים ממושכנים.")
         if (property.hotel) return result(s, "כבר נבנה מלון בנכס זה.")
         val minLevel = groupProps.minOf { if (it.hotel) 5 else it.houses }
-        if ((if (property.hotel) 5 else property.houses) > minLevel) return result(s, "יש לבנות באופן שווה בין הנכסים בקבוצה.")
+        if (property.houses > minLevel) return result(s, "יש לבנות באופן שווה בין הנכסים בקבוצה.")
         if (owner.cash < square.houseCost) return result(s, "אין מספיק כסף לבנייה.")
+        val buildingHotel = property.houses == 4
+        if (buildingHotel && s.hotelsInBank < 1) return result(s, "אין מלונות זמינים בבנק.")
+        if (!buildingHotel && s.housesInBank < 1) return result(s, "אין בתים זמינים בבנק.")
         val updated = s.properties.map { if (it.squareId == squareId) {
-            if (it.houses == 4) it.copy(houses = 0, hotel = true) else it.copy(houses = it.houses + 1)
+            if (buildingHotel) it.copy(houses = 0, hotel = true) else it.copy(houses = it.houses + 1)
         } else it }
-        val events = listOf("${owner.name} בנה ${if (property.houses == 4) "מלון" else "בית"} ב-${square.name} תמורת ${square.houseCost}.")
-        return EngineResult(appendLog(changeCash(s.copy(properties = updated), owner.id, -square.houseCost), events), events)
+        val bank = if (buildingHotel) s.copy(housesInBank = s.housesInBank + 4, hotelsInBank = s.hotelsInBank - 1)
+                   else s.copy(housesInBank = s.housesInBank - 1)
+        val events = listOf("${owner.name} בנה ${if (buildingHotel) "מלון" else "בית"} ב-${square.name} תמורת ${square.houseCost}.")
+        val next = changeCash(bank.copy(properties = updated), owner.id, -square.houseCost)
+        return EngineResult(appendLog(next, events), events)
     }
 
     fun sellBuilding(snapshot: GameSnapshot, squareId: Int): EngineResult {
@@ -130,12 +136,16 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         val groupProps = s.properties.filter { board.squares[it.squareId].group == sq.group }
         val level = if (p.hotel) 5 else p.houses
         if (groupProps.any { (if (it.hotel) 5 else it.houses) < level }) return result(s, "יש למכור באופן שווה בין הנכסים.")
+        if (p.hotel && s.housesInBank < 4) return result(s, "אין בבנק ארבעה בתים להחלפת המלון.")
         val refund = sq.houseCost / 2
         val updated = s.properties.map { if (it.squareId == squareId) {
             if (it.hotel) it.copy(hotel = false, houses = 4) else it.copy(houses = it.houses - 1)
         } else it }
+        val bank = if (p.hotel) s.copy(housesInBank = s.housesInBank - 4, hotelsInBank = s.hotelsInBank + 1)
+                   else s.copy(housesInBank = s.housesInBank + 1)
         val events = listOf("${s.currentPlayer.name} מכר מבנה ב-${sq.name} וקיבל $refund.")
-        return EngineResult(appendLog(changeCash(s.copy(properties = updated), s.currentPlayer.id, refund), events), events)
+        val next = changeCash(bank.copy(properties = updated), s.currentPlayer.id, refund)
+        return EngineResult(appendLog(next, events), events)
     }
 
     fun mortgage(snapshot: GameSnapshot, squareId: Int): EngineResult {
