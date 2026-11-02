@@ -6,6 +6,7 @@ import com.londkirs.monopoly.engine.CardDefinition
 import com.londkirs.monopoly.engine.SquareDefinition
 import com.londkirs.monopoly.engine.SquareType
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
 @Serializable private data class RawBoard(val squares: List<RawSquare>, val chanceCards: List<CardDefinition>, val communityChestCards: List<CardDefinition>)
