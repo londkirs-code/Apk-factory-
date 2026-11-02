@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -169,7 +170,7 @@ class MainActivity : ComponentActivity() {
             Card(Modifier.weight(1f)) {
                 Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("קוביות", color = Color.Gray)
-                    Text(s.dice.joinToString("  ⚄  "), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    AnimatedContent(targetState = s.dice, label = "dice") { dice -> Text(dice.joinToString("  ⚄  "), fontSize = 24.sp, fontWeight = FontWeight.Bold) }
                     Text(s.currentPlayer.name, fontWeight = FontWeight.Bold)
                 }
             }
