@@ -255,7 +255,7 @@ class MainActivity : ComponentActivity() {
                 Text("כרטיסי יציאה: " + offer.jailCardsFrom + " תמורת " + offer.jailCardsTo)
                 if (!isRecipient) Text("ההצעה ממתינה לאישור השחקן השני.")
             } },
-            confirmButton = { if (isRecipient) TextButton(onClick = acceptTrade) { Text("אשר עסקה") } },
+            confirmButton = { TextButton(onClick = acceptTrade) { Text("אשר עסקה") } },
             dismissButton = { TextButton(onClick = rejectTrade) { Text(if (isRecipient) "דחה" else "בטל הצעה") } }
         )
     }
