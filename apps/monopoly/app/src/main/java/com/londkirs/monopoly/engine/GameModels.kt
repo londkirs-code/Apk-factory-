@@ -51,11 +51,12 @@ import kotlinx.serialization.Serializable
     val passedPlayerIds: List<String> = emptyList(), val status: AuctionStatus = AuctionStatus.ACTIVE
 )
 
+@Serializable data class DebtPayment(val creditorId: String, val amount: Int)
 @Serializable data class GameState(
     val players: List<Player>, val properties: List<PropertyState>,
     val currentPlayerIndex: Int = 0, val phase: GamePhase = GamePhase.ROLL,
     val dice: List<Int> = listOf(1, 1), val consecutiveDoubles: Int = 0,
-    val pendingRent: Int = 0, val pendingDebt: Int = 0, val debtCreditorId: String? = null, val pendingDebtToParkingPot: Boolean = false,
+    val pendingRent: Int = 0, val pendingDebt: Int = 0, val debtCreditorId: String? = null, val pendingDebtToParkingPot: Boolean = false, val pendingPayments: List<DebtPayment> = emptyList(),
     val pendingSquareId: Int? = null, val auction: AuctionState? = null, val bankruptcyAuctionQueue: List<Int> = emptyList(), val bankruptcyAuctionActive: Boolean = false, val aiTradeAttemptedPlayerId: String? = null, val pendingTrade: TradeOffer? = null, val pendingCard: CardDefinition? = null,
     val chanceDeck: List<CardDefinition> = emptyList(), val chestDeck: List<CardDefinition> = emptyList(),
     val freeParkingPot: Int = 0, val housesInBank: Int = 32, val hotelsInBank: Int = 12, val startedAtEpochMillis: Long = 0L,
