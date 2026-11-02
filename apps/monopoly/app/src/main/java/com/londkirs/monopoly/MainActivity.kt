@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items as columnItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,7 +56,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable private fun SetupScreen(start: (List<String>, List<Boolean>, Int, HouseRules, AiLevel, Boolean, Boolean) -> Unit) {
+@Composable private fun SetupScreen(start: (List<String>, List<Boolean>, Int, HouseRules, AiLevel, Boolean, Boolean, List<Long>) -> Unit) {
     var count by remember { mutableIntStateOf(2) }
     var cash by remember { mutableIntStateOf(1500) }
     var parking by remember { mutableStateOf(false) }
@@ -67,6 +68,8 @@ class MainActivity : ComponentActivity() {
     var vibrationEnabled by remember { mutableStateOf(false) }
     val names = remember { mutableStateListOf("שחקן 1", "שחקן 2", "שחקן 3", "שחקן 4", "שחקן 5", "שחקן 6") }
     val ai = remember { mutableStateListOf(false, true, true, true, true, true) }
+    val palette = listOf(0xFFE85D4A, 0xFF2878D0, 0xFF25A56A, 0xFF9B59B6, 0xFFF1B82D, 0xFF4D5966)
+    val playerColors = remember { mutableStateListOf<Long>(palette[0], palette[1], palette[2], palette[3], palette[4], palette[5]) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("מונופול", fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color(0xFF513477))
         Text("משחק אופליין · 2–6 שחקנים")
@@ -89,6 +92,14 @@ class MainActivity : ComponentActivity() {
                             Switch(ai[i], { ai[i] = it })
                         }
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("צבע:", fontSize = 11.sp)
+                        palette.forEach { color ->
+                            Box(Modifier.padding(horizontal = 4.dp).size(20.dp).background(Color(color), CircleShape)
+                                .border(if (playerColors[i] == color) 2.dp else 0.dp, Color.Black, CircleShape)
+                                .clickable { playerColors[i] = color })
+                        }
+                    }
                 }
             }
         }
@@ -106,7 +117,7 @@ class MainActivity : ComponentActivity() {
                 Rule("רטט", vibrationEnabled) { vibrationEnabled = it }
             }
         }
-        Button(onClick = { start(names.take(count).toList(), ai.take(count).map { !it }, cash, HouseRules(parking, doubleGo, noAuction, time), aiLevel, soundEnabled, vibrationEnabled) }, Modifier.fillMaxWidth().height(52.dp)) {
+        Button(onClick = { start(names.take(count).toList(), ai.take(count).map { !it }, cash, HouseRules(parking, doubleGo, noAuction, time), aiLevel, soundEnabled, vibrationEnabled, playerColors.take(count).toList()) }, Modifier.fillMaxWidth().height(52.dp)) {
             Text("התחלת משחק", fontSize = 18.sp)
         }
     }
