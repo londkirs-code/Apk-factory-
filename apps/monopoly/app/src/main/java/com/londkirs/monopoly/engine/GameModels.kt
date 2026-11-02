@@ -27,6 +27,7 @@ import kotlinx.serialization.Serializable
     val id: String, val name: String, val color: Long, val cash: Int = 1500,
     val position: Int = 0, val isHuman: Boolean = true, val aiLevel: AiLevel = AiLevel.MEDIUM,
     val inJail: Boolean = false, val failedJailRolls: Int = 0, val jailFreeCards: Int = 0,
+    val jailFreeCardSources: List<String> = emptyList(), val debts: Map<String, Int> = emptyMap(),
     val bankrupt: Boolean = false
 )
 
