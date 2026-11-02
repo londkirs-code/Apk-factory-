@@ -348,7 +348,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                     s = updatePlayer(s, other.id) { debtor ->
                         debtor.copy(debts = debtor.debts + (playerId to ((debtor.debts[playerId] ?: 0) + card.amount)))
                     }
-                    events += other.name + " חייב " + card.amount + " ל-" + player.name + " וישלם בתורו."
+                    events += other.name + " חייב " + card.amount + " ל-" + s.players.first { it.id == playerId }.name + " וישלם בתורו."
                 }
             }
             "repairs" -> {
