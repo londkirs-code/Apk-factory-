@@ -171,8 +171,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                                     current.board.squares.filter { it.group == current.board.squares[property.squareId].group }
                                         .none { groupSquare -> current.state.properties.any { it.squareId == groupSquare.id && (it.houses > 0 || it.hotel) } }
                             }
+                            val saleResult = building?.let { engine!!.sellBuilding(current, it.squareId) }
                             when {
-                                building != null -> engine!!.sellBuilding(current, building.squareId)
+                                saleResult != null && saleResult.state.currentPlayer.cash > debtor.cash -> saleResult
                                 mortgageable != null -> engine!!.mortgage(current, mortgageable.squareId)
                                 else -> DebtManager.declareBankruptcy(current, debtor.id, current.state.debtCreditorId)
                             }
