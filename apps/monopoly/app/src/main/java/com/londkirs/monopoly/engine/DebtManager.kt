@@ -28,13 +28,16 @@ object DebtManager {
         val owned = s.properties.filter { it.ownerId == playerId }
         val housesReturned = owned.sumOf { it.houses + if (it.hotel) 4 else 0 }
         val hotelsReturned = owned.count { it.hotel }
+        val interestDue = if (creditorId == null) 0 else owned.filter { it.mortgaged }.sumOf { (snapshot.board.squares[it.squareId].price * 0.05).toInt() }
+        val creditorCash = creditorId?.let { id -> s.players.first { it.id == id }.cash } ?: 0
+        val creditorCanPayInterest = creditorCash + debtor.cash >= interestDue
         val properties = s.properties.map { p ->
             if (p.ownerId == playerId) p.copy(ownerId = creditorId, houses = 0, hotel = false) else p
         }
         val players = s.players.map { p ->
             when (p.id) {
                 playerId -> p.copy(cash = 0, bankrupt = true)
-                creditorId -> p.copy(cash = p.cash + debtor.cash)
+                creditorId -> p.copy(cash = p.cash + debtor.cash - if (creditorCanPayInterest) interestDue else 0)
                 else -> p
             }
         }
@@ -61,7 +64,12 @@ object DebtManager {
             }
             else -> next.copy(currentPlayerIndex = nextIndex, phase = GamePhase.ROLL, turnRolled = false, consecutiveDoubles = 0)
         }
+        val creditorIndex = creditorId?.let { id -> players.indexOfFirst { it.id == id } } ?: -1
+        val finalState = if (creditorId != null && interestDue > 0 && !creditorCanPayInterest && creditorIndex >= 0) {
+            finished.copy(currentPlayerIndex = creditorIndex, phase = GamePhase.PAY_DEBT, pendingDebt = interestDue, debtCreditorId = null)
+        } else finished
         val recipient = creditorId?.let { id -> players.firstOrNull { it.id == id }?.name } ?: "הבנק"
-        return EngineResult(finished, listOf(debtor.name + " פשט רגל. נכסיו הועברו אל " + recipient + "."))
+        val interestMessage = if (creditorId != null && interestDue > 0) " ריבית המשכון: " + interestDue + "." else ""
+        return EngineResult(finalState, listOf(debtor.name + " פשט רגל. נכסיו הועברו אל " + recipient + "." + interestMessage))
     }
 }
