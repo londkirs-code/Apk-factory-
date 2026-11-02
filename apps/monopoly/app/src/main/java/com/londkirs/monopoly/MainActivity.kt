@@ -139,6 +139,12 @@ class MainActivity : ComponentActivity() {
     var selected by remember { mutableStateOf<Int?>(null) }
     var assets by remember { mutableStateOf(false) }
     var showTrade by remember { mutableStateOf(false) }
+    var lastPlayerId by remember { mutableStateOf(s.currentPlayer.id) }
+    var passDevice by remember { mutableStateOf(false) }
+    LaunchedEffect(s.currentPlayer.id) {
+        if (lastPlayerId != s.currentPlayer.id && s.currentPlayer.isHuman && s.players.count { it.isHuman && !it.bankrupt } > 1) passDevice = true
+        lastPlayerId = s.currentPlayer.id
+    }
     var bidValue by remember(s.auction?.highBid) { mutableIntStateOf((s.auction?.highBid ?: 0) + 10) }
     Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -244,6 +250,14 @@ class MainActivity : ComponentActivity() {
     if (showTrade) TradeOfferDialog(snap, onDismiss = { showTrade = false }) { offer ->
         proposeTrade(offer)
         showTrade = false
+    }
+    if (passDevice) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("העבר את המכשיר") },
+            text = { Text("התור של " + s.currentPlayer.name + ". העבר את המכשיר לשחקן הבא לפני המשך המשחק.") },
+            confirmButton = { Button(onClick = { passDevice = false }) { Text("אני מוכן") } }
+        )
     }
     s.pendingTrade?.let { offer ->
         val fromName = s.players.firstOrNull { it.id == offer.fromPlayerId }?.name ?: "שחקן"
