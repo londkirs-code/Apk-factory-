@@ -18,7 +18,16 @@ object BoardDataLoader {
         require(raw.squares.size == 40 && raw.squares.map { it.id } == (0..39).toList()) { "Board must contain exactly 40 ordered squares" }
         require(raw.chanceCards.size == 16 && raw.communityChestCards.size == 16) { "Each deck must contain 16 cards" }
         return BoardData(
-            squares = raw.squares.map { SquareDefinition(it.id, it.name, SquareType.valueOf(it.type), it.price, it.group, it.rents, it.houseCost) },
+            squares = raw.squares.map { SquareDefinition(it.id, it.name, when (it.type) {
+                "corner" -> when (it.id) { 0 -> SquareType.GO; 10 -> SquareType.JAIL; 20 -> SquareType.FREE_PARKING; else -> SquareType.GO_TO_JAIL }
+                "property" -> SquareType.PROPERTY
+                "chest" -> SquareType.CHEST
+                "chance" -> SquareType.CHANCE
+                "tax" -> SquareType.TAX
+                "railroad" -> SquareType.RAILROAD
+                "utility" -> SquareType.UTILITY
+                else -> error("Unknown square type: ${it.type}")
+            }, it.price, it.group, it.rents, it.houseCost) },
             chanceCards = raw.chanceCards, communityChestCards = raw.communityChestCards
         )
     }
