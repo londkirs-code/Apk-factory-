@@ -114,6 +114,15 @@ class DebtManagerTest {
         assertTrue(result.state.properties.all { it.ownerId == "b" })
         assertEquals("b", result.state.properties.first { it.squareId == 3 }.ownerId)
     }
+
+    @Test fun bankruptcyToBankStartsAuctionsForEveryAsset() {
+        val snapshot = TestFixtures.snapshot(listOf(PropertyState(1, "a"), PropertyState(3, "a")))
+        val result = DebtManager.declareBankruptcy(snapshot, "a", null).state
+        assertEquals(GamePhase.AUCTION, result.phase)
+        assertEquals(1, result.auction?.squareId)
+        assertEquals(listOf(3), result.bankruptcyAuctionQueue)
+        assertTrue(result.bankruptcyAuctionActive)
+    }
 }
 
 class AuctionManagerTest {
