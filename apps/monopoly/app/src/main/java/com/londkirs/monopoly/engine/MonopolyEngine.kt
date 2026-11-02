@@ -313,7 +313,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
             "collect" -> s = changeCash(s, playerId, card.amount)
             "pay" -> s = payCardAmount(s, playerId, card.amount, events)
             "jail" -> s = sendToJail(s, playerId)
-            "jailCard" -> s = updatePlayer(s, playerId) { it.copy(jailFreeCards = it.jailFreeCards + 1, jailFreeCardSources = it.jailFreeCardSources + if (chance) "chance" else "chest") }
+            "jailCard" -> s = updatePlayer(s, playerId) { it.copy(jailFreeCards = it.jailFreeCards + 1, jailFreeCardSources = it.jailFreeCardSources + (if (chance) "chance" else "chest")) }
             "payEach" -> {
                 val recipients = s.players.filter { it.id != playerId && !it.bankrupt }
                 val total = card.amount * recipients.size
