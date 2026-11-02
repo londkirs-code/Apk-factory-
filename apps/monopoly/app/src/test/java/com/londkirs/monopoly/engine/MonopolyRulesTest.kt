@@ -168,6 +168,28 @@ class DebtManagerTest {
         assertEquals(200, result.freeParkingPot)
         assertFalse(result.pendingDebtToParkingPot)
     }
+
+    @Test fun birthdayCollectionRecordsDebtAndCollectsItOnDebtorsTurn() {
+        val card = CardDefinition("Birthday", "collectEach", amount = 50)
+        val base = TestFixtures.board()
+        val board = base.copy(
+            squares = base.squares.map { if (it.id == 2) it.copy(type = SquareType.CHEST) else it },
+            communityChestCards = listOf(card)
+        )
+        val players = TestFixtures.players().map { if (it.id == "b") it.copy(cash = 20) else it }
+        val state = GameState(players = players, properties = emptyList(), chestDeck = listOf(card))
+        val engine = MonopolyEngine(board)
+        val drawn = engine.roll(GameSnapshot(board, GameSettings(), state), listOf(1, 1)).state
+        assertEquals(50, drawn.players.first { it.id == "b" }.debts["a"])
+        val debtorTurn = drawn.copy(
+            currentPlayerIndex = 1, phase = GamePhase.ROLL, turnRolled = false, pendingCard = null,
+            players = drawn.players.map { if (it.id == "b") it.copy(cash = 60) else it }
+        )
+        val paid = engine.roll(GameSnapshot(board, GameSettings(), debtorTurn), listOf(1, 2)).state
+        assertEquals(10, paid.players.first { it.id == "b" }.cash)
+        assertEquals(1550, paid.players.first { it.id == "a" }.cash)
+        assertFalse(paid.players.first { it.id == "b" }.debts.containsKey("a"))
+    }
 }
 
 class AuctionManagerTest {
