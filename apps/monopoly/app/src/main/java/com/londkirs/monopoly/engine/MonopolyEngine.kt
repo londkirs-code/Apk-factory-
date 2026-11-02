@@ -362,7 +362,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                 properties = s0.properties.map { if (it.squareId == a.squareId) it.copy(ownerId = winner.id) else it },
                 auction = null, pendingSquareId = null, phase = GamePhase.ROLL
             )
-            val ev = events + winner.name + " זכה ב-" + square.name + " במכרז תמורת " + a.highBid + "."
+            val ev = events + (winner.name + " זכה ב-" + square.name + " במכרז תמורת " + a.highBid + ".")
             return EngineResult(appendLog(finishTurn(state, false), ev), ev)
         }
         val nextIndex = (1..a.eligiblePlayerIds.size).map { (a.activePlayerIndex + it) % a.eligiblePlayerIds.size }
