@@ -307,8 +307,18 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
             "pay" -> s = payCardAmount(s, playerId, card.amount, events)
             "jail" -> s = sendToJail(s, playerId)
             "jailCard" -> s = updatePlayer(s, playerId) { it.copy(jailFreeCards = it.jailFreeCards + 1) }
-            "payEach" -> s.players.filter { it.id != playerId && !it.bankrupt }.forEach { other ->
-                s = changeCash(s, playerId, -card.amount); s = changeCash(s, other.id, card.amount)
+            "payEach" -> {
+                val recipients = s.players.filter { it.id != playerId && !it.bankrupt }
+                val total = card.amount * recipients.size
+                val payer = s.players.first { it.id == playerId }
+                if (payer.cash >= total) {
+                    s = changeCash(s, playerId, -total)
+                    recipients.forEach { other -> s = changeCash(s, other.id, card.amount) }
+                } else {
+                    s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = total, debtCreditorId = null,
+                        pendingDebtToParkingPot = false, pendingPayments = recipients.map { DebtPayment(it.id, card.amount) })
+                    events += payer.name + " חייב לשלם " + total + " לשאר השחקנים."
+                }
             }
             "collectEach" -> s.players.filter { it.id != playerId && !it.bankrupt }.forEach { other ->
                 s = changeCash(s, playerId, card.amount); s = changeCash(s, other.id, -card.amount)
