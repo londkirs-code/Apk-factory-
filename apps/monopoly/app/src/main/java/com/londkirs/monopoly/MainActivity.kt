@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable private fun SetupScreen(start: (List<String>, List<Boolean>, Int, HouseRules, AiLevel) -> Unit) {
+@Composable private fun SetupScreen(start: (List<String>, List<Boolean>, Int, HouseRules, AiLevel, Boolean, Boolean) -> Unit) {
     var count by remember { mutableIntStateOf(2) }
     var cash by remember { mutableIntStateOf(1500) }
     var parking by remember { mutableStateOf(false) }
@@ -63,6 +63,8 @@ class MainActivity : ComponentActivity() {
     var noAuction by remember { mutableStateOf(false) }
     var time by remember { mutableIntStateOf(0) }
     var aiLevel by remember { mutableStateOf(AiLevel.MEDIUM) }
+    var soundEnabled by remember { mutableStateOf(false) }
+    var vibrationEnabled by remember { mutableStateOf(false) }
     val names = remember { mutableStateListOf("שחקן 1", "שחקן 2", "שחקן 3", "שחקן 4", "שחקן 5", "שחקן 6") }
     val ai = remember { mutableStateListOf(false, true, true, true, true, true) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -100,9 +102,11 @@ class MainActivity : ComponentActivity() {
                 Row { listOf(0, 30, 60, 90, 120).forEach { n -> FilterChip(selected = time == n, onClick = { time = n }, label = { Text(if (n == 0) "ללא" else n.toString() + " דק׳") }) } }
                 Text("רמת מחשב")
                 Row { AiLevel.values().forEach { level -> FilterChip(selected = aiLevel == level, onClick = { aiLevel = level }, label = { Text(when (level) { AiLevel.EASY -> "קל"; AiLevel.MEDIUM -> "בינוני"; AiLevel.HARD -> "קשה" }) }) } }
+                Rule("צליל קוביות", soundEnabled) { soundEnabled = it }
+                Rule("רטט", vibrationEnabled) { vibrationEnabled = it }
             }
         }
-        Button(onClick = { start(names.take(count).toList(), ai.take(count).map { !it }, cash, HouseRules(parking, doubleGo, noAuction, time), aiLevel) }, Modifier.fillMaxWidth().height(52.dp)) {
+        Button(onClick = { start(names.take(count).toList(), ai.take(count).map { !it }, cash, HouseRules(parking, doubleGo, noAuction, time), aiLevel, soundEnabled, vibrationEnabled) }, Modifier.fillMaxWidth().height(52.dp)) {
             Text("התחלת משחק", fontSize = 18.sp)
         }
     }
