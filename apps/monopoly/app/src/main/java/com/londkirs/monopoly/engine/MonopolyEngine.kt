@@ -313,20 +313,25 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
 
     private fun advanceAuction(s0: GameState, events: List<String>): EngineResult {
         val a = s0.auction ?: return result(s0, "אין מכרז.")
-        val eligible = a.eligiblePlayerIds.filterNot { it in a.passedPlayerIds }
-        if (eligible.size <= 1 && a.highBidderId != null) {
+        val remaining = a.eligiblePlayerIds.filterNot { it in a.passedPlayerIds }
+        if (remaining.isEmpty()) {
+            val cleared = s0.copy(auction = null, pendingSquareId = null, phase = GamePhase.ROLL)
+            val ev = events + "המכרז הסתיים ללא הצעות זוכות."
+            return EngineResult(appendLog(finishTurn(cleared, false), ev), ev)
+        }
+        if (remaining.size == 1 && a.highBidderId == remaining.first()) {
             val winner = s0.players.first { it.id == a.highBidderId }
             val square = board.squares[a.squareId]
             val state = changeCash(s0, winner.id, -a.highBid).copy(
                 properties = s0.properties.map { if (it.squareId == a.squareId) it.copy(ownerId = winner.id) else it },
                 auction = null, pendingSquareId = null, phase = GamePhase.ROLL
             )
-            val ev = events + "${winner.name} זכה ב-${square.name} במכרז תמורת ${a.highBid}."
+            val ev = events + winner.name + " זכה ב-" + square.name + " במכרז תמורת " + a.highBid + "."
             return EngineResult(appendLog(finishTurn(state, false), ev), ev)
         }
-        val nextIndex = (a.activePlayerIndex + 1) % a.eligiblePlayerIds.size
-        val updated = a.copy(activePlayerIndex = nextIndex)
-        return EngineResult(appendLog(s0.copy(auction = updated), events))
+        val nextIndex = (1..a.eligiblePlayerIds.size).map { (a.activePlayerIndex + it) % a.eligiblePlayerIds.size }
+            .firstOrNull { a.eligiblePlayerIds[it] in remaining } ?: a.activePlayerIndex
+        return EngineResult(appendLog(s0.copy(auction = a.copy(activePlayerIndex = nextIndex)), events))
     }
 
     private fun updatePlayer(s: GameState, id: String, transform: (Player) -> Player) =
