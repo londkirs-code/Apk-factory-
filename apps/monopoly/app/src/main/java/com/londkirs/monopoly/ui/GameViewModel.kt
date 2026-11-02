@@ -106,6 +106,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val next = current.copy(state = current.state.copy(pendingTrade = null, log = (current.state.log + recipient + " דחה את הצעת המסחר.").takeLast(250)))
         storage.save(next)
         mutable.value = mutable.value.copy(snapshot = next)
+        runAiIfNeeded()
     }
 
     fun newGame() {
@@ -131,6 +132,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             repeat(40) {
                 val snapshot = mutable.value.snapshot ?: return@launch
                 val state = snapshot.state
+                if (state.pendingTrade != null) return@launch
                 val player = if (state.phase == GamePhase.AUCTION) {
                     val activeId = state.auction?.eligiblePlayerIds?.getOrNull(state.auction.activePlayerIndex)
                     state.players.firstOrNull { it.id == activeId } ?: return@launch
@@ -142,7 +144,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     GamePhase.ROLL -> {
                         if (current.state.turnRolled && current.state.consecutiveDoubles == 0) {
                             val buildId = current.state.properties.firstOrNull { it.ownerId == player.id && MonopolyAI.shouldBuild(current, it.squareId) }?.squareId
-                            if (buildId != null) engine!!.build(current, buildId) else engine!!.endTurn(current)
+                            if (buildId != null) engine!!.build(current, buildId) else {
+                                val offer = MonopolyAI.proposeMonopolyCompletionTrade(current, player.id)
+                                if (offer != null) {
+                                    proposeTrade(offer)
+                                    return@launch
+                                }
+                                engine!!.endTurn(current)
+                            }
                         } else engine!!.roll(current)
                     }
                     GamePhase.BUY_OR_AUCTION -> {
