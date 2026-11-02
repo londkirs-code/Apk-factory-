@@ -69,9 +69,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             mutable.value = mutable.value.copy(snapshot = next)
             return
         }
-        val next = current.copy(state = current.state.copy(pendingTrade = offer, log = current.state.log + "הצעת מסחר נשלחה ל-" + current.state.players.first { it.id == offer.toPlayerId }.name + "."))
+        val target = current.state.players.first { it.id == offer.toPlayerId }
+        val next = current.copy(state = current.state.copy(pendingTrade = offer, log = current.state.log + "הצעת מסחר נשלחה ל-" + target.name + "."))
         storage.save(next)
         mutable.value = mutable.value.copy(snapshot = next)
+        if (!target.isHuman) viewModelScope.launch {
+            delay(Random.nextLong(500, 1501))
+            val latest = mutable.value.snapshot ?: return@launch
+            val pending = latest.state.pendingTrade ?: return@launch
+            val received = pending.cashTo + pending.propertiesTo.sumOf { latest.board.squares[it].price } + pending.jailCardsTo * 50
+            val given = pending.cashFrom + pending.propertiesFrom.sumOf { latest.board.squares[it].price } + pending.jailCardsFrom * 50
+            if (MonopolyAI.acceptTrade(received, given, target.aiLevel)) acceptTrade() else rejectTrade()
+        }
     }
 
     fun acceptTrade() {
