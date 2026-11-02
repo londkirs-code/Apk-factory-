@@ -38,6 +38,23 @@ object MonopolyAI {
         return group.all { item -> snapshot.state.properties.any { it.squareId == item.id && it.ownerId == player.id && !it.mortgaged } }
     }
 
+    fun proposeMonopolyCompletionTrade(snapshot: GameSnapshot, playerId: String): TradeOffer? {
+        val player = snapshot.state.players.firstOrNull { it.id == playerId && !it.isHuman && !it.bankrupt } ?: return null
+        val groups = snapshot.board.squares.filter { it.type == SquareType.PROPERTY && it.group != null }.groupBy { it.group }
+        for ((_, group) in groups) {
+            val missing = group.filter { square -> snapshot.state.properties.firstOrNull { it.squareId == square.id }?.ownerId != playerId }
+            val ownedCount = group.size - missing.size
+            if (ownedCount != group.size - 1 || missing.size != 1) continue
+            val targetSquare = missing.first()
+            val targetId = snapshot.state.properties.firstOrNull { it.squareId == targetSquare.id }?.ownerId ?: continue
+            val target = snapshot.state.players.firstOrNull { it.id == targetId && it.isHuman && !it.bankrupt } ?: continue
+            val offer = (targetSquare.price * 1.2).toInt()
+            if (player.cash < offer + 100) continue
+            return TradeOffer(fromPlayerId = player.id, toPlayerId = target.id, cashFrom = offer, propertiesTo = listOf(targetSquare.id))
+        }
+        return null
+    }
+
     fun acceptTrade(valueReceived: Int, valueGiven: Int, level: AiLevel): Boolean {
         val margin = when (level) { AiLevel.EASY -> 1.15; AiLevel.MEDIUM -> 1.0; AiLevel.HARD -> 0.9 }
         return valueReceived >= valueGiven * margin
