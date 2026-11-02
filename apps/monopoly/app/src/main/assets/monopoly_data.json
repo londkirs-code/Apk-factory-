@@ -1,0 +1,677 @@
+{
+  "squares": [
+    {
+      "id": 0,
+      "name": "GO",
+      "type": "corner",
+      "price": 0,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 1,
+      "name": "Mediterranean Ave",
+      "type": "property",
+      "price": 60,
+      "group": "brown",
+      "rents": [
+        2,
+        10,
+        30,
+        90,
+        160,
+        250
+      ],
+      "houseCost": 50
+    },
+    {
+      "id": 2,
+      "name": "Community Chest",
+      "type": "chest",
+      "price": 0,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 3,
+      "name": "Baltic Ave",
+      "type": "property",
+      "price": 60,
+      "group": "brown",
+      "rents": [
+        4,
+        20,
+        60,
+        180,
+        320,
+        450
+      ],
+      "houseCost": 50
+    },
+    {
+      "id": 4,
+      "name": "Income Tax",
+      "type": "tax",
+      "price": 200,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 5,
+      "name": "Reading Railroad",
+      "type": "railroad",
+      "price": 200,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 6,
+      "name": "Oriental Ave",
+      "type": "property",
+      "price": 100,
+      "group": "lightBlue",
+      "rents": [
+        6,
+        30,
+        90,
+        270,
+        400,
+        550
+      ],
+      "houseCost": 50
+    },
+    {
+      "id": 7,
+      "name": "Chance",
+      "type": "chance",
+      "price": 0,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 8,
+      "name": "Vermont Ave",
+      "type": "property",
+      "price": 100,
+      "group": "lightBlue",
+      "rents": [
+        6,
+        30,
+        90,
+        270,
+        400,
+        550
+      ],
+      "houseCost": 50
+    },
+    {
+      "id": 9,
+      "name": "Connecticut Ave",
+      "type": "property",
+      "price": 120,
+      "group": "lightBlue",
+      "rents": [
+        8,
+        40,
+        100,
+        300,
+        450,
+        600
+      ],
+      "houseCost": 50
+    },
+    {
+      "id": 10,
+      "name": "Jail / Just Visiting",
+      "type": "corner",
+      "price": 10,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 11,
+      "name": "St. Charles Place",
+      "type": "property",
+      "price": 140,
+      "group": "pink",
+      "rents": [
+        10,
+        50,
+        150,
+        450,
+        625,
+        750
+      ],
+      "houseCost": 100
+    },
+    {
+      "id": 12,
+      "name": "Electric Company",
+      "type": "utility",
+      "price": 150,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 13,
+      "name": "States Ave",
+      "type": "property",
+      "price": 140,
+      "group": "pink",
+      "rents": [
+        10,
+        50,
+        150,
+        450,
+        625,
+        750
+      ],
+      "houseCost": 100
+    },
+    {
+      "id": 14,
+      "name": "Virginia Ave",
+      "type": "property",
+      "price": 160,
+      "group": "pink",
+      "rents": [
+        12,
+        60,
+        180,
+        500,
+        700,
+        900
+      ],
+      "houseCost": 100
+    },
+    {
+      "id": 15,
+      "name": "Pennsylvania Railroad",
+      "type": "railroad",
+      "price": 200,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 16,
+      "name": "St. James Place",
+      "type": "property",
+      "price": 180,
+      "group": "orange",
+      "rents": [
+        14,
+        70,
+        200,
+        550,
+        750,
+        950
+      ],
+      "houseCost": 100
+    },
+    {
+      "id": 17,
+      "name": "Community Chest",
+      "type": "chest",
+      "price": 0,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 18,
+      "name": "Tennessee Ave",
+      "type": "property",
+      "price": 180,
+      "group": "orange",
+      "rents": [
+        14,
+        70,
+        200,
+        550,
+        750,
+        950
+      ],
+      "houseCost": 100
+    },
+    {
+      "id": 19,
+      "name": "New York Ave",
+      "type": "property",
+      "price": 200,
+      "group": "orange",
+      "rents": [
+        16,
+        80,
+        220,
+        600,
+        800,
+        1000
+      ],
+      "houseCost": 100
+    },
+    {
+      "id": 20,
+      "name": "Free Parking",
+      "type": "corner",
+      "price": 20,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 21,
+      "name": "Kentucky Ave",
+      "type": "property",
+      "price": 220,
+      "group": "red",
+      "rents": [
+        18,
+        90,
+        250,
+        700,
+        875,
+        1050
+      ],
+      "houseCost": 150
+    },
+    {
+      "id": 22,
+      "name": "Chance",
+      "type": "chance",
+      "price": 0,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 23,
+      "name": "Indiana Ave",
+      "type": "property",
+      "price": 220,
+      "group": "red",
+      "rents": [
+        18,
+        90,
+        250,
+        700,
+        875,
+        1050
+      ],
+      "houseCost": 150
+    },
+    {
+      "id": 24,
+      "name": "Illinois Ave",
+      "type": "property",
+      "price": 240,
+      "group": "red",
+      "rents": [
+        20,
+        100,
+        300,
+        750,
+        925,
+        1100
+      ],
+      "houseCost": 150
+    },
+    {
+      "id": 25,
+      "name": "B&O Railroad",
+      "type": "railroad",
+      "price": 200,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 26,
+      "name": "Atlantic Ave",
+      "type": "property",
+      "price": 260,
+      "group": "yellow",
+      "rents": [
+        22,
+        110,
+        330,
+        800,
+        975,
+        1150
+      ],
+      "houseCost": 150
+    },
+    {
+      "id": 27,
+      "name": "Ventnor Ave",
+      "type": "property",
+      "price": 260,
+      "group": "yellow",
+      "rents": [
+        22,
+        110,
+        330,
+        800,
+        975,
+        1150
+      ],
+      "houseCost": 150
+    },
+    {
+      "id": 28,
+      "name": "Water Works",
+      "type": "utility",
+      "price": 150,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 29,
+      "name": "Marvin Gardens",
+      "type": "property",
+      "price": 280,
+      "group": "yellow",
+      "rents": [
+        24,
+        120,
+        360,
+        850,
+        1025,
+        1200
+      ],
+      "houseCost": 150
+    },
+    {
+      "id": 30,
+      "name": "Go To Jail",
+      "type": "corner",
+      "price": 30,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 31,
+      "name": "Pacific Ave",
+      "type": "property",
+      "price": 300,
+      "group": "green",
+      "rents": [
+        26,
+        130,
+        390,
+        900,
+        1100,
+        1275
+      ],
+      "houseCost": 200
+    },
+    {
+      "id": 32,
+      "name": "North Carolina Ave",
+      "type": "property",
+      "price": 300,
+      "group": "green",
+      "rents": [
+        26,
+        130,
+        390,
+        900,
+        1100,
+        1275
+      ],
+      "houseCost": 200
+    },
+    {
+      "id": 33,
+      "name": "Community Chest",
+      "type": "chest",
+      "price": 0,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 34,
+      "name": "Pennsylvania Ave",
+      "type": "property",
+      "price": 320,
+      "group": "green",
+      "rents": [
+        28,
+        150,
+        450,
+        1000,
+        1200,
+        1400
+      ],
+      "houseCost": 200
+    },
+    {
+      "id": 35,
+      "name": "Short Line",
+      "type": "railroad",
+      "price": 200,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 36,
+      "name": "Chance",
+      "type": "chance",
+      "price": 0,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 37,
+      "name": "Park Place",
+      "type": "property",
+      "price": 350,
+      "group": "darkBlue",
+      "rents": [
+        35,
+        175,
+        500,
+        1100,
+        1300,
+        1500
+      ],
+      "houseCost": 200
+    },
+    {
+      "id": 38,
+      "name": "Luxury Tax",
+      "type": "tax",
+      "price": 100,
+      "group": null,
+      "rents": [],
+      "houseCost": 0
+    },
+    {
+      "id": 39,
+      "name": "Boardwalk",
+      "type": "property",
+      "price": 400,
+      "group": "darkBlue",
+      "rents": [
+        50,
+        200,
+        600,
+        1400,
+        1700,
+        2000
+      ],
+      "houseCost": 200
+    }
+  ],
+  "chanceCards": [
+    {
+      "title": "Advance to GO",
+      "kind": "move",
+      "target": 0
+    },
+    {
+      "title": "Advance to Illinois Avenue",
+      "kind": "move",
+      "target": 24
+    },
+    {
+      "title": "Advance to St. Charles Place",
+      "kind": "move",
+      "target": 11
+    },
+    {
+      "title": "Advance to Boardwalk",
+      "kind": "move",
+      "target": 39
+    },
+    {
+      "title": "Advance to nearest railroad (double rent)",
+      "kind": "nearestRailroad"
+    },
+    {
+      "title": "Advance to nearest utility (10× dice)",
+      "kind": "nearestUtility"
+    },
+    {
+      "title": "Bank dividend",
+      "kind": "collect",
+      "amount": 50
+    },
+    {
+      "title": "Get Out of Jail Free",
+      "kind": "jailCard"
+    },
+    {
+      "title": "Go back three spaces",
+      "kind": "back",
+      "amount": 3
+    },
+    {
+      "title": "Go to Jail",
+      "kind": "jail"
+    },
+    {
+      "title": "General repairs",
+      "kind": "repairs",
+      "house": 25,
+      "hotel": 100
+    },
+    {
+      "title": "Poor tax",
+      "kind": "pay",
+      "amount": 15
+    },
+    {
+      "title": "Take a trip to Reading Railroad",
+      "kind": "move",
+      "target": 5
+    },
+    {
+      "title": "Chairman: pay each player",
+      "kind": "payEach",
+      "amount": 50
+    },
+    {
+      "title": "Loan proceeds",
+      "kind": "collect",
+      "amount": 150
+    },
+    {
+      "title": "Advance to nearest railroad",
+      "kind": "nearestRailroad"
+    }
+  ],
+  "communityChestCards": [
+    {
+      "title": "Advance to GO",
+      "kind": "move",
+      "target": 0
+    },
+    {
+      "title": "Bank error in your favor",
+      "kind": "collect",
+      "amount": 200
+    },
+    {
+      "title": "Doctor's fee",
+      "kind": "pay",
+      "amount": 50
+    },
+    {
+      "title": "From sale of stock",
+      "kind": "collect",
+      "amount": 50
+    },
+    {
+      "title": "Get Out of Jail Free",
+      "kind": "jailCard"
+    },
+    {
+      "title": "Go to Jail",
+      "kind": "jail"
+    },
+    {
+      "title": "Birthday: collect from every player",
+      "kind": "collectEach",
+      "amount": 50
+    },
+    {
+      "title": "Income tax refund",
+      "kind": "collect",
+      "amount": 20
+    },
+    {
+      "title": "Life insurance",
+      "kind": "collect",
+      "amount": 100
+    },
+    {
+      "title": "Hospital fees",
+      "kind": "pay",
+      "amount": 100
+    },
+    {
+      "title": "School fees",
+      "kind": "pay",
+      "amount": 50
+    },
+    {
+      "title": "Consultancy fee",
+      "kind": "collect",
+      "amount": 25
+    },
+    {
+      "title": "Street repairs",
+      "kind": "repairs",
+      "house": 40,
+      "hotel": 115
+    },
+    {
+      "title": "Beauty contest",
+      "kind": "collect",
+      "amount": 10
+    },
+    {
+      "title": "Inheritance",
+      "kind": "collect",
+      "amount": 100
+    },
+    {
+      "title": "Advance to GO",
+      "kind": "move",
+      "target": 0
+    }
+  ]
+}
