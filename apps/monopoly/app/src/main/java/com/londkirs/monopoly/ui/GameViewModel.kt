@@ -80,7 +80,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             repeat(40) {
                 val snapshot = mutable.value.snapshot ?: return@launch
                 val state = snapshot.state
-                val player = state.currentPlayer
+                val player = if (state.phase == GamePhase.AUCTION) {
+                    val activeId = state.auction?.eligiblePlayerIds?.getOrNull(state.auction.activePlayerIndex)
+                    state.players.firstOrNull { it.id == activeId } ?: return@launch
+                } else state.currentPlayer
                 if (player.isHuman || state.phase == GamePhase.GAME_OVER || state.phase == GamePhase.PAY_DEBT || state.phase == GamePhase.JAIL_DECISION) return@launch
                 delay(Random.nextLong(500, 1501))
                 val current = mutable.value.snapshot ?: return@launch
