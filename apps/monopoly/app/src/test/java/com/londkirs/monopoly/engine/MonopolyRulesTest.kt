@@ -80,6 +80,30 @@ class JailManagerTest {
         assertTrue(JailManager.canUseCard(jailed))
         assertEquals(1, JailManager.attemptsRemaining(jailed))
     }
+
+    @Test fun thirdFailedAttemptForcesPaymentAndMovement() {
+        val board = TestFixtures.board()
+        val players = TestFixtures.players().map { if (it.id == "a") it.copy(position = 10, inJail = true, failedJailRolls = 2) else it }
+        val state = GameState(players = players, properties = emptyList())
+        val result = MonopolyEngine(board).roll(GameSnapshot(board, GameSettings(), state), listOf(1, 2)).state
+        val alice = result.players.first { it.id == "a" }
+        assertFalse(alice.inJail)
+        assertEquals(1450, alice.cash)
+        assertEquals(13, alice.position)
+    }
+
+    @Test fun threeConsecutiveDoublesSendPlayerToJail() {
+        val board = TestFixtures.board()
+        val engine = MonopolyEngine(board)
+        var snapshot = GameSnapshot(board, GameSettings(), GameState(players = TestFixtures.players(), properties = emptyList()))
+        snapshot = snapshot.copy(state = engine.roll(snapshot, listOf(1, 1)).state)
+        snapshot = snapshot.copy(state = engine.roll(snapshot, listOf(1, 1)).state)
+        snapshot = snapshot.copy(state = engine.roll(snapshot, listOf(1, 1)).state)
+        val alice = snapshot.state.players.first { it.id == "a" }
+        assertTrue(alice.inJail)
+        assertEquals(10, alice.position)
+        assertEquals(1, snapshot.state.currentPlayerIndex)
+    }
 }
 
 class DebtManagerTest {
