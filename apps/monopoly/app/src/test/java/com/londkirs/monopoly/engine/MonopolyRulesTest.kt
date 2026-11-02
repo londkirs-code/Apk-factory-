@@ -116,7 +116,8 @@ class DebtManagerTest {
     }
 
     @Test fun bankruptcyToBankStartsAuctionsForEveryAsset() {
-        val snapshot = TestFixtures.snapshot(listOf(PropertyState(1, "a"), PropertyState(3, "a")))
+        val base = TestFixtures.snapshot(listOf(PropertyState(1, "a"), PropertyState(3, "a")))
+        val snapshot = base.copy(state = base.state.copy(players = base.state.players + Player("c", "Carol", 0xFF00FF00)))
         val result = DebtManager.declareBankruptcy(snapshot, "a", null).state
         assertEquals(GamePhase.AUCTION, result.phase)
         assertEquals(1, result.auction?.squareId)
