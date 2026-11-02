@@ -52,12 +52,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable private fun SetupScreen(start: (List<String>, List<Boolean>, Int, HouseRules) -> Unit) {
+@Composable private fun SetupScreen(start: (List<String>, List<Boolean>, Int, HouseRules, AiLevel) -> Unit) {
     var count by remember { mutableIntStateOf(2) }
     var cash by remember { mutableIntStateOf(1500) }
     var parking by remember { mutableStateOf(false) }
     var doubleGo by remember { mutableStateOf(false) }
     var noAuction by remember { mutableStateOf(false) }
+    var time by remember { mutableIntStateOf(0) }
+    var aiLevel by remember { mutableStateOf(AiLevel.MEDIUM) }
     val names = remember { mutableStateListOf("שחקן 1", "שחקן 2", "שחקן 3", "שחקן 4", "שחקן 5", "שחקן 6") }
     val ai = remember { mutableStateListOf(false, true, true, true, true, true) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -91,9 +93,13 @@ class MainActivity : ComponentActivity() {
                 Rule("קופת חניה חופשית", parking) { parking = it }
                 Rule("400 במקום 200 בנחיתה מדויקת על GO", doubleGo) { doubleGo = it }
                 Rule("ללא מכרזים", noAuction) { noAuction = it }
+                Text("מגבלת זמן")
+                Row { listOf(0, 30, 60, 90, 120).forEach { n -> FilterChip(selected = time == n, onClick = { time = n }, label = { Text(if (n == 0) "ללא" else n.toString() + " דק׳") }) } }
+                Text("רמת מחשב")
+                Row { AiLevel.values().forEach { level -> FilterChip(selected = aiLevel == level, onClick = { aiLevel = level }, label = { Text(when (level) { AiLevel.EASY -> "קל"; AiLevel.MEDIUM -> "בינוני"; AiLevel.HARD -> "קשה" }) }) } }
             }
         }
-        Button(onClick = { start(names.take(count).toList(), ai.take(count).map { !it }, cash, HouseRules(parking, doubleGo, noAuction)) }, Modifier.fillMaxWidth().height(52.dp)) {
+        Button(onClick = { start(names.take(count).toList(), ai.take(count).map { !it }, cash, HouseRules(parking, doubleGo, noAuction, time), aiLevel) }, Modifier.fillMaxWidth().height(52.dp)) {
             Text("התחלת משחק", fontSize = 18.sp)
         }
     }
