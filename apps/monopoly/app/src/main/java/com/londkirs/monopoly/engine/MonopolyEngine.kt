@@ -249,7 +249,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                     events += "${player.name} שילם מס $tax."
                     if (settings.houseRules.freeParkingPot) s = s.copy(freeParkingPot = s.freeParkingPot + tax)
                 } else {
-                    s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = tax, debtCreditorId = null)
+                    s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = tax, debtCreditorId = null, pendingDebtToParkingPot = settings.houseRules.freeParkingPot)
                     events += "${player.name} אינו יכול לשלם מס $tax ונדרש לגייס ${tax - player.cash}."
                 }
             }
@@ -266,7 +266,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                         s = changeCash(s, p.ownerId, rent)
                         events += "${player.name} שילם שכירות $rent ל-${s.players.first { it.id == p.ownerId }.name}."
                     } else {
-                        s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = rent, debtCreditorId = p.ownerId)
+                        s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = rent, debtCreditorId = p.ownerId, pendingDebtToParkingPot = false)
                         events += "${player.name} אינו יכול לשלם שכירות $rent ונדרש לגייס ${rent - player.cash}."
                     }
                 }
@@ -333,7 +333,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
             changeCash(s, playerId, -amount)
         } else {
             events += player.name + " אינו יכול לשלם " + amount + " ונדרש לגייס " + (amount - player.cash) + "."
-            s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = amount, debtCreditorId = null)
+            s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = amount, debtCreditorId = null, pendingDebtToParkingPot = false)
         }
     }
 
