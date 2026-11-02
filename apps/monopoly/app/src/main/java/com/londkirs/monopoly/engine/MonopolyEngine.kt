@@ -328,7 +328,15 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                 }
             }
             "collectEach" -> s.players.filter { it.id != playerId && !it.bankrupt }.forEach { other ->
-                s = changeCash(s, playerId, card.amount); s = changeCash(s, other.id, -card.amount)
+                if (other.cash >= card.amount) {
+                    s = changeCash(s, playerId, card.amount)
+                    s = changeCash(s, other.id, -card.amount)
+                } else {
+                    s = updatePlayer(s, other.id) { debtor ->
+                        debtor.copy(debts = debtor.debts + (playerId to ((debtor.debts[playerId] ?: 0) + card.amount)))
+                    }
+                    events += other.name + " חייב " + card.amount + " ל-" + player.name + " וישלם בתורו."
+                }
             }
             "repairs" -> {
                 val owned = s.properties.filter { it.ownerId == playerId }
