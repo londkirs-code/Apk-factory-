@@ -33,7 +33,7 @@ object DebtManager {
         val creditorCash = creditorId?.let { id -> s.players.first { it.id == id }.cash } ?: 0
         val creditorCanPayInterest = creditorCash + debtor.cash >= interestDue
         val properties = s.properties.map { p ->
-            if (p.ownerId == playerId) p.copy(ownerId = creditorId, houses = 0, hotel = false) else p
+            if (p.ownerId == playerId) p.copy(ownerId = creditorId, houses = 0, hotel = false, mortgaged = if (creditorId == null) false else p.mortgaged) else p
         }
         val players = s.players.map { p ->
             when (p.id) {
