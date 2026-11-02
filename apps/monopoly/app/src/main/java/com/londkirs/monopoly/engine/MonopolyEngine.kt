@@ -235,7 +235,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                     events += "${player.name} שילם מס $tax."
                     if (settings.houseRules.freeParkingPot) s = s.copy(freeParkingPot = s.freeParkingPot + tax)
                 } else {
-                    s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = tax - player.cash, debtCreditorId = null)
+                    s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = tax, debtCreditorId = null)
                     events += "${player.name} אינו יכול לשלם מס $tax ונדרש לגייס ${tax - player.cash}."
                 }
             }
@@ -252,7 +252,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                         s = changeCash(s, p.ownerId, rent)
                         events += "${player.name} שילם שכירות $rent ל-${s.players.first { it.id == p.ownerId }.name}."
                     } else {
-                        s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = rent - player.cash, debtCreditorId = p.ownerId)
+                        s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = rent, debtCreditorId = p.ownerId)
                         events += "${player.name} אינו יכול לשלם שכירות $rent ונדרש לגייס ${rent - player.cash}."
                     }
                 }
