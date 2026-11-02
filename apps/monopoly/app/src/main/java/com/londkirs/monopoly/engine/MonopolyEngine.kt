@@ -175,7 +175,14 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
     fun useJailCard(snapshot: GameSnapshot): EngineResult {
         val p = snapshot.state.currentPlayer
         if (!p.inJail || p.jailFreeCards <= 0) return result(snapshot.state, "אין כרטיס יציאה זמין.")
-        val state = updatePlayer(snapshot.state, p.id) { it.copy(inJail = false, failedJailRolls = 0, jailFreeCards = it.jailFreeCards - 1) }
+        val source = p.jailFreeCardSources.firstOrNull() ?: "chance"
+        val card = (if (source == "chest") board.communityChestCards else board.chanceCards).firstOrNull { it.kind == "jailCard" }
+        var state = updatePlayer(snapshot.state, p.id) {
+            it.copy(inJail = false, failedJailRolls = 0, jailFreeCards = it.jailFreeCards - 1,
+                jailFreeCardSources = it.jailFreeCardSources.drop(1))
+        }
+        if (card != null) state = if (source == "chest") state.copy(chestDeck = state.chestDeck + card)
+            else state.copy(chanceDeck = state.chanceDeck + card)
         return EngineResult(appendLog(state.copy(phase = GamePhase.ROLL), listOf("${p.name} השתמש בכרטיס יציאה מהכלא.")))
     }
 
@@ -306,7 +313,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
             "collect" -> s = changeCash(s, playerId, card.amount)
             "pay" -> s = payCardAmount(s, playerId, card.amount, events)
             "jail" -> s = sendToJail(s, playerId)
-            "jailCard" -> s = updatePlayer(s, playerId) { it.copy(jailFreeCards = it.jailFreeCards + 1) }
+            "jailCard" -> s = updatePlayer(s, playerId) { it.copy(jailFreeCards = it.jailFreeCards + 1, jailFreeCardSources = it.jailFreeCardSources + if (chance) "chance" else "chest") }
             "payEach" -> {
                 val recipients = s.players.filter { it.id != playerId && !it.bankrupt }
                 val total = card.amount * recipients.size
