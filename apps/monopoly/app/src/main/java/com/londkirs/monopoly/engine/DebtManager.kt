@@ -22,7 +22,7 @@ object DebtManager {
         )
     }
 
-    fun declareBankruptcy(snapshot: GameSnapshot, playerId: String, creditorId: String?): EngineResult {
+    fun declareBankruptcy(snapshot: GameSnapshot, playerId: String, creditorId: String?, noAuctions: Boolean = false): EngineResult {
         val s = snapshot.state
         val debtor = s.players.first { it.id == playerId }
         val owned = s.properties.filter { it.ownerId == playerId }
@@ -53,7 +53,7 @@ object DebtManager {
         val finished = when {
             activeIndices.size == 1 -> next.copy(phase = GamePhase.GAME_OVER, winnerId = players[activeIndices.first()].id)
             activeIndices.isEmpty() -> next.copy(phase = GamePhase.GAME_OVER, winnerId = null)
-            creditorId == null && owned.isNotEmpty() -> {
+            creditorId == null && owned.isNotEmpty() && !noAuctions -> {
                 val eligible = activeIndices.map { players[it].id }
                 next.copy(
                     currentPlayerIndex = nextIndex, phase = GamePhase.AUCTION,
