@@ -136,6 +136,27 @@ class DebtManagerTest {
         assertEquals(listOf(3), result.bankruptcyAuctionQueue)
         assertTrue(result.bankruptcyAuctionActive)
     }
+
+    @Test fun deferredMultiPlayerPaymentsAreDistributedAfterSettlement() {
+        val base = TestFixtures.snapshot(emptyList())
+        val players = base.state.players.map { if (it.id == "a") it.copy(cash = 200) else it } + Player("c", "Carol", 0xFF00FF00)
+        val state = base.state.copy(players = players, pendingDebt = 100, pendingPayments = listOf(DebtPayment("b", 50), DebtPayment("c", 50)), phase = GamePhase.PAY_DEBT)
+        val result = DebtManager.settle(base.copy(state = state), "a", 100).state
+        assertEquals(100, result.players.first { it.id == "a" }.cash)
+        assertEquals(1550, result.players.first { it.id == "b" }.cash)
+        assertEquals(1550, result.players.first { it.id == "c" }.cash)
+        assertTrue(result.pendingPayments.isEmpty())
+    }
+
+    @Test fun delayedTaxDebtFeedsFreeParkingPot() {
+        val base = TestFixtures.snapshot(emptyList())
+        val players = base.state.players.map { if (it.id == "a") it.copy(cash = 250) else it }
+        val settings = GameSettings(houseRules = HouseRules(freeParkingPot = true))
+        val state = base.state.copy(players = players, pendingDebt = 200, pendingDebtToParkingPot = true, phase = GamePhase.PAY_DEBT)
+        val result = DebtManager.settle(base.copy(settings = settings, state = state), "a", 200).state
+        assertEquals(200, result.freeParkingPot)
+        assertFalse(result.pendingDebtToParkingPot)
+    }
 }
 
 class AuctionManagerTest {
