@@ -64,7 +64,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun useJailCard() = dispatch { engine!!.useJailCard(it) }
     fun endTurn() = dispatch { engine!!.endTurn(it) }
     fun settleDebt() = dispatch { DebtManager.settle(it, it.state.currentPlayer.id, it.state.pendingDebt, it.state.debtCreditorId) }
-    fun declareBankruptcy() = dispatch { DebtManager.declareBankruptcy(it, it.state.currentPlayer.id, it.state.debtCreditorId) }
+    fun declareBankruptcy() = dispatch { DebtManager.declareBankruptcy(it, it.state.currentPlayer.id, it.state.debtCreditorId, it.settings.houseRules.noAuctions) }
 
     fun proposeTrade(offer: TradeOffer) {
         val current = mutable.value.snapshot ?: return
@@ -183,7 +183,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                             when {
                                 saleResult != null && saleResult.state.currentPlayer.cash > debtor.cash -> saleResult
                                 mortgageable != null -> engine!!.mortgage(current, mortgageable.squareId)
-                                else -> DebtManager.declareBankruptcy(current, debtor.id, current.state.debtCreditorId)
+                                else -> DebtManager.declareBankruptcy(current, debtor.id, current.state.debtCreditorId, current.settings.houseRules.noAuctions)
                             }
                         }
                     }
