@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.londkirs.monopoly.engine.*
 import com.londkirs.monopoly.ui.GameViewModel
+import com.londkirs.monopoly.ui.BoardGrid
 import com.londkirs.monopoly.ui.TradeOfferDialog
 
 class MainActivity : ComponentActivity() {
@@ -142,22 +143,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        LazyVerticalGrid(columns = GridCells.Fixed(5), modifier = Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            items(snap.board.squares) { sq ->
-                val prop = s.properties.firstOrNull { it.squareId == sq.id }
-                val owner = s.players.firstOrNull { it.id == prop?.ownerId }
-                Column(Modifier.height(67.dp).background(Color.White, RoundedCornerShape(6.dp)).clickable { selected = sq.id }.padding(4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Box(Modifier.fillMaxWidth().height(5.dp).background(colorFor(sq.group)))
-                    Text(sq.id.toString(), fontSize = 9.sp, color = Color.Gray)
-                    Text(sq.name, fontSize = 9.sp, maxLines = 2, lineHeight = 10.sp, fontWeight = FontWeight.SemiBold)
-                    if (owner != null) Text(owner.name.take(7), fontSize = 8.sp, color = Color(owner.color))
-                    if (prop?.mortgaged == true) Text("ממושכן", fontSize = 8.sp, color = Color.Red)
-                    else if (prop?.hotel == true) Text("מלון", fontSize = 8.sp, color = Color.Red)
-                    else if ((prop?.houses ?: 0) > 0) Text(prop!!.houses.toString() + " בתים", fontSize = 8.sp, color = Color.Green)
-                }
-            }
-        }
+        BoardGrid(snap) { selected = it }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Card(Modifier.weight(1f)) {
                 Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
