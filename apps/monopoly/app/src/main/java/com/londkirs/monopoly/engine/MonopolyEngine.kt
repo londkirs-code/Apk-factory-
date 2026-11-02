@@ -344,7 +344,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         val active = s.players.indices.filter { !s.players[it].bankrupt }
         if (active.size <= 1) return s.copy(phase = GamePhase.GAME_OVER, winnerId = active.firstOrNull()?.let { s.players[it].id })
         val next = (1..s.players.size).map { (s.currentPlayerIndex + it) % s.players.size }.first { !s.players[it].bankrupt }
-        return s.copy(currentPlayerIndex = next, phase = GamePhase.ROLL, consecutiveDoubles = 0, turnRolled = false, pendingSquareId = null, pendingDebt = 0, debtCreditorId = null)
+        return s.copy(currentPlayerIndex = next, phase = GamePhase.ROLL, consecutiveDoubles = 0, turnRolled = false, pendingSquareId = null, pendingDebt = 0, debtCreditorId = null, aiTradeAttemptedPlayerId = null)
     }
 
     private fun advanceAuction(s0: GameState, events: List<String>): EngineResult {
