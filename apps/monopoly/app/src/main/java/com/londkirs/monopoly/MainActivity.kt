@@ -191,7 +191,7 @@ class MainActivity : ComponentActivity() {
                         if (bidder?.isHuman == true) {
                             OutlinedTextField(bidValue.toString(), { bidValue = it.toIntOrNull() ?: bidValue }, label = { Text("הצעה") })
                             Button({ bid(bidValue) }, Modifier.fillMaxWidth()) { Text("הצע") }
-                            OutlinedButton(pass, Modifier.fillMaxWidth()) { Text("פרוש") }
+                            OutlinedButton(pass, Modifier.fillMaxWidth(), enabled = bidder?.id != auction?.highBidderId) { Text("פרוש") }
                         } else Text("המחשב חושב על הצעה…", fontSize = 11.sp)
                     }
                     GamePhase.PAY_DEBT -> {
