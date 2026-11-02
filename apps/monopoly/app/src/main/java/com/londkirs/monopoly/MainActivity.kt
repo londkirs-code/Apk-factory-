@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
                             ui.board == null -> Text(ui.error ?: "לא ניתן לטעון את הלוח", Modifier.padding(24.dp))
                             ui.snapshot == null -> SetupScreen(vm::startGame)
                             else -> GameScreen(ui.snapshot!!, vm::roll, vm::buy, vm::decline, vm::bid, vm::passAuction,
-                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame, vm::endTurn, vm::settleDebt, vm::declareBankruptcy)
+                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame, vm::endTurn, vm::settleDebt, vm::declareBankruptcy, vm::proposeTrade, vm::acceptTrade, vm::rejectTrade)
                         }
                     }
                 }
@@ -115,11 +115,12 @@ class MainActivity : ComponentActivity() {
     snap: GameSnapshot, roll: () -> Unit, buy: () -> Unit, decline: () -> Unit,
     bid: (Int) -> Unit, pass: () -> Unit, build: (Int) -> Unit, sell: (Int) -> Unit,
     mortgage: (Int) -> Unit, redeem: (Int) -> Unit, payJail: () -> Unit,
-    jailCard: () -> Unit, newGame: () -> Unit, endTurn: () -> Unit, settleDebt: () -> Unit, bankrupt: () -> Unit
+    jailCard: () -> Unit, newGame: () -> Unit, endTurn: () -> Unit, settleDebt: () -> Unit, bankrupt: () -> Unit, proposeTrade: (TradeOffer) -> Unit, acceptTrade: () -> Unit, rejectTrade: () -> Unit
 ) {
     val s = snap.state
     var selected by remember { mutableStateOf<Int?>(null) }
     var assets by remember { mutableStateOf(false) }
+    var showTrade by remember { mutableStateOf(false) }
     var bidValue by remember(s.auction?.highBid) { mutableIntStateOf((s.auction?.highBid ?: 0) + 10) }
     Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -188,6 +189,7 @@ class MainActivity : ComponentActivity() {
                     TextButton(jailCard, enabled = s.currentPlayer.jailFreeCards > 0) { Text("השתמש בכרטיס יציאה") }
                 }
                 OutlinedButton({ assets = true }, Modifier.fillMaxWidth()) { Text("ניהול נכסים") }
+                OutlinedButton({ showTrade = true }, Modifier.fillMaxWidth()) { Text("הצעת מסחר") }
             }
         }
         Text("יומן אירועים", fontWeight = FontWeight.Bold)
@@ -235,6 +237,27 @@ class MainActivity : ComponentActivity() {
                     Divider()
                 }
             } }, confirmButton = { TextButton({ assets = false }) { Text("סיום") } })
+    }
+    if (showTrade) TradeOfferDialog(snap, onDismiss = { showTrade = false }) { offer ->
+        proposeTrade(offer)
+        showTrade = false
+    }
+    s.pendingTrade?.let { offer ->
+        val fromName = s.players.firstOrNull { it.id == offer.fromPlayerId }?.name ?: "שחקן"
+        val isRecipient = s.currentPlayer.id == offer.toPlayerId
+        AlertDialog(
+            onDismissRequest = { rejectTrade() },
+            title = { Text("הצעת מסחר מ-" + fromName) },
+            text = { Column {
+                Text("כסף שמוצע: " + offer.cashFrom + " · כסף מבוקש: " + offer.cashTo)
+                Text("נכסים שמוצעים: " + offer.propertiesFrom.joinToString { snap.board.squares[it].name })
+                Text("נכסים שמבוקשים: " + offer.propertiesTo.joinToString { snap.board.squares[it].name })
+                Text("כרטיסי יציאה: " + offer.jailCardsFrom + " תמורת " + offer.jailCardsTo)
+                if (!isRecipient) Text("ההצעה ממתינה לאישור השחקן השני.")
+            } },
+            confirmButton = { if (isRecipient) TextButton(onClick = acceptTrade) { Text("אשר עסקה") } },
+            dismissButton = { TextButton(onClick = rejectTrade) { Text(if (isRecipient) "דחה" else "בטל הצעה") } }
+        )
     }
 }
 
