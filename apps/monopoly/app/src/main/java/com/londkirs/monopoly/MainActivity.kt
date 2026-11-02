@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
                             ui.board == null -> Text(ui.error ?: "לא ניתן לטעון את הלוח", Modifier.padding(24.dp))
                             ui.snapshot == null -> SetupScreen(vm::startGame)
                             else -> GameScreen(ui.snapshot!!, vm::roll, vm::buy, vm::decline, vm::bid, vm::passAuction,
-                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame, vm::endTurn)
+                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame, vm::endTurn, vm::settleDebt, vm::declareBankruptcy)
                         }
                     }
                 }
@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
     snap: GameSnapshot, roll: () -> Unit, buy: () -> Unit, decline: () -> Unit,
     bid: (Int) -> Unit, pass: () -> Unit, build: (Int) -> Unit, sell: (Int) -> Unit,
     mortgage: (Int) -> Unit, redeem: (Int) -> Unit, payJail: () -> Unit,
-    jailCard: () -> Unit, newGame: () -> Unit, endTurn: () -> Unit
+    jailCard: () -> Unit, newGame: () -> Unit, endTurn: () -> Unit, settleDebt: () -> Unit, bankrupt: () -> Unit
 ) {
     val s = snap.state
     var selected by remember { mutableStateOf<Int?>(null) }
@@ -169,6 +169,11 @@ class MainActivity : ComponentActivity() {
                         Button({ bid(bidValue) }, Modifier.fillMaxWidth()) { Text("הצע") }
                         OutlinedButton(pass, Modifier.fillMaxWidth()) { Text("פרוש") }
                     }
+                    GamePhase.PAY_DEBT -> {
+                        Text("חוב לתשלום: " + s.pendingDebt.toString(), color = Color.Red, fontWeight = FontWeight.Bold)
+                        Button(settleDebt, Modifier.fillMaxWidth(), enabled = s.currentPlayer.cash >= s.pendingDebt) { Text("שלם חוב") }
+                        OutlinedButton(bankrupt, Modifier.fillMaxWidth()) { Text("הכרז פשיטת רגל") }
+                    }
                     GamePhase.GAME_OVER -> Text("המשחק הסתיים")
                     else -> Text("נדרשת פעולה נוספת")
                 }
@@ -198,7 +203,7 @@ class MainActivity : ComponentActivity() {
                 if (p != null && p.ownerId == s.currentPlayer.id) {
                     Row {
                         TextButton({ build(id); selected = null }) { Text("בנה") }
-                        TextButton({ sell(id); selected = null }) { Text("מכור מבנה") }
+                        TextButton({ sell(id); selected = null }, enabled = p.houses > 0 || p.hotel) { Text("מכור מבנה") }
                     }
                     Row {
                         TextButton({ mortgage(id); selected = null }, enabled = !p.mortgaged) { Text("משכן") }
@@ -217,6 +222,7 @@ class MainActivity : ComponentActivity() {
                     Text(sq.name + " · " + if (p.hotel) "מלון" else p.houses.toString() + " בתים")
                     Row {
                         TextButton({ build(p.squareId) }, enabled = !p.mortgaged && sq.type == SquareType.PROPERTY) { Text("בנה") }
+                        TextButton({ sell(p.squareId) }, enabled = p.houses > 0 || p.hotel) { Text("מכור") }
                         TextButton({ mortgage(p.squareId) }, enabled = !p.mortgaged && p.houses == 0 && !p.hotel) { Text("משכן") }
                         TextButton({ redeem(p.squareId) }, enabled = p.mortgaged) { Text("פדה") }
                     }
