@@ -60,6 +60,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun settleDebt() = dispatch { DebtManager.settle(it, it.state.currentPlayer.id, it.state.pendingDebt, it.state.debtCreditorId) }
     fun declareBankruptcy() = dispatch { DebtManager.declareBankruptcy(it, it.state.currentPlayer.id, it.state.debtCreditorId) }
 
+    fun proposeTrade(offer: TradeOffer) {
+        val current = mutable.value.snapshot ?: return
+        val problem = TradeManager.validate(current, offer)
+        if (problem != null) {
+            val next = current.copy(state = current.state.copy(log = current.state.log + problem))
+            storage.save(next)
+            mutable.value = mutable.value.copy(snapshot = next)
+            return
+        }
+        val next = current.copy(state = current.state.copy(pendingTrade = offer, log = current.state.log + "הצעת מסחר נשלחה ל-" + current.state.players.first { it.id == offer.toPlayerId }.name + "."))
+        storage.save(next)
+        mutable.value = mutable.value.copy(snapshot = next)
+    }
+
+    fun acceptTrade() {
+        val current = mutable.value.snapshot ?: return
+        val offer = current.state.pendingTrade ?: return
+        val result = TradeManager.accept(current, offer)
+        val next = current.copy(state = result.state.copy(pendingTrade = null, log = (result.state.log + result.events).takeLast(250)))
+        storage.save(next)
+        mutable.value = mutable.value.copy(snapshot = next)
+        runAiIfNeeded()
+    }
+
+    fun rejectTrade() {
+        val current = mutable.value.snapshot ?: return
+        val offer = current.state.pendingTrade ?: return
+        val recipient = current.state.players.firstOrNull { it.id == offer.toPlayerId }?.name ?: "השחקן"
+        val next = current.copy(state = current.state.copy(pendingTrade = null, log = (current.state.log + recipient + " דחה את הצעת המסחר.").takeLast(250)))
+        storage.save(next)
+        mutable.value = mutable.value.copy(snapshot = next)
+    }
+
     fun newGame() {
         storage.clear()
         mutable.value = mutable.value.copy(snapshot = null)
