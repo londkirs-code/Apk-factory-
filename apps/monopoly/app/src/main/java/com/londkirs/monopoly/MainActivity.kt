@@ -182,9 +182,17 @@ class MainActivity : ComponentActivity() {
                         OutlinedButton(decline, Modifier.fillMaxWidth()) { Text("ויתור / מכרז") }
                     }
                     GamePhase.AUCTION -> {
-                        OutlinedTextField(bidValue.toString(), { bidValue = it.toIntOrNull() ?: bidValue }, label = { Text("הצעה") })
-                        Button({ bid(bidValue) }, Modifier.fillMaxWidth()) { Text("הצע") }
-                        OutlinedButton(pass, Modifier.fillMaxWidth()) { Text("פרוש") }
+                        val auction = s.auction
+                        val auctionSquare = auction?.squareId ?: 0
+                        val bidderId = auction?.eligiblePlayerIds?.getOrNull(auction.activePlayerIndex)
+                        val bidder = s.players.firstOrNull { it.id == bidderId }
+                        Text("מכרז: " + snap.board.squares[auctionSquare].name, fontWeight = FontWeight.Bold)
+                        Text("תור להצעה: " + (bidder?.name ?: ""), fontSize = 11.sp)
+                        if (bidder?.isHuman == true) {
+                            OutlinedTextField(bidValue.toString(), { bidValue = it.toIntOrNull() ?: bidValue }, label = { Text("הצעה") })
+                            Button({ bid(bidValue) }, Modifier.fillMaxWidth()) { Text("הצע") }
+                            OutlinedButton(pass, Modifier.fillMaxWidth()) { Text("פרוש") }
+                        } else Text("המחשב חושב על הצעה…", fontSize = 11.sp)
                     }
                     GamePhase.PAY_DEBT -> {
                         Text("חוב לתשלום: " + s.pendingDebt.toString(), color = Color.Red, fontWeight = FontWeight.Bold)
