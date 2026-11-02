@@ -200,7 +200,7 @@ class MainActivity : ComponentActivity() {
                         Button(settleDebt, Modifier.fillMaxWidth(), enabled = s.currentPlayer.cash >= s.pendingDebt) { Text("שלם חוב") }
                         OutlinedButton(bankrupt, Modifier.fillMaxWidth()) { Text("הכרז פשיטת רגל") }
                     }
-                    GamePhase.GAME_OVER -> Text("המשחק הסתיים")
+                    GamePhase.GAME_OVER -> Text("המשחק הסתיים. המנצח: " + (s.players.firstOrNull { it.id == s.winnerId }?.name ?: "אין מנצח"), fontWeight = FontWeight.Bold)
                     else -> Text("נדרשת פעולה נוספת")
                 }
                 if (s.currentPlayer.inJail) {
