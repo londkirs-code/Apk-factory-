@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
                             ui.board == null -> Text(ui.error ?: "לא ניתן לטעון את הלוח", Modifier.padding(24.dp))
                             ui.snapshot == null -> SetupScreen(vm::startGame)
                             else -> GameScreen(ui.snapshot!!, vm::roll, vm::buy, vm::decline, vm::bid, vm::passAuction,
-                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame, vm::endTurn, vm::settleDebt, vm::declareBankruptcy, vm::proposeTrade, vm::acceptTrade, vm::rejectTrade)
+                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame, vm::endTurn, vm::settleDebt, vm::declareBankruptcy, vm::proposeTrade, vm::acceptTrade, vm::rejectTrade, vm::dismissCard)
                         }
                     }
                 }
@@ -134,7 +134,7 @@ class MainActivity : ComponentActivity() {
     snap: GameSnapshot, roll: () -> Unit, buy: () -> Unit, decline: () -> Unit,
     bid: (Int) -> Unit, pass: () -> Unit, build: (Int) -> Unit, sell: (Int) -> Unit,
     mortgage: (Int) -> Unit, redeem: (Int) -> Unit, payJail: () -> Unit,
-    jailCard: () -> Unit, newGame: () -> Unit, endTurn: () -> Unit, settleDebt: () -> Unit, bankrupt: () -> Unit, proposeTrade: (TradeOffer) -> Unit, acceptTrade: () -> Unit, rejectTrade: () -> Unit
+    jailCard: () -> Unit, newGame: () -> Unit, endTurn: () -> Unit, settleDebt: () -> Unit, bankrupt: () -> Unit, proposeTrade: (TradeOffer) -> Unit, acceptTrade: () -> Unit, rejectTrade: () -> Unit, dismissCard: () -> Unit
 ) {
     val s = snap.state
     var selected by remember { mutableStateOf<Int?>(null) }
@@ -266,6 +266,21 @@ class MainActivity : ComponentActivity() {
             title = { Text("העבר את המכשיר") },
             text = { Text("התור של " + s.currentPlayer.name + ". העבר את המכשיר לשחקן הבא לפני המשך המשחק.") },
             confirmButton = { Button(onClick = { passDevice = false }) { Text("אני מוכן") } }
+        )
+    }
+    s.pendingCard?.let { card ->
+        AlertDialog(
+            onDismissRequest = dismissCard,
+            title = { Text(card.title) },
+            text = {
+                Column {
+                    Text("קלף שנשלף מהחפיסה.")
+                    if (card.amount != 0) Text("סכום: " + card.amount)
+                    if (card.target != null) Text("יעד: " + snap.board.squares[card.target].name)
+                    if (card.house != 0 || card.hotel != 0) Text("תיקון: " + card.house + " לכל בית, " + card.hotel + " לכל מלון")
+                }
+            },
+            confirmButton = { Button(onClick = dismissCard) { Text("המשך") } }
         )
     }
     s.pendingTrade?.let { offer ->
