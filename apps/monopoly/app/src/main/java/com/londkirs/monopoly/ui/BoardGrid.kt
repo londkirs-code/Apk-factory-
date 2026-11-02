@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -22,7 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.londkirs.monopoly.engine.GameSnapshot
 
 @Composable
-fun BoardGrid(snapshot: GameSnapshot, onSelect: (Int) -> Unit) {
+fun ColumnScope.BoardGrid(snapshot: GameSnapshot, onSelect: (Int) -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     val coordinates = remember {
         buildMap<Int, Pair<Int, Int>> {
