@@ -5,7 +5,7 @@ object DebtManager {
         require(amount >= 0)
         val s = snapshot.state
         val debtor = s.players.first { it.id == playerId }
-        if (debtor.cash < amount) return EngineResult(s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = amount - debtor.cash, debtCreditorId = creditorId), listOf("נדרש גיוס של ${amount - debtor.cash} נוספים."))
+        if (debtor.cash < amount) return EngineResult(s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = amount, debtCreditorId = creditorId), listOf("נדרש גיוס של ${amount - debtor.cash} נוספים."))
         val players = s.players.map { p ->
             when (p.id) {
                 playerId -> p.copy(cash = p.cash - amount)
