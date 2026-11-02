@@ -101,6 +101,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         runAiIfNeeded()
     }
 
+    fun dismissCard() {
+        val current = mutable.value.snapshot ?: return
+        val next = current.copy(state = current.state.copy(pendingCard = null))
+        storage.save(next)
+        mutable.value = mutable.value.copy(snapshot = next)
+        runAiIfNeeded()
+    }
+
     fun rejectTrade() {
         val current = mutable.value.snapshot ?: return
         val offer = current.state.pendingTrade ?: return
