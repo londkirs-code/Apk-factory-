@@ -21,10 +21,10 @@ internal object TestFixtures {
         return BoardData(squares, emptyList(), emptyList())
     }
     fun players() = listOf(Player("a", "Alice", 0xFFFF0000, cash = 1500), Player("b", "Bob", 0xFF0000FF, cash = 1500))
-    fun snapshot(properties: List<PropertyState>, phase: GamePhase = GamePhase.ROLL, pending: Int? = null): GameSnapshot {
+    fun snapshot(properties: List<PropertyState>, phase: GamePhase = GamePhase.ROLL, pending: Int? = null, currentPlayerIndex: Int = 0): GameSnapshot {
         val board = board()
         val players = players()
-        val state = GameState(players = players, properties = properties, phase = phase, pendingSquareId = pending, currentPlayerIndex = 1)
+        val state = GameState(players = players, properties = properties, phase = phase, pendingSquareId = pending, currentPlayerIndex = currentPlayerIndex)
         return GameSnapshot(board, GameSettings(), state)
     }
 }
@@ -33,23 +33,23 @@ class RentCalculatorTest {
     @Test fun monopolyDoublesUndevelopedRent() {
         val board = TestFixtures.board()
         val props = listOf(PropertyState(1, "a"), PropertyState(3, "a"))
-        val snapshot = TestFixtures.snapshot(props)
-        assertEquals(0, RentCalculator.calculate(board, snapshot.state, 1, 7))
+        val snapshot = TestFixtures.snapshot(props, currentPlayerIndex = 1)
+        assertEquals(4, RentCalculator.calculate(board, snapshot.state, 1, 7))
     }
 
     @Test fun railroadRentScalesByOwnedRailroads() {
         val board = TestFixtures.board()
         val props = listOf(PropertyState(5, "a"), PropertyState(15, "a"), PropertyState(25, "a"))
-        val snapshot = TestFixtures.snapshot(props)
-        assertEquals(0, RentCalculator.calculate(board, snapshot.state, 5, 7))
+        val snapshot = TestFixtures.snapshot(props, currentPlayerIndex = 1)
+        assertEquals(100, RentCalculator.calculate(board, snapshot.state, 5, 7))
     }
 
     @Test fun utilityRentUsesFourOrTenTimesDice() {
         val board = TestFixtures.board()
-        val one = TestFixtures.snapshot(listOf(PropertyState(12, "a")))
-        val two = TestFixtures.snapshot(listOf(PropertyState(12, "a"), PropertyState(28, "a")))
-        assertEquals(0, RentCalculator.calculate(board, one.state, 12, 7))
-        assertEquals(0, RentCalculator.calculate(board, two.state, 12, 7))
+        val one = TestFixtures.snapshot(listOf(PropertyState(12, "a")), currentPlayerIndex = 1)
+        val two = TestFixtures.snapshot(listOf(PropertyState(12, "a"), PropertyState(28, "a")), currentPlayerIndex = 1)
+        assertEquals(28, RentCalculator.calculate(board, one.state, 12, 7))
+        assertEquals(70, RentCalculator.calculate(board, two.state, 12, 7))
     }
 }
 
