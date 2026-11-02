@@ -55,7 +55,7 @@ object DebtManager {
                 next.copy(
                     currentPlayerIndex = nextIndex, phase = GamePhase.AUCTION,
                     auction = AuctionState(owned.first().squareId, eligible),
-                    bankruptcyAuctionQueue = owned.drop(1).map { it.squareId },
+                    bankruptcyAuctionQueue = owned.drop(1).map { it.squareId }, bankruptcyAuctionActive = true,
                     turnRolled = false, consecutiveDoubles = 0
                 )
             }
