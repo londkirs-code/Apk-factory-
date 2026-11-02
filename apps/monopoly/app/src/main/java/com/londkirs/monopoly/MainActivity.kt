@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
                             ui.board == null -> Text(ui.error ?: "לא ניתן לטעון את הלוח", Modifier.padding(24.dp))
                             ui.snapshot == null -> SetupScreen(vm::startGame)
                             else -> GameScreen(ui.snapshot!!, vm::roll, vm::buy, vm::decline, vm::bid, vm::passAuction,
-                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame)
+                                vm::build, vm::sellBuilding, vm::mortgage, vm::redeem, vm::payJail, vm::useJailCard, vm::newGame, vm::endTurn)
                         }
                     }
                 }
@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
     snap: GameSnapshot, roll: () -> Unit, buy: () -> Unit, decline: () -> Unit,
     bid: (Int) -> Unit, pass: () -> Unit, build: (Int) -> Unit, sell: (Int) -> Unit,
     mortgage: (Int) -> Unit, redeem: (Int) -> Unit, payJail: () -> Unit,
-    jailCard: () -> Unit, newGame: () -> Unit
+    jailCard: () -> Unit, newGame: () -> Unit, endTurn: () -> Unit
 ) {
     val s = snap.state
     var selected by remember { mutableStateOf<Int?>(null) }
@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 when (s.phase) {
-                    GamePhase.ROLL -> Button(roll, Modifier.fillMaxWidth(), enabled = s.currentPlayer.isHuman) { Text("הטלת קוביות") }
+                    GamePhase.ROLL -> if (s.turnRolled && s.consecutiveDoubles == 0) Button(endTurn, Modifier.fillMaxWidth()) { Text("סיום תור") } else Button(roll, Modifier.fillMaxWidth(), enabled = s.currentPlayer.isHuman) { Text("הטלת קוביות") }
                     GamePhase.BUY_OR_AUCTION -> {
                         Button(buy, Modifier.fillMaxWidth()) { Text("קנייה") }
                         OutlinedButton(decline, Modifier.fillMaxWidth()) { Text("ויתור / מכרז") }
