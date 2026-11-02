@@ -56,7 +56,7 @@ import kotlinx.serialization.Serializable
     val currentPlayerIndex: Int = 0, val phase: GamePhase = GamePhase.ROLL,
     val dice: List<Int> = listOf(1, 1), val consecutiveDoubles: Int = 0,
     val pendingRent: Int = 0, val pendingDebt: Int = 0, val debtCreditorId: String? = null,
-    val pendingSquareId: Int? = null, val auction: AuctionState? = null, val bankruptcyAuctionQueue: List<Int> = emptyList(), val bankruptcyAuctionActive: Boolean = false, val pendingTrade: TradeOffer? = null,
+    val pendingSquareId: Int? = null, val auction: AuctionState? = null, val bankruptcyAuctionQueue: List<Int> = emptyList(), val bankruptcyAuctionActive: Boolean = false, val aiTradeAttemptedPlayerId: String? = null, val pendingTrade: TradeOffer? = null,
     val chanceDeck: List<CardDefinition> = emptyList(), val chestDeck: List<CardDefinition> = emptyList(),
     val freeParkingPot: Int = 0, val housesInBank: Int = 32, val hotelsInBank: Int = 12, val startedAtEpochMillis: Long = 0L,
     val log: List<String> = emptyList(), val winnerId: String? = null,
