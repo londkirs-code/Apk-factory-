@@ -115,6 +115,17 @@ class JailManagerTest {
         assertEquals(10, alice.position)
         assertEquals(1, snapshot.state.currentPlayerIndex)
     }
+
+    @Test fun usedJailFreeCardReturnsToItsOriginalDeck() {
+        val board = TestFixtures.board().copy(chanceCards = listOf(CardDefinition("Get out of jail", "jailCard")))
+        val players = TestFixtures.players().map { if (it.id == "a") it.copy(inJail = true, jailFreeCards = 1, jailFreeCardSources = listOf("chance")) else it }
+        val snapshot = GameSnapshot(board, GameSettings(), GameState(players = players, properties = emptyList()))
+        val result = MonopolyEngine(board).useJailCard(snapshot).state
+        val alice = result.players.first { it.id == "a" }
+        assertFalse(alice.inJail)
+        assertEquals(0, alice.jailFreeCards)
+        assertEquals(1, result.chanceDeck.size)
+    }
 }
 
 class DebtManagerTest {
