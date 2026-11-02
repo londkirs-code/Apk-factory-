@@ -57,6 +57,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun payJail() = dispatch { engine!!.payToLeaveJail(it) }
     fun useJailCard() = dispatch { engine!!.useJailCard(it) }
     fun endTurn() = dispatch { engine!!.endTurn(it) }
+    fun settleDebt() = dispatch { DebtManager.settle(it, it.state.currentPlayer.id, it.state.pendingDebt, it.state.debtCreditorId) }
+    fun declareBankruptcy() = dispatch { DebtManager.declareBankruptcy(it, it.state.currentPlayer.id, it.state.debtCreditorId) }
 
     fun newGame() {
         storage.clear()
