@@ -34,8 +34,14 @@ object MonopolyAI {
         val player = snapshot.state.currentPlayer
         val square = snapshot.board.squares[squareId]
         if (square.group == null || player.cash < square.houseCost + 250) return false
+        val property = snapshot.state.properties.firstOrNull { it.squareId == squareId } ?: return false
+        if (property.hotel || (property.houses == 4 && snapshot.state.hotelsInBank == 0) ||
+            (property.houses < 4 && snapshot.state.housesInBank == 0)) return false
         val group = snapshot.board.squares.filter { it.group == square.group }
-        return group.all { item -> snapshot.state.properties.any { it.squareId == item.id && it.ownerId == player.id && !it.mortgaged } }
+        val groupProperties = group.map { item -> snapshot.state.properties.firstOrNull { it.squareId == item.id } ?: return false }
+        if (groupProperties.any { it.ownerId != player.id || it.mortgaged }) return false
+        val minimum = groupProperties.minOf { if (it.hotel) 5 else it.houses }
+        return property.houses <= minimum
     }
 
     fun proposeMonopolyCompletionTrade(snapshot: GameSnapshot, playerId: String): TradeOffer? {
