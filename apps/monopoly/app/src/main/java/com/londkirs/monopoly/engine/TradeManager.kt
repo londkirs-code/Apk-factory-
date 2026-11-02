@@ -16,7 +16,7 @@ object TradeManager {
         val to = s.players.firstOrNull { it.id == offer.toPlayerId } ?: return "שחקן מקבל לא נמצא."
         if (from.bankrupt || to.bankrupt || from.id == to.id) return "עסקה בין שחקנים פעילים בלבד."
         if (offer.cashFrom < 0 || offer.cashTo < 0 || from.cash < offer.cashFrom || to.cash < offer.cashTo) return "אין מספיק כסף לביצוע העסקה."
-        if (from.jailFreeCards < offer.jailCardsFrom || to.jailFreeCards < offer.jailCardsTo) return "אין מספיק כרטיסי יציאה מהכלא."
+        if (offer.jailCardsFrom < 0 || offer.jailCardsTo < 0 || from.jailFreeCards < offer.jailCardsFrom || to.jailFreeCards < offer.jailCardsTo) return "אין מספיק כרטיסי יציאה מהכלא."
         val fromOwned = s.properties.filter { it.ownerId == from.id }.map { it.squareId }.toSet()
         val toOwned = s.properties.filter { it.ownerId == to.id }.map { it.squareId }.toSet()
         if (!fromOwned.containsAll(offer.propertiesFrom) || !toOwned.containsAll(offer.propertiesTo)) return "אחד הנכסים אינו בבעלות המציע המתאים."
@@ -28,10 +28,24 @@ object TradeManager {
     fun accept(snapshot: GameSnapshot, offer: TradeOffer): EngineResult {
         validate(snapshot, offer)?.let { return EngineResult(snapshot.state, listOf(it)) }
         val s = snapshot.state
+        val from = s.players.first { it.id == offer.fromPlayerId }
+        val to = s.players.first { it.id == offer.toPlayerId }
+        val fromCards = from.jailFreeCardSources + List((from.jailFreeCards - from.jailFreeCardSources.size).coerceAtLeast(0)) { "chance" }
+        val toCards = to.jailFreeCardSources + List((to.jailFreeCards - to.jailFreeCardSources.size).coerceAtLeast(0)) { "chance" }
+        val movedFrom = fromCards.take(offer.jailCardsFrom)
+        val movedTo = toCards.take(offer.jailCardsTo)
         val players = s.players.map { p ->
             when (p.id) {
-                offer.fromPlayerId -> p.copy(cash = p.cash - offer.cashFrom + offer.cashTo, jailFreeCards = p.jailFreeCards - offer.jailCardsFrom + offer.jailCardsTo)
-                offer.toPlayerId -> p.copy(cash = p.cash - offer.cashTo + offer.cashFrom, jailFreeCards = p.jailFreeCards - offer.jailCardsTo + offer.jailCardsFrom)
+                offer.fromPlayerId -> p.copy(
+                    cash = p.cash - offer.cashFrom + offer.cashTo,
+                    jailFreeCards = p.jailFreeCards - offer.jailCardsFrom + offer.jailCardsTo,
+                    jailFreeCardSources = fromCards.drop(offer.jailCardsFrom) + movedTo
+                )
+                offer.toPlayerId -> p.copy(
+                    cash = p.cash - offer.cashTo + offer.cashFrom,
+                    jailFreeCards = p.jailFreeCards - offer.jailCardsTo + offer.jailCardsFrom,
+                    jailFreeCardSources = toCards.drop(offer.jailCardsTo) + movedFrom
+                )
                 else -> p
             }
         }
