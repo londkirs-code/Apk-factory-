@@ -88,7 +88,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 delay(Random.nextLong(500, 1501))
                 val current = mutable.value.snapshot ?: return@launch
                 val result = when (current.state.phase) {
-                    GamePhase.ROLL -> engine!!.roll(current)
+                    GamePhase.ROLL -> if (current.state.turnRolled && current.state.consecutiveDoubles == 0) engine!!.endTurn(current) else engine!!.roll(current)
                     GamePhase.BUY_OR_AUCTION -> {
                         val id = current.state.pendingSquareId ?: return@launch
                         if (MonopolyAI.shouldBuy(current, id)) engine!!.buy(current) else engine!!.declinePurchase(current)
