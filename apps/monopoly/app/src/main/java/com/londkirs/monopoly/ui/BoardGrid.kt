@@ -1,5 +1,6 @@
 package com.londkirs.monopoly.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -69,7 +70,9 @@ fun ColumnScope.BoardGrid(snapshot: GameSnapshot, onSelect: (Int) -> Unit) {
                                     if (property?.hotel == true) Text("H", fontSize = 6.sp, color = Color.Red)
                                     else if ((property?.houses ?: 0) > 0) Text(property!!.houses.toString(), fontSize = 6.sp, color = Color(0xFF278044))
                                     if (property?.mortgaged == true) Text("M", fontSize = 6.sp, color = Color.Red)
-                                    playersAt[id]?.forEach { Text("●", fontSize = 6.sp, color = Color(it.color)) }
+                                    AnimatedVisibility(visible = playersAt[id].orEmpty().isNotEmpty()) {
+                                        Row { playersAt[id]?.forEach { Text("●", fontSize = 6.sp, color = Color(it.color)) } }
+                                    }
                                 }
                             }
                         }
