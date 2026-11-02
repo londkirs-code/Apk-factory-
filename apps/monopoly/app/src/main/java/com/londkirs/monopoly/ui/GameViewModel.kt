@@ -36,7 +36,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val board = mutable.value.board ?: return
         val palette = listOf(0xFFE85D4A, 0xFF2878D0, 0xFF25A56A, 0xFF9B59B6, 0xFFF1B82D, 0xFF4D5966)
         val players = names.take(6).mapIndexed { index, name ->
-            Player(id = "p$index", name = name.ifBlank { "שחקן \${index + 1}" }, color = colors.getOrElse(index) { palette[index % palette.size] },
+            Player(id = "p$index", name = name.ifBlank { "שחקן ${index + 1}" }, color = colors.getOrElse(index) { palette[index % palette.size] },
                 isHuman = humanFlags.getOrElse(index) { true }, aiLevel = aiLevel)
         }
         val settings = GameSettings(startingCash = startingCash.coerceAtLeast(500), houseRules = rules, soundEnabled = soundEnabled, vibrationEnabled = vibrationEnabled)
