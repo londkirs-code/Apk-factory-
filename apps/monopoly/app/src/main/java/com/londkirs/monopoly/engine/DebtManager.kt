@@ -10,14 +10,15 @@ object DebtManager {
             listOf("נדרש גיוס של " + (amount - debtor.cash) + " נוספים.")
         )
         val players = s.players.map { p ->
+            val queuedPayment = s.pendingPayments.filter { it.creditorId == p.id }.sumOf { it.amount }
             when (p.id) {
                 playerId -> p.copy(cash = p.cash - amount)
                 creditorId -> p.copy(cash = p.cash + amount)
-                else -> p
+                else -> if (queuedPayment > 0) p.copy(cash = p.cash + queuedPayment) else p
             }
         }
         return EngineResult(
-            s.copy(players = players, pendingDebt = 0, debtCreditorId = null, pendingDebtToParkingPot = false, freeParkingPot = if (s.pendingDebtToParkingPot) s.freeParkingPot + amount else s.freeParkingPot, phase = GamePhase.ROLL),
+            s.copy(players = players, pendingDebt = 0, debtCreditorId = null, pendingDebtToParkingPot = false, pendingPayments = emptyList(), freeParkingPot = if (s.pendingDebtToParkingPot) s.freeParkingPot + amount else s.freeParkingPot, phase = GamePhase.ROLL),
             listOf(debtor.name + " שילם חוב של " + amount + ".")
         )
     }
@@ -42,7 +43,7 @@ object DebtManager {
             }
         }
         val next = s.copy(
-            players = players, properties = properties, pendingDebt = 0, debtCreditorId = null, pendingDebtToParkingPot = false,
+            players = players, properties = properties, pendingDebt = 0, debtCreditorId = null, pendingDebtToParkingPot = false, pendingPayments = emptyList(),
             housesInBank = (s.housesInBank + housesReturned).coerceAtMost(32),
             hotelsInBank = (s.hotelsInBank + hotelsReturned).coerceAtMost(12)
         )
