@@ -76,7 +76,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val target = current.state.players.first { it.id == offer.toPlayerId }
-        val next = current.copy(state = current.state.copy(pendingTrade = offer, log = current.state.log + "הצעת מסחר נשלחה ל-" + target.name + "."))
+        val source = current.state.players.first { it.id == offer.fromPlayerId }
+        val attempted = if (!source.isHuman) source.id else current.state.aiTradeAttemptedPlayerId
+        val next = current.copy(state = current.state.copy(pendingTrade = offer, aiTradeAttemptedPlayerId = attempted, log = current.state.log + "הצעת מסחר נשלחה ל-" + target.name + "."))
         storage.save(next)
         mutable.value = mutable.value.copy(snapshot = next)
         if (!target.isHuman) viewModelScope.launch {
