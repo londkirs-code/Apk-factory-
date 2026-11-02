@@ -142,7 +142,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             repeat(40) {
                 val snapshot = mutable.value.snapshot ?: return@launch
                 val state = snapshot.state
-                if (state.pendingTrade != null) return@launch
+                if (state.pendingTrade != null || state.pendingCard != null) return@launch
                 val player = if (state.phase == GamePhase.AUCTION) {
                     val activeId = state.auction?.eligiblePlayerIds?.getOrNull(state.auction.activePlayerIndex)
                     state.players.firstOrNull { it.id == activeId } ?: return@launch
