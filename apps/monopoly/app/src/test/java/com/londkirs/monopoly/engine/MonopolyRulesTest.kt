@@ -71,6 +71,17 @@ class BuildingManagerTest {
         assertEquals(1530, result.state.currentPlayer.cash)
         assertTrue(result.state.properties.first { it.squareId == 1 }.mortgaged)
     }
+
+    @Test fun sellingBuildingsMustRemainEvenAndReturnsHalfCost() {
+        val board = TestFixtures.board()
+        val snapshot = TestFixtures.snapshot(listOf(PropertyState(1, "a", houses = 2), PropertyState(3, "a", houses = 1)))
+        val engine = MonopolyEngine(board)
+        val sale = engine.sellBuilding(snapshot, 1)
+        assertEquals(1525, sale.state.currentPlayer.cash)
+        assertEquals(1, sale.state.properties.first { it.squareId == 1 }.houses)
+        val blocked = engine.sellBuilding(snapshot, 3)
+        assertTrue(blocked.events.any { it.contains("שווה") })
+    }
 }
 
 class JailManagerTest {
