@@ -191,6 +191,20 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
     fun endTurn(snapshot: GameSnapshot): EngineResult {
         val s = snapshot.state
         if (s.phase != GamePhase.ROLL || !s.turnRolled) return result(s, "התור עדיין לא הושלם.")
+        val minutes = snapshot.settings.houseRules.timedGameMinutes
+        if (minutes > 0 && System.currentTimeMillis() - s.startedAtEpochMillis >= minutes * 60_000L) {
+            val winner = s.activePlayers.maxByOrNull { player ->
+                val owned = s.properties.filter { it.ownerId == player.id }.sumOf { property ->
+                    val square = board.squares[property.squareId]
+                    (if (property.mortgaged) square.price / 2 else square.price) +
+                        property.houses * square.houseCost + if (property.hotel) square.houseCost * 5 else 0
+                }
+                player.cash + owned
+            }
+            val ended = s.copy(phase = GamePhase.GAME_OVER, winnerId = winner?.id)
+            val event = "הזמן הסתיים. המנצח לפי שווי כולל: " + (winner?.name ?: "אין") + "."
+            return EngineResult(appendLog(ended, listOf(event)), listOf(event))
+        }
         return EngineResult(finishTurn(s, false), emptyList())
     }
 
