@@ -280,7 +280,7 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
         val deck = if (chance) s.chanceDeck else s.chestDeck
         if (deck.isEmpty()) return s
         val card = deck.first()
-        if (chance) s = s.copy(chanceDeck = deck.drop(1)) else s = s.copy(chestDeck = deck.drop(1))
+        if (chance) s = s.copy(chanceDeck = deck.drop(1), pendingCard = card) else s = s.copy(chestDeck = deck.drop(1), pendingCard = card)
         events += "קלף: ${card.title}."
         when (card.kind) {
             "move" -> {
