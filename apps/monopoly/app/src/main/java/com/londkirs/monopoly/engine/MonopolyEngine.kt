@@ -230,9 +230,14 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
             SquareType.GO_TO_JAIL -> { s = sendToJail(s, playerId); events += "${player.name} נשלח לכלא." }
             SquareType.TAX -> {
                 val tax = if (squareId == 4) 200 else 100
-                s = changeCash(s, playerId, -tax)
-                events += "${player.name} שילם מס $tax."
-                if (settings.houseRules.freeParkingPot) s = s.copy(freeParkingPot = s.freeParkingPot + tax)
+                if (player.cash >= tax) {
+                    s = changeCash(s, playerId, -tax)
+                    events += "${player.name} שילם מס $tax."
+                    if (settings.houseRules.freeParkingPot) s = s.copy(freeParkingPot = s.freeParkingPot + tax)
+                } else {
+                    s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = tax - player.cash, debtCreditorId = null)
+                    events += "${player.name} אינו יכול לשלם מס $tax ונדרש לגייס ${tax - player.cash}."
+                }
             }
             SquareType.CHEST, SquareType.CHANCE -> s = drawCard(s, playerId, square.type == SquareType.CHANCE, events, settings)
             SquareType.PROPERTY, SquareType.RAILROAD, SquareType.UTILITY -> {
@@ -242,9 +247,14 @@ class MonopolyEngine(private val board: BoardData, private val random: Random = 
                     events += "${square.name} פנוי לרכישה במחיר ${square.price}."
                 } else if (p.ownerId != playerId && !p.mortgaged) {
                     val rent = RentCalculator.calculate(board, s, squareId, s.dice.sum())
-                    s = changeCash(s, playerId, -rent)
-                    s = changeCash(s, p.ownerId, rent)
-                    events += "${player.name} שילם שכירות $rent ל-${s.players.first { it.id == p.ownerId }.name}."
+                    if (player.cash >= rent) {
+                        s = changeCash(s, playerId, -rent)
+                        s = changeCash(s, p.ownerId, rent)
+                        events += "${player.name} שילם שכירות $rent ל-${s.players.first { it.id == p.ownerId }.name}."
+                    } else {
+                        s = s.copy(phase = GamePhase.PAY_DEBT, pendingDebt = rent - player.cash, debtCreditorId = p.ownerId)
+                        events += "${player.name} אינו יכול לשלם שכירות $rent ונדרש לגייס ${rent - player.cash}."
+                    }
                 }
             }
         }
