@@ -32,11 +32,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }.onFailure { mutable.value = MonopolyUiState(loading = false, error = it.message ?: "שגיאה בטעינת המשחק") }
     }
 
-    fun startGame(names: List<String>, humanFlags: List<Boolean>, startingCash: Int, rules: HouseRules, aiLevel: AiLevel, soundEnabled: Boolean, vibrationEnabled: Boolean) {
+    fun startGame(names: List<String>, humanFlags: List<Boolean>, startingCash: Int, rules: HouseRules, aiLevel: AiLevel, soundEnabled: Boolean, vibrationEnabled: Boolean, colors: List<Long>) {
         val board = mutable.value.board ?: return
         val colors = listOf(0xFFE85D4A, 0xFF2878D0, 0xFF25A56A, 0xFF9B59B6, 0xFFF1B82D, 0xFF4D5966)
         val players = names.take(6).mapIndexed { index, name ->
-            Player(id = "p$index", name = name.ifBlank { "שחקן \${index + 1}" }, color = colors[index],
+            Player(id = "p$index", name = name.ifBlank { "שחקן \${index + 1}" }, color = colors.getOrElse(index) { colors[index % colors.size] },
                 isHuman = humanFlags.getOrElse(index) { true }, aiLevel = aiLevel)
         }
         val settings = GameSettings(startingCash = startingCash.coerceAtLeast(500), houseRules = rules, soundEnabled = soundEnabled, vibrationEnabled = vibrationEnabled)
