@@ -244,16 +244,20 @@ class MainActivity : ComponentActivity() {
         val mine = s.properties.filter { it.ownerId == s.currentPlayer.id }.sortedBy { it.squareId }
         AlertDialog(onDismissRequest = { assets = false }, title = { Text("הנכסים שלי") },
             text = { LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                columnItems(mine) { p ->
-                    val sq = snap.board.squares[p.squareId]
-                    Text(sq.name + " · " + if (p.hotel) "מלון" else p.houses.toString() + " בתים")
-                    Row {
-                        TextButton({ build(p.squareId) }, enabled = !p.mortgaged && sq.type == SquareType.PROPERTY) { Text("בנה") }
-                        TextButton({ sell(p.squareId) }, enabled = p.houses > 0 || p.hotel) { Text("מכור") }
-                        TextButton({ mortgage(p.squareId) }, enabled = !p.mortgaged && p.houses == 0 && !p.hotel) { Text("משכן") }
-                        TextButton({ redeem(p.squareId) }, enabled = p.mortgaged) { Text("פדה") }
+                val grouped = mine.groupBy { snap.board.squares[it.squareId].group ?: "special" }
+                grouped.forEach { (group, groupProperties) ->
+                    item { Text(if (group == "special") "משבצות מיוחדות" else "קבוצת " + group, fontWeight = FontWeight.Bold) }
+                    columnItems(groupProperties) { p ->
+                        val sq = snap.board.squares[p.squareId]
+                        Text(sq.name + " · " + if (p.hotel) "מלון" else p.houses.toString() + " בתים")
+                        Row {
+                            TextButton({ build(p.squareId) }, enabled = !p.mortgaged && sq.type == SquareType.PROPERTY) { Text("בנה") }
+                            TextButton({ sell(p.squareId) }, enabled = p.houses > 0 || p.hotel) { Text("מכור") }
+                            TextButton({ mortgage(p.squareId) }, enabled = !p.mortgaged && p.houses == 0 && !p.hotel) { Text("משכן") }
+                            TextButton({ redeem(p.squareId) }, enabled = p.mortgaged) { Text("פדה") }
+                        }
+                        Divider()
                     }
-                    Divider()
                 }
             } }, confirmButton = { TextButton({ assets = false }) { Text("סיום") } })
     }
