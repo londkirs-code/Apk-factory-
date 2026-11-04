@@ -6,6 +6,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Paint
+import android.graphics.Color
+import android.text.style.StrikethroughSpan
 import android.os.Bundle
 import android.text.Editable
 import android.text.InputType
@@ -26,6 +28,7 @@ class MainActivity : Activity() {
     private val prefsName = "floating_note"
     private val noteKey = "note_text"
     private val modeKey = "checklist_mode"
+    private val checkedLinesKey = "checked_text_lines"
 
     private lateinit var preferences: android.content.SharedPreferences
     private lateinit var root: View
@@ -37,12 +40,15 @@ class MainActivity : Activity() {
     private var checklistMode = false
     private var rebuilding = false
     private val items = mutableListOf<NoteItem>()
+    private val checkedTextLines = mutableSetOf<Int>()
 
     private data class NoteItem(var text: String, var checked: Boolean)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawableResource(android.R.color.transparent)
+        window.statusBarColor = Color.TRANSPARENT
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         setContentView(R.layout.activity_note)
@@ -54,7 +60,7 @@ class MainActivity : Activity() {
         card.setOnClickListener { /* Consume taps inside the note card. */ }
         root.post {
             val cardParams = card.layoutParams as android.widget.FrameLayout.LayoutParams
-            cardParams.width = (root.width * 0.70f).toInt()
+            cardParams.width = (root.width * 0.90f).toInt()
             cardParams.height = (root.height * 0.70f).toInt()
             cardParams.gravity = Gravity.CENTER
             cardParams.topMargin = 0
@@ -76,6 +82,8 @@ class MainActivity : Activity() {
         checklistButton.setOnClickListener { toggleChecklist() }
 
         checklistMode = preferences.getBoolean(modeKey, false)
+        checkedTextLines.clear()
+        checkedTextLines.addAll(preferences.getStringSet(checkedLinesKey, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() })
         val saved = preferences.getString(noteKey, "").orEmpty()
         if (checklistMode) {
             parseItems(saved)
@@ -83,6 +91,7 @@ class MainActivity : Activity() {
         } else {
             freeText.setText(saved)
             showFreeText()
+            applyFreeTextCheckedStyle()
         }
 
         freeText.addTextChangedListener(object : TextWatcher {
@@ -109,26 +118,48 @@ class MainActivity : Activity() {
     private fun saveCurrentState() {
         if (!::preferences.isInitialized) return
         val value = if (checklistMode) serializeItems() else freeText.text.toString()
-        preferences.edit().putString(noteKey, value).putBoolean(modeKey, checklistMode).apply()
+        val editor = preferences.edit().putString(noteKey, value).putBoolean(modeKey, checklistMode)
+        if (checklistMode) editor.remove(checkedLinesKey)
+        else editor.putStringSet(checkedLinesKey, checkedTextLines.map { it.toString() }.toSet())
+        editor.apply()
     }
 
     private fun toggleChecklist() {
         if (!checklistMode) {
             parseItems(freeText.text.toString())
+            items.forEachIndexed { index, item -> if (index in checkedTextLines) item.checked = true }
+            checkedTextLines.clear()
             checklistMode = true
-            preferences.edit().putBoolean(modeKey, true).putString(noteKey, serializeItems()).apply()
+            preferences.edit().putBoolean(modeKey, true).putString(noteKey, serializeItems()).remove(checkedLinesKey).apply()
             showChecklist()
             focusChecklistRow(items.lastIndex)
         } else {
-            val serialized = serializeItems()
+            val plainText = items.joinToString("\n") { it.text }
+            checkedTextLines.clear()
+            items.forEachIndexed { index, item -> if (item.checked) checkedTextLines.add(index) }
             checklistMode = false
-            preferences.edit().putBoolean(modeKey, false).putString(noteKey, serialized).apply()
+            preferences.edit().putBoolean(modeKey, false).putString(noteKey, plainText)
+                .putStringSet(checkedLinesKey, checkedTextLines.map { it.toString() }.toSet()).apply()
             rebuilding = true
-            freeText.setText(serialized)
+            freeText.setText(plainText)
+            applyFreeTextCheckedStyle()
             rebuilding = false
             showFreeText()
             freeText.requestFocus()
             freeText.setSelection(freeText.length())
+        }
+    }
+
+    private fun applyFreeTextCheckedStyle() {
+        val text = freeText.text
+        if (text.isEmpty() || checkedTextLines.isEmpty()) return
+        val lines = text.toString().split("\n")
+        var offset = 0
+        lines.forEachIndexed { index, line ->
+            if (index in checkedTextLines && line.isNotEmpty()) {
+                text.setSpan(StrikethroughSpan(), offset, offset + line.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            offset += line.length + 1
         }
     }
 
