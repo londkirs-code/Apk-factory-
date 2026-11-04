@@ -228,6 +228,17 @@ public class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable s) { }
         });
 
+        lineText.setOnEditorActionListener((view, actionId, event) -> {
+            boolean enterPressed = actionId == EditorInfo.IME_ACTION_NEXT
+                    || actionId == EditorInfo.IME_ACTION_DONE
+                    || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER);
+            if (enterPressed) {
+                insertChecklistRow(index + 1);
+                return true;
+            }
+            return false;
+        });
+
         lineText.setOnKeyListener((view, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_ENTER) {
