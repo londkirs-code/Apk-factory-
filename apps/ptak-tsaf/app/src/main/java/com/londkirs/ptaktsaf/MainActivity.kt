@@ -198,7 +198,7 @@ class MainActivity : Activity() {
         itemText.setOnEditorActionListener { _, actionId, event ->
             val enter = actionId == EditorInfo.IME_ACTION_NEXT ||
                 actionId == EditorInfo.IME_ACTION_DONE ||
-                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
+                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event?.action == KeyEvent.ACTION_DOWN)
             if (enter) {
                 val cursor = itemText.selectionStart.coerceAtLeast(0)
                 val current = itemText.text.toString()
