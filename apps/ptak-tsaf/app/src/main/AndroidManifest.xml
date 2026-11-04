@@ -1,12 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <application android:allowBackup="false" android:label="פתק צף" android:icon="@drawable/ic_launcher_foreground" android:supportsRtl="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
-        <activity android:name=".MainActivity" android:excludeFromRecents="true" android:exported="true" android:launchMode="singleTop">
+    <application
+        android:allowBackup="false"
+        android:label="פתק"
+        android:icon="@drawable/ic_launcher_foreground"
+        android:supportsRtl="true"
+        android:theme="@style/NoteDialogTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service android:name=".FloatingNoteService" android:exported="false" />
     </application>
 </manifest>
