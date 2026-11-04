@@ -44,6 +44,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawableResource(android.R.color.transparent)
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         setContentView(R.layout.activity_note)
 
         root = findViewById(R.id.root)
@@ -51,6 +52,17 @@ class MainActivity : Activity() {
 
         val card = findViewById<View>(R.id.card)
         card.setOnClickListener { /* Consume taps inside the note card. */ }
+        root.post {
+            val cardParams = card.layoutParams as android.widget.FrameLayout.LayoutParams
+            cardParams.width = (root.width * 0.70f).toInt()
+            cardParams.height = (root.height * 0.70f).toInt()
+            cardParams.gravity = Gravity.CENTER
+            cardParams.topMargin = 0
+            cardParams.bottomMargin = 0
+            cardParams.marginStart = 0
+            cardParams.marginEnd = 0
+            card.layoutParams = cardParams
+        }
 
         freeText = findViewById(R.id.noteText)
         checklistScroll = findViewById(R.id.checklistScroll)
