@@ -61,7 +61,7 @@ class MainActivity : Activity() {
         root.post {
             val cardParams = card.layoutParams as android.widget.FrameLayout.LayoutParams
             cardParams.width = (root.width * 0.90f).toInt()
-            cardParams.height = (root.height * 0.70f).toInt()
+            cardParams.height = (root.height * 0.90f).toInt()
             cardParams.gravity = Gravity.CENTER
             cardParams.topMargin = 0
             cardParams.bottomMargin = 0
@@ -101,7 +101,9 @@ class MainActivity : Activity() {
                     preferences.edit().putString(noteKey, s?.toString().orEmpty()).apply()
                 }
             }
-            override fun afterTextChanged(s: Editable?) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                if (!rebuilding && !checklistMode) applyFreeTextCheckedStyle()
+            }
         })
     }
 
