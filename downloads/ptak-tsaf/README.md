@@ -1,1 +1,1 @@
-APK for ptak-tsaf, versionName 1.1, versionCode 5, built from commit e28e67c24cdf2b6201eaa056a596f7c8d8a5fdae.
+APK for ptak-tsaf, versionName 1.2, versionCode 6, built from commit 3f30cb9a1a86946e20dfb437132cb28aed757239.
