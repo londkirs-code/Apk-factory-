@@ -1,6 +1,6 @@
-source_sha=02ea484448e27c527c2f0eace1dfd258a2dc6b49
-source_commit_timestamp=1793958775
-version_code=83
-workflow_run_id=42251296276
-sha256=54357c7ef7907f9a796f92c7362f5097e099201f8b82b68117dc84e3e78cb4b2
-published_utc=2026-11-06T16:23:40Z
+source_sha=daa87fb65461980129e71ad09f7fc78f6a184c3e
+source_commit_timestamp=1793984501
+version_code=84
+workflow_run_id=42299067718
+sha256=f38d5c3bc05fa925bb664a7c95791a51a95732410e45f9d5960d23526ec6438f
+published_utc=2026-11-06T21:46:27Z
