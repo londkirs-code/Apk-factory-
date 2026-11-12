@@ -4,7 +4,7 @@ set -eo pipefail
 INPUT_APK="$1"
 OUT_DIR="$2"
 APKTOOL_JAR="$HOME/apktool_3.0.3.jar"
-JADX_BIN="$HOME/jadx/bin/jadx"
+JADX_BIN="$(find "$HOME/jadx" -type f -path "*/bin/jadx" -print -quit)"
 BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
 
 if [[ -z "$INPUT_APK" || -z "$OUT_DIR" ]]; then
