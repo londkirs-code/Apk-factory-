@@ -35,13 +35,14 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: rebuild-apktool-project-\${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
-  rebuild:
+  build-project:
     if: inputs.authorization_confirmed == true && inputs.public_artifact_confirmed == true
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -51,6 +52,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Validate source coordinates
         shell: bash
@@ -58,16 +60,13 @@ jobs:
           SOURCE_REPOSITORY: \${{ inputs.source_repository }}
           SOURCE_REF: \${{ inputs.source_ref }}
           PROJECT_PATH: \${{ inputs.project_path }}
-          EXPECTED_CERT: \${{ inputs.original_cert_sha256 }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::Repository must be owner/name."; exit 1; }
           [[ "$SOURCE_REF" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "::error::Invalid source ref."; exit 1; }
-          [[ "$PROJECT_PATH" != /* && "$PROJECT_PATH" != *".."* ]] || { echo "::error::Project path must be relative and must not contain '..'."; exit 1; }
-          if [[ -n "$EXPECTED_CERT" && ! "$EXPECTED_CERT" =~ ^([A-Fa-f0-9]{64}|([A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2})$ ]]; then
-            echo "::error::Certificate fingerprint must be 64 hexadecimal characters, optionally colon-separated."
-            exit 1
-          fi
+          [[ "$PROJECT_PATH" =~ ^[A-Za-z0-9_./-]+$ && "$PROJECT_PATH" != /* && "$PROJECT_PATH" != *".."* ]] || {
+            echo "::error::Project path must be a safe relative path."; exit 1;
+          }
 
       - name: Checkout edited Apktool project
         uses: actions/checkout@v4
@@ -119,6 +118,60 @@ jobs:
           echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/apktool_3.0.3.jar" | sha256sum --check
           java -jar "$HOME/apktool_3.0.3.jar" --version
 
+      - name: Increment versionCode and rebuild unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          bash tools/reverse-engineering/rebuild-apktool-project.sh "$PROJECT_DIR" export
+          test -s export/reconstructed-aligned-unsigned.apk
+          cp export/reconstructed-aligned-unsigned.apk export/reconstructed-aligned-unsigned.apk
+          sha256sum export/reconstructed-aligned-unsigned.apk
+
+      - name: Pass unsigned APK to isolated signing job
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconstructed-apk-unsigned-internal
+          path: |
+            export/reconstructed-aligned-unsigned.apk
+            export/analysis/
+            export/logs/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  sign-apk:
+    needs: build-project
+    if: needs.build-project.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download unsigned APK from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: reconstructed-apk-unsigned-internal
+          path: incoming
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android signing tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "build-tools;36.0.0"
+          test -s incoming/reconstructed-aligned-unsigned.apk
+          unzip -t incoming/reconstructed-aligned-unsigned.apk >/dev/null
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging incoming/reconstructed-aligned-unsigned.apk > incoming/badging.txt
+          grep -m1 "^package:" incoming/badging.txt
+
       - name: Validate and prepare existing APK Factory signing key
         shell: bash
         env:
@@ -149,45 +202,46 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "Existing APK Factory signing key validated."
 
-      - name: Increment versionCode, rebuild, align and sign
-        id: build
+      - name: Sign, verify and compare certificate
+        id: sign
         shell: bash
         env:
           EXPECTED_CERT: \${{ inputs.original_cert_sha256 }}
         run: |
           set -euo pipefail
-          mkdir -p export
-          bash tools/reverse-engineering/rebuild-apktool-project.sh "$PROJECT_DIR" export
-          SIGNED="export/outputs/reconstructed-apkfactory-signed.apk"
-          test -s "$SIGNED"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED" > export/signature.txt
-          ACTUAL_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' export/signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          SIGNED="incoming/reconstructed.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$APK_FACTORY_KEYSTORE" --ks-key-alias "$APK_FACTORY_KEY_ALIAS" \
+            --ks-pass env:APK_FACTORY_STORE_PASSWORD --key-pass env:APK_FACTORY_KEY_PASSWORD \
+            --out "$SIGNED" incoming/reconstructed-aligned-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED" > incoming/signature.txt
+          ACTUAL_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' incoming/signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
           EXPECTED_CERT="$(printf '%s' "$EXPECTED_CERT" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          if [[ -n "$EXPECTED_CERT" && "$ACTUAL_CERT" != "$EXPECTED_CERT" ]]; then
-            echo "update_compatible=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::The rebuilt APK signer differs from the supplied original certificate. Android will not install it as an update over that installation."
+          if [[ -n "$EXPECTED_CERT" && "$ACTUAL_CERT" == "$EXPECTED_CERT" ]]; then
+            COMPATIBILITY="true"
           elif [[ -n "$EXPECTED_CERT" ]]; then
-            echo "update_compatible=true" >> "$GITHUB_OUTPUT"
+            COMPATIBILITY="false"
+            echo "::warning::Signer differs from the supplied installed-app certificate. Android will reject this as an in-place update."
           else
-            echo "update_compatible=not-verified" >> "$GITHUB_OUTPUT"
+            COMPATIBILITY="not-verified"
             echo "::warning::No original certificate fingerprint was supplied; update compatibility is unverified."
           fi
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$SIGNED" > export/badging.txt
-          grep -m1 "^package:" export/badging.txt
-          cp "$SIGNED" export/reconstructed.apk
-          sha256sum export/reconstructed.apk | tee export/SHA256SUMS.txt
+          echo "update_compatible=$COMPATIBILITY" >> "$GITHUB_OUTPUT"
           echo "certificate=$ACTUAL_CERT" >> "$GITHUB_OUTPUT"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$SIGNED" > incoming/badging.txt
+          sha256sum "$SIGNED" > incoming/SHA256SUMS.txt
 
-      - name: Upload signed reconstructed APK
+      - name: Upload verified signed APK
         uses: actions/upload-artifact@v4
         with:
           name: reconstructed-signed-apk
           path: |
-            export/reconstructed.apk
-            export/signature.txt
-            export/badging.txt
-            export/SHA256SUMS.txt
-            export/logs/
+            incoming/reconstructed.apk
+            incoming/signature.txt
+            incoming/badging.txt
+            incoming/SHA256SUMS.txt
+            incoming/analysis/
+            incoming/logs/
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -198,7 +252,7 @@ jobs:
         env:
           STATUS: \${{ job.status }}
           RUN_URL: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
-          UPDATE_COMPATIBLE: \${{ steps.build.outputs.update_compatible }}
+          UPDATE_COMPATIBLE: \${{ steps.sign.outputs.update_compatible }}
         with:
           script: |
             const ok = process.env.STATUS === 'success';
