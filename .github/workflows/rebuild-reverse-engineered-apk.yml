@@ -171,6 +171,7 @@ jobs:
     if: needs.build-project.result == 'success'
     permissions:
       contents: read
+      actions: read
       issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
