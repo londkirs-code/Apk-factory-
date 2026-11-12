@@ -1,0 +1,291 @@
+name: Reverse Engineer Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: "Direct HTTPS URL to one complete APK"
+        required: true
+        type: string
+      project_slug:
+        description: "Safe output folder name"
+        required: true
+        default: "reconstructed-app"
+        type: string
+      authorization_confirmed:
+        description: "I own this APK or have explicit permission to analyze and modify it"
+        required: true
+        default: false
+        type: boolean
+      public_artifact_confirmed:
+        description: "I understand this public repository's artifact is publicly downloadable"
+        required: true
+        default: false
+        type: boolean
+      run_mobsf:
+        description: "Run optional MobSF static security analysis (downloads a large Docker image)"
+        required: false
+        default: false
+        type: boolean
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: reverse-engineer-apk-\${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  reverse-engineer:
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.authorization_confirmed == true &&
+       inputs.public_artifact_confirmed == true) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 1 &&
+       github.event.comment.user.login == 'londkirs-code' &&
+       startsWith(github.event.comment.body, '/reverse-engineer-authorized https://'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout APK Factory
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Parse and validate request
+        id: request
+        shell: bash
+        env:
+          EVENT_NAME: \${{ github.event_name }}
+          INPUT_APK_URL: \${{ inputs.apk_url }}
+          INPUT_PROJECT_SLUG: \${{ inputs.project_slug }}
+          COMMENT_BODY: \${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            APK_URL="$INPUT_APK_URL"
+            PROJECT_SLUG="$INPUT_PROJECT_SLUG"
+          else
+            read -r COMMAND APK_URL PROJECT_SLUG EXTRA <<< "$COMMENT_BODY"
+            [[ "$COMMAND" == "/reverse-engineer-authorized" && -z "$EXTRA" ]] || {
+              echo "::error::Use: /reverse-engineer-authorized https://.../app.apk [project-slug]"
+              exit 1
+            }
+            if [[ -z "$PROJECT_SLUG" ]]; then PROJECT_SLUG="reconstructed-app"; fi
+          fi
+          python3 - "$APK_URL" "$PROJECT_SLUG" <<'PY'
+          import re,sys
+          from urllib.parse import urlparse
+          u=urlparse(sys.argv[1])
+          if u.scheme!="https" or not u.hostname or u.username or u.password:
+              raise SystemExit("APK URL must be HTTPS and must not embed credentials")
+          if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}",sys.argv[2]):
+              raise SystemExit("Project slug must be 1-40 letters, digits, underscores or hyphens")
+          PY
+          echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
+          echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
+          echo "Request validated. Project slug: $PROJECT_SLUG"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and build-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;36.0.0"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/zipalign"
+
+      - name: Install pinned Apktool and JADX
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar" \
+            --output "$HOME/apktool_3.0.3.jar"
+          echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/apktool_3.0.3.jar" | sha256sum --check
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip" \
+            --output "$RUNNER_TEMP/jadx-1.5.6.zip"
+          mkdir -p "$HOME/jadx"
+          unzip -q "$RUNNER_TEMP/jadx-1.5.6.zip" -d "$HOME/jadx"
+          chmod +x "$HOME/jadx/bin/jadx"
+          java -jar "$HOME/apktool_3.0.3.jar" --version
+          "$HOME/jadx/bin/jadx" --version
+
+      - name: Prepare existing APK Factory signing key when configured
+        shell: bash
+        env:
+          APK_SIGNING_KEY_BASE64: \${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: \${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: \${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: \${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$APK_SIGNING_KEY_BASE64" || -z "$APK_SIGNING_STORE_PASSWORD" ||
+                -z "$APK_SIGNING_KEY_ALIAS" || -z "$APK_SIGNING_KEY_PASSWORD" ]]; then
+            echo "APK Factory key is unavailable; a rebuilt APK will be kept unsigned."
+            {
+              echo "APK_FACTORY_KEYSTORE="
+              echo "APK_FACTORY_KEY_ALIAS="
+              echo "APK_FACTORY_STORE_PASSWORD="
+              echo "APK_FACTORY_KEY_PASSWORD="
+            } >> "$GITHUB_ENV"
+            exit 0
+          fi
+          KEYSTORE="$RUNNER_TEMP/apk-factory-release.jks"
+          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$KEYSTORE"
+          APK_SIGNING_KEY_ALIAS="$(printf '%s' "$APK_SIGNING_KEY_ALIAS" | tr -d '[:space:]')"
+          keytool -list -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" \
+            -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
+          {
+            echo "APK_FACTORY_KEYSTORE=$KEYSTORE"
+            echo "APK_FACTORY_KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
+            echo "APK_FACTORY_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+            echo "APK_FACTORY_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Existing APK Factory key validated; no key was generated or changed."
+
+      - name: Download and validate source APK
+        shell: bash
+        env:
+          APK_URL: \${{ steps.request.outputs.apk_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p input
+          curl --fail --location --silent --show-error --retry 3 \
+            --proto '=https' --proto-redir '=https' --max-filesize 536870912 \
+            --connect-timeout 20 --max-time 300 "$APK_URL" --output input/source.apk
+          test -s input/source.apk
+          stat -c 'Downloaded APK size: %s bytes' input/source.apk
+          sha256sum input/source.apk
+
+      - name: Run Apktool and JADX reconstruction
+        shell: bash
+        env:
+          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+        run: |
+          set -euo pipefail
+          bash tools/reverse-engineering/reverse-engineer-apk.sh \
+            input/source.apk "reverse-output/$PROJECT_SLUG"
+
+      - name: Try compiling JADX Gradle export
+        id: jadx_build
+        shell: bash
+        env:
+          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+        run: |
+          set -euo pipefail
+          ROOT="reverse-output/$PROJECT_SLUG/jadx-gradle-export"
+          mkdir -p "reverse-output/$PROJECT_SLUG/logs"
+          PROJECT_DIR=""
+          if [[ -d "$ROOT" ]]; then
+            PROJECT_DIR="$(find "$ROOT" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -printf '%h\n' | head -n1 || true)"
+            if [[ -z "$PROJECT_DIR" ]]; then
+              PROJECT_DIR="$(find "$ROOT" -type f \( -name build.gradle -o -name build.gradle.kts \) -printf '%h\n' | head -n1 || true)"
+            fi
+          fi
+          STATUS="no-gradle-project-exported"
+          if [[ -n "$PROJECT_DIR" ]]; then
+            cd "$PROJECT_DIR"
+            if [[ -x ./gradlew ]]; then
+              set +e
+              ./gradlew --no-daemon --stacktrace assembleDebug > "$GITHUB_WORKSPACE/reverse-output/$PROJECT_SLUG/logs/jadx-gradle-build.log" 2>&1
+              EXIT_CODE=$?
+              set -e
+            else
+              set +e
+              gradle --no-daemon --stacktrace assembleDebug > "$GITHUB_WORKSPACE/reverse-output/$PROJECT_SLUG/logs/jadx-gradle-build.log" 2>&1
+              EXIT_CODE=$?
+              set -e
+            fi
+            if [[ "$EXIT_CODE" -eq 0 ]]; then
+              STATUS="success"
+              find . -type f -path '*/build/outputs/apk/*/*.apk' -exec cp {} "$GITHUB_WORKSPACE/reverse-output/$PROJECT_SLUG/outputs/jadx-gradle-build.apk" \; -quit
+            else
+              STATUS="failed-exit-$EXIT_CODE"
+            fi
+          fi
+          echo "$STATUS" > "$GITHUB_WORKSPACE/reverse-output/$PROJECT_SLUG/analysis/jadx-gradle-build-status.txt"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "JADX Gradle build result: $STATUS"
+
+      - name: Optional MobSF static analysis
+        if: inputs.run_mobsf == true && github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        shell: bash
+        env:
+          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+        run: |
+          set -euo pipefail
+          MOBSF_API_KEY="$(openssl rand -hex 32)"
+          docker run -d --name apkfactory-mobsf -p 8000:8000 \
+            -e MOBSF_API_KEY="$MOBSF_API_KEY" \
+            opensecurity/mobile-security-framework-mobsf:v4.6.4
+          trap 'docker rm -f apkfactory-mobsf >/dev/null 2>&1 || true' EXIT
+          READY=false
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail http://127.0.0.1:8000/ >/dev/null; then READY=true; break; fi
+            sleep 5
+          done
+          [[ "$READY" == true ]] || { docker logs apkfactory-mobsf; exit 1; }
+          UPLOAD="$(curl --fail --silent --show-error -F "file=@input/source.apk" \
+            -H "Authorization: $MOBSF_API_KEY" http://127.0.0.1:8000/api/v1/upload)"
+          HASH="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["hash"])' <<< "$UPLOAD")"
+          curl --fail --silent --show-error -X POST --data "hash=$HASH" \
+            -H "Authorization: $MOBSF_API_KEY" http://127.0.0.1:8000/api/v1/scan \
+            > "reverse-output/$PROJECT_SLUG/analysis/mobsf-scan-start.json"
+          curl --fail --silent --show-error -X POST --data "hash=$HASH" \
+            -H "Authorization: $MOBSF_API_KEY" http://127.0.0.1:8000/api/v1/report_json \
+            > "reverse-output/$PROJECT_SLUG/analysis/mobsf-report.json"
+          echo "MobSF static analysis report saved."
+
+      - name: Upload reconstructed workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-reverse-engineering-\${{ steps.request.outputs.project_slug }}
+          path: reverse-output/\${{ steps.request.outputs.project_slug }}/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 14
+
+      - name: Notify APK Factory issue subscribers
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          STATUS: \${{ job.status }}
+          RUN_URL: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
+          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+        with:
+          script: |
+            const issueNumber = context.eventName === 'issue_comment' ? context.issue.number : 1;
+            const ok = process.env.STATUS === 'success';
+            const slug = process.env.PROJECT_SLUG || 'reconstructed-app';
+            const body = [
+              ok ? '## APK Reverse Engineering — התהליך הסתיים' : '## APK Reverse Engineering — התהליך נכשל',
+              '',
+              'פרויקט: ' + slug,
+              ok ? 'נוצר Workspace עם פרויקט Apktool, ייצוא JADX, דוחות ולוגים.' : 'לא נוצר תוצר מלא. יש לפתוח את הלוגים ולבדוק את השלב הראשון שנכשל.',
+              '',
+              'הקבצים זמינים ב־Artifacts של ריצת Actions:',
+              process.env.RUN_URL,
+              '',
+              'לתשומת לב: המאגר ציבורי; Artifact שנוצר כאן נגיש למי שיכול לצפות בריצת Actions.'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: issueNumber, body
+            });
