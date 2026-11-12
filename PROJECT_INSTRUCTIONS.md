@@ -48,3 +48,19 @@
 3. הקובץ `downloads/<App>.apk` קיים ב־main של GitHub.
 4. קובץ ה־metadata נקרא מחדש מ־main, ו־`workflow_run_id`, `source_sha`, `version_code` ו־`sha256` תואמים לריצה הנוכחית ולתוצר שפורסם.
 5. רק אז למסור את הקישור הישיר ואת קישור הריצה. אם אחד מהתנאים לא מתקיים, לומר במפורש מה לא אומת ולא להציג קישור ישן כאילו עודכן.
+
+
+## APK Reverse Engineering Studio
+
+For an APK the user owns or is explicitly authorized to modify, use the two dedicated workflows and read the skill before editing:
+- Decompile/analyze: .github/workflows/reverse-engineer-apk.yml
+- Rebuild an edited Apktool project: .github/workflows/build-reconstructed-apk.yml
+- Tool implementation: tools/reverse-engineering/
+- User guide: docs/APK_REVERSE_ENGINEERING.md
+- AI procedure: skills/reverse-engineer-apk/SKILL.md
+
+The reverse workflow uses pinned Apktool and JADX, outputs editable Smali/resources plus best-effort Java/Gradle source, extracts native libraries, and stores logs/reports. The separate rebuild workflow increments versionCode, assembles and aligns an edited Apktool project, then signs it with the existing APK Factory key in a dedicated downstream job. Never generate/rotate the signing key or give signing secrets to the APK parsing/decompilation/build job.
+
+Run only against APKs the user owns or has explicit permission to modify. Do not remove DRM, license checks, authentication or other access controls. The repo is public: Actions artifacts include reconstructed source/resources and a copy of the APK and are publicly downloadable to people who can view the run. Never place confidential/proprietary APKs in this public repository; use a private copy for private work.
+
+Do not promise complete original-source recovery. JADX is a best-effort decompiler; Apktool produces Smali/resources; Native .so files need separate tools such as Ghidra. A package build does not prove runtime correctness. Verify the actual run, artifact, package name, incremented versionCode, output signature and signer comparison before describing an APK as ready. Do not claim an update can overwrite an installed app unless package ID and signing certificate are compatible. Device runtime testing must be reported separately.
