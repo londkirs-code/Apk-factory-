@@ -1,0 +1,216 @@
+name: Build Reconstructed APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: "GitHub repository containing your edited Apktool project (owner/name)"
+        required: true
+        default: "londkirs-code/Apk-factory-"
+        type: string
+      source_ref:
+        description: "Branch, tag or commit containing the project"
+        required: true
+        default: "main"
+        type: string
+      project_path:
+        description: "Folder containing apktool.yml and AndroidManifest.xml"
+        required: true
+        default: "reverse-project/apktool-project"
+        type: string
+      original_cert_sha256:
+        description: "Optional SHA-256 signer fingerprint of the installed APK, without colons"
+        required: false
+        type: string
+      authorization_confirmed:
+        description: "I own this app or have explicit permission to modify and rebuild it"
+        required: true
+        default: false
+        type: boolean
+      public_artifact_confirmed:
+        description: "I understand this public repository's built APK artifact is publicly downloadable"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rebuild-apktool-project-\${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    if: inputs.authorization_confirmed == true && inputs.public_artifact_confirmed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout APK Factory
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Validate source coordinates
+        shell: bash
+        env:
+          SOURCE_REPOSITORY: \${{ inputs.source_repository }}
+          SOURCE_REF: \${{ inputs.source_ref }}
+          PROJECT_PATH: \${{ inputs.project_path }}
+          EXPECTED_CERT: \${{ inputs.original_cert_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::Repository must be owner/name."; exit 1; }
+          [[ "$SOURCE_REF" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "::error::Invalid source ref."; exit 1; }
+          [[ "$PROJECT_PATH" != /* && "$PROJECT_PATH" != *".."* ]] || { echo "::error::Project path must be relative and must not contain '..'."; exit 1; }
+          if [[ -n "$EXPECTED_CERT" && ! "$EXPECTED_CERT" =~ ^([A-Fa-f0-9]{64}|([A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2})$ ]]; then
+            echo "::error::Certificate fingerprint must be 64 hexadecimal characters, optionally colon-separated."
+            exit 1
+          fi
+
+      - name: Checkout edited Apktool project
+        uses: actions/checkout@v4
+        with:
+          repository: \${{ inputs.source_repository }}
+          ref: \${{ inputs.source_ref }}
+          token: \${{ secrets.SOURCE_REPO_TOKEN || github.token }}
+          path: edited-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify project directory
+        shell: bash
+        env:
+          PROJECT_PATH: \${{ inputs.project_path }}
+        run: |
+          set -euo pipefail
+          PROJECT="$GITHUB_WORKSPACE/edited-source/$PROJECT_PATH"
+          [[ -d "$PROJECT" ]] || { echo "::error::Project folder does not exist."; exit 1; }
+          [[ -s "$PROJECT/apktool.yml" && -s "$PROJECT/AndroidManifest.xml" ]] || {
+            echo "::error::Expected apktool.yml and AndroidManifest.xml in project folder."
+            exit 1
+          }
+          echo "PROJECT_DIR=$PROJECT" >> "$GITHUB_ENV"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;36.0.0"
+
+      - name: Install and verify pinned Apktool
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar" \
+            --output "$HOME/apktool_3.0.3.jar"
+          echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/apktool_3.0.3.jar" | sha256sum --check
+          java -jar "$HOME/apktool_3.0.3.jar" --version
+
+      - name: Validate and prepare existing APK Factory signing key
+        shell: bash
+        env:
+          APK_SIGNING_KEY_BASE64: \${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: \${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: \${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: \${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$APK_SIGNING_KEY_BASE64" ]] || missing+=("APK_SIGNING_KEY_BASE64")
+          [[ -n "$APK_SIGNING_STORE_PASSWORD" ]] || missing+=("APK_SIGNING_STORE_PASSWORD")
+          [[ -n "$APK_SIGNING_KEY_ALIAS" ]] || missing+=("APK_SIGNING_KEY_ALIAS")
+          [[ -n "$APK_SIGNING_KEY_PASSWORD" ]] || missing+=("APK_SIGNING_KEY_PASSWORD")
+          if (( \${#missing[@]} > 0 )); then
+            echo "::error::Missing required existing APK Factory signing secret(s): \${missing[*]}"
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/apk-factory-release.jks"
+          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$KEYSTORE"
+          ALIAS="$(printf '%s' "$APK_SIGNING_KEY_ALIAS" | tr -d '[:space:]')"
+          keytool -list -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$ALIAS" >/dev/null
+          {
+            echo "APK_FACTORY_KEYSTORE=$KEYSTORE"
+            echo "APK_FACTORY_KEY_ALIAS=$ALIAS"
+            echo "APK_FACTORY_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+            echo "APK_FACTORY_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Existing APK Factory signing key validated."
+
+      - name: Increment versionCode, rebuild, align and sign
+        id: build
+        shell: bash
+        env:
+          EXPECTED_CERT: \${{ inputs.original_cert_sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          bash tools/reverse-engineering/rebuild-apktool-project.sh "$PROJECT_DIR" export
+          SIGNED="export/outputs/reconstructed-apkfactory-signed.apk"
+          test -s "$SIGNED"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED" > export/signature.txt
+          ACTUAL_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' export/signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_CERT="$(printf '%s' "$EXPECTED_CERT" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [[ -n "$EXPECTED_CERT" && "$ACTUAL_CERT" != "$EXPECTED_CERT" ]]; then
+            echo "update_compatible=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::The rebuilt APK signer differs from the supplied original certificate. Android will not install it as an update over that installation."
+          elif [[ -n "$EXPECTED_CERT" ]]; then
+            echo "update_compatible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "update_compatible=not-verified" >> "$GITHUB_OUTPUT"
+            echo "::warning::No original certificate fingerprint was supplied; update compatibility is unverified."
+          fi
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$SIGNED" > export/badging.txt
+          grep -m1 "^package:" export/badging.txt
+          cp "$SIGNED" export/reconstructed.apk
+          sha256sum export/reconstructed.apk | tee export/SHA256SUMS.txt
+          echo "certificate=$ACTUAL_CERT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload signed reconstructed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconstructed-signed-apk
+          path: |
+            export/reconstructed.apk
+            export/signature.txt
+            export/badging.txt
+            export/SHA256SUMS.txt
+            export/logs/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Notify APK Factory issue subscribers
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          STATUS: \${{ job.status }}
+          RUN_URL: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
+          UPDATE_COMPATIBLE: \${{ steps.build.outputs.update_compatible }}
+        with:
+          script: |
+            const ok = process.env.STATUS === 'success';
+            const compatibility = process.env.UPDATE_COMPATIBLE || 'not available';
+            const body = [
+              ok ? '## APK rebuild — הושלם' : '## APK rebuild — נכשל',
+              '',
+              ok ? 'נבנה APK חתום במפתח הקבוע של APK Factory.' : 'לא פורסם APK חדש; יש לבדוק את הלוגים.',
+              'תאימות לעדכון מול חתימת המקור: ' + compatibility,
+              '',
+              process.env.RUN_URL,
+              '',
+              'הקובץ זמין ב־Artifacts. המאגר ציבורי ולכן גם ה־Artifact נגיש למי שיכול לצפות בריצת Actions.'
+            ].join('\n');
+            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: 1, body });
