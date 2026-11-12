@@ -72,3 +72,8 @@ Private source checkout is supported with SOURCE_REPO_TOKEN, but it does not mak
 - A decoded project that round-trips successfully can still crash or behave differently. Review the build logs and test the resulting APK on a device/emulator.
 - Use the first failing log under logs/ to diagnose errors. For missing vendor framework resources, install the appropriate framework package before decoding/building again.
 - Respect the app's license, terms, access controls and applicable law. This workflow is intended for apps you own or have explicit permission to analyze and modify; it does not attempt to remove DRM, licensing checks, authentication or other access controls.
+
+
+## AI integration boundary
+
+The GitHub Actions workflows execute the deterministic APK decompilation, Gradle export attempt, Apktool rebuild, optional MobSF static analysis, and artifact packaging. They do not call an LLM or provide an embedded autonomous AI chat/editor by themselves. AI-assisted code understanding and requested source edits are performed by an AI assistant that reads the exported artifact/project and then commits targeted changes; no model API key is required by these workflows. Adding a persistent in-product AI agent would require a separately configured model/provider and private credential handling.
