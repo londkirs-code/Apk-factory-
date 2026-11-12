@@ -18,6 +18,7 @@ Use APK Factory's reverse-engineering workflows to turn an APK the user owns or 
    - Use jadx-gradle-export/ to understand class names, control flow, method calls and likely behavior.
    - Use apktool-project/ as the editable source of truth for manifest, resources, assets and Smali.
    - Inspect native-libs/ separately when native code matters. Do not claim that .so files were converted to C/C++.
+   - Inspect analysis/jadx-ninepatch-repair.json; the reverse workflow repairs matching Nine-Patch images in the JADX export from Apktool resources before attempting Gradle compilation.
    - Record which parts decoded, which were reconstructed, and what failed.
 5. **Choose the narrowest edit route.**
    - Prefer a resource/manifest edit for UI text, icons, theme resources or manifest metadata.
