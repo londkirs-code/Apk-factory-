@@ -11,14 +11,11 @@ mkdir -p "$OUT_DIR"/{logs,outputs,analysis}
   echo "::error::This is not a decoded Apktool project."; exit 1;
 }
 [[ -s "$APKTOOL_JAR" ]] || { echo "::error::Pinned Apktool JAR is missing."; exit 1; }
-[[ -x "$BUILD_TOOLS/apksigner" && -x "$BUILD_TOOLS/zipalign" && -x "$BUILD_TOOLS/aapt" ]] || {
+[[ -x "$BUILD_TOOLS/zipalign" && -x "$BUILD_TOOLS/aapt" ]] || {
   echo "::error::Android build-tools are missing."; exit 1;
 }
-[[ -s "$APK_FACTORY_KEYSTORE" ]] || {
-  echo "::error::APK Factory signing key was not configured; refusing to publish an unsigned release."; exit 1;
-}
 
-# Increase versionCode in the editable copy so Android does not treat the rebuilt APK as a downgrade.
+# Build in a disposable checkout and increment versionCode, keeping the user's source untouched.
 python3 - "$PROJECT_DIR/apktool.yml" "$PROJECT_DIR/AndroidManifest.xml" "$OUT_DIR/analysis/version-code.txt" <<'PY'
 import re,sys
 from pathlib import Path
@@ -49,20 +46,15 @@ PY
 
 UNSIGNED="$OUT_DIR/outputs/reconstructed-unsigned.apk"
 ALIGNED="$OUT_DIR/outputs/reconstructed-aligned-unsigned.apk"
-SIGNED="$OUT_DIR/outputs/reconstructed-apkfactory-signed.apk"
 java -jar "$APKTOOL_JAR" b "$PROJECT_DIR" -o "$UNSIGNED" 2>&1 | tee "$OUT_DIR/logs/apktool-build.log"
 test -s "$UNSIGNED"
 "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
-"$BUILD_TOOLS/apksigner" sign --ks "$APK_FACTORY_KEYSTORE" --ks-key-alias "$APK_FACTORY_KEY_ALIAS" \
-  --ks-pass env:APK_FACTORY_STORE_PASSWORD --key-pass env:APK_FACTORY_KEY_PASSWORD \
-  --out "$SIGNED" "$ALIGNED" 2>&1 | tee "$OUT_DIR/logs/apksigner.log"
-test -s "$SIGNED"
-"$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$SIGNED" | tee "$OUT_DIR/analysis/output-signature.txt"
-"$BUILD_TOOLS/aapt" dump badging "$SIGNED" > "$OUT_DIR/analysis/aapt-badging.txt"
+"$BUILD_TOOLS/aapt" dump badging "$ALIGNED" > "$OUT_DIR/analysis/aapt-badging.txt"
 EXPECTED_VERSION="$(sed -n 's/^new_versionCode=//p' "$OUT_DIR/analysis/version-code.txt")"
 ACTUAL_VERSION="$(sed -n "s/.*versionCode='\([0-9][0-9]*\)'.*/\1/p" "$OUT_DIR/analysis/aapt-badging.txt" | head -n1)"
 [[ "$ACTUAL_VERSION" == "$EXPECTED_VERSION" ]] || {
   echo "::error::Built APK versionCode ($ACTUAL_VERSION) does not match incremented value ($EXPECTED_VERSION)."; exit 1;
 }
-sha256sum "$SIGNED" | tee "$OUT_DIR/analysis/SHA256SUMS.txt"
-echo "Build, versionCode increment, alignment and APK Factory signing completed."
+sha256sum "$ALIGNED" | tee "$OUT_DIR/analysis/SHA256SUMS.txt"
+cp "$ALIGNED" "$OUT_DIR/reconstructed-aligned-unsigned.apk"
+echo "Apktool build, versionCode increment, manifest validation and zip alignment completed."
