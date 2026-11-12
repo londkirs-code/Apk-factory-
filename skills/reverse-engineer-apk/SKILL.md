@@ -57,3 +57,12 @@ Always explain that JADX cannot fully reconstruct original source, Apktool outpu
 ## AI integration boundary
 
 These workflows produce and validate the reconstruction artifacts; they do not themselves call an LLM or include an autonomous AI chat/editor in the APK Factory app. The AI assistant must inspect the downloaded workspace, implement the requested targeted changes, and commit the edited project before the rebuild workflow. No model API key is consumed by the current workflows.
+
+
+## Rebuild directly from a reverse-engineering Artifact
+
+When the edited Apktool project remains in the workspace artifact and no source-repository commit is needed, use **Rebuild and Sign Reverse-Engineered APK**. Provide the successful reverse-engineering RUN_ID, exact PROJECT_SLUG, and original certificate fingerprint from analysis/input-signature.txt. Owner-triggered issue #1 command:
+
+    /rebuild-reconstructed-authorized RUN_ID PROJECT_SLUG ORIGINAL_CERT_SHA256
+
+The build workflow downloads the prior run artifact, copies apktool-project into a temporary workspace, increments versionCode, rebuilds and zipaligns it, then passes the unsigned APK to a separate signing job that uses the existing APK Factory key. Confirm the final artifact and apksigner report. Never call a build update-compatible unless the signer fingerprint matches the original and package ID is unchanged.

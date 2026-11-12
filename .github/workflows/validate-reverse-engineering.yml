@@ -8,6 +8,7 @@ on:
       - "tools/reverse-engineering/**"
       - ".github/workflows/reverse-engineer-apk.yml"
       - ".github/workflows/build-reconstructed-apk.yml"
+      - ".github/workflows/rebuild-reverse-engineered-apk.yml"
       - ".github/workflows/validate-reverse-engineering.yml"
       - "docs/APK_REVERSE_ENGINEERING.md"
       - "skills/reverse-engineer-apk/**"
@@ -19,6 +20,7 @@ on:
       - "tools/reverse-engineering/**"
       - ".github/workflows/reverse-engineer-apk.yml"
       - ".github/workflows/build-reconstructed-apk.yml"
+      - ".github/workflows/rebuild-reverse-engineered-apk.yml"
       - ".github/workflows/validate-reverse-engineering.yml"
       - "docs/APK_REVERSE_ENGINEERING.md"
       - "skills/reverse-engineer-apk/**"
@@ -74,4 +76,5 @@ jobs:
           actionlint \
             .github/workflows/reverse-engineer-apk.yml \
             .github/workflows/build-reconstructed-apk.yml \
+            .github/workflows/rebuild-reverse-engineered-apk.yml \
             .github/workflows/validate-reverse-engineering.yml
