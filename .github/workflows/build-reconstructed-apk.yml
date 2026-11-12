@@ -35,10 +35,9 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
-  group: rebuild-apktool-project-\${{ github.run_id }}
+  group: rebuild-apktool-project-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -57,9 +56,9 @@ jobs:
       - name: Validate source coordinates
         shell: bash
         env:
-          SOURCE_REPOSITORY: \${{ inputs.source_repository }}
-          SOURCE_REF: \${{ inputs.source_ref }}
-          PROJECT_PATH: \${{ inputs.project_path }}
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          PROJECT_PATH: ${{ inputs.project_path }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::Repository must be owner/name."; exit 1; }
@@ -71,9 +70,9 @@ jobs:
       - name: Checkout edited Apktool project
         uses: actions/checkout@v4
         with:
-          repository: \${{ inputs.source_repository }}
-          ref: \${{ inputs.source_ref }}
-          token: \${{ secrets.SOURCE_REPO_TOKEN || github.token }}
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_ref }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN || github.token }}
           path: edited-source
           fetch-depth: 1
           persist-credentials: false
@@ -81,7 +80,7 @@ jobs:
       - name: Verify project directory
         shell: bash
         env:
-          PROJECT_PATH: \${{ inputs.project_path }}
+          PROJECT_PATH: ${{ inputs.project_path }}
         run: |
           set -euo pipefail
           PROJECT="$GITHUB_WORKSPACE/edited-source/$PROJECT_PATH"
@@ -140,6 +139,9 @@ jobs:
           retention-days: 1
 
   sign-apk:
+    permissions:
+      contents: read
+      issues: write
     needs: build-project
     if: needs.build-project.result == 'success'
     runs-on: ubuntu-latest
@@ -174,19 +176,15 @@ jobs:
       - name: Validate and prepare existing APK Factory signing key
         shell: bash
         env:
-          APK_SIGNING_KEY_BASE64: \${{ secrets.APK_SIGNING_KEY_BASE64 }}
-          APK_SIGNING_STORE_PASSWORD: \${{ secrets.APK_SIGNING_STORE_PASSWORD }}
-          APK_SIGNING_KEY_ALIAS: \${{ secrets.APK_SIGNING_KEY_ALIAS }}
-          APK_SIGNING_KEY_PASSWORD: \${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          missing=()
-          [[ -n "$APK_SIGNING_KEY_BASE64" ]] || missing+=("APK_SIGNING_KEY_BASE64")
-          [[ -n "$APK_SIGNING_STORE_PASSWORD" ]] || missing+=("APK_SIGNING_STORE_PASSWORD")
-          [[ -n "$APK_SIGNING_KEY_ALIAS" ]] || missing+=("APK_SIGNING_KEY_ALIAS")
-          [[ -n "$APK_SIGNING_KEY_PASSWORD" ]] || missing+=("APK_SIGNING_KEY_PASSWORD")
-          if (( \${#missing[@]} > 0 )); then
-            echo "::error::Missing required existing APK Factory signing secret(s): \${missing[*]}"
+          if [[ -z "$APK_SIGNING_KEY_BASE64" || -z "$APK_SIGNING_STORE_PASSWORD" ||
+                -z "$APK_SIGNING_KEY_ALIAS" || -z "$APK_SIGNING_KEY_PASSWORD" ]]; then
+            echo "::error::Missing one or more required existing APK Factory signing secrets."
             exit 1
           fi
           KEYSTORE="$RUNNER_TEMP/apk-factory-release.jks"
@@ -205,7 +203,7 @@ jobs:
         id: sign
         shell: bash
         env:
-          EXPECTED_CERT: \${{ inputs.original_cert_sha256 }}
+          EXPECTED_CERT: ${{ inputs.original_cert_sha256 }}
         run: |
           set -euo pipefail
           SIGNED="incoming/reconstructed.apk"
@@ -249,9 +247,9 @@ jobs:
         if: always()
         uses: actions/github-script@v7
         env:
-          STATUS: \${{ job.status }}
-          RUN_URL: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
-          UPDATE_COMPATIBLE: \${{ steps.sign.outputs.update_compatible }}
+          STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          UPDATE_COMPATIBLE: ${{ steps.sign.outputs.update_compatible }}
         with:
           script: |
             const ok = process.env.STATUS === 'success';
