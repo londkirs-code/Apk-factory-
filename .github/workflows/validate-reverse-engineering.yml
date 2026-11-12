@@ -1,0 +1,69 @@
+name: Validate Reverse Engineering Workflows
+
+on:
+  push:
+    branches:
+      - feature/apk-reverse-engineering-studio
+    paths:
+      - "tools/reverse-engineering/**"
+      - ".github/workflows/reverse-engineer-apk.yml"
+      - ".github/workflows/build-reconstructed-apk.yml"
+      - ".github/workflows/validate-reverse-engineering.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/reverse-engineering/**"
+      - ".github/workflows/reverse-engineer-apk.yml"
+      - ".github/workflows/build-reconstructed-apk.yml"
+      - ".github/workflows/validate-reverse-engineering.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tools/reverse-engineering/reverse-engineer-apk.sh
+          bash -n tools/reverse-engineering/rebuild-apktool-project.sh
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          shellcheck --severity=warning \
+            tools/reverse-engineering/reverse-engineer-apk.sh \
+            tools/reverse-engineering/rebuild-apktool-project.sh
+
+      - name: Set up Go for actionlint
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Validate workflow syntax and expressions
+        run: |
+          actionlint \
+            .github/workflows/reverse-engineer-apk.yml \
+            .github/workflows/build-reconstructed-apk.yml \
+            .github/workflows/validate-reverse-engineering.yml
