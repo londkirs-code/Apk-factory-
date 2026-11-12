@@ -125,7 +125,6 @@ jobs:
           mkdir -p export
           bash tools/reverse-engineering/rebuild-apktool-project.sh "$PROJECT_DIR" export
           test -s export/reconstructed-aligned-unsigned.apk
-          cp export/reconstructed-aligned-unsigned.apk export/reconstructed-aligned-unsigned.apk
           sha256sum export/reconstructed-aligned-unsigned.apk
 
       - name: Pass unsigned APK to isolated signing job
