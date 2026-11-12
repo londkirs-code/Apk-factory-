@@ -123,9 +123,11 @@ jobs:
             --output "$RUNNER_TEMP/jadx-1.5.6.zip"
           mkdir -p "$HOME/jadx"
           unzip -q "$RUNNER_TEMP/jadx-1.5.6.zip" -d "$HOME/jadx"
-          chmod +x "$HOME/jadx/bin/jadx"
+          JADX_BIN="$(find "$HOME/jadx" -type f -path "*/bin/jadx" -print -quit)"
+          [[ -n "$JADX_BIN" ]] || { echo "::error::JADX executable was not found in the extracted release."; exit 1; }
+          chmod +x "$JADX_BIN"
           java -jar "$HOME/apktool_3.0.3.jar" --version
-          "$HOME/jadx/bin/jadx" --version
+          "$JADX_BIN" --version
 
       - name: Download and validate source APK
         shell: bash
@@ -195,6 +197,22 @@ jobs:
           echo "$STATUS" > "$GITHUB_WORKSPACE/reverse-output/$PROJECT_SLUG/analysis/jadx-gradle-build-status.txt"
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "JADX Gradle build result: $STATUS"
+
+      - name: Test the dedicated rebuild script on a disposable decoded project
+        shell: bash
+        env:
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
+        run: |
+          set -euo pipefail
+          TEST_PROJECT="$RUNNER_TEMP/apktool-rebuild-self-test"
+          TEST_OUTPUT="$RUNNER_TEMP/apktool-rebuild-self-test-output"
+          cp -a "reverse-output/$PROJECT_SLUG/apktool-project" "$TEST_PROJECT"
+          bash tools/reverse-engineering/rebuild-apktool-project.sh "$TEST_PROJECT" "$TEST_OUTPUT"
+          cp "$TEST_OUTPUT/reconstructed-aligned-unsigned.apk" "reverse-output/$PROJECT_SLUG/outputs/rebuild-script-roundtrip-unsigned.apk"
+          mkdir -p "reverse-output/$PROJECT_SLUG/analysis/rebuild-script-self-test" "reverse-output/$PROJECT_SLUG/logs/rebuild-script-self-test"
+          cp -a "$TEST_OUTPUT/analysis/." "reverse-output/$PROJECT_SLUG/analysis/rebuild-script-self-test/"
+          cp -a "$TEST_OUTPUT/logs/." "reverse-output/$PROJECT_SLUG/logs/rebuild-script-self-test/"
+          echo "success" > "reverse-output/$PROJECT_SLUG/analysis/rebuild-script-self-test-status.txt"
 
       - name: Optional MobSF static analysis
         if: inputs.run_mobsf == true && github.event_name == 'workflow_dispatch'
