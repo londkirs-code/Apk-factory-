@@ -87,23 +87,7 @@ if [[ "$BUILD_EXIT" -eq 0 && -s "$UNSIGNED" ]]; then
   set -e
   if [[ "$ALIGN_EXIT" -eq 0 && -s "$ALIGNED" ]]; then
     APKTOOL_BUILD_STATUS="success"
-    if [[ -s "$APK_FACTORY_KEYSTORE" ]]; then
-      SIGNED="$OUT_DIR/outputs/apktool-rebuilt-apkfactory-signed.apk"
-      set +e
-      "$BUILD_TOOLS/apksigner" sign --ks "$APK_FACTORY_KEYSTORE" --ks-key-alias "$APK_FACTORY_KEY_ALIAS" \
-        --ks-pass env:APK_FACTORY_STORE_PASSWORD --key-pass env:APK_FACTORY_KEY_PASSWORD \
-        --out "$SIGNED" "$ALIGNED" > "$OUT_DIR/logs/apksigner.log" 2>&1
-      SIGN_EXIT=$?
-      set -e
-      if [[ "$SIGN_EXIT" -eq 0 && -s "$SIGNED" ]]; then
-        "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$SIGNED" > "$OUT_DIR/analysis/output-signature.txt" 2>&1
-        echo "APK Factory signature verified." > "$OUT_DIR/analysis/signature-result.txt"
-      else
-        echo "APK Factory signing failed; see logs/apksigner.log." > "$OUT_DIR/analysis/signature-result.txt"
-      fi
-    else
-      echo "Signing key unavailable; aligned unsigned APK retained." > "$OUT_DIR/analysis/signature-result.txt"
-    fi
+    echo "Unsigned round-trip only; signing is performed by the separate protected rebuild workflow." > "$OUT_DIR/analysis/signature-result.txt"
   else APKTOOL_BUILD_STATUS="alignment-failed"; fi
 fi
 printf '%s\n' "$APKTOOL_BUILD_STATUS" > "$OUT_DIR/analysis/apktool-build-status.txt"
@@ -132,7 +116,7 @@ Generated from the APK you supplied.
 - native-libs/: extracted lib/*.so files. Native binaries are not converted back into original C/C++ source.
 - analysis/: input hash, package metadata and signing information.
 - logs/: decoder, builder and signer logs.
-- outputs/: rebuilt APKs when their build/sign steps succeeded.
+- outputs/: an aligned unsigned round-trip APK when the project builds successfully.
 
 ## Results
 - Apktool decode: success
@@ -147,10 +131,10 @@ Generated from the APK you supplied.
 - JADX: $JADX_VERSION
 
 ## Edit and rebuild
-Edit Smali/resources in apktool-project, then run the APK Factory workflow "Build Reconstructed APK" against the folder containing apktool.yml and AndroidManifest.xml. The result is signed with the existing APK Factory key. Java edits in jadx-gradle-export are best effort: original source, comments, names and build configuration may not be recoverable.
+Edit Smali/resources in apktool-project, then run the APK Factory workflow "Build Reconstructed APK" against the folder containing apktool.yml and AndroidManifest.xml. The separate build workflow signs the edited project with the existing APK Factory key. Java edits in jadx-gradle-export are best effort: original source, comments, names and build configuration may not be recoverable.
 
 ## Signing compatibility
-An update requires the same package ID and an Android-accepted signing certificate. The original private key cannot be extracted from an APK. The APK Factory key does not automatically match the original app's certificate. Check analysis/input-signature.txt and analysis/output-signature.txt before attempting an update. A different certificate normally requires uninstalling the old app first, which can remove local data.
+An update requires the same package ID and an Android-accepted signing certificate. The original private key cannot be extracted from an APK. The APK Factory key does not automatically match the original app's certificate. Check analysis/input-signature.txt and the signature verification report from the build workflow before attempting an update. A different certificate normally requires uninstalling the old app first, which can remove local data.
 
 ## Limitations
 - One complete APK is supported. Split APK sets, XAPK/APKS bundles, inaccessible backend services, and some heavily protected/obfuscated apps need extra work.
