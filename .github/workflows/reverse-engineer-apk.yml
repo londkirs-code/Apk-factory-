@@ -35,7 +35,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: reverse-engineer-apk-\${{ github.event.issue.number || github.run_id }}
+  group: reverse-engineer-apk-${{ github.event.issue.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -62,10 +62,10 @@ jobs:
         id: request
         shell: bash
         env:
-          EVENT_NAME: \${{ github.event_name }}
-          INPUT_APK_URL: \${{ inputs.apk_url }}
-          INPUT_PROJECT_SLUG: \${{ inputs.project_slug }}
-          COMMENT_BODY: \${{ github.event.comment.body }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_APK_URL: ${{ inputs.apk_url }}
+          INPUT_PROJECT_SLUG: ${{ inputs.project_slug }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -130,7 +130,7 @@ jobs:
       - name: Download and validate source APK
         shell: bash
         env:
-          APK_URL: \${{ steps.request.outputs.apk_url }}
+          APK_URL: ${{ steps.request.outputs.apk_url }}
         run: |
           set -euo pipefail
           mkdir -p input
@@ -144,7 +144,7 @@ jobs:
       - name: Run Apktool and JADX reconstruction
         shell: bash
         env:
-          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
         run: |
           set -euo pipefail
           bash tools/reverse-engineering/reverse-engineer-apk.sh \
@@ -159,7 +159,7 @@ jobs:
         id: jadx_build
         shell: bash
         env:
-          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
         run: |
           set -euo pipefail
           ROOT="reverse-output/$PROJECT_SLUG/jadx-gradle-export"
@@ -201,7 +201,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
         run: |
           set -euo pipefail
           MOBSF_API_KEY="$(openssl rand -hex 32)"
@@ -210,7 +210,9 @@ jobs:
             opensecurity/mobile-security-framework-mobsf:v4.6.4
           trap 'docker rm -f apkfactory-mobsf >/dev/null 2>&1 || true' EXIT
           READY=false
-          for attempt in $(seq 1 90); do
+          attempt=0
+          while (( attempt < 90 )); do
+            attempt=$((attempt + 1))
             if curl --silent --fail http://127.0.0.1:8000/ >/dev/null; then READY=true; break; fi
             sleep 5
           done
@@ -229,8 +231,8 @@ jobs:
       - name: Upload reconstructed workspace
         uses: actions/upload-artifact@v4
         with:
-          name: apk-reverse-engineering-\${{ steps.request.outputs.project_slug }}
-          path: reverse-output/\${{ steps.request.outputs.project_slug }}/
+          name: apk-reverse-engineering-${{ steps.request.outputs.project_slug }}
+          path: reverse-output/${{ steps.request.outputs.project_slug }}/
           if-no-files-found: error
           compression-level: 1
           retention-days: 14
@@ -239,9 +241,9 @@ jobs:
         if: always()
         uses: actions/github-script@v7
         env:
-          STATUS: \${{ job.status }}
-          RUN_URL: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
-          PROJECT_SLUG: \${{ steps.request.outputs.project_slug }}
+          STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
         with:
           script: |
             const issueNumber = context.eventName === 'issue_comment' ? context.issue.number : 1;
