@@ -154,6 +154,17 @@ jobs:
           bash tools/reverse-engineering/reverse-engineer-apk.sh \
             input/source.apk "reverse-output/$PROJECT_SLUG"
 
+      - name: Repair Nine-Patch resources in JADX Gradle export
+        shell: bash
+        env:
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
+        run: |
+          set -euo pipefail
+          APKTOOL_RES="reverse-output/$PROJECT_SLUG/apktool-project/res"
+          JADX_RES="reverse-output/$PROJECT_SLUG/jadx-gradle-export/app/src/main/res"
+          REPORT="reverse-output/$PROJECT_SLUG/analysis/jadx-ninepatch-repair.json"
+          python3 tools/reverse-engineering/repair-jadx-ninepatch.py "$APKTOOL_RES" "$JADX_RES" "$REPORT"
+
       - name: Set up Gradle for best-effort JADX project compile
         uses: gradle/actions/setup-gradle@v4
         with:
