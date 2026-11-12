@@ -150,15 +150,28 @@ jobs:
           target = Path("input/source.apk")
           max_apk_size = 512 * 1024 * 1024
 
-          if zipfile.is_zipfile(downloaded):
-              with zipfile.ZipFile(downloaded) as archive:
+          if not zipfile.is_zipfile(downloaded):
+              raise SystemExit("Downloaded file is not a valid ZIP/APK archive")
+
+          with zipfile.ZipFile(downloaded) as archive:
+              names = set(archive.namelist())
+              # An APK is itself a ZIP archive. If AndroidManifest.xml is at
+              # the archive root, this is an APK even when its filename ends
+              # in .zip (for example, when only the extension was changed).
+              if "AndroidManifest.xml" in names:
+                  if downloaded.stat().st_size > max_apk_size:
+                      raise SystemExit("APK exceeds the 512 MiB limit")
+                  downloaded.replace(target)
+                  print("Input is an APK archive; no extraction needed.")
+              else:
                   candidates = [
                       info for info in archive.infolist()
                       if not info.is_dir() and info.filename.lower().endswith(".apk")
                   ]
                   if len(candidates) != 1:
                       raise SystemExit(
-                          f"ZIP must contain exactly one APK; found {len(candidates)}"
+                          "ZIP must either be an APK archive itself or contain exactly one .apk file; "
+                          f"found {len(candidates)} embedded APK files"
                       )
                   apk_info = candidates[0]
                   if apk_info.file_size <= 0 or apk_info.file_size > max_apk_size:
@@ -170,15 +183,13 @@ jobs:
                           if total > max_apk_size:
                               raise SystemExit("Extracted APK exceeds the 512 MiB limit")
                           output.write(chunk)
-              print(f"Extracted APK from ZIP: {apk_info.filename}")
-          else:
-              downloaded.replace(target)
+                  print(f"Extracted APK from ZIP: {apk_info.filename}")
 
-          if not zipfile.is_zipfile(target):
-              raise SystemExit("Downloaded file is neither a ZIP containing an APK nor a valid APK archive")
+          if not target.exists():
+              raise SystemExit("APK input was not produced")
           with zipfile.ZipFile(target) as apk:
               if "AndroidManifest.xml" not in apk.namelist():
-                  raise SystemExit("Archive does not contain AndroidManifest.xml; not an APK")
+                  raise SystemExit("Archive does not contain AndroidManifest.xml at its root; not an APK")
           print(f"Validated APK size: {target.stat().st_size} bytes")
           PY
           stat -c 'Source APK size: %s bytes' input/source.apk
