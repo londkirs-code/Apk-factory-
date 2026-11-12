@@ -56,6 +56,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Parse and validate request
         id: request
@@ -126,39 +127,6 @@ jobs:
           java -jar "$HOME/apktool_3.0.3.jar" --version
           "$HOME/jadx/bin/jadx" --version
 
-      - name: Prepare existing APK Factory signing key when configured
-        shell: bash
-        env:
-          APK_SIGNING_KEY_BASE64: \${{ secrets.APK_SIGNING_KEY_BASE64 }}
-          APK_SIGNING_STORE_PASSWORD: \${{ secrets.APK_SIGNING_STORE_PASSWORD }}
-          APK_SIGNING_KEY_ALIAS: \${{ secrets.APK_SIGNING_KEY_ALIAS }}
-          APK_SIGNING_KEY_PASSWORD: \${{ secrets.APK_SIGNING_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$APK_SIGNING_KEY_BASE64" || -z "$APK_SIGNING_STORE_PASSWORD" ||
-                -z "$APK_SIGNING_KEY_ALIAS" || -z "$APK_SIGNING_KEY_PASSWORD" ]]; then
-            echo "APK Factory key is unavailable; a rebuilt APK will be kept unsigned."
-            {
-              echo "APK_FACTORY_KEYSTORE="
-              echo "APK_FACTORY_KEY_ALIAS="
-              echo "APK_FACTORY_STORE_PASSWORD="
-              echo "APK_FACTORY_KEY_PASSWORD="
-            } >> "$GITHUB_ENV"
-            exit 0
-          fi
-          KEYSTORE="$RUNNER_TEMP/apk-factory-release.jks"
-          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$KEYSTORE"
-          APK_SIGNING_KEY_ALIAS="$(printf '%s' "$APK_SIGNING_KEY_ALIAS" | tr -d '[:space:]')"
-          keytool -list -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" \
-            -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
-          {
-            echo "APK_FACTORY_KEYSTORE=$KEYSTORE"
-            echo "APK_FACTORY_KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
-            echo "APK_FACTORY_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
-            echo "APK_FACTORY_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
-          echo "Existing APK Factory key validated; no key was generated or changed."
-
       - name: Download and validate source APK
         shell: bash
         env:
@@ -181,6 +149,11 @@ jobs:
           set -euo pipefail
           bash tools/reverse-engineering/reverse-engineer-apk.sh \
             input/source.apk "reverse-output/$PROJECT_SLUG"
+
+      - name: Set up Gradle for best-effort JADX project compile
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
 
       - name: Try compiling JADX Gradle export
         id: jadx_build
