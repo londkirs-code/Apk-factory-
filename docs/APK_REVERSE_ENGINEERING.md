@@ -77,3 +77,18 @@ Private source checkout is supported with SOURCE_REPO_TOKEN, but it does not mak
 ## AI integration boundary
 
 The GitHub Actions workflows execute the deterministic APK decompilation, Gradle export attempt, Apktool rebuild, optional MobSF static analysis, and artifact packaging. They do not call an LLM or provide an embedded autonomous AI chat/editor by themselves. AI-assisted code understanding and requested source edits are performed by an AI assistant that reads the exported artifact/project and then commits targeted changes; no model API key is required by these workflows. Adding a persistent in-product AI agent would require a separately configured model/provider and private credential handling.
+
+
+## Rebuild directly from a previous analysis run
+
+The workflow **Rebuild and Sign Reverse-Engineered APK** can consume the workspace Artifact from an earlier **Reverse Engineer Android APK** run directly. It no longer requires copying the decoded project into a separate Git repository.
+
+For issue #1, the repository owner can run:
+
+    /rebuild-reconstructed-authorized RUN_ID PROJECT_SLUG ORIGINAL_CERT_SHA256
+
+Use the run ID shown in the reverse-engineering Actions URL, the exact slug supplied when decompiling, and the certificate SHA-256 from analysis/input-signature.txt. The certificate may be omitted, but then update compatibility will be reported as not-verified.
+
+The workflow downloads the prior apk-reverse-engineering-PROJECT_SLUG artifact, validates apktool.yml and AndroidManifest.xml, copies the project into a disposable build directory, increments versionCode, rebuilds and aligns the APK, and passes only the unsigned APK to a separate signing job. That second job loads the existing APK Factory key, signs and verifies the result, compares the output signer to the optional original fingerprint, and publishes reconstructed-signed-apk.
+
+No signing key is available to the download, decompile or build job. A signature mismatch is reported explicitly; it does not mean the original signing key was recovered. Runtime behavior still requires device/emulator tests.
