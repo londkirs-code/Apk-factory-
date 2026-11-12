@@ -68,6 +68,19 @@
 
 לכלי צבעים אופציונלי למפתחים (אינו מופעל באף אפליקציה כברירת מחדל), ראו [`tools.md`](tools.md).
 
+## Reverse Engineering — פענוח ושחזור אפליקציות APK
+
+המאגר כולל שני Workflows חדשים:
+- **Reverse Engineer Android APK** — מקבל APK מלא בקישור HTTPS, מפענח אותו עם JADX ו־Apktool, מחלץ ספריות Native, מנסה לבנות APK מחדש ומעלה Workspace עם קוד Smali, משאבים, ייצוא Java, דוחות ולוגים.
+- **Build Reconstructed APK** — מקבל תיקיית Apktool שעברה עריכה, מעלה versionCode, בונה APK, מיישר אותו וחותם אותו במפתח APK Factory הקיים. שלב החתימה מבודד משלב הפענוח והבנייה.
+
+הוראות שימוש ומגבלות: [docs/APK_REVERSE_ENGINEERING.md](docs/APK_REVERSE_ENGINEERING.md). הנחיות לעוזר AI: [skills/reverse-engineer-apk/SKILL.md](skills/reverse-engineer-apk/SKILL.md).
+
+אפשר להפעיל את התהליך דרך Actions. לחלופין, בעל המאגר יכול לכתוב ב־[issue #1](https://github.com/londkirs-code/Apk-factory-/issues/1):
+    /reverse-engineer-authorized https://host/path/app.apk optional-slug
+
+**חשוב:** המאגר ציבורי, ולכן גם ה־Artifacts של פענוח ושחזור נגישים לצופים בריצת Actions. אין להעלות לכאן APK קנייני/חסוי. בנוסף, שחזור אינו מחזיר את קוד המקור המקורי: JADX מפיק Java משוער, Apktool מפיק Smali ומשאבים, וספריות Native נותרות קבצים בינאריים.
+
 ## Builds on demand — stable APK links
 
 - נץ החמה: [APK יציב](https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk) · [סקיל בנייה](skills/build-netzhachama-apk/SKILL.md)
