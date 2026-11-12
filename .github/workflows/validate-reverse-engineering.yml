@@ -47,6 +47,7 @@ jobs:
           set -euo pipefail
           bash -n tools/reverse-engineering/reverse-engineer-apk.sh
           bash -n tools/reverse-engineering/rebuild-apktool-project.sh
+          python3 -m py_compile tools/reverse-engineering/repair-jadx-ninepatch.py
 
       - name: Install ShellCheck
         run: |
