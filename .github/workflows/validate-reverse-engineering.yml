@@ -9,6 +9,10 @@ on:
       - ".github/workflows/reverse-engineer-apk.yml"
       - ".github/workflows/build-reconstructed-apk.yml"
       - ".github/workflows/validate-reverse-engineering.yml"
+      - "docs/APK_REVERSE_ENGINEERING.md"
+      - "skills/reverse-engineer-apk/**"
+      - "README.md"
+      - "PROJECT_INSTRUCTIONS.md"
   pull_request:
     branches: [main]
     paths:
@@ -16,6 +20,10 @@ on:
       - ".github/workflows/reverse-engineer-apk.yml"
       - ".github/workflows/build-reconstructed-apk.yml"
       - ".github/workflows/validate-reverse-engineering.yml"
+      - "docs/APK_REVERSE_ENGINEERING.md"
+      - "skills/reverse-engineer-apk/**"
+      - "README.md"
+      - "PROJECT_INSTRUCTIONS.md"
   workflow_dispatch:
 
 permissions:
