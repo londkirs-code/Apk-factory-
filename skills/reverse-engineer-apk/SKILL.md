@@ -52,3 +52,8 @@ Use APK Factory's reverse-engineering workflows to turn an APK the user owns or 
 ## User-facing honesty
 
 Always explain that JADX cannot fully reconstruct original source, Apktool output is Smali/resources, native libraries are separate, and the APK Factory signing certificate will differ from the original unless it is the same certificate. Never guarantee direct update installation without a matching signature and package ID.
+
+
+## AI integration boundary
+
+These workflows produce and validate the reconstruction artifacts; they do not themselves call an LLM or include an autonomous AI chat/editor in the APK Factory app. The AI assistant must inspect the downloaded workspace, implement the requested targeted changes, and commit the edited project before the rebuild workflow. No model API key is consumed by the current workflows.
