@@ -81,6 +81,9 @@
 
 **חשוב:** המאגר ציבורי, ולכן גם ה־Artifacts של פענוח ושחזור נגישים לצופים בריצת Actions. אין להעלות לכאן APK קנייני/חסוי. בנוסף, שחזור אינו מחזיר את קוד המקור המקורי: JADX מפיק Java משוער, Apktool מפיק Smali ומשאבים, וספריות Native נותרות קבצים בינאריים.
 
+
+- **Rebuild and Sign Reverse-Engineered APK** — בונה מחדש ישירות מתוך Artifact של ריצת פענוח קודמת, מעלה versionCode וחותם במפתח APK Factory הקיים. אין צורך להעלות שוב את תיקיית Apktool למאגר נפרד. ראו [הוראות שימוש](docs/APK_REVERSE_ENGINEERING.md).
+
 ## Builds on demand — stable APK links
 
 - נץ החמה: [APK יציב](https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk) · [סקיל בנייה](skills/build-netzhachama-apk/SKILL.md)
