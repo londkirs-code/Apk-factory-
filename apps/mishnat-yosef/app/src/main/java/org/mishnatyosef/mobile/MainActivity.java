@@ -3572,11 +3572,49 @@ public class MainActivity extends Activity {
         card.addView(text("🔐 כניסה למנהל המערכת", 19, true));
         card.addView(muted("הגישה מוגבלת לחשבון המנהל המאושר בלבד", 13), lp(-1, -2, 0, 8));
         card.addView(text(TASKHUB_ADMIN, 15, true), lp(-1, -2, 0, 12));
-        card.addView(muted("נשלח אליך קוד חד־פעמי למייל. אין צורך בסיסמה.", 13), lp(-1, -2, 0, 8));
-        TextView send = btn("📧 שליחת קוד כניסה למייל", PRIMARY);
-        send.setOnClickListener(v -> requestTaskHubOtp());
-        card.addView(send, new LinearLayout.LayoutParams(-1, dp(50)));
+        card.addView(muted("הזן את סיסמת מנהל המערכת כדי להתחבר באופן מאובטח, ללא שליחת קוד למייל.", 13),
+                lp(-1, -2, 0, 8));
+        EditText password = field("סיסמת מנהל", InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        password.setSingleLine(true);
+        card.addView(password, lp(-1, dp(52), 0, 10));
+        TextView login = btn("🔑 כניסה למערכת", PRIMARY);
+        login.setOnClickListener(v -> {
+            String value = password.getText().toString();
+            if (value.trim().isEmpty()) {
+                toast("יש להזין סיסמה", true);
+                return;
+            }
+            loginTaskHubWithPassword(value);
+        });
+        card.addView(login, new LinearLayout.LayoutParams(-1, dp(50)));
         root.addView(card, lp(-1, -2, 0, 12));
+    }
+
+    private void loginTaskHubWithPassword(String password) {
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("email", TASKHUB_ADMIN);
+                body.put("password", password);
+                JSONObject response = new JSONObject(taskHubCall(
+                        "POST", "/auth/v1/token?grant_type=password", body.toString(), null));
+                String access = response.optString("access_token", "");
+                String refresh = response.optString("refresh_token", "");
+                if (access.isEmpty() || refresh.isEmpty() || !taskHubTokenBelongsToAdmin(access))
+                    throw new Exception("חשבון זה אינו מורשה לניהול עדכוני האפליקציה.");
+                prefs.edit().putString(TASKHUB_PREF_TOKEN, access)
+                        .putString(TASKHUB_PREF_REFRESH, refresh).apply();
+                runOnUiThread(this::showTaskHub);
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                if (message.contains("invalid_grant") || message.contains("Invalid login credentials"))
+                    message = "פרטי הכניסה אינם נכונים. בדוק את סיסמת מנהל המערכת.";
+                final String shown = message;
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("הכניסה נכשלה")
+                        .setMessage(shown).setPositiveButton("סגירה", null).show());
+            }
+        }).start();
     }
 
     private boolean consumeTaskHubAuthIntent(Intent intent, boolean navigate) {
