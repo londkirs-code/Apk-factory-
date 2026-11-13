@@ -3827,6 +3827,12 @@ public class MainActivity extends Activity {
             listRow.setGravity(Gravity.CENTER_VERTICAL);
             TextView choose = btn((id.equals(taskHubListId) ? "✓  " : "📁  ") + title,
                     id.equals(taskHubListId) ? PRIMARY : TONAL);
+            choose.setSingleLine(true);
+            choose.setEllipsize(TextUtils.TruncateAt.END);
+            choose.setTextSize(14);
+            choose.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            choose.setMinWidth(0);
+            choose.setPadding(dp(10), 0, dp(10), 0);
             choose.setOnClickListener(v -> {
                 taskHubListId = id;
                 prefs.edit().putString(TASKHUB_PREF_LIST, id).apply();
@@ -3834,10 +3840,14 @@ public class MainActivity extends Activity {
             });
             listRow.addView(choose, new LinearLayout.LayoutParams(0, dp(46), 1f));
             TextView manage = btn("⋮", TONAL);
+            manage.setTextSize(19);
+            manage.setGravity(Gravity.CENTER);
+            manage.setMinWidth(0);
+            manage.setPadding(0, 0, 0, 0);
             manage.setContentDescription("ניהול הרשימה " + title);
             manage.setOnClickListener(v -> showTaskHubListActions(id, title,
                     item.optString("description", "")));
-            LinearLayout.LayoutParams manageParams = new LinearLayout.LayoutParams(dp(48), dp(46));
+            LinearLayout.LayoutParams manageParams = new LinearLayout.LayoutParams(dp(44), dp(46));
             manageParams.setMargins(dp(6), 0, 0, 0);
             listRow.addView(manage, manageParams);
             listCard.addView(listRow, lp(-1, dp(46), 0, 6));
@@ -4052,12 +4062,66 @@ public class MainActivity extends Activity {
                     : "completed".equals(status) ? "הושלמה"
                     : "paused".equals(status) ? "מושהית" : "פתוחה";
             row.addView(muted("מצב אישי: " + statusLabel, 12), lp(-1, -2, 0, 4));
-            TextView actions = btn("✏️ עריכה   ·   ✓ סיום   ·   🗑️ מחיקה", TONAL);
-            actions.setOnClickListener(v -> showTaskHubTaskActions(listId, listTitle, id, title, description, priority));
-            row.addView(actions, lp(-1, dp(42), 0, 8));
+            LinearLayout actionGrid = new LinearLayout(this);
+            actionGrid.setOrientation(LinearLayout.VERTICAL);
+            actionGrid.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            actionGrid.setPadding(0, dp(4), 0, 0);
+
+            LinearLayout primaryActions = new LinearLayout(this);
+            primaryActions.setOrientation(LinearLayout.HORIZONTAL);
+            primaryActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            TextView edit = btn("✏️ עריכה", TONAL);
+            edit.setTextSize(12);
+            edit.setSingleLine(true);
+            edit.setOnClickListener(v -> promptTaskHubTask(listId,
+                    taskHubTaskForEdit(id, title, description, priority)));
+            TextView changeStatus = btn("🔄 מצב", TONAL);
+            changeStatus.setTextSize(12);
+            changeStatus.setSingleLine(true);
+            changeStatus.setOnClickListener(v -> promptTaskHubStatus(listId, id));
+            LinearLayout.LayoutParams actionCell = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            actionCell.setMargins(dp(3), 0, dp(3), dp(6));
+            primaryActions.addView(edit, new LinearLayout.LayoutParams(actionCell));
+            primaryActions.addView(changeStatus, new LinearLayout.LayoutParams(actionCell));
+            actionGrid.addView(primaryActions, lp(-1, dp(40), 0, 0));
+
+            LinearLayout secondaryActions = new LinearLayout(this);
+            secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
+            secondaryActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            TextView complete = btn("✓ סיום", PRIMARY);
+            complete.setTextSize(12);
+            complete.setSingleLine(true);
+            complete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("סיום משימה")
+                    .setMessage("לסמן את המשימה כהושלמה ולהעביר אותה לארכיון?")
+                    .setNegativeButton("ביטול", null)
+                    .setPositiveButton("סיום", (dialog, which) -> archiveTaskHubTask(listId, id)).show());
+            TextView delete = btn("🗑️ מחיקה", TONAL);
+            delete.setTextSize(12);
+            delete.setSingleLine(true);
+            delete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("מחיקת משימה")
+                    .setMessage("למחוק לצמיתות את המשימה „" + title + "”?")
+                    .setNegativeButton("ביטול", null)
+                    .setPositiveButton("מחיקה", (dialog, which) -> deleteTaskHubTask(listId, id)).show());
+            LinearLayout.LayoutParams secondaryCell = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            secondaryCell.setMargins(dp(3), 0, dp(3), 0);
+            secondaryActions.addView(complete, new LinearLayout.LayoutParams(secondaryCell));
+            secondaryActions.addView(delete, new LinearLayout.LayoutParams(secondaryCell));
+            actionGrid.addView(secondaryActions, lp(-1, dp(40), 0, 0));
+            row.addView(actionGrid, lp(-1, -2, 0, 4));
             card.addView(row, lp(-1, -2, 0, 8));
         }
         taskHubDynamicContent.addView(card, lp(-1, -2, 0, 10));
+    }
+
+    private JSONObject taskHubTaskForEdit(String id, String title, String description, int priority) {
+        JSONObject task = new JSONObject();
+        try {
+            task.put("id", id);
+            task.put("title", title);
+            task.put("description", description);
+            task.put("priority", priority);
+        } catch (Exception ignored) { }
+        return task;
     }
 
     private void promptTaskHubTask(String listId, JSONObject existing) {
@@ -12888,6 +12952,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
 
     private static final int NAV_FINGER_RISE = 10; // centre button rises only 10dp above neighbouring buttons
     private static final int NAV_FINGER_INNER = 72; // height of the icon + label area inside the centre button (dp)
+    private static final int NAV_FINGER_CORNER_RADIUS = 25; // flatter crown: the curved shoulders begin later
 
     private View navDivider() {
         View d = new View(this);
@@ -12910,7 +12975,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         ViewGroup inner = (ViewGroup) finger.getChildAt(0);
         boolean active = inner.getChildCount() > 2
                 && inner.getChildAt(2).getVisibility() == View.VISIBLE;
-        float r = dp(33);
+        float r = dp(NAV_FINGER_CORNER_RADIUS);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(active ? ORANGE_DARK : ORANGE);
         bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
@@ -12930,7 +12995,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         slot.setClipChildren(false);
 
         FrameLayout finger = new FrameLayout(this);
-        float r = dp(33);
+        float r = dp(NAV_FINGER_CORNER_RADIUS);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(active ? ORANGE_DARK : ORANGE);
         bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
