@@ -3888,6 +3888,7 @@ public class MainActivity extends Activity {
                 JSONObject first = lists.optJSONObject(0);
                 if (first != null) {
                     taskHubListId = first.optString("id", "");
+                    taskHubShowArchivedTasks = false;
                     prefs.edit().putString(TASKHUB_PREF_LIST, taskHubListId).apply();
                     loadTaskHubTasks(taskHubListId, first.optString("title", "עדכוני האפליקציה"));
                 }
@@ -4110,8 +4111,6 @@ public class MainActivity extends Activity {
             add.setOnClickListener(v -> promptTaskHubTask(listId, null));
             card.addView(add, lp(-1, dp(46), 0, 8));
         }
-        add.setOnClickListener(v -> promptTaskHubTask(listId, null));
-        card.addView(add, lp(-1, dp(46), 0, 8));
         if (tasks.length() == 0)
             card.addView(muted("הרשימה עדיין ריקה. אפשר להוסיף כאן רעיון או שינוי שתרצה לבצע.", 13),
                     lp(-1, -2, 0, 8));
