@@ -1860,6 +1860,7 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener(
                 (oldFocus, newFocus) -> showKeyboardFocusHighlight(newFocus));
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        consumeTaskHubAuthIntent(getIntent(), false);
         migrateSaleCacheToCatalogueOnly();
         clearStoredOrderQuantities();
         int savedScalePercent = prefs.getInt("ui_scale_percent", 100);
@@ -1935,6 +1936,7 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (consumeTaskHubAuthIntent(intent, true)) return;
         if (intent != null && intent.getBooleanExtra("open_notification_settings", false)) {
             if (hasToken()) showNotificationSettings(); else showLogin();
             return;
@@ -3577,19 +3579,65 @@ public class MainActivity extends Activity {
         root.addView(card, lp(-1, -2, 0, 12));
     }
 
+    private boolean consumeTaskHubAuthIntent(Intent intent, boolean navigate) {
+        if (intent == null || intent.getData() == null
+                || !"mishnatyosef".equalsIgnoreCase(intent.getData().getScheme())
+                || !"taskhub-auth".equalsIgnoreCase(intent.getData().getHost())) return false;
+        try {
+            Uri data = intent.getData();
+            String fragment = data.getFragment();
+            Uri params = Uri.parse("https://taskhub-auth.local/?" + (fragment == null ? "" : fragment));
+            String error = params.getQueryParameter("error_description");
+            if (error != null) {
+                toast("הכניסה נכשלה: " + error.replace('+', ' '), true);
+                return true;
+            }
+            String access = params.getQueryParameter("access_token");
+            String refresh = params.getQueryParameter("refresh_token");
+            if (access == null || refresh == null || !taskHubTokenBelongsToAdmin(access)) {
+                toast("קישור הכניסה אינו תקין או שפג תוקפו. בקש קישור חדש.", true);
+                return true;
+            }
+            prefs.edit().putString(TASKHUB_PREF_TOKEN, access)
+                    .putString(TASKHUB_PREF_REFRESH, refresh).apply();
+            if (navigate) showTaskHub();
+            else prefs.edit().putBoolean("taskhub_auth_pending_open", true).apply();
+            return true;
+        } catch (Exception e) {
+            toast("לא ניתן להשלים כניסה: " + taskHubError(e), true);
+            return true;
+        }
+    }
+
     private void requestTaskHubOtp() {
-        toast("שולח קוד כניסה...", false);
+        long lastSent = prefs.getLong("taskhub_last_otp_sent_at", 0L);
+        long waitSeconds = 25L - (System.currentTimeMillis() - lastSent) / 1000L;
+        if (waitSeconds > 0) {
+            toast("כדי למנוע חסימת שליחה, אפשר לבקש קוד נוסף בעוד " + waitSeconds + " שניות", true);
+            return;
+        }
+        toast("שולח קישור כניסה מאובטח למייל...", false);
         new Thread(() -> {
             try {
                 JSONObject body = new JSONObject();
                 body.put("email", TASKHUB_ADMIN);
-                body.put("create_user", true);
-                taskHubCall("POST", "/auth/v1/otp", body.toString(), null);
-                runOnUiThread(() -> promptTaskHubOtpCode());
+                body.put("create_user", false);
+                String redirect = "mishnatyosef://taskhub-auth";
+                taskHubCall("POST", "/auth/v1/otp?redirect_to="
+                        + URLEncoder.encode(redirect, "UTF-8"), body.toString(), null);
+                prefs.edit().putLong("taskhub_last_otp_sent_at", System.currentTimeMillis()).apply();
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("נשלח קישור כניסה")
+                        .setMessage("פתח את ההודעה העדכנית שנשלחה אל " + TASKHUB_ADMIN
+                                + " ולחץ על הקישור. האפליקציה תיפתח אוטומטית לאחר האימות.")
+                        .setPositiveButton("הבנתי", null).show());
             } catch (Exception e) {
                 String message = taskHubError(e);
-                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("לא ניתן לשלוח קוד")
-                        .setMessage(message).setPositiveButton("סגירה", null).show());
+                if (message.contains("429") || message.contains("over_email_send_rate_limit")) {
+                    message = "נשלחה בקשה לאחרונה. המתן כ-30 שניות לפני בקשת קישור נוסף, והשתמש בהודעה האחרונה בלבד.";
+                }
+                final String shown = message;
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("לא ניתן לשלוח קישור")
+                        .setMessage(shown).setPositiveButton("סגירה", null).show());
             }
         }).start();
     }
