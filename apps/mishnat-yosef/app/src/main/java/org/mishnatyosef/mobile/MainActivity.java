@@ -4659,6 +4659,19 @@ public class MainActivity extends Activity {
         beginScreen("הגדרות התראות", 3, this::showAccount);
         screenKind = 3;
         root.addView(permissionsCard(), lp(-1, -2, 0, 10));
+        root.addView(displaySettingTile("🔋", "אופטימיזציית סוללה",
+                "פתיחת הגדרות הסוללה כדי לאפשר לאפליקציה להמשיך לבדוק התראות ברקע", () -> {
+                    try {
+                        startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                    } catch (Exception e) {
+                        try {
+                            startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.parse("package:" + getPackageName())));
+                        } catch (Exception ignored) {
+                            toast("לא ניתן לפתוח את הגדרות הסוללה במכשיר הזה", true);
+                        }
+                    }
+                }), lp(-1, -2, 0, 10));
         root.addView(persistentNotificationCard(), lp(-1, -2, 0, 10));
         root.addView(notificationBehaviorCard(), lp(-1, -2, 0, 10));
         root.addView(newSaleCard(), lp(-1, -2, 0, 10));
@@ -8501,7 +8514,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         productList.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView view, int scrollState) { }
             @Override public void onScroll(AbsListView view, int first, int visible, int total) {
-                updateActiveCategory(first);
+                updateActiveCategory(first, visible);
                 if (floatingTopButtonRef[0] != null) floatingTopButtonRef[0].setVisibility(first > 0 ? View.VISIBLE : View.GONE);
             }
         });
@@ -8643,6 +8656,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         // products and cached snapshots. Sorting missing category ranks alphabetically here
         // made the UI diverge from the server, especially for catalogue-only cache entries.
         List<String> cats = new ArrayList<>(byCat.keySet());
+        // Keep the synthetic sold-out group at the end, independent of server product order.
+        if (cats.remove("פריטים שאזלו")) cats.add("פריטים שאזלו");
         for (String cat : cats) {
             List<JSONObject> items = byCat.get(cat);
             Collections.sort(items, new Comparator<JSONObject>() {
@@ -14544,7 +14559,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     }
 
     /** Highlights the category at the top of the list and keeps its chip in view. */
-    private void updateActiveCategory(int firstVisible) {
+    private void updateActiveCategory(int firstVisible, int visibleCount) {
+        // Highlight a category as soon as its header enters the visible area near the bottom.
+        int lastVisible = firstVisible + Math.max(1, visibleCount) - 1;
         if (catHeaders.isEmpty()) return;
         // A posted category jump is in progress. Ignore intermediate scroll callbacks so
         // they cannot replace the target before the next 7/9 press.
@@ -14552,7 +14569,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         String found = "";
         for (Map.Entry<String, Integer> e : catHeaders.entrySet()) {
             if (found.isEmpty()) found = e.getKey();
-            if (e.getValue() <= firstVisible) found = e.getKey();
+            if (e.getValue() <= lastVisible) found = e.getKey();
             else break;
         }
         if (found.isEmpty() || found.equals(activeCat)) return;
