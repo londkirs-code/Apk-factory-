@@ -845,6 +845,11 @@ public class MainActivity extends Activity {
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
         if (handleGlobalKeyboardEvent(event)) return true;
         int key = event.getKeyCode();
+        // Arrow keys move focus around the persistent bottom tabs; wrap at both ends.
+        if (event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                && (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                || key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+                && moveFocusWithinBottomNavigation(getCurrentFocus(), key)) return true;
         boolean direction = key == android.view.KeyEvent.KEYCODE_DPAD_UP
                 || key == android.view.KeyEvent.KEYCODE_DPAD_DOWN
                 || key == android.view.KeyEvent.KEYCODE_DPAD_LEFT
@@ -1050,6 +1055,52 @@ public class MainActivity extends Activity {
         android.graphics.Rect visible = new android.graphics.Rect();
         decor.getWindowVisibleDisplayFrame(visible);
         return decor.getRootView().getHeight() - visible.bottom > dp(160);
+    }
+
+    /**
+     * Moves keyboard focus between the five bottom tabs in visual order.
+     * The tab order is stored right-to-left; the physical arrow direction is adapted
+     * for LTR layouts, and both ends wrap around instead of losing focus.
+     */
+    private boolean moveFocusWithinBottomNavigation(View focused, int key) {
+        if (focused == null || (key != android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                && key != android.view.KeyEvent.KEYCODE_DPAD_RIGHT)) return false;
+
+        // Accept focus on the tab itself or on a future focusable child inside it.
+        View currentTab = focused;
+        while (currentTab != null) {
+            Object value = currentTab.getTag();
+            if (value instanceof String && ((String) value).startsWith("navTab:")) break;
+            android.view.ViewParent parent = currentTab.getParent();
+            currentTab = parent instanceof View ? (View) parent : null;
+        }
+        if (currentTab == null) return false;
+
+        String tag = (String) currentTab.getTag();
+        int currentId;
+        try {
+            currentId = Integer.parseInt(tag.substring("navTab:".length()));
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+
+        // This is the same visual order used when constructing the RTL navigation bar.
+        final int[] order = {0, 1, TAB_COLLECT, 2, 3};
+        int index = -1;
+        for (int i = 0; i < order.length; i++) {
+            if (order[i] == currentId) { index = i; break; }
+        }
+        if (index < 0) return false;
+
+        int step;
+        if (rtlActive()) step = key == android.view.KeyEvent.KEYCODE_DPAD_LEFT ? 1 : -1;
+        else step = key == android.view.KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1;
+        int nextIndex = (index + step + order.length) % order.length;
+
+        View decor = getWindow() == null ? null : getWindow().getDecorView();
+        View nextTab = findViewWithTag(decor, "navTab:" + order[nextIndex]);
+        return nextTab != null && nextTab.isShown() && nextTab.isFocusable()
+                && nextTab.requestFocus();
     }
 
     private void cycleKeyboardTab(int direction) {
