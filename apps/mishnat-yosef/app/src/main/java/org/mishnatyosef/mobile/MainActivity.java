@@ -3569,47 +3569,56 @@ public class MainActivity extends Activity {
 
     private void buildTaskHubLogin() {
         LinearLayout card = card(16);
-        card.addView(text("🔐 כניסה למנהל המערכת", 19, true));
-        card.addView(muted("הגישה מוגבלת לחשבון המנהל המאושר בלבד", 13), lp(-1, -2, 0, 8));
-        card.addView(text(TASKHUB_ADMIN, 15, true), lp(-1, -2, 0, 12));
-        card.addView(muted("הזן את סיסמת מנהל המערכת כדי להתחבר באופן מאובטח, ללא שליחת קוד למייל.", 13),
+        card.addView(text("🔐 כניסה למרכז המשימות", 19, true));
+        card.addView(muted("התחבר באמצעות חשבון שקיבל הרשאת מנהל ב־Supabase", 13),
                 lp(-1, -2, 0, 8));
-        EditText password = field("סיסמת מנהל", InputType.TYPE_CLASS_TEXT
+        EditText email = field("כתובת דוא״ל", InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        email.setSingleLine(true);
+        email.setText(prefs.getString("taskhub_last_login_email", ""));
+        card.addView(email, lp(-1, dp(52), 0, 10));
+        EditText password = field("סיסמה", InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         password.setSingleLine(true);
         card.addView(password, lp(-1, dp(52), 0, 10));
         TextView login = btn("🔑 כניסה למערכת", PRIMARY);
         login.setOnClickListener(v -> {
+            String address = email.getText().toString().trim();
             String value = password.getText().toString();
+            if (address.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(address).matches()) {
+                toast("יש להזין כתובת דוא״ל תקינה", true);
+                return;
+            }
             if (value.trim().isEmpty()) {
                 toast("יש להזין סיסמה", true);
                 return;
             }
-            loginTaskHubWithPassword(value);
+            prefs.edit().putString("taskhub_last_login_email", address).apply();
+            loginTaskHubWithPassword(address, value);
         });
         card.addView(login, new LinearLayout.LayoutParams(-1, dp(50)));
         root.addView(card, lp(-1, -2, 0, 12));
     }
 
-    private void loginTaskHubWithPassword(String password) {
+    private void loginTaskHubWithPassword(String email, String password) {
         new Thread(() -> {
             try {
                 JSONObject body = new JSONObject();
-                body.put("email", TASKHUB_ADMIN);
+                body.put("email", email.trim());
                 body.put("password", password);
                 JSONObject response = new JSONObject(taskHubCall(
                         "POST", "/auth/v1/token?grant_type=password", body.toString(), null));
                 String access = response.optString("access_token", "");
                 String refresh = response.optString("refresh_token", "");
                 if (access.isEmpty() || refresh.isEmpty() || !taskHubTokenBelongsToAdmin(access))
-                    throw new Exception("חשבון זה אינו מורשה לניהול עדכוני האפליקציה.");
+                    throw new Exception("החשבון אומת, אך לא הוגדרה לו הרשאת מנהל ב־Supabase.");
                 prefs.edit().putString(TASKHUB_PREF_TOKEN, access)
                         .putString(TASKHUB_PREF_REFRESH, refresh).apply();
                 runOnUiThread(this::showTaskHub);
             } catch (Exception e) {
                 String message = taskHubError(e);
                 if (message.contains("invalid_grant") || message.contains("Invalid login credentials"))
-                    message = "פרטי הכניסה אינם נכונים. בדוק את סיסמת מנהל המערכת.";
+                    message = "כתובת הדוא״ל או הסיסמה אינם נכונים.";
                 final String shown = message;
                 runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("הכניסה נכשלה")
                         .setMessage(shown).setPositiveButton("סגירה", null).show());
@@ -3726,7 +3735,10 @@ public class MainActivity extends Activity {
             byte[] decoded = android.util.Base64.decode(parts[1],
                     android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING);
             JSONObject claims = new JSONObject(new String(decoded, StandardCharsets.UTF_8));
-            return TASKHUB_ADMIN.equalsIgnoreCase(claims.optString("email", ""))
+            JSONObject appMetadata = claims.optJSONObject("app_metadata");
+            boolean isLegacyAdmin = TASKHUB_ADMIN.equalsIgnoreCase(claims.optString("email", ""));
+            boolean hasAdminRole = appMetadata != null && appMetadata.optBoolean("taskhub_admin", false);
+            return (isLegacyAdmin || hasAdminRole)
                     && claims.optLong("exp", 0) > System.currentTimeMillis() / 1000L;
         } catch (Exception ignored) { return false; }
     }
