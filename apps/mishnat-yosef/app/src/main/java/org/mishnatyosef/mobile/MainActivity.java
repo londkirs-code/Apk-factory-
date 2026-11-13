@@ -4111,9 +4111,12 @@ public class MainActivity extends Activity {
             add.setOnClickListener(v -> promptTaskHubTask(listId, null));
             card.addView(add, lp(-1, dp(46), 0, 8));
         }
-        if (tasks.length() == 0)
-            card.addView(muted("הרשימה עדיין ריקה. אפשר להוסיף כאן רעיון או שינוי שתרצה לבצע.", 13),
-                    lp(-1, -2, 0, 8));
+        if (tasks.length() == 0) {
+            String emptyMessage = taskHubShowArchivedTasks
+                    ? "אין משימות בארכיון ברשימה הזו."
+                    : "הרשימה עדיין ריקה. אפשר להוסיף כאן רעיון או שינוי שתרצה לבצע.";
+            card.addView(muted(emptyMessage, 13), lp(-1, -2, 0, 8));
+        }
         for (int i = 0; i < tasks.length(); i++) {
             JSONObject task = tasks.optJSONObject(i);
             if (task == null) continue;
@@ -4218,18 +4221,18 @@ public class MainActivity extends Activity {
             foreground = GREEN;
         } else if ("paused".equals(status)) {
             label = "⏸️ מושהית";
-            background = Color.rgb(235, 237, 242);
-            foreground = Color.rgb(86, 96, 112);
+            background = RED_LIGHT;
+            foreground = RED;
         } else {
             label = "⚪ פתוחה";
-            background = Color.rgb(232, 239, 250);
-            foreground = Color.rgb(48, 91, 150);
+            background = SURFACE;
+            foreground = MUTED;
         }
         TextView chip = muted(label, 12);
         chip.setTextColor(foreground);
         chip.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         chip.setPadding(dp(10), dp(5), dp(10), dp(5));
-        chip.setBackground(shape(background, 18, background));
+        chip.setBackground(shape(background, 18, LINE));
         return chip;
     }
 
