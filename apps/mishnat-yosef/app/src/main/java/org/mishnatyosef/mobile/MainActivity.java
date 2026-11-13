@@ -12591,12 +12591,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     }
 
     private void showChildLockChallenge(final Runnable onSuccess, final Runnable onCancel) {
-        long wait = childLockBlockedUntil() - System.currentTimeMillis();
-        if (wait > 0) {
-            toast("יותר מדי טעויות. נסו שוב בעוד " + (wait / 1000 + 1) + " שניות", true);
-            if (onCancel != null) onCancel.run();
-            return;
-        }
+        // Legacy image-challenge lockouts are cleared: image identification must allow unlimited attempts.
+        prefs.edit().remove("child_lock_failures").remove("child_lock_blocked_until").apply();
 
         List<ChildLockProduct> candidates = childLockProductsFromOpenOrder();
         if (candidates.isEmpty()) candidates = childLockProductsFromCache();
@@ -12712,15 +12708,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                 return;
             }
 
-            int remaining = recordChildLockFailure();
-            if (remaining == 0) {
-                ref[0].dismiss();
-                toast("נחסמתם ל־5 דקות לאחר 5 טעויות", true);
-                if (onCancel != null) onCancel.run();
-            } else {
-                toast("תשובה שגויה. נותרו " + remaining + " ניסיונות", false);
-                next[0].run();
-            }
+            // No attempt counter or lockout in the product-picture challenge.
+            toast("תשובה שגויה. הנה תמונת מוצר אחרת", false);
+            next[0].run();
         };
 
         input.setOnEditorActionListener((v, actionId, event) -> {
