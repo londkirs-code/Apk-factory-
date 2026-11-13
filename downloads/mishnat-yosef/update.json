@@ -1,9 +1,9 @@
 {
-  "versionCode": 444,
-  "versionName": "0.4899",
+  "versionCode": 445,
+  "versionName": "0.4900",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "fbaf46859fb0893c024311a98213759a1472f9e2bb6b43ef4eff88db86f0f19e",
-  "releaseTitle": "כניסה ל־TaskHub ללא שליחת מייל",
-  "releaseNotes": "- הכניסה למנהל המערכת מתבצעת כעת באמצעות סיסמת חשבון המנהל הקיים ב־Supabase, במקום קוד חד־פעמי למייל.\n- האימות נשאר מול Supabase Auth, והאפליקציה מקבלת אסימוני גישה ורענון רק לאחר בדיקת זהות חשבון המנהל המאושר.\n- אין צורך בשליחת מייל לצורך כניסה. יש להגדיר מראש סיסמה לחשבון המנהל בלוח הבקרה של Supabase.",
-  "buildCommit": "5f67b2ef7afbf19bf473c152046323cb9dd132da"
+  "sha256": "7575d291daea82fddacf1b97e3505f267e5eb71308804d0c931b7be8afbbec32",
+  "releaseTitle": "זיהוי עדכונים חדש מגיטהאב",
+  "releaseNotes": "- בדיקת הגרסה מול GitHub מבקשת כעת בכל פעם מידע עדכני ללא שימוש בעותק שמור של קובץ העדכון.\n- כך האפליקציה יכולה לזהות פרסום חדש גם כאשר שכבת המטמון של GitHub עדיין מחזיקה עותק קודם של קובץ המידע.\n- הורדת ה־APK ממשיכה להתבצע עם כתובת ייחודית ואימות SHA-256 לפני הצגת אפשרות ההתקנה.",
+  "buildCommit": "ab9a051a17bbb2dee34d52a4a0846090754bfe59"
 }
