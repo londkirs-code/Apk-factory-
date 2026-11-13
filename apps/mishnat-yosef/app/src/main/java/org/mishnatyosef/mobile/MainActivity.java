@@ -4083,7 +4083,7 @@ public class MainActivity extends Activity {
             actionCell.setMargins(dp(3), 0, dp(3), dp(6));
             primaryActions.addView(edit, new LinearLayout.LayoutParams(actionCell));
             primaryActions.addView(changeStatus, new LinearLayout.LayoutParams(actionCell));
-            actionGrid.addView(primaryActions, lp(-1, dp(40), 0, 0));
+            actionGrid.addView(primaryActions, lp(-1, dp(46), 0, 0));
 
             LinearLayout secondaryActions = new LinearLayout(this);
             secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
