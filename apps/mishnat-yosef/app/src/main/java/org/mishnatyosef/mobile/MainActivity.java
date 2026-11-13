@@ -3517,7 +3517,7 @@ public class MainActivity extends Activity {
     }
 
 
-    // ============================= TaskHub: private application-update planning
+    // ============================= TaskHub: private application-update planning and stable refresh rendering
     private static final String TASKHUB_URL = "https://rqkakdxttvwljvhmxsct.supabase.co";
     private static final String TASKHUB_KEY = "sb_publishable_1dAiJipBZfG845aGUHxJKg_3LbzLjv-";
     private static final String TASKHUB_ADMIN = "londkirs@gmail.com";
