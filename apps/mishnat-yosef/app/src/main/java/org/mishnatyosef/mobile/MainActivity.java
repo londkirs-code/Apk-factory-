@@ -4501,12 +4501,15 @@ public class MainActivity extends Activity {
     private JSONObject fetchUpdateManifest() throws Exception {
         HttpURLConnection connection = null;
         try {
-            connection = (HttpURLConnection) new URL(UPDATE_MANIFEST_URL).openConnection();
+            // Add a per-request cache key: raw.githubusercontent.com may otherwise serve a previous update.json from its CDN cache.
+            String manifestUrl = UPDATE_MANIFEST_URL + "?v=" + System.currentTimeMillis();
+            connection = (HttpURLConnection) new URL(manifestUrl).openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(15000);
             connection.setUseCaches(false);
-            connection.setRequestProperty("Cache-Control", "no-cache");
+            connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
+            connection.setRequestProperty("Pragma", "no-cache");
             connection.setRequestProperty("Accept", "application/json");
             int status = connection.getResponseCode();
             if (status != HttpURLConnection.HTTP_OK) throw new java.io.IOException("GitHub החזיר HTTP " + status);
