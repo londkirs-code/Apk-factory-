@@ -3578,7 +3578,7 @@ public class MainActivity extends Activity {
             try {
                 JSONObject body = new JSONObject();
                 body.put("email", TASKHUB_ADMIN);
-                body.put("create_user", false);
+                body.put("create_user", true);
                 taskHubCall("POST", "/auth/v1/otp", body.toString(), null);
                 runOnUiThread(() -> promptTaskHubOtpCode());
             } catch (Exception e) {
@@ -3629,9 +3629,10 @@ public class MainActivity extends Activity {
 
     private boolean taskHubTokenBelongsToAdmin(String token) {
         try {
-            if (token == null || token.split("\\.").length < 2) return false;
-            String payload = token.split("\\\\.")[1];
-            byte[] decoded = android.util.Base64.decode(payload,
+            if (token == null) return false;
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return false;
+            byte[] decoded = android.util.Base64.decode(parts[1],
                     android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING);
             JSONObject claims = new JSONObject(new String(decoded, StandardCharsets.UTF_8));
             return TASKHUB_ADMIN.equalsIgnoreCase(claims.optString("email", ""))
