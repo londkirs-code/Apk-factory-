@@ -39,6 +39,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.speech.RecognizerIntent;
 import android.text.Editable;
 import android.text.Html;
 import android.text.InputType;
@@ -3526,7 +3527,11 @@ public class MainActivity extends Activity {
     private static final String TASKHUB_PREF_TOKEN = "taskhub_access_token";
     private static final String TASKHUB_PREF_REFRESH = "taskhub_refresh_token";
     private static final String TASKHUB_PREF_LIST = "taskhub_selected_list";
+    private static final int TASKHUB_SPEECH_REQUEST = 8417;
     private String taskHubListId = "";
+    private EditText taskHubSpeechTarget;
+    private boolean taskHubShowArchivedLists = false;
+    private boolean taskHubShowArchivedTasks = false;
     private LinearLayout taskHubDynamicContent;
 
     private void addTaskHubSettings() {
@@ -3548,6 +3553,8 @@ public class MainActivity extends Activity {
             buildTaskHubLogin();
             return;
         }
+        taskHubShowArchivedLists = false;
+        taskHubShowArchivedTasks = false;
         taskHubListId = prefs.getString(TASKHUB_PREF_LIST, "");
         LinearLayout intro = card(14);
         intro.addView(text("🗂️ מרכז המשימות לפיתוח", 19, true));
@@ -3560,6 +3567,9 @@ public class MainActivity extends Activity {
         TextView addList = btn("＋ יצירת רשימה חדשה", TONAL);
         addList.setOnClickListener(v -> promptTaskHubList());
         root.addView(addList, lp(-1, dp(46), 0, 8));
+        TextView openProject = btn("🤖 פתיחת פרויקט משנת יוסף ב־ChatGPT", TONAL);
+        openProject.setOnClickListener(v -> openTaskHubChatGptProject());
+        root.addView(openProject, lp(-1, dp(46), 0, 8));
         taskHubDynamicContent = new LinearLayout(this);
         taskHubDynamicContent.setOrientation(LinearLayout.VERTICAL);
         taskHubDynamicContent.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -3799,7 +3809,8 @@ public class MainActivity extends Activity {
             try {
                 String token = prefs.getString(TASKHUB_PREF_TOKEN, "");
                 JSONArray lists = new JSONArray(taskHubCall("GET",
-                        "/rest/v1/task_lists?select=id,title,description&order=created_at.asc", null, token));
+                        "/rest/v1/task_lists?select=id,title,description,is_archived&is_archived=eq."
+                                + taskHubShowArchivedLists + "&order=created_at.asc", null, token));
                 runOnUiThread(() -> renderTaskHubLists(lists));
             } catch (Exception e) {
                 String message = taskHubError(e);
@@ -3812,20 +3823,33 @@ public class MainActivity extends Activity {
         if (taskHubDynamicContent == null) return;
         taskHubDynamicContent.removeAllViews();
         LinearLayout listCard = card(14);
-        listCard.addView(sectionTitle("📚 הרשימות שלך"));
+        listCard.addView(sectionTitle(taskHubShowArchivedLists ? "🗃️ ארכיון הרשימות" : "📚 הרשימות שלך"));
+        TextView archiveToggle = btn(taskHubShowArchivedLists
+                ? "↩️ חזרה לרשימות הפעילות" : "🗃️ צפייה ברשימות שבארכיון", TONAL);
+        archiveToggle.setOnClickListener(v -> {
+            taskHubShowArchivedLists = !taskHubShowArchivedLists;
+            taskHubShowArchivedTasks = false;
+            taskHubListId = "";
+            prefs.edit().remove(TASKHUB_PREF_LIST).apply();
+            loadTaskHubLists();
+        });
+        listCard.addView(archiveToggle, lp(-1, dp(42), 0, 8));
         if (lists.length() == 0) {
-            listCard.addView(muted("עדיין אין רשימות. צור רשימה ראשונה כדי להתחיל.", 13),
-                    lp(-1, -2, 0, 8));
+            String emptyMessage = taskHubShowArchivedLists
+                    ? "אין עדיין רשימות בארכיון."
+                    : "עדיין אין רשימות. צור רשימה ראשונה כדי להתחיל.";
+            listCard.addView(muted(emptyMessage, 13), lp(-1, -2, 0, 8));
         }
         for (int i = 0; i < lists.length(); i++) {
             JSONObject item = lists.optJSONObject(i);
             if (item == null) continue;
             String id = item.optString("id", "");
             String title = item.optString("title", "רשימה");
+            boolean archived = item.optBoolean("is_archived", false);
             LinearLayout listRow = new LinearLayout(this);
             listRow.setOrientation(LinearLayout.HORIZONTAL);
             listRow.setGravity(Gravity.CENTER_VERTICAL);
-            TextView choose = btn((id.equals(taskHubListId) ? "✓  " : "📁  ") + title,
+            TextView choose = btn((archived ? "🗃️  " : id.equals(taskHubListId) ? "✓  " : "📁  ") + title,
                     id.equals(taskHubListId) ? PRIMARY : TONAL);
             choose.setSingleLine(true);
             choose.setEllipsize(TextUtils.TruncateAt.END);
@@ -3835,6 +3859,7 @@ public class MainActivity extends Activity {
             choose.setPadding(dp(10), 0, dp(10), 0);
             choose.setOnClickListener(v -> {
                 taskHubListId = id;
+                taskHubShowArchivedTasks = false;
                 prefs.edit().putString(TASKHUB_PREF_LIST, id).apply();
                 loadTaskHubTasks(id, title);
             });
@@ -3846,7 +3871,7 @@ public class MainActivity extends Activity {
             manage.setPadding(0, 0, 0, 0);
             manage.setContentDescription("ניהול הרשימה " + title);
             manage.setOnClickListener(v -> showTaskHubListActions(id, title,
-                    item.optString("description", "")));
+                    item.optString("description", ""), archived));
             LinearLayout.LayoutParams manageParams = new LinearLayout.LayoutParams(dp(44), dp(46));
             manageParams.setMargins(dp(6), 0, 0, 0);
             listRow.addView(manage, manageParams);
@@ -3878,17 +3903,52 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showTaskHubListActions(String listId, String title, String description) {
-        new AlertDialog.Builder(this).setTitle(title)
-                .setItems(new String[]{"✏️ עריכת שם ותיאור", "🗑️ מחיקת רשימה"}, (dialog, which) -> {
-                    if (which == 0) promptEditTaskHubList(listId, title, description);
-                    else new AlertDialog.Builder(this).setTitle("מחיקת רשימה")
-                            .setMessage("למחוק לצמיתות את הרשימה „" + title
-                                    + "”? כל המשימות, המצבים האישיים והיסטוריית הפעולות שבה יימחקו גם הם. לא ניתן לשחזר את המידע.")
-                            .setNegativeButton("ביטול", null)
-                            .setPositiveButton("מחיקת הרשימה", (d, w) ->
-                                    deleteTaskHubList(listId, title)).show();
-                }).show();
+    private void showTaskHubListActions(String listId, String title, String description, boolean archived) {
+        String[] actions = archived
+                ? new String[]{"✏️ עריכת שם ותיאור", "↩️ שחזור הרשימה", "🗑️ מחיקת רשימה"}
+                : new String[]{"✏️ עריכת שם ותיאור", "🗃️ העברת הרשימה לארכיון", "🗑️ מחיקת רשימה"};
+        new AlertDialog.Builder(this).setTitle(title).setItems(actions, (dialog, which) -> {
+            if (which == 0) {
+                promptEditTaskHubList(listId, title, description);
+            } else if (which == 1) {
+                String action = archived ? "לשחזר" : "להעביר לארכיון";
+                new AlertDialog.Builder(this).setTitle(archived ? "שחזור רשימה" : "העברת רשימה לארכיון")
+                        .setMessage("האם " + action + " את הרשימה „" + title + "”? המשימות שבתוכה יישארו שמורות.")
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton(archived ? "שחזור" : "העברה לארכיון",
+                                (d, w) -> updateTaskHubListState(listId, !archived, title)).show();
+            } else {
+                new AlertDialog.Builder(this).setTitle("מחיקת רשימה")
+                        .setMessage("למחוק לצמיתות את הרשימה „" + title
+                                + "”? כל המשימות, המצבים האישיים והיסטוריית הפעולות שבה יימחקו גם הם. לא ניתן לשחזר את המידע.")
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton("מחיקת הרשימה", (d, w) ->
+                                deleteTaskHubList(listId, title)).show();
+            }
+        }).show();
+    }
+
+    private void updateTaskHubListState(String listId, boolean archived, String title) {
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("is_archived", archived);
+                taskHubCall("PATCH", "/rest/v1/task_lists?id=eq."
+                        + URLEncoder.encode(listId, "UTF-8"), body.toString(),
+                        prefs.getString(TASKHUB_PREF_TOKEN, ""));
+                runOnUiThread(() -> {
+                    if (listId.equals(taskHubListId)) {
+                        taskHubListId = "";
+                        prefs.edit().remove(TASKHUB_PREF_LIST).apply();
+                    }
+                    toast(archived ? "הרשימה הועברה לארכיון" : "הרשימה שוחזרה", false);
+                    loadTaskHubLists();
+                });
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("עדכון מצב הרשימה נכשל: " + message, true));
+            }
+        }).start();
     }
 
     private void promptEditTaskHubList(String listId, String oldTitle, String oldDescription) {
@@ -4013,7 +4073,8 @@ public class MainActivity extends Activity {
                 String token = prefs.getString(TASKHUB_PREF_TOKEN, "");
                 JSONArray tasks = new JSONArray(taskHubCall("GET",
                         "/rest/v1/tasks?select=id,title,description,priority,is_archived,created_at&list_id=eq."
-                                + encodedId + "&is_archived=eq.false&order=created_at.desc", null, token));
+                                + encodedId + "&is_archived=eq." + taskHubShowArchivedTasks
+                                + "&order=created_at.desc", null, token));
                 String userId = taskHubUserId(token);
                 JSONArray statusRows = userId.isEmpty() ? new JSONArray() : new JSONArray(taskHubCall("GET",
                         "/rest/v1/task_statuses?select=task_id,status&user_id=eq."
@@ -4035,8 +4096,20 @@ public class MainActivity extends Activity {
         if (taskHubDynamicContent == null) return;
         LinearLayout card = card(14);
         card.addView(text("📌 " + listTitle, 17, true));
-        card.addView(muted(tasks.length() + " משימות פעילות", 12), lp(-1, -2, 0, 4));
-        TextView add = btn("＋ הוספת משימה", PRIMARY);
+        card.addView(muted(tasks.length() + (taskHubShowArchivedTasks ? " משימות בארכיון" : " משימות פעילות"),
+                12), lp(-1, -2, 0, 4));
+        TextView taskArchiveToggle = btn(taskHubShowArchivedTasks
+                ? "↩️ חזרה למשימות הפעילות" : "🗃️ צפייה במשימות שהועברו לארכיון", TONAL);
+        taskArchiveToggle.setOnClickListener(v -> {
+            taskHubShowArchivedTasks = !taskHubShowArchivedTasks;
+            loadTaskHubTasks(listId, listTitle);
+        });
+        card.addView(taskArchiveToggle, lp(-1, dp(42), 0, 8));
+        if (!taskHubShowArchivedTasks) {
+            TextView add = btn("＋ הוספת משימה", PRIMARY);
+            add.setOnClickListener(v -> promptTaskHubTask(listId, null));
+            card.addView(add, lp(-1, dp(46), 0, 8));
+        }
         add.setOnClickListener(v -> promptTaskHubTask(listId, null));
         card.addView(add, lp(-1, dp(46), 0, 8));
         if (tasks.length() == 0)
@@ -4058,10 +4131,7 @@ public class MainActivity extends Activity {
             if (!description.isEmpty()) row.addView(muted(description, 13), lp(-1, -2, 0, 4));
             String status = statuses.get(id);
             if (status == null) status = "open";
-            String statusLabel = "in_progress".equals(status) ? "בטיפול"
-                    : "completed".equals(status) ? "הושלמה"
-                    : "paused".equals(status) ? "מושהית" : "פתוחה";
-            row.addView(muted("מצב אישי: " + statusLabel, 12), lp(-1, -2, 0, 4));
+            row.addView(taskHubStatusChip(status), lp(-1, -2, 0, 6));
             LinearLayout actionGrid = new LinearLayout(this);
             actionGrid.setOrientation(LinearLayout.VERTICAL);
             actionGrid.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -4071,13 +4141,21 @@ public class MainActivity extends Activity {
             primaryActions.setOrientation(LinearLayout.HORIZONTAL);
             primaryActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             TextView edit = btn("✏️ עריכה", TONAL);
-            edit.setTextSize(13);
+            edit.setTextSize(12);
             edit.setSingleLine(true);
-            edit.setOnClickListener(v -> promptTaskHubTask(listId,
-                    taskHubTaskForEdit(id, title, description, priority)));
+            edit.setMinWidth(0);
+            edit.setPadding(dp(4), 0, dp(4), 0);
+            edit.setGravity(Gravity.CENTER);
+            edit.setOnClickListener(v -> {
+                saveTaskHubStatus(listId, id, "in_progress");
+                promptTaskHubTask(listId, taskHubTaskForEdit(id, title, description, priority));
+            });
             TextView changeStatus = btn("🔄 מצב", TONAL);
-            changeStatus.setTextSize(13);
+            changeStatus.setTextSize(12);
             changeStatus.setSingleLine(true);
+            changeStatus.setMinWidth(0);
+            changeStatus.setPadding(dp(4), 0, dp(4), 0);
+            changeStatus.setGravity(Gravity.CENTER);
             changeStatus.setOnClickListener(v -> promptTaskHubStatus(listId, id));
             LinearLayout.LayoutParams actionCell = new LinearLayout.LayoutParams(0, dp(40), 1f);
             actionCell.setMargins(dp(3), 0, dp(3), dp(6));
@@ -4088,16 +4166,30 @@ public class MainActivity extends Activity {
             LinearLayout secondaryActions = new LinearLayout(this);
             secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
             secondaryActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-            TextView complete = btn("✓ סיום", PRIMARY);
-            complete.setTextSize(13);
+            TextView complete = btn(taskHubShowArchivedTasks ? "↩️ שחזור" : "✓ סיום", PRIMARY);
+            complete.setTextSize(12);
             complete.setSingleLine(true);
-            complete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("סיום משימה")
-                    .setMessage("לסמן את המשימה כהושלמה ולהעביר אותה לארכיון?")
-                    .setNegativeButton("ביטול", null)
-                    .setPositiveButton("סיום", (dialog, which) -> archiveTaskHubTask(listId, id)).show());
+            complete.setMinWidth(0);
+            complete.setPadding(dp(4), 0, dp(4), 0);
+            complete.setGravity(Gravity.CENTER);
+            if (taskHubShowArchivedTasks) {
+                complete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("שחזור משימה")
+                        .setMessage("להחזיר את המשימה „" + title + "” לרשימת המשימות הפעילות?")
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton("שחזור", (dialog, which) ->
+                                updateTaskHubTaskState(listId, id, false)).show());
+            } else {
+                complete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("סיום משימה")
+                        .setMessage("לסמן את המשימה כהושלמה ולהעביר אותה לארכיון?")
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton("סיום", (dialog, which) -> archiveTaskHubTask(listId, id)).show());
+            }
             TextView delete = btn("🗑️ מחיקה", TONAL);
-            delete.setTextSize(13);
+            delete.setTextSize(12);
             delete.setSingleLine(true);
+            delete.setMinWidth(0);
+            delete.setPadding(dp(4), 0, dp(4), 0);
+            delete.setGravity(Gravity.CENTER);
             delete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("מחיקת משימה")
                     .setMessage("למחוק לצמיתות את המשימה „" + title + "”?")
                     .setNegativeButton("ביטול", null)
@@ -4111,6 +4203,66 @@ public class MainActivity extends Activity {
             card.addView(row, lp(-1, -2, 0, 8));
         }
         taskHubDynamicContent.addView(card, lp(-1, -2, 0, 10));
+    }
+
+    private TextView taskHubStatusChip(String status) {
+        String label;
+        int background;
+        int foreground;
+        if ("in_progress".equals(status)) {
+            label = "🟠 בטיפול";
+            background = ORANGE_LIGHT;
+            foreground = ORANGE_DARK;
+        } else if ("completed".equals(status)) {
+            label = "🟢 הושלמה";
+            background = GREEN_LIGHT;
+            foreground = GREEN;
+        } else if ("paused".equals(status)) {
+            label = "⏸️ מושהית";
+            background = Color.rgb(235, 237, 242);
+            foreground = Color.rgb(86, 96, 112);
+        } else {
+            label = "⚪ פתוחה";
+            background = Color.rgb(232, 239, 250);
+            foreground = Color.rgb(48, 91, 150);
+        }
+        TextView chip = muted(label, 12);
+        chip.setTextColor(foreground);
+        chip.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        chip.setPadding(dp(10), dp(5), dp(10), dp(5));
+        chip.setBackground(shape(background, 18, background));
+        return chip;
+    }
+
+    private void startTaskHubSpeechRecognition(EditText target) {
+        if (target == null) return;
+        taskHubSpeechTarget = target;
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL");
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "he-IL");
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "אמור את כותרת המשימה");
+        try {
+            startActivityForResult(intent, TASKHUB_SPEECH_REQUEST);
+        } catch (android.content.ActivityNotFoundException e) {
+            taskHubSpeechTarget = null;
+            toast("לא נמצאה באפליקציה אפשרות להכתבה קולית. אפשר להתקין או להפעיל את שירות הדיבור של Google.", true);
+        }
+    }
+
+    private void openTaskHubChatGptProject() {
+        Uri projectUri = Uri.parse("https://chatgpt.com/g/g-p-6ad8f40c0fc081919f2e1b2e6377b6df/project");
+        Intent appIntent = new Intent(Intent.ACTION_VIEW, projectUri);
+        appIntent.setPackage("com.openai.chatgpt");
+        try {
+            startActivity(appIntent);
+        } catch (android.content.ActivityNotFoundException e) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, projectUri));
+            } catch (Exception ignored) {
+                toast("לא ניתן לפתוח את פרויקט ChatGPT במכשיר הזה.", true);
+            }
+        }
     }
 
     private JSONObject taskHubTaskForEdit(String id, String title, String description, int priority) {
@@ -4130,6 +4282,8 @@ public class MainActivity extends Activity {
         int oldPriority = existing == null ? 0 : existing.optInt("priority", 0);
         EditText title = field("מה צריך לשנות או להוסיף?", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         title.setText(oldTitle);
+        TextView dictate = btn("🎙️ הוספת משימה באמצעות דיבור", TONAL);
+        dictate.setOnClickListener(v -> startTaskHubSpeechRecognition(title));
         EditText description = field("פירוט, התנהגות רצויה והערות (לא חובה)",
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         description.setText(oldDescription);
@@ -4140,7 +4294,8 @@ public class MainActivity extends Activity {
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(20), dp(8), dp(20), 0);
-        content.addView(title, lp(-1, dp(52), 0, 8));
+        content.addView(title, lp(-1, dp(52), 0, 6));
+        content.addView(dictate, lp(-1, dp(44), 0, 8));
         content.addView(description, lp(-1, dp(104), 0, 8));
         content.addView(important, lp(-1, dp(48), 0, 4));
         new AlertDialog.Builder(this).setTitle(existing == null ? "משימה חדשה" : "עריכת משימה")
@@ -4270,7 +4425,7 @@ public class MainActivity extends Activity {
                 taskHubCall("PATCH", "/rest/v1/tasks?id=eq." + URLEncoder.encode(taskId, "UTF-8"),
                         body.toString(), prefs.getString(TASKHUB_PREF_TOKEN, ""));
                 runOnUiThread(() -> {
-                    toast("המשימה סומנה כהושלמה", false);
+                    toast(archived ? "המשימה הועברה לארכיון" : "המשימה שוחזרה", false);
                     loadTaskHubTasks(listId, "עדכוני האפליקציה");
                 });
             } catch (Exception e) {
@@ -12068,6 +12223,20 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == TASKHUB_SPEECH_REQUEST) {
+            if (resultCode == RESULT_OK && data != null && taskHubSpeechTarget != null) {
+                ArrayList<String> matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                if (matches != null && !matches.isEmpty()) {
+                    String spoken = matches.get(0);
+                    if (spoken != null && !spoken.trim().isEmpty()) {
+                        taskHubSpeechTarget.setText(spoken.trim());
+                        taskHubSpeechTarget.setSelection(taskHubSpeechTarget.getText().length());
+                    }
+                }
+            }
+            taskHubSpeechTarget = null;
+            return;
+        }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         final Uri uri = data.getData();
         if (requestCode == REQ_EXPORT) {
