@@ -3616,6 +3616,7 @@ public class MainActivity extends Activity {
             toast("כדי למנוע חסימת שליחה, אפשר לבקש קוד נוסף בעוד " + waitSeconds + " שניות", true);
             return;
         }
+        prefs.edit().putLong("taskhub_last_otp_sent_at", System.currentTimeMillis()).apply();
         toast("שולח קישור כניסה מאובטח למייל...", false);
         new Thread(() -> {
             try {
@@ -3625,7 +3626,6 @@ public class MainActivity extends Activity {
                 String redirect = "mishnatyosef://taskhub-auth";
                 taskHubCall("POST", "/auth/v1/otp?redirect_to="
                         + URLEncoder.encode(redirect, "UTF-8"), body.toString(), null);
-                prefs.edit().putLong("taskhub_last_otp_sent_at", System.currentTimeMillis()).apply();
                 runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("נשלח קישור כניסה")
                         .setMessage("פתח את ההודעה העדכנית שנשלחה אל " + TASKHUB_ADMIN
                                 + " ולחץ על הקישור. האפליקציה תיפתח אוטומטית לאחר האימות.")
