@@ -4071,12 +4071,12 @@ public class MainActivity extends Activity {
             primaryActions.setOrientation(LinearLayout.HORIZONTAL);
             primaryActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             TextView edit = btn("✏️ עריכה", TONAL);
-            edit.setTextSize(12);
+            edit.setTextSize(13);
             edit.setSingleLine(true);
             edit.setOnClickListener(v -> promptTaskHubTask(listId,
                     taskHubTaskForEdit(id, title, description, priority)));
             TextView changeStatus = btn("🔄 מצב", TONAL);
-            changeStatus.setTextSize(12);
+            changeStatus.setTextSize(13);
             changeStatus.setSingleLine(true);
             changeStatus.setOnClickListener(v -> promptTaskHubStatus(listId, id));
             LinearLayout.LayoutParams actionCell = new LinearLayout.LayoutParams(0, dp(40), 1f);
@@ -4089,14 +4089,14 @@ public class MainActivity extends Activity {
             secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
             secondaryActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             TextView complete = btn("✓ סיום", PRIMARY);
-            complete.setTextSize(12);
+            complete.setTextSize(13);
             complete.setSingleLine(true);
             complete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("סיום משימה")
                     .setMessage("לסמן את המשימה כהושלמה ולהעביר אותה לארכיון?")
                     .setNegativeButton("ביטול", null)
                     .setPositiveButton("סיום", (dialog, which) -> archiveTaskHubTask(listId, id)).show());
             TextView delete = btn("🗑️ מחיקה", TONAL);
-            delete.setTextSize(12);
+            delete.setTextSize(13);
             delete.setSingleLine(true);
             delete.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("מחיקת משימה")
                     .setMessage("למחוק לצמיתות את המשימה „" + title + "”?")
