@@ -5919,8 +5919,10 @@ public class MainActivity extends Activity {
         String requestPath = path;
         // The open-sales endpoint changes as soon as a sale opens. Bypass browser/CDN/URLConnection
         // caches so this screen cannot be left showing an old empty response after a notification.
-        if ("GET".equals(method) && "/api/profile/open_sales".equals(path)) {
-            requestPath += "?_fresh=" + System.currentTimeMillis();
+        if ("GET".equals(method) && ("/api/profile/open_sales".equals(path)
+                || path.startsWith("/api/profile/transactions"))) {
+            requestPath += (requestPath.contains("?") ? "&" : "?")
+                    + "_fresh=" + System.currentTimeMillis();
         }
         HttpURLConnection c = (HttpURLConnection) new URL(API + requestPath).openConnection();
         c.setUseCaches(false);
@@ -11007,24 +11009,57 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                 while (page <= Math.min(lastPage, 60)) {
                     HttpResult response = api("GET", "/api/profile/transactions?page=" + page, null);
                     if (response.code < 200 || response.code >= 300)
-                        throw new Exception("טעינת הזיכויים נכשלה (עמוד " + page + ", שגיאה " + response.code + ").");
+                        throw new Exception("טעינת הזיכויים נכשלה (עמוד " + page + "): " + apiError(response) + ".");
                     JSONObject payload = new JSONObject(response.body);
+                    // The API has returned transaction pages in more than one envelope shape.
+                    // Accept both {transactions:{data:[]}} and {transactions:[]} as well as
+                    // the common {data:{transactions:{data:[]}}} wrapper.
+                    JSONObject envelope = payload.optJSONObject("data");
                     JSONObject transactions = payload.optJSONObject("transactions");
-                    if (transactions == null) transactions = new JSONObject();
+                    Object transactionValue = payload.opt("transactions");
+                    if (transactions == null && envelope != null) {
+                        transactions = envelope.optJSONObject("transactions");
+                        if (transactionValue == null) transactionValue = envelope.opt("transactions");
+                    }
                     if (page == 1) {
                         addTransactionList(unique, payload.opt("open_transactions"));
                         addTransactionList(unique, payload.opt("kupot_transactions"));
                         addTransactionList(unique, payload.opt("kupot_open_transactions"));
+                        if (envelope != null) {
+                            addTransactionList(unique, envelope.opt("open_transactions"));
+                            addTransactionList(unique, envelope.opt("kupot_transactions"));
+                            addTransactionList(unique, envelope.opt("kupot_open_transactions"));
+                        }
                     }
-                    JSONArray data = transactions.optJSONArray("data");
-                    if (data == null) data = payload.optJSONArray("transactions");
+                    JSONArray data = null;
+                    if (transactionValue instanceof JSONArray) data = (JSONArray) transactionValue;
+                    if (data == null && transactions != null) data = transactions.optJSONArray("data");
+                    if (data == null) data = payload.optJSONArray("data");
+                    if (data == null && envelope != null) data = envelope.optJSONArray("data");
+                    if (data == null && envelope != null) {
+                        JSONObject nested = envelope.optJSONObject("transactions");
+                        if (nested != null) data = nested.optJSONArray("data");
+                    }
+                    if (data == null) data = payload.optJSONArray("items");
                     if (data != null) {
                         for (int i = 0; i < data.length(); i++) {
                             JSONObject tx = data.optJSONObject(i);
                             if (tx != null) unique.putIfAbsent(tx.optString("id", "page" + page + "_" + i), tx);
                         }
                     }
-                    lastPage = Math.max(1, transactions.optInt("last_page", 1));
+                    int reportedLastPage = transactions == null ? 0 : transactions.optInt("last_page", 0);
+                    if (reportedLastPage <= 0) reportedLastPage = payload.optInt("last_page", 0);
+                    if (reportedLastPage <= 0 && envelope != null) reportedLastPage = envelope.optInt("last_page", 0);
+                    JSONObject pagination = payload.optJSONObject("pagination");
+                    if (reportedLastPage <= 0 && pagination != null) reportedLastPage = pagination.optInt("last_page", 0);
+                    JSONObject meta = payload.optJSONObject("meta");
+                    if (reportedLastPage <= 0 && meta != null) reportedLastPage = meta.optInt("last_page", 0);
+                    if (reportedLastPage <= 0 && transactions != null
+                            && !transactions.isNull("next_page_url")
+                            && !transactions.optString("next_page_url", "").isEmpty()) {
+                        reportedLastPage = page + 1;
+                    }
+                    lastPage = Math.max(1, reportedLastPage);
                     page++;
                 }
                 final ArrayList<JSONObject> rows = new ArrayList<>(unique.values());
