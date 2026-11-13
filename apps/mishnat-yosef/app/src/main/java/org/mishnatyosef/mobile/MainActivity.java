@@ -3822,14 +3822,25 @@ public class MainActivity extends Activity {
             if (item == null) continue;
             String id = item.optString("id", "");
             String title = item.optString("title", "רשימה");
-            TextView choose = btn((id.equals(taskHubListId) ? "✓  " : "📁  ") + title, 
+            LinearLayout listRow = new LinearLayout(this);
+            listRow.setOrientation(LinearLayout.HORIZONTAL);
+            listRow.setGravity(Gravity.CENTER_VERTICAL);
+            TextView choose = btn((id.equals(taskHubListId) ? "✓  " : "📁  ") + title,
                     id.equals(taskHubListId) ? PRIMARY : TONAL);
             choose.setOnClickListener(v -> {
                 taskHubListId = id;
                 prefs.edit().putString(TASKHUB_PREF_LIST, id).apply();
                 loadTaskHubTasks(id, title);
             });
-            listCard.addView(choose, lp(-1, dp(46), 0, 6));
+            listRow.addView(choose, new LinearLayout.LayoutParams(0, dp(46), 1f));
+            TextView manage = btn("⋮", TONAL);
+            manage.setContentDescription("ניהול הרשימה " + title);
+            manage.setOnClickListener(v -> showTaskHubListActions(id, title,
+                    item.optString("description", "")));
+            LinearLayout.LayoutParams manageParams = new LinearLayout.LayoutParams(dp(48), dp(46));
+            manageParams.setMargins(dp(6), 0, 0, 0);
+            listRow.addView(manage, manageParams);
+            listCard.addView(listRow, lp(-1, dp(46), 0, 6));
         }
         taskHubDynamicContent.addView(listCard, lp(-1, -2, 0, 10));
         if (lists.length() > 0) {
@@ -3855,6 +3866,100 @@ public class MainActivity extends Activity {
                 }
             }
         }
+    }
+
+    private void showTaskHubListActions(String listId, String title, String description) {
+        new AlertDialog.Builder(this).setTitle(title)
+                .setItems(new String[]{"✏️ עריכת שם ותיאור", "🗑️ מחיקת רשימה"}, (dialog, which) -> {
+                    if (which == 0) promptEditTaskHubList(listId, title, description);
+                    else new AlertDialog.Builder(this).setTitle("מחיקת רשימה")
+                            .setMessage("למחוק לצמיתות את הרשימה „" + title
+                                    + "”? כל המשימות, המצבים האישיים והיסטוריית הפעולות שבה יימחקו גם הם. לא ניתן לשחזר את המידע.")
+                            .setNegativeButton("ביטול", null)
+                            .setPositiveButton("מחיקת הרשימה", (d, w) ->
+                                    deleteTaskHubList(listId, title)).show();
+                }).show();
+    }
+
+    private void promptEditTaskHubList(String listId, String oldTitle, String oldDescription) {
+        EditText title = field("שם הרשימה", InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        title.setText(oldTitle);
+        EditText description = field("תיאור (לא חובה)", InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        description.setText(oldDescription);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(8), dp(20), 0);
+        content.addView(title, lp(-1, dp(50), 0, 6));
+        content.addView(description, lp(-1, dp(80), 0, 6));
+        new AlertDialog.Builder(this).setTitle("עריכת רשימה").setView(content)
+                .setNegativeButton("ביטול", null)
+                .setPositiveButton("שמירה", (d, w) -> updateTaskHubList(listId,
+                        title.getText().toString().trim(), description.getText().toString().trim()))
+                .show();
+    }
+
+    private void updateTaskHubList(String listId, String title, String description) {
+        if (title.isEmpty()) { toast("יש לתת שם לרשימה", true); return; }
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("title", title);
+                body.put("description", description);
+                taskHubCall("PATCH", "/rest/v1/task_lists?id=eq."
+                        + URLEncoder.encode(listId, "UTF-8"), body.toString(),
+                        prefs.getString(TASKHUB_PREF_TOKEN, ""));
+                runOnUiThread(() -> {
+                    toast("פרטי הרשימה עודכנו", false);
+                    loadTaskHubLists();
+                });
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("עדכון הרשימה נכשל: " + message, true));
+            }
+        }).start();
+    }
+
+    private void deleteTaskHubList(String listId, String title) {
+        new Thread(() -> {
+            try {
+                String token = prefs.getString(TASKHUB_PREF_TOKEN, "");
+                String encodedId = URLEncoder.encode(listId, "UTF-8");
+                JSONArray tasks = new JSONArray(taskHubCall("GET",
+                        "/rest/v1/tasks?select=id&list_id=eq." + encodedId, null, token));
+                if (tasks.length() > 0) {
+                    StringBuilder taskIds = new StringBuilder();
+                    for (int i = 0; i < tasks.length(); i++) {
+                        JSONObject task = tasks.optJSONObject(i);
+                        if (task == null) continue;
+                        if (taskIds.length() > 0) taskIds.append(",");
+                        taskIds.append(task.optString("id", ""));
+                    }
+                    if (taskIds.length() > 0) {
+                        String encodedTaskIds = URLEncoder.encode("in.(" + taskIds + ")", "UTF-8");
+                        taskHubCall("DELETE", "/rest/v1/task_statuses?task_id=" + encodedTaskIds,
+                                null, token);
+                    }
+                }
+                taskHubCall("DELETE", "/rest/v1/task_logs?list_id=eq." + encodedId, null, token);
+                taskHubCall("DELETE", "/rest/v1/tasks?list_id=eq." + encodedId, null, token);
+                taskHubCall("DELETE", "/rest/v1/list_members?list_id=eq." + encodedId, null, token);
+                taskHubCall("DELETE", "/rest/v1/task_lists?id=eq." + encodedId, null, token);
+                runOnUiThread(() -> {
+                    if (listId.equals(taskHubListId)) {
+                        taskHubListId = "";
+                        prefs.edit().remove(TASKHUB_PREF_LIST).apply();
+                    }
+                    toast("הרשימה „" + title + "” נמחקה", false);
+                    loadTaskHubLists();
+                });
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("מחיקת הרשימה נכשלה: " + message
+                        + ". אם חלק מהמידע כבר נמחק, רענן את הרשימות ונסה שוב.", true));
+            }
+        }).start();
     }
 
     private void promptTaskHubList() {
