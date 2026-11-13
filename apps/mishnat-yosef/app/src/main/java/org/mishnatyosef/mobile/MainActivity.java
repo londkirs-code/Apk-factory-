@@ -3652,7 +3652,6 @@ public class MainActivity extends Activity {
             connection.setRequestProperty("Accept", "application/json");
             if (accessToken != null && !accessToken.isEmpty())
                 connection.setRequestProperty("Authorization", "Bearer " + accessToken);
-            else connection.setRequestProperty("Authorization", "Bearer " + TASKHUB_KEY);
             if (body != null) {
                 connection.setDoOutput(true);
                 connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
@@ -3792,11 +3791,20 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             try {
                 String encodedId = URLEncoder.encode(listId, "UTF-8");
+                String token = prefs.getString(TASKHUB_PREF_TOKEN, "");
                 JSONArray tasks = new JSONArray(taskHubCall("GET",
                         "/rest/v1/tasks?select=id,title,description,priority,is_archived,created_at&list_id=eq."
-                                + encodedId + "&is_archived=eq.false&order=created_at.desc", null,
-                        prefs.getString(TASKHUB_PREF_TOKEN, "")));
-                runOnUiThread(() -> renderTaskHubTasks(listId, listTitle, tasks));
+                                + encodedId + "&is_archived=eq.false&order=created_at.desc", null, token));
+                String userId = taskHubUserId(token);
+                JSONArray statusRows = userId.isEmpty() ? new JSONArray() : new JSONArray(taskHubCall("GET",
+                        "/rest/v1/task_statuses?select=task_id,status&user_id=eq."
+                                + URLEncoder.encode(userId, "UTF-8"), null, token));
+                HashMap<String, String> statuses = new HashMap<>();
+                for (int i = 0; i < statusRows.length(); i++) {
+                    JSONObject row = statusRows.optJSONObject(i);
+                    if (row != null) statuses.put(row.optString("task_id", ""), row.optString("status", "open"));
+                }
+                runOnUiThread(() -> renderTaskHubTasks(listId, listTitle, tasks, statuses));
             } catch (Exception e) {
                 String message = taskHubError(e);
                 runOnUiThread(() -> toast("טעינת המשימות נכשלה: " + message, true));
@@ -3804,7 +3812,7 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private void renderTaskHubTasks(String listId, String listTitle, JSONArray tasks) {
+    private void renderTaskHubTasks(String listId, String listTitle, JSONArray tasks, Map<String, String> statuses) {
         if (root == null) return;
         LinearLayout card = card(14);
         card.addView(text("📌 " + listTitle, 17, true));
@@ -3829,6 +3837,12 @@ public class MainActivity extends Activity {
             TextView heading = text((priority >= 2 ? "⭐ " : "• ") + title, 15, true);
             row.addView(heading);
             if (!description.isEmpty()) row.addView(muted(description, 13), lp(-1, -2, 0, 4));
+            String status = statuses.get(id);
+            if (status == null) status = "open";
+            String statusLabel = "in_progress".equals(status) ? "בטיפול"
+                    : "completed".equals(status) ? "הושלמה"
+                    : "paused".equals(status) ? "מושהית" : "פתוחה";
+            row.addView(muted("מצב אישי: " + statusLabel, 12), lp(-1, -2, 0, 4));
             TextView actions = btn("✏️ עריכה   ·   ✓ סיום   ·   🗑️ מחיקה", TONAL);
             actions.setOnClickListener(v -> showTaskHubTaskActions(listId, listTitle, id, title, description, priority));
             row.addView(actions, lp(-1, dp(42), 0, 8));
