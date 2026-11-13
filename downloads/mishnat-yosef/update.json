@@ -1,9 +1,9 @@
 {
-  "versionCode": 445,
-  "versionName": "0.4900",
+  "versionCode": 446,
+  "versionName": "0.4901",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "7575d291daea82fddacf1b97e3505f267e5eb71308804d0c931b7be8afbbec32",
-  "releaseTitle": "זיהוי עדכונים חדש מגיטהאב",
-  "releaseNotes": "- בדיקת הגרסה מול GitHub מבקשת כעת בכל פעם מידע עדכני ללא שימוש בעותק שמור של קובץ העדכון.\n- כך האפליקציה יכולה לזהות פרסום חדש גם כאשר שכבת המטמון של GitHub עדיין מחזיקה עותק קודם של קובץ המידע.\n- הורדת ה־APK ממשיכה להתבצע עם כתובת ייחודית ואימות SHA-256 לפני הצגת אפשרות ההתקנה.",
-  "buildCommit": "ab9a051a17bbb2dee34d52a4a0846090754bfe59"
+  "sha256": "8993a9daa73a79c724a6415d5784a606a8b84ba0e417b8107ef318a0ef22ecf9",
+  "releaseTitle": "התחברות גמישה ומאובטחת למרכז המשימות",
+  "releaseNotes": "- מסך הכניסה מאפשר להזין כתובת דוא״ל וסיסמה של חשבון Supabase.\n- הגישה למרכז המשימות ניתנת רק לחשבונות שקיבלו הרשאת מנהל מפורשת; החשבון הקיים ממשיך להיות מורשה.\n- הרשאות מנהל נבדקות גם באפליקציה וגם במדיניות האבטחה של מסד הנתונים.",
+  "buildCommit": "7a1a77695f2a82a4d2ec38d4e3c848f18e35d2ce"
 }
