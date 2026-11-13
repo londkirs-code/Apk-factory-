@@ -1,9 +1,9 @@
 {
-  "versionCode": 442,
-  "versionName": "0.4897",
+  "versionCode": 444,
+  "versionName": "0.4899",
   "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
-  "sha256": "cd984e4bde78ca3b86bf819572690836b5132c85b4209b447e88a09bf17a33e2",
-  "releaseTitle": "- מנגנון שליחת קישור הכניסה שומר כעת את זמן הניסיון גם במקרה של שגיאת רשת או מגבלת קצב, ומונע שליחה חוזרת מהירה.",
-  "releaseNotes": "- אימות אסימון המנהל מתבצע לפני פתיחת מערכת העדכונים.",
-  "buildCommit": "0b0749b3e688642ca763eb4b0cb7d4e35614740f"
+  "sha256": "fbaf46859fb0893c024311a98213759a1472f9e2bb6b43ef4eff88db86f0f19e",
+  "releaseTitle": "כניסה ל־TaskHub ללא שליחת מייל",
+  "releaseNotes": "- הכניסה למנהל המערכת מתבצעת כעת באמצעות סיסמת חשבון המנהל הקיים ב־Supabase, במקום קוד חד־פעמי למייל.\n- האימות נשאר מול Supabase Auth, והאפליקציה מקבלת אסימוני גישה ורענון רק לאחר בדיקת זהות חשבון המנהל המאושר.\n- אין צורך בשליחת מייל לצורך כניסה. יש להגדיר מראש סיסמה לחשבון המנהל בלוח הבקרה של Supabase.",
+  "buildCommit": "5f67b2ef7afbf19bf473c152046323cb9dd132da"
 }

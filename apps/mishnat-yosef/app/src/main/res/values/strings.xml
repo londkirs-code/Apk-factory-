@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">משנת יוסף</string>
-    <string name="release_notes_title">- מנגנון שליחת קישור הכניסה שומר כעת את זמן הניסיון גם במקרה של שגיאת רשת או מגבלת קצב, ומונע שליחה חוזרת מהירה.</string>
-    <string name="release_notes_details">- אימות אסימון המנהל מתבצע לפני פתיחת מערכת העדכונים.</string>
+    <string name="release_notes_title">כניסה ל־TaskHub ללא שליחת מייל</string>
+    <string name="release_notes_details">- הכניסה למנהל המערכת מתבצעת כעת באמצעות סיסמת חשבון המנהל הקיים ב־Supabase, במקום קוד חד־פעמי למייל.\n- האימות נשאר מול Supabase Auth, והאפליקציה מקבלת אסימוני גישה ורענון רק לאחר בדיקת זהות חשבון המנהל המאושר.\n- אין צורך בשליחת מייל לצורך כניסה. יש להגדיר מראש סיסמה לחשבון המנהל בלוח הבקרה של Supabase.</string>
 </resources>
