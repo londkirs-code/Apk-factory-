@@ -25,7 +25,14 @@
         </service>
         <activity
             android:name=".MainActivity"
-            android:exported="true" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mishnatyosef" android:host="taskhub-auth" />
+            </intent-filter>
+        </activity>
         <!-- Two launcher aliases let the selected color theme control the home-screen icon. -->
         <activity-alias
             android:name=".OrangeLauncher"
