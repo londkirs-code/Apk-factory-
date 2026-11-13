@@ -3174,6 +3174,7 @@ public class MainActivity extends Activity {
         addHomeNotificationSettings();
         addHomeStockSettings();
         addHomeUpdateSettings();
+        addTaskHubSettings();
         addHomeShareAppButton();
         addWhatsNewEntry();
         addSafetySettings();
@@ -3513,6 +3514,431 @@ public class MainActivity extends Activity {
         settings.setOnClickListener(v -> showUpdateSettings());
         card.addView(settings, new LinearLayout.LayoutParams(-1, dp(46)));
         root.addView(card, lp(-1, -2, 0, 10));
+    }
+
+
+    // ============================= TaskHub: private application-update planning
+    private static final String TASKHUB_URL = "https://rqkakdxttvwljvhmxsct.supabase.co";
+    private static final String TASKHUB_KEY = "sb_publishable_1dAiJipBZfG845aGUHxJKg_3LbzLjv-";
+    private static final String TASKHUB_ADMIN = "londkirs@gmail.com";
+    private static final String TASKHUB_PREF_TOKEN = "taskhub_access_token";
+    private static final String TASKHUB_PREF_REFRESH = "taskhub_refresh_token";
+    private static final String TASKHUB_PREF_LIST = "taskhub_selected_list";
+    private String taskHubListId = "";
+
+    private void addTaskHubSettings() {
+        LinearLayout box = card(14);
+        box.addView(text("📝 רשימת עדכוני האפליקציה", 16, true));
+        box.addView(muted("רעיונות, תיקונים ומשימות לפיתוחים הבאים – מסונכרנים עם TaskHub", 13),
+                lp(-1, -2, 0, 8));
+        TextView open = btn("📋 פתיחת רשימת העדכונים", TONAL);
+        open.setOnClickListener(v -> showTaskHub());
+        box.addView(open, new LinearLayout.LayoutParams(-1, dp(48)));
+        root.addView(box, lp(-1, -2, 0, 10));
+    }
+
+    private void showTaskHub() {
+        beginScreen("עדכוני האפליקציה", 3, this::showAccount);
+        String token = prefs.getString(TASKHUB_PREF_TOKEN, "");
+        if (!taskHubTokenBelongsToAdmin(token)) {
+            prefs.edit().remove(TASKHUB_PREF_TOKEN).remove(TASKHUB_PREF_REFRESH).apply();
+            buildTaskHubLogin();
+            return;
+        }
+        taskHubListId = prefs.getString(TASKHUB_PREF_LIST, "");
+        LinearLayout intro = card(14);
+        intro.addView(text("🗂️ מרכז המשימות לפיתוח", 19, true));
+        intro.addView(muted("כל שינוי או רעיון שתוסיף כאן יישמר בענן ויהיה זמין גם בהמשך", 13),
+                lp(-1, -2, 0, 8));
+        root.addView(intro, lp(-1, -2, 0, 10));
+        TextView refresh = btn("🔄 רענון רשימות ומשימות", TONAL);
+        refresh.setOnClickListener(v -> loadTaskHubLists());
+        root.addView(refresh, lp(-1, dp(46), 0, 8));
+        TextView addList = btn("＋ יצירת רשימה חדשה", TONAL);
+        addList.setOnClickListener(v -> promptTaskHubList());
+        root.addView(addList, lp(-1, dp(46), 0, 8));
+        loadTaskHubLists();
+    }
+
+    private void buildTaskHubLogin() {
+        LinearLayout card = card(16);
+        card.addView(text("🔐 כניסה למנהל המערכת", 19, true));
+        card.addView(muted("הגישה מוגבלת לחשבון המנהל המאושר בלבד", 13), lp(-1, -2, 0, 8));
+        card.addView(text(TASKHUB_ADMIN, 15, true), lp(-1, -2, 0, 12));
+        card.addView(muted("נשלח אליך קוד חד־פעמי למייל. אין צורך בסיסמה.", 13), lp(-1, -2, 0, 8));
+        TextView send = btn("📧 שליחת קוד כניסה למייל", PRIMARY);
+        send.setOnClickListener(v -> requestTaskHubOtp());
+        card.addView(send, new LinearLayout.LayoutParams(-1, dp(50)));
+        root.addView(card, lp(-1, -2, 0, 12));
+    }
+
+    private void requestTaskHubOtp() {
+        toast("שולח קוד כניסה...", false);
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("email", TASKHUB_ADMIN);
+                body.put("create_user", false);
+                taskHubCall("POST", "/auth/v1/otp", body.toString(), null);
+                runOnUiThread(() -> promptTaskHubOtpCode());
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("לא ניתן לשלוח קוד")
+                        .setMessage(message).setPositiveButton("סגירה", null).show());
+            }
+        }).start();
+    }
+
+    private void promptTaskHubOtpCode() {
+        EditText code = field("קוד בן 6 ספרות", InputType.TYPE_CLASS_NUMBER);
+        code.setGravity(Gravity.CENTER);
+        code.setTextSize(22);
+        new AlertDialog.Builder(this).setTitle("בדיקת קוד הכניסה")
+                .setMessage("הזן את הקוד שנשלח אל " + TASKHUB_ADMIN)
+                .setView(code).setNegativeButton("ביטול", null)
+                .setPositiveButton("אימות וכניסה", (d, w) -> verifyTaskHubOtp(code.getText().toString().trim()))
+                .show();
+    }
+
+    private void verifyTaskHubOtp(String otp) {
+        if (otp == null || otp.length() < 6) {
+            toast("יש להזין את קוד האימות המלא", true);
+            return;
+        }
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("email", TASKHUB_ADMIN);
+                body.put("token", otp);
+                body.put("type", "email");
+                JSONObject response = new JSONObject(taskHubCall("POST", "/auth/v1/verify", body.toString(), null));
+                String access = response.optString("access_token", "");
+                String refresh = response.optString("refresh_token", "");
+                if (access.isEmpty() || !taskHubTokenBelongsToAdmin(access))
+                    throw new Exception("חשבון זה אינו מורשה לניהול עדכוני האפליקציה.");
+                prefs.edit().putString(TASKHUB_PREF_TOKEN, access)
+                        .putString(TASKHUB_PREF_REFRESH, refresh).apply();
+                runOnUiThread(this::showTaskHub);
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("האימות נכשל")
+                        .setMessage(message).setPositiveButton("סגירה", null).show());
+            }
+        }).start();
+    }
+
+    private boolean taskHubTokenBelongsToAdmin(String token) {
+        try {
+            if (token == null || token.split("\\\\.").length < 2) return false;
+            String payload = token.split("\\\\.")[1];
+            byte[] decoded = android.util.Base64.decode(payload,
+                    android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING);
+            JSONObject claims = new JSONObject(new String(decoded, StandardCharsets.UTF_8));
+            return TASKHUB_ADMIN.equalsIgnoreCase(claims.optString("email", ""))
+                    && claims.optLong("exp", 0) > System.currentTimeMillis() / 1000L;
+        } catch (Exception ignored) { return false; }
+    }
+
+    private String taskHubCall(String method, String path, String body, String accessToken) throws Exception {
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(TASKHUB_URL + path);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod(method);
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(20000);
+            connection.setRequestProperty("apikey", TASKHUB_KEY);
+            connection.setRequestProperty("Accept", "application/json");
+            if (accessToken != null && !accessToken.isEmpty())
+                connection.setRequestProperty("Authorization", "Bearer " + accessToken);
+            else connection.setRequestProperty("Authorization", "Bearer " + TASKHUB_KEY);
+            if (body != null) {
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                if (method.equals("POST") || method.equals("PATCH") || method.equals("DELETE"))
+                    connection.setRequestProperty("Prefer", "return=representation");
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(body.getBytes(StandardCharsets.UTF_8));
+                }
+            }
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 200 && status < 300
+                    ? connection.getInputStream() : connection.getErrorStream();
+            StringBuilder result = new StringBuilder();
+            if (stream != null) {
+                try (InputStream input = stream) {
+                    byte[] buffer = new byte[4096];
+                    int count;
+                    while ((count = input.read(buffer)) != -1)
+                        result.append(new String(buffer, 0, count, StandardCharsets.UTF_8));
+                }
+            }
+            if (status < 200 || status >= 300)
+                throw new java.io.IOException("HTTP " + status + ": " + result);
+            return result.toString();
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private String taskHubError(Exception error) {
+        String message = error == null ? "" : error.getMessage();
+        if (message == null) return "אירעה שגיאת תקשורת. נסה שוב.";
+        if (message.contains("User not found") || message.contains("user_not_found"))
+            return "חשבון המנהל עדיין לא נוצר ב-Supabase Auth. יש ליצור משתמש מאומת עבור " + TASKHUB_ADMIN + " בלוח הבקרה ואז לנסות שוב.";
+        if (message.contains("Invalid") || message.contains("expired"))
+            return "הקוד אינו תקין או שפג תוקפו. בקש קוד חדש ונסה שוב.";
+        return message.length() > 450 ? message.substring(0, 450) : message;
+    }
+
+    private void loadTaskHubLists() {
+        new Thread(() -> {
+            try {
+                String token = prefs.getString(TASKHUB_PREF_TOKEN, "");
+                JSONArray lists = new JSONArray(taskHubCall("GET",
+                        "/rest/v1/task_lists?select=id,title,description&order=created_at.asc", null, token));
+                runOnUiThread(() -> renderTaskHubLists(lists));
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("טעינת הרשימות נכשלה: " + message, true));
+            }
+        }).start();
+    }
+
+    private void renderTaskHubLists(JSONArray lists) {
+        if (root == null) return;
+        LinearLayout listCard = card(14);
+        listCard.addView(sectionTitle("📚 הרשימות שלך"));
+        if (lists.length() == 0) {
+            listCard.addView(muted("עדיין אין רשימות. צור רשימה ראשונה כדי להתחיל.", 13),
+                    lp(-1, -2, 0, 8));
+        }
+        for (int i = 0; i < lists.length(); i++) {
+            JSONObject item = lists.optJSONObject(i);
+            if (item == null) continue;
+            String id = item.optString("id", "");
+            String title = item.optString("title", "רשימה");
+            TextView choose = btn((id.equals(taskHubListId) ? "✓  " : "📁  ") + title, 
+                    id.equals(taskHubListId) ? PRIMARY : TONAL);
+            choose.setOnClickListener(v -> {
+                taskHubListId = id;
+                prefs.edit().putString(TASKHUB_PREF_LIST, id).apply();
+                loadTaskHubTasks(id, title);
+            });
+            listCard.addView(choose, lp(-1, dp(46), 0, 6));
+        }
+        root.addView(listCard, lp(-1, -2, 0, 10));
+        if (lists.length() > 0) {
+            boolean found = false;
+            for (int i = 0; i < lists.length(); i++) {
+                JSONObject item = lists.optJSONObject(i);
+                if (item != null && taskHubListId.equals(item.optString("id", ""))) found = true;
+            }
+            if (!found) {
+                JSONObject first = lists.optJSONObject(0);
+                if (first != null) {
+                    taskHubListId = first.optString("id", "");
+                    prefs.edit().putString(TASKHUB_PREF_LIST, taskHubListId).apply();
+                    loadTaskHubTasks(taskHubListId, first.optString("title", "עדכוני האפליקציה"));
+                }
+            } else {
+                for (int i = 0; i < lists.length(); i++) {
+                    JSONObject item = lists.optJSONObject(i);
+                    if (item != null && taskHubListId.equals(item.optString("id", ""))) {
+                        loadTaskHubTasks(taskHubListId, item.optString("title", "עדכוני האפליקציה"));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private void promptTaskHubList() {
+        EditText title = field("שם הרשימה", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        EditText description = field("תיאור (לא חובה)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(8), dp(20), 0);
+        content.addView(title, lp(-1, dp(50), 0, 6));
+        content.addView(description, lp(-1, dp(80), 0, 6));
+        new AlertDialog.Builder(this).setTitle("יצירת רשימה חדשה").setView(content)
+                .setNegativeButton("ביטול", null)
+                .setPositiveButton("יצירה", (d, w) -> createTaskHubList(title.getText().toString().trim(),
+                        description.getText().toString().trim())).show();
+    }
+
+    private void createTaskHubList(String title, String description) {
+        if (title.isEmpty()) { toast("יש לתת שם לרשימה", true); return; }
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("title", title);
+                body.put("description", description);
+                taskHubCall("POST", "/rest/v1/task_lists", body.toString(),
+                        prefs.getString(TASKHUB_PREF_TOKEN, ""));
+                runOnUiThread(() -> {
+                    toast("הרשימה נוצרה בהצלחה", false);
+                    loadTaskHubLists();
+                });
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("יצירת הרשימה נכשלה: " + message, true));
+            }
+        }).start();
+    }
+
+    private void loadTaskHubTasks(String listId, String listTitle) {
+        new Thread(() -> {
+            try {
+                String encodedId = URLEncoder.encode(listId, "UTF-8");
+                JSONArray tasks = new JSONArray(taskHubCall("GET",
+                        "/rest/v1/tasks?select=id,title,description,priority,is_archived,created_at&list_id=eq."
+                                + encodedId + "&is_archived=eq.false&order=created_at.desc", null,
+                        prefs.getString(TASKHUB_PREF_TOKEN, "")));
+                runOnUiThread(() -> renderTaskHubTasks(listId, listTitle, tasks));
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("טעינת המשימות נכשלה: " + message, true));
+            }
+        }).start();
+    }
+
+    private void renderTaskHubTasks(String listId, String listTitle, JSONArray tasks) {
+        if (root == null) return;
+        LinearLayout card = card(14);
+        card.addView(text("📌 " + listTitle, 17, true));
+        card.addView(muted(tasks.length() + " משימות פעילות", 12), lp(-1, -2, 0, 4));
+        TextView add = btn("＋ הוספת משימה", PRIMARY);
+        add.setOnClickListener(v -> promptTaskHubTask(listId, null));
+        card.addView(add, lp(-1, dp(46), 0, 8));
+        if (tasks.length() == 0)
+            card.addView(muted("הרשימה עדיין ריקה. אפשר להוסיף כאן רעיון או שינוי שתרצה לבצע.", 13),
+                    lp(-1, -2, 0, 8));
+        for (int i = 0; i < tasks.length(); i++) {
+            JSONObject task = tasks.optJSONObject(i);
+            if (task == null) continue;
+            String id = task.optString("id", "");
+            String title = task.optString("title", "");
+            String description = task.optString("description", "");
+            int priority = task.optInt("priority", 0);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            row.setBackground(shape(SURFACE, 12, LINE));
+            TextView heading = text((priority >= 2 ? "⭐ " : "• ") + title, 15, true);
+            row.addView(heading);
+            if (!description.isEmpty()) row.addView(muted(description, 13), lp(-1, -2, 0, 4));
+            TextView actions = btn("✏️ עריכה   ·   ✓ סיום   ·   🗑️ מחיקה", TONAL);
+            actions.setOnClickListener(v -> showTaskHubTaskActions(listId, listTitle, id, title, description, priority));
+            row.addView(actions, lp(-1, dp(42), 0, 8));
+            card.addView(row, lp(-1, -2, 0, 8));
+        }
+        root.addView(card, lp(-1, -2, 0, 10));
+    }
+
+    private void promptTaskHubTask(String listId, JSONObject existing) {
+        String oldTitle = existing == null ? "" : existing.optString("title", "");
+        String oldDescription = existing == null ? "" : existing.optString("description", "");
+        int oldPriority = existing == null ? 0 : existing.optInt("priority", 0);
+        EditText title = field("מה צריך לשנות או להוסיף?", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        title.setText(oldTitle);
+        EditText description = field("פירוט, התנהגות רצויה והערות (לא חובה)",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        description.setText(oldDescription);
+        CheckBox important = new CheckBox(this);
+        important.setText("⭐ משימה בעדיפות גבוהה");
+        important.setTextColor(INK);
+        important.setChecked(oldPriority >= 2);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(8), dp(20), 0);
+        content.addView(title, lp(-1, dp(52), 0, 8));
+        content.addView(description, lp(-1, dp(104), 0, 8));
+        content.addView(important, lp(-1, dp(48), 0, 4));
+        new AlertDialog.Builder(this).setTitle(existing == null ? "משימה חדשה" : "עריכת משימה")
+                .setView(content).setNegativeButton("ביטול", null)
+                .setPositiveButton("שמירה", (d, w) -> saveTaskHubTask(listId,
+                        existing == null ? "" : existing.optString("id", ""),
+                        title.getText().toString().trim(), description.getText().toString().trim(),
+                        important.isChecked() ? 2 : 0)).show();
+    }
+
+    private void showTaskHubTaskActions(String listId, String listTitle, String taskId,
+            String title, String description, int priority) {
+        new AlertDialog.Builder(this).setTitle(title)
+                .setItems(new String[]{"✏️ עריכת משימה", "✓ סימון כהושלמה", "🗑️ מחיקת משימה"}, (d, which) -> {
+                    if (which == 0) {
+                        try {
+                            JSONObject task = new JSONObject();
+                            task.put("id", taskId); task.put("title", title);
+                            task.put("description", description); task.put("priority", priority);
+                            promptTaskHubTask(listId, task);
+                        } catch (Exception ignored) { }
+                    } else if (which == 1) archiveTaskHubTask(listId, taskId);
+                    else new AlertDialog.Builder(this).setTitle("מחיקת משימה")
+                            .setMessage("למחוק לצמיתות את המשימה?")
+                            .setNegativeButton("ביטול", null)
+                            .setPositiveButton("מחיקה", (dialog, w) -> deleteTaskHubTask(listId, taskId)).show();
+                }).show();
+    }
+
+    private void saveTaskHubTask(String listId, String taskId, String title, String description, int priority) {
+        if (title.isEmpty()) { toast("יש להזין כותרת למשימה", true); return; }
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("title", title); body.put("description", description); body.put("priority", priority);
+                String path;
+                if (taskId.isEmpty()) {
+                    body.put("list_id", listId);
+                    path = "/rest/v1/tasks";
+                } else path = "/rest/v1/tasks?id=eq." + URLEncoder.encode(taskId, "UTF-8");
+                taskHubCall(taskId.isEmpty() ? "POST" : "PATCH", path, body.toString(),
+                        prefs.getString(TASKHUB_PREF_TOKEN, ""));
+                runOnUiThread(() -> {
+                    toast("המשימה נשמרה", false);
+                    loadTaskHubTasks(listId, "עדכוני האפליקציה");
+                });
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("שמירת המשימה נכשלה: " + message, true));
+            }
+        }).start();
+    }
+
+    private void archiveTaskHubTask(String listId, String taskId) {
+        updateTaskHubTaskState(listId, taskId, true);
+    }
+
+    private void deleteTaskHubTask(String listId, String taskId) {
+        new Thread(() -> {
+            try {
+                taskHubCall("DELETE", "/rest/v1/tasks?id=eq." + URLEncoder.encode(taskId, "UTF-8"),
+                        "{}", prefs.getString(TASKHUB_PREF_TOKEN, ""));
+                runOnUiThread(() -> loadTaskHubTasks(listId, "עדכוני האפליקציה"));
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("מחיקת המשימה נכשלה: " + message, true));
+            }
+        }).start();
+    }
+
+    private void updateTaskHubTaskState(String listId, String taskId, boolean archived) {
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("is_archived", archived);
+                taskHubCall("PATCH", "/rest/v1/tasks?id=eq." + URLEncoder.encode(taskId, "UTF-8"),
+                        body.toString(), prefs.getString(TASKHUB_PREF_TOKEN, ""));
+                runOnUiThread(() -> {
+                    toast("המשימה סומנה כהושלמה", false);
+                    loadTaskHubTasks(listId, "עדכוני האפליקציה");
+                });
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("עדכון המשימה נכשל: " + message, true));
+            }
+        }).start();
     }
 
     private void addHomeShareAppButton() {
