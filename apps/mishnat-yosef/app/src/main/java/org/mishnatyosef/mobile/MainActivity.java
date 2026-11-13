@@ -3525,6 +3525,7 @@ public class MainActivity extends Activity {
     private static final String TASKHUB_PREF_REFRESH = "taskhub_refresh_token";
     private static final String TASKHUB_PREF_LIST = "taskhub_selected_list";
     private String taskHubListId = "";
+    private LinearLayout taskHubDynamicContent;
 
     private void addTaskHubSettings() {
         LinearLayout box = card(14);
@@ -3557,6 +3558,10 @@ public class MainActivity extends Activity {
         TextView addList = btn("＋ יצירת רשימה חדשה", TONAL);
         addList.setOnClickListener(v -> promptTaskHubList());
         root.addView(addList, lp(-1, dp(46), 0, 8));
+        taskHubDynamicContent = new LinearLayout(this);
+        taskHubDynamicContent.setOrientation(LinearLayout.VERTICAL);
+        taskHubDynamicContent.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        root.addView(taskHubDynamicContent, lp(-1, -2, 0, 0));
         loadTaskHubLists();
     }
 
@@ -3706,7 +3711,8 @@ public class MainActivity extends Activity {
     }
 
     private void renderTaskHubLists(JSONArray lists) {
-        if (root == null) return;
+        if (taskHubDynamicContent == null) return;
+        taskHubDynamicContent.removeAllViews();
         LinearLayout listCard = card(14);
         listCard.addView(sectionTitle("📚 הרשימות שלך"));
         if (lists.length() == 0) {
@@ -3727,7 +3733,7 @@ public class MainActivity extends Activity {
             });
             listCard.addView(choose, lp(-1, dp(46), 0, 6));
         }
-        root.addView(listCard, lp(-1, -2, 0, 10));
+        taskHubDynamicContent.addView(listCard, lp(-1, -2, 0, 10));
         if (lists.length() > 0) {
             boolean found = false;
             for (int i = 0; i < lists.length(); i++) {
@@ -3813,7 +3819,7 @@ public class MainActivity extends Activity {
     }
 
     private void renderTaskHubTasks(String listId, String listTitle, JSONArray tasks, Map<String, String> statuses) {
-        if (root == null) return;
+        if (taskHubDynamicContent == null) return;
         LinearLayout card = card(14);
         card.addView(text("📌 " + listTitle, 17, true));
         card.addView(muted(tasks.length() + " משימות פעילות", 12), lp(-1, -2, 0, 4));
@@ -3848,7 +3854,7 @@ public class MainActivity extends Activity {
             row.addView(actions, lp(-1, dp(42), 0, 8));
             card.addView(row, lp(-1, -2, 0, 8));
         }
-        root.addView(card, lp(-1, -2, 0, 10));
+        taskHubDynamicContent.addView(card, lp(-1, -2, 0, 10));
     }
 
     private void promptTaskHubTask(String listId, JSONObject existing) {
