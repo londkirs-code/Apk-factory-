@@ -3629,7 +3629,7 @@ public class MainActivity extends Activity {
 
     private boolean taskHubTokenBelongsToAdmin(String token) {
         try {
-            if (token == null || token.split("\\\\.").length < 2) return false;
+            if (token == null || token.split("\\.").length < 2) return false;
             String payload = token.split("\\\\.")[1];
             byte[] decoded = android.util.Base64.decode(payload,
                     android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING);
@@ -3866,7 +3866,7 @@ public class MainActivity extends Activity {
     private void showTaskHubTaskActions(String listId, String listTitle, String taskId,
             String title, String description, int priority) {
         new AlertDialog.Builder(this).setTitle(title)
-                .setItems(new String[]{"✏️ עריכת משימה", "✓ סימון כהושלמה", "🗑️ מחיקת משימה"}, (d, which) -> {
+                .setItems(new String[]{"✏️ עריכת משימה", "🔄 שינוי מצב אישי", "✓ סימון כהושלמה וארכוב", "🗑️ מחיקת משימה"}, (d, which) -> {
                     if (which == 0) {
                         try {
                             JSONObject task = new JSONObject();
@@ -3874,7 +3874,8 @@ public class MainActivity extends Activity {
                             task.put("description", description); task.put("priority", priority);
                             promptTaskHubTask(listId, task);
                         } catch (Exception ignored) { }
-                    } else if (which == 1) archiveTaskHubTask(listId, taskId);
+                    } else if (which == 1) promptTaskHubStatus(listId, taskId);
+                    else if (which == 2) archiveTaskHubTask(listId, taskId);
                     else new AlertDialog.Builder(this).setTitle("מחיקת משימה")
                             .setMessage("למחוק לצמיתות את המשימה?")
                             .setNegativeButton("ביטול", null)
@@ -3906,6 +3907,56 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+
+    private String taskHubUserId(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return "";
+            byte[] decoded = android.util.Base64.decode(parts[1],
+                    android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING);
+            return new JSONObject(new String(decoded, StandardCharsets.UTF_8)).optString("sub", "");
+        } catch (Exception ignored) { return ""; }
+    }
+
+    private void promptTaskHubStatus(String listId, String taskId) {
+        final String[] values = {"open", "in_progress", "completed", "paused"};
+        new AlertDialog.Builder(this).setTitle("שינוי המצב האישי של המשימה")
+                .setItems(new String[]{"פתוחה", "בטיפול", "הושלמה", "מושהית"}, (d, which) ->
+                        saveTaskHubStatus(listId, taskId, values[which])).show();
+    }
+
+    private void saveTaskHubStatus(String listId, String taskId, String status) {
+        new Thread(() -> {
+            try {
+                String token = prefs.getString(TASKHUB_PREF_TOKEN, "");
+                String userId = taskHubUserId(token);
+                if (userId.isEmpty()) throw new Exception("לא ניתן לזהות את חשבון המנהל. התחבר מחדש.");
+                String query = "/rest/v1/task_statuses?select=id&task_id=eq."
+                        + URLEncoder.encode(taskId, "UTF-8") + "&user_id=eq."
+                        + URLEncoder.encode(userId, "UTF-8") + "&limit=1";
+                JSONArray existing = new JSONArray(taskHubCall("GET", query, null, token));
+                JSONObject body = new JSONObject();
+                body.put("status", status);
+                if (existing.length() == 0) {
+                    body.put("task_id", taskId);
+                    body.put("user_id", userId);
+                    taskHubCall("POST", "/rest/v1/task_statuses", body.toString(), token);
+                } else {
+                    String id = existing.getJSONObject(0).optString("id", "");
+                    taskHubCall("PATCH", "/rest/v1/task_statuses?id=eq."
+                            + URLEncoder.encode(id, "UTF-8"), body.toString(), token);
+                }
+                runOnUiThread(() -> {
+                    toast("המצב האישי עודכן", false);
+                    loadTaskHubTasks(listId, "עדכוני האפליקציה");
+                });
+            } catch (Exception e) {
+                String message = taskHubError(e);
+                runOnUiThread(() -> toast("עדכון המצב נכשל: " + message, true));
+            }
+        }).start();
+    }
+
     private void archiveTaskHubTask(String listId, String taskId) {
         updateTaskHubTaskState(listId, taskId, true);
     }
@@ -3914,7 +3965,7 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             try {
                 taskHubCall("DELETE", "/rest/v1/tasks?id=eq." + URLEncoder.encode(taskId, "UTF-8"),
-                        "{}", prefs.getString(TASKHUB_PREF_TOKEN, ""));
+                        null, prefs.getString(TASKHUB_PREF_TOKEN, ""));
                 runOnUiThread(() -> loadTaskHubTasks(listId, "עדכוני האפליקציה"));
             } catch (Exception e) {
                 String message = taskHubError(e);
