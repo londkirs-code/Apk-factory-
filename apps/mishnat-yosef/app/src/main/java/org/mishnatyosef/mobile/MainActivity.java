@@ -549,8 +549,9 @@ public class MainActivity extends Activity {
     private EditText passwordField;
     private TextView loginButton;
     // In-app updater state; download and installation remain user-confirmed.
-    private TextView updateStatusView, updateNotesView, updateCheckButton, updateDownloadButton, updateInstallButton;
+    private TextView updateStatusView, updateNotesView, updateSizeView, updateCheckButton, updateDownloadButton, updateInstallButton;
     private ProgressBar updateProgressBar;
+    private long updateLatestSizeBytes = 0L;
     private boolean updateDownloadInProgress = false;
     private int updateLatestCode = 0;
     private String updateLatestName = "", updateLatestSha256 = "", updateReleaseNotes = "";
@@ -1023,7 +1024,7 @@ public class MainActivity extends Activity {
         if (key == android.view.KeyEvent.KEYCODE_6) { changeUiScale(prefs.getInt("ui_scale_percent", 100) + 5); return true; }
         if (key == android.view.KeyEvent.KEYCODE_5) { commitCardColumns(cardColumns() + 1 > 5 ? 1 : cardColumns() + 1, false); return true; }
         if (key == android.view.KeyEvent.KEYCODE_0) {
-            changeUiScale(110);
+            changeUiScale(100);
             commitCardColumns(3, false);
             if (nightMode) toggleNightMode();
             return true;
@@ -1878,11 +1879,13 @@ public class MainActivity extends Activity {
         config.setLayoutDirection(hebrew);
         SharedPreferences scalePrefs = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         int percent = scalePrefs.getInt("ui_scale_percent", 100);
-        // One-time proportional increase: text and dp layout grow together to avoid clipping.
-        if (!scalePrefs.getBoolean("ui_scale_boost_110_applied", false)) {
-            percent = Math.min(130, Math.max(70, Math.round(percent * 1.10f)));
-            scalePrefs.edit().putInt("ui_scale_percent", percent)
-                    .putBoolean("ui_scale_boost_110_applied", true).apply();
+        // Undo the previous 110% migration once. Typography is improved independently,
+        // without globally enlarging dp-based layout dimensions.
+        if (!scalePrefs.getBoolean("ui_scale_default_100_applied", false)) {
+            percent = 100;
+            scalePrefs.edit().putInt("ui_scale_percent", 100)
+                    .putBoolean("ui_scale_default_100_applied", true)
+                    .remove("ui_scale_boost_110_applied").apply();
         }
         percent = Math.max(70, Math.min(130, percent));
         config.fontScale = config.fontScale * (percent / 100.0f);
@@ -2458,7 +2461,7 @@ public class MainActivity extends Activity {
         resetDisplayButton.setOnClickListener(v -> {
             scaleBar.setProgress(6);
             scaleValue.setText("100%");
-            changeUiScale(110);
+            changeUiScale(100);
             columnsBar.setProgress(2);
             columnsValue.setText("3 עמודות");
             commitCardColumns(3, false);
@@ -2509,10 +2512,10 @@ public class MainActivity extends Activity {
     private TextView text(String value, float size, boolean bold) {
         TextView v = new TextView(this);
         v.setText(value);
-        v.setTextSize(liveFontSize(size));
+        v.setTextSize(liveFontSize(size * 1.10f));
         v.setTextColor(INK);
         v.setGravity(Gravity.START);
-        if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         v.setPadding(dp(2), dp(3), dp(2), dp(3));
         return v;
     }
@@ -2530,6 +2533,7 @@ public class MainActivity extends Activity {
 
     private void styleActionButton(TextView button, int fill, int foreground, int stroke) {
         button.setTextColor(foreground);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setBackground(ripple(
                 shape(fill, ACTION_BUTTON_RADIUS_DP, stroke), ACTION_BUTTON_RADIUS_DP));
         button.setBackground(ripple(shape(fill, ACTION_BUTTON_RADIUS_DP, stroke, dp(1)), ACTION_BUTTON_RADIUS_DP));
@@ -2540,7 +2544,7 @@ public class MainActivity extends Activity {
     private TextView btn(String label, int style) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextSize(liveFontSize(16));
+        b.setTextSize(liveFontSize(17.6f));
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setGravity(Gravity.CENTER);
         b.setClickable(true);
@@ -4849,6 +4853,10 @@ public class MainActivity extends Activity {
         });
         updateStatusView.setClickable(false);
         card.addView(updateStatusView, new LinearLayout.LayoutParams(-1, -2));
+        updateSizeView = muted("גודל קובץ העדכון יופיע לאחר בדיקת הגרסה.", 14);
+        updateSizeView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        updateSizeView.setPadding(dp(2), dp(2), dp(2), dp(6));
+        card.addView(updateSizeView, new LinearLayout.LayoutParams(-1, -2));
         updateProgressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         updateProgressBar.setMax(100);
         updateProgressBar.setProgress(0);
@@ -4883,9 +4891,11 @@ public class MainActivity extends Activity {
         updateLatestCode = prefs.getInt("update_latest_code", 0);
         updateLatestName = prefs.getString("update_latest_name", "");
         updateLatestSha256 = prefs.getString("update_latest_sha256", "");
+        updateLatestSizeBytes = prefs.getLong("update_latest_size_bytes", 0L);
         updateReleaseNotes = prefs.getString("update_release_notes", "");
         if (updateLatestCode > installedVersionCode()) {
             updateStatusView.setText("תוצאות הבדיקה האחרונה: נמצאה גרסה " + updateLatestName + " (" + updateLatestCode + "). אפשר לבדוק שוב לפני ההורדה.");
+            updateSizeView.setText(updateLatestSizeBytes > 0 ? "גודל קובץ העדכון: " + formatBytes(updateLatestSizeBytes) : "גודל הקובץ יתברר עם תחילת ההורדה.");
             updateStatusView.setTextColor(ORANGE_DARK);
             updateNotesView.setText(updateReleaseNotes.isEmpty() ? "לא צורף פירוט שינויים לגרסה." : updateReleaseNotes);
             updateDownloadButton.setEnabled(true);
@@ -4970,6 +4980,7 @@ public class MainActivity extends Activity {
                 int code = manifest.getInt("versionCode");
                 String name = manifest.getString("versionName");
                 String sha = manifest.getString("sha256");
+                long apkSizeBytes = manifest.optLong("apkSizeBytes", 0L);
                 String notes = manifest.optString("releaseNotes", "").trim();
                 int installed = installedVersionCode();
                 runOnUiThread(() -> {
@@ -4977,13 +4988,16 @@ public class MainActivity extends Activity {
                     updateLatestCode = code;
                     updateLatestName = name;
                     updateLatestSha256 = sha;
+                    updateLatestSizeBytes = apkSizeBytes;
                     updateReleaseNotes = notes;
                     prefs.edit().putInt("update_latest_code", code)
                             .putString("update_latest_name", name)
                             .putString("update_latest_sha256", sha)
+                            .putLong("update_latest_size_bytes", apkSizeBytes)
                             .putString("update_release_notes", notes).apply();
                     if (code > installed) {
                         updateStatusView.setText("🎉 נמצאה גרסה חדשה!\nגרסה " + name + " (" + code + ") זמינה לעדכון");
+                        if (updateSizeView != null) updateSizeView.setText(apkSizeBytes > 0 ? "גודל קובץ העדכון: " + formatBytes(apkSizeBytes) : "גודל הקובץ יתברר עם תחילת ההורדה.");
                         updateStatusView.setTextSize(19);
                         updateStatusView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                         updateStatusView.setTextColor(GREEN);
@@ -5002,6 +5016,7 @@ public class MainActivity extends Activity {
                             downloadLatestUpdate();
                         }
                     } else if (code == installed) {
+                        if (updateSizeView != null) updateSizeView.setText("אין צורך בהורדה — מותקנת הגרסה העדכנית.");
                         autoDownloadAfterCheck = false;
                         updateStatusView.setText("תוצאות הבדיקה האחרונה: האפליקציה מעודכנת. מותקנת הגרסה האחרונה: " + name + " (" + code + ").");
                         updateStatusView.setTextColor(GREEN);
@@ -5011,6 +5026,7 @@ public class MainActivity extends Activity {
                         updateInstallButton.setVisibility(View.VISIBLE);
                         updateInstallButton.setEnabled(false);
                     } else {
+                        if (updateSizeView != null) updateSizeView.setText("לא תוצע הורדה של גרסה ישנה יותר.");
                         boolean startOlderVersionDownload = autoDownloadAfterCheck;
                         autoDownloadAfterCheck = false;
                         updateStatusView.setText("תוצאות הבדיקה האחרונה: הגרסה שב־GitHub ישנה יותר מהגרסה המותקנת. לא תבוצע התקנה לאחור.");
@@ -5097,6 +5113,7 @@ public class MainActivity extends Activity {
         final int targetCode = updateLatestCode;
         final String targetName = updateLatestName;
         final String expectedSha = updateLatestSha256;
+        final long expectedSize = updateLatestSizeBytes;
         final File target = updateApkFile(targetCode);
         if (target == null) {
             toast("לא ניתן ליצור תיקיית הורדה פרטית לאפליקציה.", true);
@@ -5113,6 +5130,7 @@ public class MainActivity extends Activity {
             updateProgressBar.setProgress(0);
         }
         updateStatusView.setText("מתחיל הורדה מאובטחת…");
+        if (updateSizeView != null && expectedSize > 0L) updateSizeView.setText("גודל קובץ העדכון: " + formatBytes(expectedSize));
         prefs.edit().putBoolean("update_download_verified", false)
                 .remove("update_download_verified_code").remove("update_download_file").apply();
 
@@ -5138,8 +5156,10 @@ public class MainActivity extends Activity {
                 if (status < 200 || status >= 300)
                     throw new java.io.IOException("שרת ההורדה החזיר שגיאה " + status);
                 long total = connection.getContentLength();
+                if (total <= 0L && expectedSize > 0L) total = expectedSize;
                 long downloaded = 0L;
                 long lastUiUpdate = 0L;
+                long downloadStartedAt = System.currentTimeMillis();
                 try (InputStream input = connection.getInputStream();
                      FileOutputStream output = new FileOutputStream(partial)) {
                     byte[] buffer = new byte[16384];
@@ -5154,18 +5174,23 @@ public class MainActivity extends Activity {
                             lastUiUpdate = now;
                             final long currentBytes = downloaded;
                             final long totalBytes = total;
+                            final long elapsedMs = Math.max(1L, now - downloadStartedAt);
+                            final long speedBytesPerSecond = currentBytes * 1000L / elapsedMs;
+                            final int progressPercent = totalBytes > 0L
+                                    ? (int) Math.min(100L, currentBytes * 100L / totalBytes) : -1;
                             runOnUiThread(() -> {
                                 if (screenKind == 7 && updateStatusView != null) {
-                                    String progress = totalBytes > 0
-                                            ? " (" + Math.min(100, currentBytes * 100L / totalBytes) + "%)"
-                                            : " (" + formatBytes(currentBytes) + ")";
-                                    updateStatusView.setText("מוריד עדכון באופן פרטי" + progress + "…");
+                                    String progress = "הורדו " + formatBytes(currentBytes)
+                                            + (totalBytes > 0L ? " מתוך " + formatBytes(totalBytes) : "")
+                                            + "  •  " + formatBytes(speedBytesPerSecond) + "/שנייה"
+                                            + (progressPercent >= 0 ? "  •  " + progressPercent + "%" : "");
+                                    updateStatusView.setText("מוריד עדכון באופן פרטי\n" + progress);
                                     updateStatusView.setTextColor(ORANGE_DARK);
                                     if (updateProgressBar != null) {
                                         updateProgressBar.setVisibility(View.VISIBLE);
                                         if (totalBytes > 0) {
                                             updateProgressBar.setIndeterminate(false);
-                                            updateProgressBar.setProgress((int) Math.min(100, currentBytes * 100L / totalBytes));
+                                            updateProgressBar.setProgress(progressPercent);
                                         } else updateProgressBar.setIndeterminate(true);
                                     }
                                 }
@@ -9005,23 +9030,33 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             card.setPadding(dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 2 : 4), dp(columns >= 4 ? 3 : 6));
             imageBox.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(imageHeight)));
             image.setLayoutParams(new FrameLayout.LayoutParams(-1, dp(imageHeight)));
-            name.setTextSize(liveFontSize(12 * scale));
+            name.setTextSize(liveFontSize(13.2f * scale));
+            name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             int nameLines = columns >= 4 ? 2 : 3;
             name.setMinLines(1);
             name.setMaxLines(nameLines);
-            pack.setTextSize(liveFontSize(10 * scale));
-            price.setTextSize(liveFontSize(14 * scale));
-            maxView.setTextSize(liveFontSize(10 * scale));
-            savedView.setTextSize(liveFontSize(9 * scale));
-            unitView.setTextSize(liveFontSize(9 * scale));
-            badge.setTextSize(liveFontSize(11 * scale));
+            pack.setTextSize(liveFontSize(11 * scale));
+            price.setTextSize(liveFontSize(15.4f * scale));
+            maxView.setTextSize(liveFontSize(11 * scale));
+            savedView.setTextSize(liveFontSize(9.9f * scale));
+            unitView.setTextSize(liveFontSize(9.9f * scale));
+            badge.setTextSize(liveFontSize(12.1f * scale));
+            pack.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            price.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            maxView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            savedView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            unitView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            badge.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             badge.setPadding(dp(columns >= 4 ? 2 : 8), dp(1), dp(columns >= 4 ? 2 : 8), dp(1));
             star.setTextSize(liveFontSize(20 * scale));
             star.setLayoutParams(new FrameLayout.LayoutParams(dp(columns >= 4 ? 22 : 32), dp(columns >= 4 ? 22 : 32), Gravity.TOP | Gravity.START));
-            add.setTextSize(liveFontSize(14 * scale));
+            add.setTextSize(liveFontSize(15.4f * scale));
+            add.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             add.setMinHeight(dp(controlHeight));
-            removeSizesButton.setTextSize(liveFontSize(11 * scale));
-            st.qty.setTextSize(liveFontSize(16 * scale));
+            removeSizesButton.setTextSize(liveFontSize(12.1f * scale));
+            removeSizesButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            st.qty.setTextSize(liveFontSize(17.6f * scale));
+            st.qty.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             st.qty.setLayoutParams(new LinearLayout.LayoutParams(dp(columns >= 4 ? 18 : 28), dp(controlHeight)));
             st.minus.setLayoutParams(new LinearLayout.LayoutParams(dp(controlHeight), dp(controlHeight)));
             st.plus.setLayoutParams(new LinearLayout.LayoutParams(dp(controlHeight), dp(controlHeight)));
@@ -14351,7 +14386,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         resetDisplayButton.setOnClickListener(v -> {
             scaleSlider.setProgress(6);
             scaleValue.setText("100%");
-            changeUiScale(110);
+            changeUiScale(100);
             columnsSlider.setProgress(2);
             columnsValue.setText("3 עמודות");
             columnsSize.setText(cardSizeLabel(3));

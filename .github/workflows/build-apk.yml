@@ -494,6 +494,7 @@ jobs:
               "versionName": name_match.group(1),
               "apkUrl": "https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-yosef/app.apk",
               "sha256": hashlib.sha256(apk).hexdigest(),
+              "apkSizeBytes": len(apk),
               "releaseTitle": title,
               "releaseNotes": notes,
               "buildCommit": commit,
