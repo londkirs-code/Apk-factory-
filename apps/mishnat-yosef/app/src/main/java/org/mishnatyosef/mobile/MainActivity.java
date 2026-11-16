@@ -729,6 +729,7 @@ public class MainActivity extends Activity {
         String when = "";
         String saleName = "";
         long saleId = 0;
+        JSONObject sale = new JSONObject();
         double total = -1;
         double credits = 0;
         final List<OrderLine> lines = new ArrayList<>();
@@ -7661,6 +7662,9 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         od.when = fmtWhen(first(order, "time"));
         od.saleName = saleTitle(sale);
         od.saleId = order.optLong("saleID", sale == null ? 0 : sale.optLong("id", 0));
+        // Preserve the complete sale relation returned by /api/orders/{id}.
+        // Collection mode needs the same site, pickup date and hours as the regular order flow.
+        if (sale != null) od.sale = new JSONObject(sale.toString());
         if (od.saleName.isEmpty()) od.saleName = "מכירה " + first(order, "saleID", "sale_id");
         // total_list can remain stale even when the server's product quantities are current.
         // Recompute the displayed order value from the actual returned order lines below.
@@ -10508,7 +10512,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         card.setTag("historySaleCard");
         card.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, LINE), 14));
         card.setClickable(true);
-        if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId));
+        if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId, false, 1, sale));
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
@@ -10556,10 +10560,36 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         return card;
     }
 
+    /** Merge sale relations without losing pickup fields when one API response is partial. */
+    private JSONObject mergeSaleInfo(JSONObject primary, JSONObject fallback, long saleId, String saleName) {
+        JSONObject merged = new JSONObject();
+        try {
+            JSONObject[] sources = {fallback, primary};
+            for (JSONObject source : sources) {
+                if (source == null) continue;
+                java.util.Iterator<String> keys = source.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    Object value = source.opt(key);
+                    if (value != null && value != JSONObject.NULL) merged.put(key, value);
+                }
+            }
+            if (merged.optLong("id", 0) <= 0 && saleId > 0) merged.put("id", saleId);
+            if (first(merged, "custom_name", "name", "title").isEmpty() && saleName != null && !saleName.trim().isEmpty()) {
+                merged.put("custom_name", saleName.trim());
+            }
+        } catch (Exception ignored) { }
+        return merged;
+    }
+
     /** A history order opens as a full order screen: edit, remove, collect mode and every action menu item. */
-    private void openHistoryOrder(final long id) { openHistoryOrder(id, false, 1); }
+    private void openHistoryOrder(final long id) { openHistoryOrder(id, false, 1, null); }
 
     private void openHistoryOrder(final long id, final boolean collect, final int tab) {
+        openHistoryOrder(id, collect, tab, null);
+    }
+
+    private void openHistoryOrder(final long id, final boolean collect, final int tab, final JSONObject saleHint) {
         historyTab = tab;
         beginScreen("הזמנה #" + id, tab, this::loadFeatureOrders);
         setStatus("טוען את ההזמנה…");
@@ -10578,12 +10608,10 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                     if (currentSaleId > 0) snapshotCurrent(); // the open sale stays available in memory
                     currentSaleId = -1;
                     productsPartial = false;
-                    JSONObject saleStub = new JSONObject();
-                    try {
-                        saleStub.put("id", od.saleId);
-                        saleStub.put("custom_name", od.saleName);
-                    } catch (Exception ignored) { }
-                    featureSale = saleStub;
+                    // Prefer the full sale object from the order-detail endpoint. If that endpoint
+                    // omits the relation, reuse the sale object already returned with the history row.
+                    // Merge both so a partial relation never discards pickup/site fields.
+                    featureSale = mergeSaleInfo(od.sale, saleHint, od.saleId, od.saleName);
                     featureOrderId = id;
                     featureProducts.clear();
                     featureQuantities.clear();
@@ -13319,6 +13347,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         final int t = screenToken;
         executor.execute(() -> {
             long found = -1;
+            JSONObject foundSale = null;
             Exception failure = null;
             try {
                 HttpResult r = api("GET", "/api/orders?page=1", null);
@@ -13331,7 +13360,11 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
                         long oid = o.optLong("id", -1);
                         if (oid <= 0) continue;
                         String time = first(o, "time");
-                        if (found < 0 || time.compareTo(bestTime) > 0 || (time.equals(bestTime) && oid > found)) { found = oid; bestTime = time; }
+                        if (found < 0 || time.compareTo(bestTime) > 0 || (time.equals(bestTime) && oid > found)) {
+                            found = oid;
+                            bestTime = time;
+                            foundSale = o.optJSONObject("sale");
+                        }
                     }
                     if (found > 0) prefs.edit().putLong("last_collect_order_id", found).apply();
                 } else {
@@ -13342,12 +13375,13 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
             }
             if (found <= 0 && !(failure instanceof AuthException)) found = prefs.getLong("last_collect_order_id", -1); // offline fallback
             final long orderId = found;
+            final JSONObject saleHint = foundSale;
             final Exception err = failure;
             if (orderId <= 0) {
                 fail(t, err != null ? err : new Exception("לא נמצאו הזמנות בהיסטוריה."), "לא ניתן לפתוח את ההזמנה האחרונה.");
                 return;
             }
-            runOnUiThread(() -> { if (!stale(t)) openHistoryOrder(orderId, true, TAB_COLLECT); });
+            runOnUiThread(() -> { if (!stale(t)) openHistoryOrder(orderId, true, TAB_COLLECT, saleHint); });
         });
     }
 
