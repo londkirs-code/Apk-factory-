@@ -10543,7 +10543,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         card.setTag("historyProductCard");
         card.setBackground(ripple(shape(nightMode ? Color.BLACK : SURFACE, 14, LINE), 14));
         card.setClickable(orderId > 0);
-        if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId));
+        if (orderId > 0) card.setOnClickListener(v -> openHistoryOrder(orderId, false, 1, sale));
 
         TextView product = text(productName, 18, true);
         product.setTextColor(INK);
