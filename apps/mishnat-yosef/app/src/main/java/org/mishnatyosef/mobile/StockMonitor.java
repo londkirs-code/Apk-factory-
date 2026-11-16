@@ -55,11 +55,18 @@ public class StockMonitor extends BroadcastReceiver {
         String action = intent == null ? "" : intent.getAction();
         if (Intent.ACTION_BOOT_COMPLETED.equals(action)) { scheduleNextCheck(context); return; }
         if (!CHECK.equals(action)) return;
+        context.getSharedPreferences(PREFS, 0).edit()
+                .putLong("stock_global_check_requested_at", System.currentTimeMillis()).apply();
         final PendingResult pending = goAsync();
         new Thread(() -> {
             try { checkAll(context.getApplicationContext()); }
             catch (Exception e) { appendLog(context, "", "", "בדיקת מלאי נכשלה", safeMessage(e)); }
-            finally { scheduleNextCheck(context); pending.finish(); }
+            finally {
+                context.getSharedPreferences(PREFS, 0).edit()
+                        .putLong("stock_global_last_check_at", System.currentTimeMillis()).apply();
+                scheduleNextCheck(context);
+                pending.finish();
+            }
         }, "mishnat-stock-monitor").start();
     }
 
@@ -109,6 +116,26 @@ public class StockMonitor extends BroadcastReceiver {
         else if (Build.VERSION.SDK_INT >= 23) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pi);
         else am.setExact(AlarmManager.RTC_WAKEUP, when, pi);
     }
+    /**
+     * When the app returns after a long pause, run one immediate global comparison instead
+     * of waiting another full polling interval. A short request throttle prevents duplicate
+     * broadcasts from repeated onResume calls.
+     */
+    public static void checkNowIfStale(Context c) {
+        SharedPreferences p = c.getSharedPreferences(PREFS, 0);
+        boolean globalAlerts = p.getBoolean("stock_global_notify_out", false)
+                || p.getBoolean("stock_global_notify_return", false);
+        if (!p.getBoolean(ENABLED, true) || !globalAlerts) return;
+        long now = System.currentTimeMillis();
+        long interval = Math.max(1, Math.min(240, p.getInt(INTERVAL, 5))) * 60000L;
+        long lastCheck = p.getLong("stock_global_last_check_at", 0L);
+        long lastRequest = p.getLong("stock_global_check_requested_at", 0L);
+        if (now - lastCheck < interval || now - lastRequest < 60000L) return;
+        p.edit().putLong("stock_global_check_requested_at", now).apply();
+        Intent check = new Intent(c, StockMonitor.class).setAction(CHECK);
+        c.sendBroadcast(check);
+    }
+
     private static void cancelCheck(Context c) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;

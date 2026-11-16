@@ -331,6 +331,15 @@ public class SaleMonitor extends BroadcastReceiver {
         catch (Exception e) { return new JSONArray(); }
     }
 
+    private static String firstSaleValue(JSONObject sale, String... keys) {
+        if (sale == null) return "";
+        for (String key : keys) {
+            String value = sale.optString(key, "").trim();
+            if (!value.isEmpty() && !"null".equalsIgnoreCase(value)) return value;
+        }
+        return "";
+    }
+
     private static String saleDisplayName(JSONObject sale) {
         String name = sale.optString("custom_name", "");
         if (name.isEmpty() || "null".equals(name)) name = "";
@@ -352,7 +361,9 @@ public class SaleMonitor extends BroadcastReceiver {
                 JSONObject sale = sales.optJSONObject(i);
                 if (sale == null) continue;
                 int id = sale.optInt("id", -1);
-                long end = parseSaleTime(sale.optString("end", ""));
+                String endValue = firstSaleValue(sale, "end", "end_at", "end_date_time",
+                        "endDateTime", "end_date", "end_time", "endTime");
+                long end = parseSaleTime(endValue);
                 if (id <= 0 || end <= 0) continue;
                 try {
                     JSONObject e = new JSONObject();

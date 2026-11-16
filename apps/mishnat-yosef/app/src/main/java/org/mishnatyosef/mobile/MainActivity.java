@@ -1023,7 +1023,7 @@ public class MainActivity extends Activity {
         if (key == android.view.KeyEvent.KEYCODE_6) { changeUiScale(prefs.getInt("ui_scale_percent", 100) + 5); return true; }
         if (key == android.view.KeyEvent.KEYCODE_5) { commitCardColumns(cardColumns() + 1 > 5 ? 1 : cardColumns() + 1, false); return true; }
         if (key == android.view.KeyEvent.KEYCODE_0) {
-            changeUiScale(100);
+            changeUiScale(110);
             commitCardColumns(3, false);
             if (nightMode) toggleNightMode();
             return true;
@@ -1876,8 +1876,14 @@ public class MainActivity extends Activity {
         Locale hebrew = new Locale("he", "IL");
         config.setLocale(hebrew);
         config.setLayoutDirection(hebrew);
-        int percent = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getInt("ui_scale_percent", 100);
+        SharedPreferences scalePrefs = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int percent = scalePrefs.getInt("ui_scale_percent", 100);
+        // One-time proportional increase: text and dp layout grow together to avoid clipping.
+        if (!scalePrefs.getBoolean("ui_scale_boost_110_applied", false)) {
+            percent = Math.min(130, Math.max(70, Math.round(percent * 1.10f)));
+            scalePrefs.edit().putInt("ui_scale_percent", percent)
+                    .putBoolean("ui_scale_boost_110_applied", true).apply();
+        }
         percent = Math.max(70, Math.min(130, percent));
         config.fontScale = config.fontScale * (percent / 100.0f);
         super.attachBaseContext(base.createConfigurationContext(config));
@@ -2452,7 +2458,7 @@ public class MainActivity extends Activity {
         resetDisplayButton.setOnClickListener(v -> {
             scaleBar.setProgress(6);
             scaleValue.setText("100%");
-            changeUiScale(100);
+            changeUiScale(110);
             columnsBar.setProgress(2);
             columnsValue.setText("3 עמודות");
             commitCardColumns(3, false);
@@ -4636,6 +4642,8 @@ public class MainActivity extends Activity {
         super.onResume();
         // Reconcile the foreground notification whenever the app returns to the foreground.
         refreshPersistentNotification();
+        // Catch stock changes that happened while Android or the user had paused background checks.
+        StockMonitor.checkNowIfStale(this);
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
         else if (screenKind == 4 && hasToken()) showStockSettings();
         else if (screenKind == 7 && prefs.getBoolean("update_auto_install_pending", false)
@@ -14343,7 +14351,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         resetDisplayButton.setOnClickListener(v -> {
             scaleSlider.setProgress(6);
             scaleValue.setText("100%");
-            changeUiScale(100);
+            changeUiScale(110);
             columnsSlider.setProgress(2);
             columnsValue.setText("3 עמודות");
             columnsSize.setText(cardSizeLabel(3));
