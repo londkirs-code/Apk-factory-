@@ -2871,7 +2871,7 @@ public class MainActivity extends Activity {
 
     // ======================================================================== screens: frame
 
-    /** Applies a consistent bold weight to every text element in the newly built screen. */
+    /** Applies Bold and a one-time 10% font-size increase to every text element in the new screen. */
     private void applyBoldTypography(View view) {
         if (view == null) return;
         if (view instanceof TextView) {
