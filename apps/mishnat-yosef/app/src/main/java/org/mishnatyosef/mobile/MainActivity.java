@@ -2516,7 +2516,8 @@ public class MainActivity extends Activity {
     private TextView text(String value, float size, boolean bold) {
         TextView v = new TextView(this);
         v.setText(value);
-        v.setTextSize(liveFontSize(size * 1.10f));\n        typographySizeAdjusted.add(v);
+        v.setTextSize(liveFontSize(size * 1.10f));
+        typographySizeAdjusted.add(v);
         v.setTextColor(INK);
         v.setGravity(Gravity.START);
         v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -2548,7 +2549,8 @@ public class MainActivity extends Activity {
     private TextView btn(String label, int style) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextSize(liveFontSize(17.6f));\n        typographySizeAdjusted.add(b);
+        b.setTextSize(liveFontSize(17.6f));
+        typographySizeAdjusted.add(b);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setGravity(Gravity.CENTER);
         b.setClickable(true);
@@ -2569,7 +2571,8 @@ public class MainActivity extends Activity {
 
     private TextView smallChip(String label, int style) {
         TextView b = btn(label, style);
-        b.setTextSize(liveFontSize(15.4f));\n        typographySizeAdjusted.add(b);
+        b.setTextSize(liveFontSize(15.4f));
+        typographySizeAdjusted.add(b);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setMinHeight(dp(34));
         b.setPadding(dp(12), dp(4), dp(12), dp(4));
@@ -2579,7 +2582,8 @@ public class MainActivity extends Activity {
     private TextView roundBtn(String label, int sizeDp, int fill, int fg) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextSize(liveFontSize(23.1f));\n        typographySizeAdjusted.add(b);
+        b.setTextSize(liveFontSize(23.1f));
+        typographySizeAdjusted.add(b);
         b.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
         b.setTextColor(fg);
         b.setGravity(Gravity.CENTER);
@@ -2621,7 +2625,8 @@ public class MainActivity extends Activity {
         e.setSingleLine(true);
         e.setHint(hint);
         e.setInputType(inputType);
-        e.setTextSize(liveFontSize(16.5f));\n        typographySizeAdjusted.add(e);
+        e.setTextSize(liveFontSize(16.5f));
+        typographySizeAdjusted.add(e);
         e.setTextColor(INK);
         e.setHintTextColor(MUTED);
         e.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -2639,7 +2644,8 @@ public class MainActivity extends Activity {
         s.plus = roundBtn("+", heightDp, ORANGE, ON_ORANGE);
         s.minus = roundBtn("−", heightDp, MINUS_FILL, ORANGE_DARK);
         s.qty = new TextView(this);
-        s.qty.setTextSize(17.6f);\n        typographySizeAdjusted.add(s.qty);
+        s.qty.setTextSize(17.6f);
+        typographySizeAdjusted.add(s.qty);
         s.qty.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         s.qty.setTextColor(INK);
         s.qty.setGravity(Gravity.CENTER);
