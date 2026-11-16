@@ -1938,8 +1938,17 @@ public class MainActivity extends Activity {
         updateSystemBarColors();
         pruneImageCache();
         SaleMonitor.ensureNotificationChannel(this);
+        // Keep the former stock-only interval for existing installs when no shared interval was saved.
+        if (!prefs.getBoolean("stock_interval_migrated_to_shared", false)) {
+            SharedPreferences.Editor intervalMigration = prefs.edit();
+            if (!prefs.contains("monitor_interval_minutes") && prefs.contains("stock_monitor_interval_minutes")) {
+                intervalMigration.putInt("monitor_interval_minutes", prefs.getInt("stock_monitor_interval_minutes", 5));
+            }
+            intervalMigration.putBoolean("stock_interval_migrated_to_shared", true).apply();
+        }
         StockMonitor.scheduleNextCheck(this);
         requestMonitoringPermissions(false);
+        refreshPersistentNotification();
         if (getIntent() != null && getIntent().hasExtra("stock_sale_id") && getIntent().hasExtra("stock_product_sid")) {
             int stockSaleId = getIntent().getIntExtra("stock_sale_id", -1);
             String stockSid = getIntent().getStringExtra("stock_product_sid");
@@ -3413,19 +3422,11 @@ public class MainActivity extends Activity {
         c.addView(switchRow("בדיקת מלאי אוטומטית","בדיקה משותפת של כל המכירות הפתוחות והמוצרים הרלוונטיים",prefs.getBoolean(StockMonitor.ENABLED,true),(b,on)->{
             prefs.edit().putBoolean(StockMonitor.ENABLED,on).apply();StockMonitor.scheduleNextCheck(this);toast(on?"בדיקת מלאי הופעלה":"בדיקת מלאי כובתה",false);
         }));
-        c.addView(switchRow("התראה גלובלית כשהמוצר אוזל","כל המוצרים הרלוונטיים בכל המכירות הפתוחות",prefs.getBoolean("stock_global_notify_out",false),(b,on)->{
-            prefs.edit().putBoolean("stock_global_notify_out",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();StockMonitor.scheduleNextCheck(this);
-        }));
         c.addView(switchRow("התראה גלובלית כשהמוצר חוזר למלאי","כל המוצרים הרלוונטיים; התראה רק בעת שינוי מצב",prefs.getBoolean("stock_global_notify_return",false),(b,on)->{
             prefs.edit().putBoolean("stock_global_notify_return",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();StockMonitor.scheduleNextCheck(this);
         }));
         c.addView(switchRow("התראה כשהמוצר אוזל במעקב אישי","בנוסף להתראות הגלובליות, למוצרים שנבחרו ידנית",prefs.getBoolean("stock_notify_out",true),(b,on)->{prefs.edit().putBoolean("stock_notify_out",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();}));
         c.addView(switchRow("התראה כשהמוצר חוזר במעקב אישי","מעקב אישי; הזמנה אוטומטית תציג את תוצאת הניסיון",prefs.getBoolean("stock_notify_return",true),(b,on)->{prefs.edit().putBoolean("stock_notify_return",on).apply(); if(on) maybePromptPersistentNotification(); else refreshPersistentNotification();}));
-        c.addView(text("תדירות בדיקה (דקות)",14,true),lp(-1,-2,0,4)); LinearLayout chips=new LinearLayout(this);
-        for(int n:new int[]{1,2,5,10,15,30,60}){TextView ch=pickChip(String.valueOf(n));styleChip(ch,prefs.getInt(StockMonitor.INTERVAL,5)==n);
-            ch.setOnClickListener(v->{prefs.edit().putInt(StockMonitor.INTERVAL,n).apply();StockMonitor.scheduleNextCheck(this);showStockSettings();});
-            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(42),dp(38));cp.setMarginEnd(dp(4));chips.addView(ch,cp);}
-        HorizontalScrollView hs=new HorizontalScrollView(this);hs.setHorizontalScrollBarEnabled(false);hs.addView(chips);c.addView(hs,lp(-1,-2,0,4));
         return c;
     }
     private String stockStateLabel(JSONObject w) {
@@ -4633,6 +4634,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        // Reconcile the foreground notification whenever the app returns to the foreground.
+        refreshPersistentNotification();
         if (screenKind == 3 && hasToken()) showNotificationSettings(); // permissions may have changed in system settings
         else if (screenKind == 4 && hasToken()) showStockSettings();
         else if (screenKind == 7 && prefs.getBoolean("update_auto_install_pending", false)
@@ -4675,6 +4678,7 @@ public class MainActivity extends Activity {
                 }), lp(-1, -2, 0, 10));
         root.addView(persistentNotificationCard(), lp(-1, -2, 0, 10));
         root.addView(notificationBehaviorCard(), lp(-1, -2, 0, 10));
+        root.addView(stockOutNotificationCard(), lp(-1, -2, 0, 10));
         root.addView(newSaleCard(), lp(-1, -2, 0, 10));
         root.addView(closingCard(), lp(-1, -2, 0, 10));
     }
@@ -5379,6 +5383,19 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    private View stockOutNotificationCard() {
+        LinearLayout card = card(14);
+        card.addView(sectionTitle("📦 התראה על אזל מהמלאי"));
+        card.addView(muted("התראה גלובלית כאשר מוצר אוזל מהמלאי, בכל סוגי המוצרים ובכל המכירות הפתוחות.", 13), lp(-1, -2, 0, 8));
+        card.addView(switchRow("התראה כשמוצר אוזל מהמלאי", "הצגת התראה על פריטים חדשים שאזלו",
+                prefs.getBoolean("stock_global_notify_out", false), (button, checked) -> {
+                    prefs.edit().putBoolean("stock_global_notify_out", checked).apply();
+                    if (checked) maybePromptPersistentNotification(); else refreshPersistentNotification();
+                    StockMonitor.scheduleNextCheck(this);
+                }));
+        return card;
+    }
+
     private View notificationBehaviorCard() {
         LinearLayout card = card(14);
         card.addView(sectionTitle("🔔 צליל ורטט לכל ההתראות"));
@@ -5478,6 +5495,8 @@ public class MainActivity extends Activity {
             requestMonitoringPermissions(false);
             SaleMonitor.scheduleNextStart(this);
         }
+        // The same interval controls sale polling and stock polling.
+        StockMonitor.scheduleNextCheck(this);
     }
 
     private View newSaleCard() {
@@ -5500,7 +5519,7 @@ public class MainActivity extends Activity {
         details.addView(windowRow("מתחילה", "monitor_start_day", Calendar.THURSDAY, "monitor_start_time", "19:00", onChange), lp(-1, -2, 4, 4));
         details.addView(windowRow("מסתיימת", "monitor_end_day", Calendar.SUNDAY, "monitor_end_time", "10:00", onChange), lp(-1, -2, 4, 8));
 
-        details.addView(text("בדיקה כל כמה דקות", 14, true));
+        details.addView(text("תדירות בדיקה אחידה למכירות ולמלאי (דקות)", 14, true));
         final int[] intervals = {1, 2, 3, 5, 10, 15, 30, 60};
         final TextView[] chips = new TextView[intervals.length];
         LinearLayout chipRow = new LinearLayout(this);

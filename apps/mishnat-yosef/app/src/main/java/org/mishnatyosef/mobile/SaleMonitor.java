@@ -248,6 +248,20 @@ public class SaleMonitor extends BroadcastReceiver {
         return new HttpResult(code, response.toString());
     }
 
+    private static String saleTimeText(JSONObject sale, String... keys) {
+        if (sale == null) return "";
+        for (String key : keys) {
+            Object raw = sale.opt(key);
+            if (raw == null || raw == JSONObject.NULL) continue;
+            String value = String.valueOf(raw).trim();
+            if (value.isEmpty() || "null".equalsIgnoreCase(value)) continue;
+            long millis = parseSaleTime(value);
+            if (millis > 0) return new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(millis));
+            return value;
+        }
+        return "";
+    }
+
     private void notifySale(Context context, JSONObject sale) {
         ensureNotificationChannel(context);
         int id = sale.optInt("id", -1);
@@ -257,7 +271,13 @@ public class SaleMonitor extends BroadcastReceiver {
             JSONObject parent = sale.optJSONObject("parent");
             if (parent != null) name = parent.optString("week", "");
         }
-        if (name.isEmpty()) name = "מכירה חדשה";
+        if (name.isEmpty() || "null".equalsIgnoreCase(name)) name = "מכירה חדשה";
+        String startTime = saleTimeText(sale, "start", "start_at", "start_date_time", "startDateTime", "start_date", "start_time", "startTime");
+        String endTime = saleTimeText(sale, "end", "end_at", "end_date_time", "endDateTime", "end_date", "end_time", "endTime");
+        StringBuilder saleDetails = new StringBuilder("נפתחה מכירה חדשה: ").append(name);
+        if (!startTime.isEmpty()) saleDetails.append("\nפתיחת המכירה: ").append(startTime);
+        if (!endTime.isEmpty()) saleDetails.append("\nסגירת המכירה: ").append(endTime);
+        saleDetails.append("\nלחצי כדי לפתוח אותה.");
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (!prefs.getBoolean("notify_enabled", true)) return;
         Intent open = new Intent(context, MainActivity.class);
@@ -279,7 +299,7 @@ public class SaleMonitor extends BroadcastReceiver {
         Notification notification = builder.setDefaults(defaults).setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("נפתחה מכירה במשנת יוסף")
                 .setContentText(name)
-                .setStyle(new Notification.BigTextStyle().bigText("נפתחה מכירה חדשה: " + name + ". לחצי כדי לפתוח אותה."))
+                .setStyle(new Notification.BigTextStyle().bigText(saleDetails.toString()))
                 .setContentIntent(content).setAutoCancel(true).setWhen(System.currentTimeMillis()).build();
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null && (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)) nm.notify(9000 + Math.max(id, 0), notification);

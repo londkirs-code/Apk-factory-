@@ -35,7 +35,7 @@ public class StockMonitor extends BroadcastReceiver {
     public static final String WATCHES = "stock_watch_list";
     public static final String LOG = "stock_monitor_log";
     public static final String ENABLED = "stock_monitor_enabled";
-    public static final String INTERVAL = "stock_monitor_interval_minutes";
+    public static final String INTERVAL = "monitor_interval_minutes";
     private static final String PREFS = "mishnat_auth";
     private static final String API = "https://v2.mishnatyosef.org";
     private static final String CHECK = "org.mishnatyosef.mobile.CHECK_STOCK_WATCHES";
