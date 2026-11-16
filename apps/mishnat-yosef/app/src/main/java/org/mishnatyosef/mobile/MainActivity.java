@@ -7661,7 +7661,7 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         od.status = first(order, "status", "order_status");
         od.when = fmtWhen(first(order, "time"));
         od.saleName = saleTitle(sale);
-        od.saleId = order.optLong("saleID", sale == null ? 0 : sale.optLong("id", 0));
+        od.saleId = order.optLong("saleID", order.optLong("sale_id", sale == null ? 0 : sale.optLong("id", 0)));
         // Preserve the complete sale relation returned by /api/orders/{id}.
         // Collection mode needs the same site, pickup date and hours as the regular order flow.
         if (sale != null) od.sale = new JSONObject(sale.toString());
