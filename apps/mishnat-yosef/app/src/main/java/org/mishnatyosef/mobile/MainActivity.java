@@ -2617,7 +2617,7 @@ public class MainActivity extends Activity {
         e.setSingleLine(true);
         e.setHint(hint);
         e.setInputType(inputType);
-        e.setTextSize(liveFontSize(15));
+        e.setTextSize(liveFontSize(16.5f));
         e.setTextColor(INK);
         e.setHintTextColor(MUTED);
         e.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -2861,6 +2861,16 @@ public class MainActivity extends Activity {
 
     // ======================================================================== screens: frame
 
+    /** Applies a consistent bold weight to every text element in the newly built screen. */
+    private void applyBoldTypography(View view) {
+        if (view == null) return;
+        if (view instanceof TextView) ((TextView) view).setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) applyBoldTypography(group.getChildAt(i));
+        }
+    }
+
     private void beginScreen(String heading, int tab, Runnable back) {
         if (showingSalesList && scrollView != null) {
             salesListScrollY = Math.max(0, scrollView.getScrollY());
@@ -3044,6 +3054,8 @@ public class MainActivity extends Activity {
         });
         currentScreen = screen;
         setContentView(screen);
+        // Run after the screen builder has added its controls.
+        screen.post(() -> applyBoldTypography(screen));
         screen.requestApplyInsets();
         styleSystemBars();
     }
@@ -10305,13 +10317,15 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
     }
 
     private View collectRow(final OrderLine line, final int qty, final boolean isDone) {
-        LinearLayout row = (LinearLayout) rowShell(line, isDone ? 52 : 68);
+        // Compact collection rows: smaller photo, tighter padding and a smaller check control.
+        LinearLayout row = (LinearLayout) rowShell(line, isDone ? 36 : 44);
+        row.setPadding(dp(8), dp(6), dp(8), dp(6));
         row.setAlpha(isDone ? 0.8f : 1f);
 
-        TextView check = roundBtn(isDone ? "↩" : "✓", 46, isDone ? SURFACE : GREEN_LIGHT, GREEN);
+        TextView check = roundBtn(isDone ? "↩" : "✓", 32, isDone ? SURFACE : GREEN_LIGHT, GREEN);
         check.setTag("collectionFocus:" + line.sid);
-        LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(dp(46), dp(46));
-        chkLp.setMarginEnd(dp(10));
+        LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(dp(32), dp(32));
+        chkLp.setMarginEnd(dp(6));
         row.setTag("collectionRow:" + line.sid);
         final View.OnClickListener toggle = v -> {
             v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
@@ -10367,8 +10381,8 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView name = text(line.name, isDone ? 14 : 15, true);
-        name.setMaxLines(3);
+        TextView name = text(line.name, isDone ? 13 : 13.5f, true);
+        name.setMaxLines(2);
         name.setEllipsize(TextUtils.TruncateAt.END);
         if (isDone) name.setPaintFlags(name.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
         col.addView(name);
@@ -10390,11 +10404,11 @@ private JSONArray parseProductPageArray(String body, int page, String path) thro
         }
         row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
 
-        TextView q = text(String.valueOf(qty), isDone ? 22 : 30, true);
+        TextView q = text(String.valueOf(qty), isDone ? 18 : 22, true);
         q.setGravity(Gravity.CENTER);
         q.setBackground(shape(SURFACE, 10, LINE));
-        q.setMinWidth(dp(isDone ? 44 : 58));
-        q.setPadding(dp(8), dp(2), dp(8), dp(2));
+        q.setMinWidth(dp(44));
+        q.setPadding(dp(6), dp(1), dp(6), dp(1));
         LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-2, -2);
         qp.setMarginStart(dp(8));
         row.addView(q, qp);
