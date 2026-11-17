@@ -35,7 +35,8 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Prepare existing APK Factory signing key
+      - name: Preflight and prepare persistent APK Factory signing key
+        id: signing
         shell: bash
         env:
           APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
@@ -44,23 +45,63 @@ jobs:
           APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          for name in APK_SIGNING_KEY_BASE64 APK_SIGNING_STORE_PASSWORD APK_SIGNING_KEY_ALIAS APK_SIGNING_KEY_PASSWORD; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::Missing existing APK Factory signing secret: $name"
-              exit 1
-            fi
-          done
+          missing=()
+          [ -n "$APK_SIGNING_KEY_BASE64" ] || missing+=("APK_SIGNING_KEY_BASE64")
+          [ -n "$APK_SIGNING_STORE_PASSWORD" ] || missing+=("APK_SIGNING_STORE_PASSWORD")
+          [ -n "$APK_SIGNING_KEY_ALIAS" ] || missing+=("APK_SIGNING_KEY_ALIAS")
+          [ -n "$APK_SIGNING_KEY_PASSWORD" ] || missing+=("APK_SIGNING_KEY_PASSWORD")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Signing preflight failed: missing repository secret(s): %s. No APK was built.\n' "${missing[*]}"
+            exit 1
+          fi
+
+          # GitHub secrets may contain accidental spaces/newlines around the alias.
+          APK_SIGNING_KEY_ALIAS="$(printf '%s' "$APK_SIGNING_KEY_ALIAS" | tr -d '[:space:]')"
+          [ -n "$APK_SIGNING_KEY_ALIAS" ] || { echo "::error::Signing preflight failed: key alias is empty after whitespace normalization."; exit 1; }
+
           KEYSTORE="$RUNNER_TEMP/apk-factory-release.jks"
-          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$KEYSTORE"
-          test -s "$KEYSTORE"
-          keytool -list -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
+          if ! printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$KEYSTORE"; then
+            echo "::error::Signing preflight failed: APK_SIGNING_KEY_BASE64 is malformed. Restore the original complete Base64 keystore value."
+            exit 1
+          fi
+          if [ ! -s "$KEYSTORE" ]; then
+            echo "::error::Signing preflight failed: decoded keystore is empty."
+            exit 1
+          fi
+
+          KEY_INFO="$RUNNER_TEMP/apk-factory-key-info.txt"
+          if ! keytool -list -v -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" > "$KEY_INFO" 2>&1; then
+            echo "::error::Signing preflight failed: keystore/password/alias mismatch. Check the existing APK Factory signing secrets; no replacement key was generated."
+            exit 1
+          fi
+          if ! grep -q 'PrivateKeyEntry' "$KEY_INFO"; then
+            echo "::error::Signing preflight failed: selected alias is not a private-key entry; it cannot sign an APK."
+            exit 1
+          fi
+
+          # A certificate request performs a non-destructive private-key password check.
+          if ! keytool -certreq -alias "$APK_SIGNING_KEY_ALIAS" -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" -keypass "$APK_SIGNING_KEY_PASSWORD" -file "$RUNNER_TEMP/signing-preflight.csr" -noprompt >/dev/null 2>&1; then
+            echo "::error::Signing preflight failed: the key password does not unlock the selected private key."
+            exit 1
+          fi
+          CERT_SHA256="$(keytool -exportcert -alias "$APK_SIGNING_KEY_ALIAS" -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" 2>/dev/null | sha256sum | awk '{print toupper($1)}')"
+          [[ "$CERT_SHA256" =~ ^[0-9A-F]{64}$ ]] || { echo "::error::Signing preflight failed: could not calculate certificate fingerprint."; exit 1; }
+
           {
-            echo "APK_SIGNING_STORE_FILE=$KEYSTORE"
-            echo "APK_SIGNING_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
-            echo "APK_SIGNING_KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
-            echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+            printf 'APK_SIGNING_STORE_FILE=%s\n' "$KEYSTORE"
+            printf 'APK_SIGNING_STORE_PASSWORD=%s\n' "$APK_SIGNING_STORE_PASSWORD"
+            printf 'APK_SIGNING_KEY_ALIAS=%s\n' "$APK_SIGNING_KEY_ALIAS"
+            printf 'APK_SIGNING_KEY_PASSWORD=%s\n' "$APK_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
-          echo "Existing APK Factory signing key validated."
+          {
+            echo "### Signing preflight: passed"
+            echo "- Keystore: decoded and readable"
+            echo "- Alias: valid private-key entry"
+            echo "- Store password and key password: validated"
+            echo "- Certificate SHA-256: `$CERT_SHA256`"
+            echo "- Persistent APK Factory key retained; no ephemeral key generated"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Existing APK Factory signing key passed all preflight checks."
 
       - name: Increment version and build signed Release APK
         shell: bash
