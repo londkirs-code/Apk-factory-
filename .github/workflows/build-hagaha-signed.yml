@@ -86,6 +86,11 @@ jobs:
           fi
           CERT_SHA256="$(keytool -exportcert -alias "$APK_SIGNING_KEY_ALIAS" -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" 2>/dev/null | sha256sum | awk '{print toupper($1)}')"
           [[ "$CERT_SHA256" =~ ^[0-9A-F]{64}$ ]] || { echo "::error::Signing preflight failed: could not calculate certificate fingerprint."; exit 1; }
+          EXPECTED_APK_FACTORY_CERT_SHA256="5C5356162C0240E5C8B33C53D249DEDEC33C25AEF17BDEEE011C2C3F836EE871"
+          if [[ "$CERT_SHA256" != "$EXPECTED_APK_FACTORY_CERT_SHA256" ]]; then
+            echo "::error::Signing preflight failed: certificate fingerprint does not match the known APK Factory key. Refusing to publish an APK signed by a different key."
+            exit 1
+          fi
 
           {
             printf 'APK_SIGNING_STORE_FILE=%s\n' "$KEYSTORE"
