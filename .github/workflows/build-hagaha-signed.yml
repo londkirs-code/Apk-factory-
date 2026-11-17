@@ -1,0 +1,186 @@
+name: Build signed Hagaha TWA APK
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: hagaha-signed-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event.issue.number == 1 && github.event.comment.body == '/build-hagaha' && github.event.comment.user.login == 'londkirs-code'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out latest APK Factory source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Prepare existing APK Factory signing key
+        shell: bash
+        env:
+          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in APK_SIGNING_KEY_BASE64 APK_SIGNING_STORE_PASSWORD APK_SIGNING_KEY_ALIAS APK_SIGNING_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing existing APK Factory signing secret: $name"
+              exit 1
+            fi
+          done
+          KEYSTORE="$RUNNER_TEMP/apk-factory-release.jks"
+          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
+          {
+            echo "APK_SIGNING_STORE_FILE=$KEYSTORE"
+            echo "APK_SIGNING_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+            echo "APK_SIGNING_KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
+            echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Existing APK Factory signing key validated."
+
+      - name: Increment version and build signed Release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_FILE="apps/hagaha/app/build.gradle"
+          CURRENT_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p' "$BUILD_FILE" | head -n1)"
+          [[ "$CURRENT_CODE" =~ ^[0-9]+$ ]] || { echo "::error::Missing numeric versionCode"; exit 1; }
+          NEXT_CODE=$((CURRENT_CODE + 1))
+          sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT_CODE/" "$BUILD_FILE"
+          export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_FILE="$APK_SIGNING_STORE_FILE"
+          export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_PASSWORD="$APK_SIGNING_STORE_PASSWORD"
+          export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
+          export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_PASSWORD="$APK_SIGNING_KEY_PASSWORD"
+          cd apps/hagaha
+          gradle --no-daemon --console=plain --stacktrace :app:assembleRelease
+          cd ../..
+          APK="apps/hagaha/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          APK_ANALYZER="$(find "$SDK_ROOT" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n1)"
+          APK_SIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -n1)"
+          [[ -x "$APK_ANALYZER" && -x "$APK_SIGNER" ]] || { echo "::error::Android APK validation tools missing"; exit 1; }
+          APP_ID="$("$APK_ANALYZER" manifest application-id "$APK")"
+          ACTUAL_CODE="$("$APK_ANALYZER" manifest version-code "$APK")"
+          VERSION_NAME="$("$APK_ANALYZER" manifest version-name "$APK")"
+          [[ "$APP_ID" == "il.co.botomat.hagaha" ]] || { echo "::error::Wrong applicationId: $APP_ID"; exit 1; }
+          [[ "$ACTUAL_CODE" == "$NEXT_CODE" ]] || { echo "::error::Wrong versionCode: $ACTUAL_CODE"; exit 1; }
+          SIGNER_OUTPUT="$("$APK_SIGNER" verify --print-certs "$APK" 2>&1)"
+          printf '%s\n' "$SIGNER_OUTPUT"
+          CERT_HEX="$(printf '%s\n' "$SIGNER_OUTPUT" | grep -i 'SHA-256 digest' | sed -E 's/.*digest:[[:space:]]*//I' | head -n1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          [[ "$CERT_HEX" =~ ^[0-9A-F]{64}$ ]] || { echo "::error::Could not read signing certificate SHA-256"; exit 1; }
+          python3 - "$CERT_HEX" "$APK" "$NEXT_CODE" "$VERSION_NAME" "$GITHUB_RUN_ID" "$GITHUB_SHA" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          cert_hex, apk_path, code, name, run_id, source_sha = sys.argv[1:]
+          apk = Path(apk_path).read_bytes()
+          fingerprint = ':'.join(cert_hex[i:i+2] for i in range(0, len(cert_hex), 2))
+          out = Path('downloads/hagaha')
+          out.mkdir(parents=True, exist_ok=True)
+          (out / 'app.apk').write_bytes(apk)
+          (out / 'build-info.txt').write_text(
+              f'version_code={code}\nversion_name={name}\n'
+              f'workflow_run_id={run_id}\nsource_sha={source_sha}\n'
+              f'sha256={hashlib.sha256(apk).hexdigest()}\n'
+              f'certificate_sha256={fingerprint}\n',
+              encoding='utf-8')
+          (out / 'README.md').write_text(
+              f'הגהה – Trusted Web Activity\nגרסה {name} (versionCode {code})\n'
+              f'Package: il.co.botomat.hagaha\n'
+              f'חתימה: {fingerprint}\n',
+              encoding='utf-8')
+          history = out / 'history'
+          history.mkdir(exist_ok=True)
+          (history / f'hagaha-v{name}-code{code}.apk').write_bytes(apk)
+          print(f'Validated and staged signed Hagaha APK; certificate SHA-256: {fingerprint}')
+          PY
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hagaha-signed-apk
+          path: downloads/hagaha/app.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish APK and metadata to repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/hagaha/app/build.gradle downloads/hagaha/
+          git commit -m "Build: publish signed Hagaha APK"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "::error::Could not rebase Hagaha publication onto latest main"
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "Published signed Hagaha APK and build metadata."
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          echo "::error::Failed to publish Hagaha APK after five attempts"
+          exit 1
+
+      - name: Notify APK Factory issue subscribers
+        if: success()
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const info = (await github.rest.repos.getContent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: "downloads/hagaha/build-info.txt",
+              ref: "main"
+            })).data;
+            const metadata = Buffer.from(info.content, "base64").toString("utf8");
+            const get = key => metadata.match(new RegExp("^" + key + "=(.*)$", "m"))?.[1] || "";
+            const body = [
+              "✅ בניית הגהה הסתיימה בהצלחה: ה-APK נחתם ונשמר במאגר.",
+              "",
+              "- Package ID: il.co.botomat.hagaha",
+              "- versionCode: " + get("version_code"),
+              "- SHA-256 חתימה: " + get("certificate_sha256"),
+              "- [הורדת APK ישירה](https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/hagaha/app.apk)",
+              "- [קובץ assetlinks fingerprint](https://github.com/londkirs-code/Apk-factory-/blob/main/downloads/hagaha/build-info.txt)",
+              "- [צפייה בלוגים](${process.env.RUN_URL})",
+              "",
+              "_הודעה אוטומטית מ-APK Factory._"
+            ].join("\n");
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 1,
+              body
+            });
