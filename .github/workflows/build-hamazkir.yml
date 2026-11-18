@@ -1,0 +1,393 @@
+name: Build Hamazkir APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization_confirmed:
+        description: "I own this app or have explicit permission to modify and rebuild it"
+        required: true
+        default: false
+        type: boolean
+      public_artifact_confirmed:
+        description: "I understand this public repository publishes the APK and build artifacts"
+        required: true
+        default: false
+        type: boolean
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: build-hamazkir-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build-hamazkir:
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.authorization_confirmed == true &&
+       inputs.public_artifact_confirmed == true) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 1 &&
+       github.event.comment.user.login == 'londkirs-code' &&
+       startsWith(github.event.comment.body, '/build-hamazkir-authorized'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout APK Factory
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate trigger
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "issue_comment" ]]; then
+            read -r COMMAND EXTRA <<< "$COMMENT_BODY"
+            [[ "$COMMAND" == "/build-hamazkir-authorized" && -z "$EXTRA" ]] || {
+              echo "::error::Use exactly: /build-hamazkir-authorized"
+              exit 1
+            }
+          fi
+          echo "Hamazkir-specific build request validated."
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+
+      - name: Install Android platform and build-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;36.0.0"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/zipalign"
+
+      - name: Install and verify pinned Apktool
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar" \
+            --output "$HOME/apktool_3.0.3.jar"
+          echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/apktool_3.0.3.jar" | sha256sum --check
+          java -jar "$HOME/apktool_3.0.3.jar" --version
+
+      - name: Download and verify latest official Hamazkir APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p input build/analysis build/logs
+          SOURCE_URL="https://gitlab.com/yossi2053/azless-releases/-/raw/main/hamazkir.apk"
+          curl --fail --location --silent --show-error --retry 4 \
+            --proto '=https' --proto-redir '=https' --max-filesize 536870912 \
+            --connect-timeout 20 --max-time 300 "$SOURCE_URL" --output input/official-hamazkir.apk
+          test -s input/official-hamazkir.apk
+          unzip -t input/official-hamazkir.apk > build/logs/source-zip-test.log
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging input/official-hamazkir.apk > build/analysis/source-badging.txt
+          grep -q "name='com.azless.app'" build/analysis/source-badging.txt
+          SOURCE_VERSION_CODE="$(grep -m1 -oE "versionCode='[0-9]+'" build/analysis/source-badging.txt | cut -d "'" -f2)"
+          SOURCE_VERSION_NAME="$(grep -m1 -oE "versionName='[^']+'" build/analysis/source-badging.txt | cut -d "'" -f2)"
+          [[ "$SOURCE_VERSION_CODE" =~ ^[0-9]+$ && -n "$SOURCE_VERSION_NAME" ]] || {
+            echo "::error::Could not read official source package version."
+            exit 1
+          }
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs input/official-hamazkir.apk > build/analysis/source-signature.txt
+          SOURCE_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' build/analysis/source-signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_SOURCE_CERT="E201067E015E66E01F3AFC80B5E35B1ACFAEE9A6A75D3E73CC2963EE7BD42CCA"
+          [[ "$SOURCE_CERT" == "$EXPECTED_SOURCE_CERT" ]] || {
+            echo "::error::Official source signing certificate changed; refusing an unreviewed source update."
+            exit 1
+          }
+          SOURCE_SHA="$(sha256sum input/official-hamazkir.apk | awk '{print $1}')"
+          {
+            echo "source_url=$SOURCE_URL"
+            echo "package=com.azless.app"
+            echo "source_versionCode=$SOURCE_VERSION_CODE"
+            echo "source_versionName=$SOURCE_VERSION_NAME"
+            echo "source_signer_sha256=$SOURCE_CERT"
+            echo "source_sha256=$SOURCE_SHA"
+            echo "target_versionCode=$((SOURCE_VERSION_CODE + 1))"
+          } > build/analysis/source-info.txt
+          echo "Official source verified: com.azless.app $SOURCE_VERSION_NAME ($SOURCE_VERSION_CODE)."
+
+      - name: Decode official APK with Apktool
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -jar "$HOME/apktool_3.0.3.jar" d --force --all-src \
+            -o build/apktool-project input/official-hamazkir.apk \
+            > build/logs/apktool-decode.log 2>&1
+          test -s build/apktool-project/apktool.yml
+          test -s build/apktool-project/AndroidManifest.xml
+
+      - name: Apply and validate Umm al-Fahm theme
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 apps/hamazkir/apply_umm_alfahm_theme.py build/apktool-project \
+            --report build/analysis/umm-al-fahm-theme-report.json
+          test -s build/analysis/umm-al-fahm-theme-report.json
+          grep -q '"status": "success"' build/analysis/umm-al-fahm-theme-report.json
+
+      - name: Rebuild, increment versionCode and validate package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          bash tools/reverse-engineering/rebuild-apktool-project.sh build/apktool-project export \
+            2>&1 | tee build/logs/rebuild.log
+          cp build/analysis/source-info.txt export/analysis/source-info.txt
+          cp build/analysis/source-badging.txt export/analysis/source-badging.txt
+          cp build/analysis/source-signature.txt export/analysis/source-signature.txt
+          cp build/analysis/umm-al-fahm-theme-report.json export/analysis/umm-al-fahm-theme-report.json
+          cp build/logs/apktool-decode.log export/logs/apktool-decode.log
+          cp build/logs/rebuild.log export/logs/rebuild.log
+          UNSIGNED="export/reconstructed-aligned-unsigned.apk"
+          test -s "$UNSIGNED"
+          unzip -t "$UNSIGNED" > export/logs/rebuilt-zip-test.log
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$UNSIGNED" > export/analysis/zipalign-check.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$UNSIGNED" > export/analysis/rebuilt-badging.txt
+          grep -q "name='com.azless.app'" export/analysis/rebuilt-badging.txt
+          TARGET_CODE="$(sed -n 's/^target_versionCode=//p' export/analysis/source-info.txt)"
+          ACTUAL_CODE="$(grep -m1 -oE "versionCode='[0-9]+'" export/analysis/rebuilt-badging.txt | cut -d "'" -f2)"
+          [[ "$ACTUAL_CODE" == "$TARGET_CODE" ]] || {
+            echo "::error::Built versionCode $ACTUAL_CODE does not equal expected $TARGET_CODE."
+            exit 1
+          }
+          echo "Rebuilt package, versionCode, ZIP and zipalign checks passed."
+
+      - name: Upload unsigned APK for isolated signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamazkir-unsigned-internal
+          path: |
+            export/reconstructed-aligned-unsigned.apk
+            export/analysis/
+            export/logs/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Notify build preparation failure
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const body = [
+              '## המזכיר — שלב הכנת הבנייה נכשל',
+              '',
+              'לא פורסם APK. יש לפתוח את הלוגים ולבדוק את השלב הראשון שנכשל.',
+              process.env.RUN_URL
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: 1, body
+            });
+
+  sign-and-publish:
+    needs: build-hamazkir
+    if: needs.build-hamazkir.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+      issues: write
+    steps:
+      - name: Checkout APK Factory for standalone APK publication
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Download unsigned build and source evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: hamazkir-unsigned-internal
+          path: incoming
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android signing tools
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+
+      - name: Install Android build-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "build-tools;36.0.0"
+          test -s incoming/reconstructed-aligned-unsigned.apk
+          unzip -t incoming/reconstructed-aligned-unsigned.apk >/dev/null
+
+      - name: Validate and load existing APK Factory signing key
+        shell: bash
+        env:
+          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$APK_SIGNING_KEY_BASE64" || -z "$APK_SIGNING_STORE_PASSWORD" ||
+                -z "$APK_SIGNING_KEY_ALIAS" || -z "$APK_SIGNING_KEY_PASSWORD" ]]; then
+            echo "::error::Missing existing APK Factory signing secrets. No key will be generated."
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/apk-factory-release.jks"
+          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$KEYSTORE"
+          ALIAS="$(printf '%s' "$APK_SIGNING_KEY_ALIAS" | tr -d '[:space:]')"
+          keytool -list -keystore "$KEYSTORE" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$ALIAS" >/dev/null
+          {
+            echo "APK_FACTORY_KEYSTORE=$KEYSTORE"
+            echo "APK_FACTORY_KEY_ALIAS=$ALIAS"
+            echo "APK_FACTORY_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+            echo "APK_FACTORY_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Existing APK Factory signing key validated."
+
+      - name: Sign and verify APK Factory signature
+        id: sign
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p publication
+          cp incoming/reconstructed-aligned-unsigned.apk publication/hamazkir-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$APK_FACTORY_KEYSTORE" --ks-key-alias "$APK_FACTORY_KEY_ALIAS" \
+            --ks-pass env:APK_FACTORY_STORE_PASSWORD --key-pass env:APK_FACTORY_KEY_PASSWORD \
+            --out publication/hamazkir.apk publication/hamazkir-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs publication/hamazkir.apk > publication/signature.txt
+          ACTUAL_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' publication/signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_FACTORY_CERT="5C5356162C0240E5C8B33C53D249DEDEC33C25AEF17BDEEE011C2C3F836EE871"
+          [[ "$ACTUAL_CERT" == "$EXPECTED_FACTORY_CERT" ]] || {
+            echo "::error::The loaded key does not match the established APK Factory signing certificate. Refusing to publish."
+            exit 1
+          }
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging publication/hamazkir.apk > publication/badging.txt
+          grep -q "name='com.azless.app'" publication/badging.txt
+          EXPECTED_CODE="$(sed -n 's/^target_versionCode=//p' incoming/analysis/source-info.txt)"
+          ACTUAL_CODE="$(grep -m1 -oE "versionCode='[0-9]+'" publication/badging.txt | cut -d "'" -f2)"
+          [[ "$ACTUAL_CODE" == "$EXPECTED_CODE" ]] || {
+            echo "::error::Signed APK package versionCode validation failed."
+            exit 1
+          }
+          unzip -t publication/hamazkir.apk > publication/zip-test.txt
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 publication/hamazkir.apk > publication/zipalign-check.txt
+          sha256sum publication/hamazkir.apk > publication/SHA256SUMS.txt
+          {
+            echo "package=com.azless.app"
+            echo "versionCode=$ACTUAL_CODE"
+            sed -n 's/^source_versionName=/source_versionName=/p' incoming/analysis/source-info.txt
+            echo "certificate_sha256=$ACTUAL_CERT"
+            echo "source_signer_sha256=$(sed -n 's/^source_signer_sha256=//p' incoming/analysis/source-info.txt)"
+            echo "source_sha256=$(sed -n 's/^source_sha256=//p' incoming/analysis/source-info.txt)"
+            echo "workflow_run_id=$GITHUB_RUN_ID"
+            echo "legacy_install_update_compatibility=not_verified"
+          } > publication/build-info.txt
+          echo "version_code=$ACTUAL_CODE" >> "$GITHUB_OUTPUT"
+          echo "Signed APK validated. Legacy install compatibility is not claimed without its old certificate."
+
+      - name: Compare against any previously published Hamazkir APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREVIOUS="downloads/hamazkir/hamazkir.apk"
+          if [[ -s "$PREVIOUS" ]]; then
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$PREVIOUS" > publication/previous-signature.txt
+            PREVIOUS_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' publication/previous-signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            CURRENT_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' publication/signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            [[ "$PREVIOUS_CERT" == "$CURRENT_CERT" ]] || {
+              echo "::error::Published Hamazkir APK uses a different signer. Refusing to replace it."
+              exit 1
+            }
+          else
+            echo "No earlier APK exists at the stable download path; compatibility with an older, separately installed APK remains unverified."
+          fi
+
+      - name: Publish standalone APK in repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p downloads/hamazkir
+          cp publication/hamazkir.apk downloads/hamazkir/hamazkir.apk
+          cp publication/build-info.txt downloads/hamazkir/build-info.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/hamazkir/hamazkir.apk downloads/hamazkir/build-info.txt
+          if git diff --cached --quiet; then
+            echo "No publication changes detected."
+          else
+            git commit -m "פרסום APK המזכיר עם ערכת אום אל פחם"
+            git push origin HEAD:main
+          fi
+
+      - name: Upload final verified APK evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamazkir-verified-apk
+          path: |
+            publication/hamazkir.apk
+            publication/signature.txt
+            publication/badging.txt
+            publication/SHA256SUMS.txt
+            publication/build-info.txt
+            publication/zip-test.txt
+            publication/zipalign-check.txt
+            incoming/analysis/
+            incoming/logs/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Notify Hamazkir build result
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VERSION_CODE: ${{ steps.sign.outputs.version_code }}
+        with:
+          script: |
+            const ok = process.env.STATUS === 'success';
+            const body = [
+              ok ? '## המזכיר — APK נבנה, נחתם ואומת' : '## המזכיר — פרסום ה־APK נכשל',
+              '',
+              ok ? 'החבילה אומתה, נחתמה במפתח APK Factory הקיים ונשמרה כקובץ APK עצמאי במאגר.' : 'לא פורסם APK חדש. יש לבדוק את הלוגים של הריצה.',
+              ok ? 'Package ID: com.azless.app' : '',
+              ok ? 'versionCode: ' + (process.env.VERSION_CODE || 'נבדק ב־build-info.txt') : '',
+              ok ? 'הורדה ישירה: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/hamazkir/hamazkir.apk' : '',
+              ok ? 'תאימות להתקנת Hamazkir ותיקה: לא אומתה מול תעודת ההתקנה עצמה; אין להסיר התקנה קיימת לפני בדיקה.' : '',
+              process.env.RUN_URL
+            ].filter(Boolean).join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: 1, body
+            });
