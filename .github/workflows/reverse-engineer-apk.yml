@@ -6,11 +6,12 @@ on:
       apk_url:
         description: "Direct HTTPS URL to one complete APK"
         required: true
+        default: "https://gitlab.com/yossi2053/azless-releases/-/raw/main/hamazkir.apk"
         type: string
       project_slug:
         description: "Safe output folder name"
         required: true
-        default: "reconstructed-app"
+        default: "hamazkir"
         type: string
       authorization_confirmed:
         description: "I own this APK or have explicit permission to analyze and modify it"
