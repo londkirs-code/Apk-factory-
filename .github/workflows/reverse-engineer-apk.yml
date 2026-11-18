@@ -1,17 +1,39 @@
 name: Reverse Engineer Android APK
 
 on:
+  workflow_call:
+    inputs:
+      apk_url:
+        description: "Direct HTTPS URL to one complete APK"
+        required: true
+        type: string
+      project_slug:
+        description: "Safe output folder name"
+        required: true
+        type: string
+      authorization_confirmed:
+        description: "The caller confirms ownership or explicit permission"
+        required: true
+        type: boolean
+      public_artifact_confirmed:
+        description: "The caller confirms the artifact will be public"
+        required: true
+        type: boolean
+      run_mobsf:
+        description: "Run optional MobSF static security analysis"
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       apk_url:
         description: "Direct HTTPS URL to one complete APK"
         required: true
-        default: "https://gitlab.com/yossi2053/azless-releases/-/raw/main/hamazkir.apk"
         type: string
       project_slug:
         description: "Safe output folder name"
         required: true
-        default: "hamazkir"
+        default: "reconstructed-app"
         type: string
       authorization_confirmed:
         description: "I own this APK or have explicit permission to analyze and modify it"
@@ -43,6 +65,9 @@ jobs:
   reverse-engineer:
     if: >-
       (github.event_name == 'workflow_dispatch' &&
+       inputs.authorization_confirmed == true &&
+       inputs.public_artifact_confirmed == true) ||
+      (github.event_name == 'workflow_call' &&
        inputs.authorization_confirmed == true &&
        inputs.public_artifact_confirmed == true) ||
       (github.event_name == 'issue_comment' &&
@@ -320,7 +345,7 @@ jobs:
           retention-days: 14
 
       - name: Notify APK Factory issue subscribers
-        if: always()
+        if: always() && github.event_name != 'workflow_call'
         uses: actions/github-script@v7
         env:
           STATUS: ${{ job.status }}
