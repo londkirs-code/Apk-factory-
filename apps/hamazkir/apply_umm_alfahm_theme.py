@@ -173,7 +173,7 @@ def validate_manifest(project: Path) -> None:
     if not apktool_yml.is_file():
         raise RuntimeError("apktool.yml is missing")
     yml = apktool_yml.read_text(encoding="utf-8")
-    if not re.search(r"(?m)^\\s*versionCode:\\s*['\\"]?\\d+", yml):
+    if not re.search(r"(?m)^\s*versionCode:\s*['\"]?\d+", yml):
         raise RuntimeError("A numeric versionCode was not found in apktool.yml")
 
 
