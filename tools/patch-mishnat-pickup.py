@@ -177,8 +177,13 @@ shutil.copyfile(icon_source, icon_target)
 
 manifest = Path("apps/mishnat-pickup/app/src/main/AndroidManifest.xml")
 manifest_text = manifest.read_text()
-manifest_text = manifest_text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/ic_app_launcher"')
-manifest_text = manifest_text.replace('android:roundIcon="@mipmap/ic_launcher"', 'android:roundIcon="@drawable/ic_app_launcher"')
-if 'android:icon="@drawable/ic_app_launcher"' not in manifest_text or 'android:roundIcon="@drawable/ic_app_launcher"' not in manifest_text:
-    raise SystemExit("Could not set the launcher and round icons to the uploaded purple app icon.")
+import re
+manifest_text, icon_count = re.subn(r'android:icon="[^"]+"', 'android:icon="@drawable/ic_app_launcher"', manifest_text, count=1)
+if icon_count == 0:
+    manifest_text = manifest_text.replace("<application", '<application android:icon="@drawable/ic_app_launcher"', 1)
+round_text, round_count = re.subn(r'android:roundIcon="[^"]+"', 'android:roundIcon="@drawable/ic_app_launcher"', manifest_text, count=1)
+if round_count == 0:
+    manifest_text = manifest_text.replace('android:icon="@drawable/ic_app_launcher"', 'android:icon="@drawable/ic_app_launcher" android:roundIcon="@drawable/ic_app_launcher"', 1)
+if 'android:icon="@drawable/ic_app_launcher"' not in manifest_text:
+    raise SystemExit("Could not set the launcher icon to the uploaded purple app icon.")
 manifest.write_text(manifest_text)
