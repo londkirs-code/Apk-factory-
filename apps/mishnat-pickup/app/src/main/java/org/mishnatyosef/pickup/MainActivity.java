@@ -85,7 +85,7 @@ import javax.crypto.spec.GCMParameterSpec;
  */
 public class MainActivity extends Activity {
     private static final String API = "https://v2.mishnatyosef.org";
-    private static final String LOGIN_URL = "https://new.mishnatyosef.org/sign-up";
+    private static final String LOGIN_URL = "https://mishnatyosef.org/login";
     private static final String PREFS = "mishnat_pickup_preferences";
     private static final String TOKEN_KEY = "encrypted_access_token";
     private static final String PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY = "allow_offline_cache_after_auth_expiry";
