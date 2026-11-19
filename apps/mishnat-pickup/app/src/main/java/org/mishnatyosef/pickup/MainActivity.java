@@ -172,7 +172,7 @@ public class MainActivity extends Activity {
         LinearLayout root = Ui.screen(this);
         root.addView(Ui.title(this, "איסוף משנת יוסף"));
         root.addView(Ui.text(this, "מתחברים לחשבון ובוחרים את ההזמנה האחרונה לאיסוף",
-                Ui.T_BODY, Ui.Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
+                Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildLoginMethods());
         if (hasCachedOrder()) root.addView(buildCachedListButton());
         if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
@@ -225,7 +225,7 @@ public class MainActivity extends Activity {
                 Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
         box.addView(Ui.text(this, "אפשר להתחבר בשתי דרכים", Ui.T_SECTION, Ui.P800, true));
         String body = "אימייל וסיסמה, או מספר טלפון וקוד חד־פעמי ב־SMS. פרטי הכניסה מטופלים ישירות באתר משנת יוסף.";
-        box.addView(Ui.text(this, body, Ui.T_NOTE, Ui.Ui.MUTED, false),
+        box.addView(Ui.text(this, body, Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S2, Ui.S1));
         return box;
     }
@@ -413,7 +413,7 @@ public class MainActivity extends Activity {
 
     private void showHomeScreen(boolean loadData) {
         LinearLayout root = Ui.column(this);
-        root.setBackgroundColor(Ui.Ui.BG);
+        root.setBackgroundColor(Ui.BG);
         LinearLayout header = buildHomeHeader();
         pageScroll = buildProductScroll();
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
@@ -510,7 +510,7 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setFocusable(false);
         scroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-        scroll.setBackgroundColor(Ui.Ui.BG);
+        scroll.setBackgroundColor(Ui.BG);
         page = Ui.column(this);
         page.setPadding(Ui.dp(this, Ui.S5), 0, Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
         page.setFocusable(false);
@@ -594,7 +594,7 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, message, Ui.T_BODY, Ui.Ui.MUTED, false),
+        panel.addView(Ui.text(this, message, Ui.T_BODY, Ui.MUTED, false),
                 Ui.row(this, Ui.S2, Ui.S3));
         panel.addView(buildConfirmButtons(dialog, positive, action));
         dialog.setContentView(panel);
@@ -1097,11 +1097,6 @@ public class MainActivity extends Activity {
         else if (resetButton != null) resetButton.requestFocus();
     }
 
-    private android.graphics.drawable.Drawable focusBackground(int fill, int radiusToken, int border) {
-        int focusFill = fill == Ui.P25 ? Ui.P100 : Ui.P200;
-        return Ui.interactive(this, fill, border, focusFill, Ui.FOCUS, radiusToken);
-    }
-
     private void loadProductImage(String imageUrl, ImageView target) {
         Bitmap cached = imageCache.get(imageUrl);
         if (cached != null) { target.setImageBitmap(cached); return; }
@@ -1477,8 +1472,6 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
     // Small native UI helpers
     // ---------------------------------------------------------------------
-
-    private LinearLayout verticalRoot() { return Ui.column(this); }
 
     private void configureSystemBars() {
         Ui.systemBars(this);
