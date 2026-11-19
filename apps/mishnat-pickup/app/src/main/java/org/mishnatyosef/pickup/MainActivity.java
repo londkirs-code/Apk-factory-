@@ -644,76 +644,76 @@ public class MainActivity extends Activity {
 
     private void loadLatestOrder() {
         if (loading || accessToken.isEmpty()) return;
-        final int generation = authGeneration;
+        final RequestSession session = new RequestSession(authGeneration, accessToken);
         loading = true;
         lastSyncAttemptAt = System.currentTimeMillis();
-        if (messageText != null) messageText.setText("מתחבר לשרת וטוען הזמנה אחרונה…");
-        if (pendingList != null && products.isEmpty()) {
-            pendingList.removeAllViews();
-            pendingList.addView(text("טוען מוצרים…", 14, MUTED, false));
-        }
+        showSyncMessage("מתחבר לשרת וטוען הזמנה אחרונה…", false);
         network.execute(() -> {
-            if (generation != authGeneration || accessToken.isEmpty()) return;
             try {
-                JSONArray orders = apiGetArray("/api/orders");
-                String owner = DataGuard.ownerFromToken(accessToken);
+                JSONArray orders = apiGetArray("/api/orders", session);
+                String owner = DataGuard.ownerFromToken(session.token);
                 if (owner.isEmpty()) owner = DataGuard.ownerFromOrders(orders);
+                if (owner.isEmpty()
+                        && DataGuard.tokenFingerprint(session.token).equals(
+                            preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "")))
+                    owner = preferences.getString(DataGuard.K_OWNER, "");
                 JSONObject latest = chooseLatestPickupOrder(orders);
                 if (latest == null) throw new Exception("לא נמצאה הזמנה בחשבון.");
                 long id = extractOrderId(latest);
                 if (id <= 0) throw new Exception("לא נמצא מזהה להזמנה האחרונה.");
-                JSONObject response = apiGetObject("/api/orders/" + id);
-                JSONObject order = unwrapOrder(response);
+                JSONObject order = unwrapOrder(apiGetObject("/api/orders/" + id, session));
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
-                // Render immediately; disk/image work stays on the serialized cache worker.
+                if (!session.isCurrent(this)) return;
                 final String resolvedOwner = owner;
-                mainHandler.post(() -> onFreshOrder(generation, resolvedOwner, id, order, parsed));
-            } catch (Exception e) {
-                String msg = safeError(e);
-                mainHandler.post(() -> {
-                    if (generation != authGeneration || isFinishing()) return;
-                    loading = false;
-                    if (isAuthError(msg)) {
-                        clearToken();
-                        accessToken = "";
-                        if (hasCachedOrder()) showHomeScreen(false);
-                        else showLoginScreen("פג תוקף ההתחברות. התחברו מחדש כדי להמשיך.");
-                    } else {
-                        if (products.isEmpty()) loadCachedOrder();
-                        renderProducts(false);
-                        if (pendingList != null) {
-                            if (products.isEmpty()) pendingList.removeAllViews();
-                            TextView status = text(products.isEmpty() ? msg : "מוצגת ההזמנה השמורה מהמכשיר. הסנכרון נכשל: " + msg, 13, MUTED, false);
-                            addTop(pendingList, status, 8);
-                            if (!accessToken.isEmpty()) {
-                                Button retry = smallButton("לנסות לסנכרן שוב", ORANGE_PALE, INK);
-                                addTop(pendingList, retry, 10);
-                                retry.setOnClickListener(v -> loadLatestOrder());
-                            }
-                        }
-                    }
-                });
+                final String resolvedToken = session.token;
+                mainHandler.post(() -> onFreshOrder(session.generation, resolvedToken,
+                        resolvedOwner, id, order, parsed));
+            } catch (Exception error) {
+                String message = safeError(error);
+                mainHandler.post(() -> onOrderLoadError(session, message));
             }
         });
     }
 
+    private void onOrderLoadError(RequestSession session, String message) {
+        if (!session.isCurrent(this) || isFinishing()) return;
+        loading = false;
+        if (isAuthError(message)) {
+            final boolean useCache = cacheTrusted && hasCachedOrder();
+            final int generation = ++authGeneration;
+            accessToken = "";
+            cacheWorker.execute(() -> {
+                if (generation == authGeneration) clearToken();
+            });
+            if (useCache) {
+                showHomeScreen(false);
+                showSyncMessage("ההתחברות פגה. מוצגת ההזמנה המקומית השמורה.", false);
+            } else {
+                cacheTrusted = false;
+                showLoginScreen("פג תוקף ההתחברות. התחברו מחדש כדי להמשיך.");
+            }
+            return;
+        }
+        if (products.isEmpty() && cacheTrusted) loadCachedOrder();
+        renderProducts(false);
+        showSyncMessage(products.isEmpty() ? message
+                : "מוצגת ההזמנה השמורה מהמכשיר. הסנכרון נכשל: " + message,
+                !accessToken.isEmpty());
+    }
+
     private void loadCachedOrder() {
+        if (!cacheTrusted || !hasCachedOrder()) return;
         File root = new File(getFilesDir(), "pickup_order_cache");
         File manifest = new File(root, "order.json");
-        if (!manifest.isFile()) return;
-        try (FileInputStream in = new FileInputStream(manifest); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (FileInputStream in = new FileInputStream(manifest);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192]; int n;
             while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
             JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
             long id = saved.optLong("order_id", -1);
-            String owner = preferences.getString(DataGuard.K_OWNER, "");
-            String cachedOwner = saved.optString("owner", "");
             JSONArray rows = saved.optJSONArray("products");
-            if (id <= 0 || owner.isEmpty()
-                    || !String.valueOf(id).equals(preferences.getString(DataGuard.K_ORDER, ""))
-                    || (!cachedOwner.isEmpty() && !owner.equals(cachedOwner))
-                    || rows == null || rows.length() == 0) throw new Exception("invalid or foreign cache");
+            if (id <= 0 || rows == null || rows.length() == 0) throw new Exception("invalid cache");
             List<ProductRow> restored = new ArrayList<>();
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.optJSONObject(i);
@@ -725,146 +725,197 @@ public class MainActivity extends Activity {
                     if (!image.isFile() || image.length() == 0) throw new Exception("missing image");
                     imagePath = image.getAbsolutePath();
                 }
-                restored.add(new ProductRow(first(row,"key"), first(row,"name"), first(row,"image_url"),
-                        first(row,"amount"), first(row,"note"), imagePath));
+                restored.add(new ProductRow(first(row, "key"), first(row, "name"),
+                        first(row, "image_url"), first(row, "amount"), first(row, "note"), imagePath));
             }
             if (!DataGuard.fingerprint(restored).equals(preferences.getString(DataGuard.K_PRINT, "")))
                 throw new Exception("cache fingerprint mismatch");
             currentOrderId = String.valueOf(id);
-            products.clear(); products.addAll(restored);
+            products.clear();
+            products.addAll(restored);
             loadCollectedState();
-        } catch (Exception e) {
-            cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
+        } catch (Exception error) {
+            cacheTrusted = false;
+            cacheWorker.execute(() -> DataGuard.wipeOrderData(getFilesDir(), preferences));
         }
     }
 
     private boolean hasCachedOrder() {
-        File manifest = new File(new File(getFilesDir(), "pickup_order_cache"), "order.json");
-        if (!manifest.isFile()) return false;
-        String owner = preferences.getString(DataGuard.K_OWNER, "");
-        String order = preferences.getString(DataGuard.K_ORDER, "");
-        if (owner.isEmpty() || order.isEmpty()) return false;
-        try (FileInputStream in = new FileInputStream(manifest);
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
-            int count;
-            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
-            JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
-            String manifestOwner = saved.optString("owner", "");
-            return order.equals(String.valueOf(saved.optLong("order_id", -1)))
-                    && (manifestOwner.isEmpty() || owner.equals(manifestOwner));
-        } catch (Exception e) {
-            return false;
-        }
+        return cacheTrusted && isCacheManifestValid(activeOwner);
     }
 
-    /** Applies ownership/content rules before replacing the durable snapshot. */
-    private void onFreshOrder(int generation, String owner, long orderId,
-                              JSONObject order, List<ProductRow> rows) {
-        if (generation != authGeneration || accessToken.isEmpty() || isFinishing()) return;
+    private void onFreshOrder(int generation, String requestToken, String owner,
+                              long orderId, JSONObject order, List<ProductRow> rows) {
+        if (generation != authGeneration || !requestToken.equals(accessToken) || isFinishing()) return;
         loading = false;
-        if (owner == null || owner.isEmpty()) owner = DataGuard.ownerFromToken(accessToken);
-        String fingerprint = DataGuard.fingerprint(rows);
-        DataGuard.Verdict verdict = DataGuard.judge(preferences, owner, orderId, fingerprint);
-
-        if (verdict == DataGuard.Verdict.NEW_ACCOUNT || verdict == DataGuard.Verdict.NEW_ORDER) {
-            invalidateSavedOrderPreferences(owner);
-        } else if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
-            DataGuard.clearOrderMeta(preferences);
-            imageCache.evictAll();
+        String stableOwner = owner == null ? "" : owner;
+        if (stableOwner.isEmpty()) {
+            cacheTrusted = false;
+            activeOwner = "";
+            clearOrderMemory();
+            currentOrderId = String.valueOf(orderId);
+            products.addAll(rows);
+            renderProducts(false);
+            showSyncMessage("לא ניתן לאמת את זהות החשבון; הרשימה מוצגת אך לא תישמר במטמון.", false);
+            cacheWorker.execute(() -> {
+                if (generation == authGeneration) DataGuard.wipeOrderData(getFilesDir(), preferences);
+            });
+            return;
         }
-        if (owner != null && !owner.isEmpty()) DataGuard.saveOwner(preferences, owner);
 
+        String fingerprint = DataGuard.fingerprint(rows);
+        DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
+        Set<String> retainedTicks = verdict == DataGuard.Verdict.CONTENT_CHANGED
+                ? readCollectedTicks(String.valueOf(orderId)) : new HashSet<>();
+        activeOwner = stableOwner;
+        cacheTrusted = true;
         orderData = order;
         currentOrderId = String.valueOf(orderId);
         products.clear();
         products.addAll(rows);
-        loadCollectedState();
+        collected.clear();
+        if (verdict == DataGuard.Verdict.SAME) {
+            loadCollectedState();
+        } else if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
+            for (ProductRow row : rows)
+                if (retainedTicks.contains(DataGuard.tick(row))) collected.add(row.key);
+        }
         renderProducts(false);
+        wireFocusOrder();
+        showSyncMessage("", false);
 
-        if (owner == null || owner.isEmpty()) {
-            if (pendingList != null) addTop(pendingList,
-                    text("לא ניתן לאמת את זהות החשבון ולכן הרשימה לא תישמר במטמון משותף.", 13, MUTED, false), 8);
+        boolean rewrite = verdict != DataGuard.Verdict.SAME || !isCacheManifestValid(stableOwner);
+        if (!rewrite) {
+            saveCollectedState();
+            cacheWorker.execute(() -> {
+                if (generation == authGeneration && requestToken.equals(accessToken))
+                    DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint,
+                            DataGuard.tokenFingerprint(requestToken));
+            });
             return;
         }
-        final String safeOwner = owner;
-        final String print = fingerprint;
-        final boolean replaceCache = verdict != DataGuard.Verdict.SAME || !hasCachedOrder();
-        if (!replaceCache) return;
+
+        final String tokenFingerprint = DataGuard.tokenFingerprint(requestToken);
+        final String orderKey = String.valueOf(orderId);
+        final JSONArray ticks = collectedTicksJson();
+        final DataGuard.Verdict decision = verdict;
         cacheWorker.execute(() -> {
-            if (generation != authGeneration) return;
+            if (generation != authGeneration || !requestToken.equals(accessToken)) return;
+            if (decision != DataGuard.Verdict.SAME) DataGuard.wipeOrderData(getFilesDir(), preferences);
+            else DataGuard.wipeCacheFiles(getFilesDir());
+            if (generation != authGeneration || !requestToken.equals(accessToken)) return;
+            writeCollectedState(orderKey, ticks);
             try {
-                if (verdict != DataGuard.Verdict.SAME) DataGuard.wipeCacheFiles(getFilesDir());
-                if (generation != authGeneration) return;
-                cacheOrderIfComplete(generation, safeOwner, orderId, order, rows);
-                if (generation == authGeneration) DataGuard.saveMeta(preferences, safeOwner, orderId, print);
+                cacheOrderIfComplete(generation, requestToken, stableOwner, orderId,
+                        order, rows, fingerprint);
+                if (generation != authGeneration || !requestToken.equals(accessToken)) return;
+                DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint, tokenFingerprint);
             } catch (Exception cacheError) {
-                android.util.Log.w("MishnatPickup", "Offline cache update failed; invalid snapshot was not retained", cacheError);
+                android.util.Log.w("MishnatPickup",
+                        "Offline cache update failed; stale snapshot was not retained", cacheError);
+                if (generation == authGeneration && requestToken.equals(accessToken)) {
+                    DataGuard.wipeCacheFiles(getFilesDir());
+                    preferences.edit().remove(DataGuard.K_ORDER).remove(DataGuard.K_PRINT)
+                            .putString(DataGuard.K_OWNER, stableOwner)
+                            .putString(DataGuard.K_TOKEN_FINGERPRINT, tokenFingerprint).commit();
+                }
+                mainHandler.post(() -> {
+                    if (generation == authGeneration && requestToken.equals(accessToken) && !isFinishing())
+                        showSyncMessage("ההזמנה נטענה, אך שמירת העותק הלא־מקוון נכשלה.", false);
+                });
             }
         });
     }
 
-    private void cacheOrderIfComplete(int generation, String owner, long orderId,
-                                      JSONObject order, List<ProductRow> rows) throws Exception {
-        if (generation != authGeneration) return;
+    private Set<String> readCollectedTicks(String orderId) {
+        Set<String> saved = new HashSet<>();
+        try {
+            JSONArray array = new JSONArray(preferences.getString(DataGuard.COLLECTED_PREFIX + orderId, "[]"));
+            for (int i = 0; i < array.length(); i++) saved.add(array.optString(i, ""));
+        } catch (Exception ignored) { }
+        return saved;
+    }
+
+    private JSONArray collectedTicksJson() {
+        JSONArray saved = new JSONArray();
+        for (ProductRow row : products)
+            if (collected.contains(row.key)) saved.put(DataGuard.tick(row));
+        return saved;
+    }
+
+    private void writeCollectedState(String orderId, JSONArray ticks) {
+        if (orderId != null && !orderId.isEmpty())
+            preferences.edit().putString(DataGuard.COLLECTED_PREFIX + orderId, ticks.toString()).commit();
+    }
+
+    private void cacheOrderIfComplete(int generation, String requestToken, String owner,
+                                      long orderId, JSONObject order, List<ProductRow> rows,
+                                      String fingerprint) throws Exception {
+        if (generation != authGeneration || !requestToken.equals(accessToken)) return;
         File root = new File(getFilesDir(), "pickup_order_cache");
-        File oldManifest = new File(root, "order.json");
-        long newSort = orderSortValue(order);
-        if (oldManifest.isFile()) {
-            try (FileInputStream in = new FileInputStream(oldManifest); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                byte[] b = new byte[4096]; int n;
-                while ((n = in.read(b)) != -1) out.write(b, 0, n);
-                JSONObject old = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
-                long oldId = old.optLong("order_id", -1), oldSort = old.optLong("sort_value", oldId);
-                if (oldId != orderId && newSort <= oldSort) return;
-            } catch (Exception ignored) { }
-        }
         File temp = new File(getFilesDir(), "pickup_order_cache_tmp");
         File backup = new File(getFilesDir(), "pickup_order_cache_backup");
         deleteRecursively(temp);
         if (!temp.mkdirs()) throw new Exception("לא ניתן ליצור תיקיית שמירה");
         JSONArray savedRows = new JSONArray();
         for (int i = 0; i < rows.size(); i++) {
-            if (generation != authGeneration) {
+            if (generation != authGeneration || !requestToken.equals(accessToken)) {
                 deleteRecursively(temp);
                 return;
             }
-            ProductRow p = rows.get(i);
+            ProductRow row = rows.get(i);
             String imageFile = "";
-            if (!p.imageUrl.isEmpty()) {
+            if (!row.imageUrl.isEmpty()) {
                 imageFile = "image_" + i + ".img";
-                if (!downloadImageToFile(p.imageUrl, new File(temp, imageFile))) {
+                if (!downloadImageToFile(row.imageUrl, new File(temp, imageFile))) {
                     deleteRecursively(temp);
-                    throw new Exception("לא כל תמונות ההזמנה ירדו. ההזמנה הקודמת נשמרה וננסה שוב בסנכרון הבא.");
+                    throw new Exception("לא כל תמונות ההזמנה ירדו. ננסה שוב בסנכרון הבא.");
                 }
             }
             JSONObject item = new JSONObject();
-            item.put("key", p.key); item.put("name", p.name); item.put("image_url", p.imageUrl);
-            item.put("amount", p.amount); item.put("note", p.note); item.put("image_file", imageFile);
+            item.put("key", row.key);
+            item.put("name", row.name);
+            item.put("image_url", row.imageUrl);
+            item.put("amount", row.amount);
+            item.put("note", row.note);
+            item.put("image_file", imageFile);
             savedRows.put(item);
         }
-        if (generation != authGeneration) {
-            deleteRecursively(temp);
-            return;
-        }
         JSONObject snapshot = new JSONObject();
-        snapshot.put("order_id", orderId); snapshot.put("owner", owner);
-        snapshot.put("sort_value", newSort);
-        snapshot.put("saved_at", System.currentTimeMillis()); snapshot.put("products", savedRows);
+        snapshot.put("order_id", orderId);
+        snapshot.put("owner", owner);
+        snapshot.put("fingerprint", fingerprint);
+        snapshot.put("sort_value", orderSortValue(order));
+        snapshot.put("saved_at", System.currentTimeMillis());
+        snapshot.put("products", savedRows);
         try (FileOutputStream out = new FileOutputStream(new File(temp, "order.json"))) {
-            out.write(snapshot.toString().getBytes(StandardCharsets.UTF_8)); out.getFD().sync();
+            out.write(snapshot.toString().getBytes(StandardCharsets.UTF_8));
+            out.getFD().sync();
         }
-        if (generation != authGeneration) {
+        if (generation != authGeneration || !requestToken.equals(accessToken)) {
             deleteRecursively(temp);
             return;
         }
         deleteRecursively(backup);
         boolean hadOld = root.exists();
-        if (hadOld && !root.renameTo(backup)) { deleteRecursively(temp); throw new Exception("לא ניתן להחליף את המטמון בבטחה"); }
+        if (hadOld && !root.renameTo(backup)) {
+            deleteRecursively(temp);
+            throw new Exception("לא ניתן להחליף את המטמון בבטחה");
+        }
+        if (generation != authGeneration || !requestToken.equals(accessToken)) {
+            if (hadOld) backup.renameTo(root);
+            deleteRecursively(temp);
+            return;
+        }
         if (!temp.renameTo(root)) {
             if (hadOld) backup.renameTo(root);
             deleteRecursively(temp);
-            throw new Exception("שמירת ההזמנה נכשלה; העותק הקודם נשמר");
+            throw new Exception("שמירת ההזמנה נכשלה");
+        }
+        if (generation != authGeneration || !requestToken.equals(accessToken)) {
+            deleteRecursively(root);
+            if (hadOld) backup.renameTo(root);
+            return;
         }
         deleteRecursively(backup);
     }
