@@ -413,10 +413,16 @@ public class MainActivity extends Activity {
         SharedPreferences.Editor editor = preferences.edit();
         for (String key : preferences.getAll().keySet()) if (key.startsWith("collected_")) editor.remove(key);
         editor.apply();
+        clearToken();
+        accessToken = "";
+        WebStorage.getInstance().deleteAllData();
+        CookieManager cookies = CookieManager.getInstance();
+        if (Build.VERSION.SDK_INT >= 21) cookies.removeAllCookies(removed -> cookies.flush());
+        else cookies.removeAllCookie();
         products.clear(); collected.clear(); productCards.clear();
         orderData = null; currentOrderId = "";
         renderProducts(false);
-        if (accessToken.isEmpty()) showLoginScreen("הנתונים המקומיים נמחקו. אפשר להתחבר כדי להוריד הזמנה חדשה.");
+        showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
     }
 
     private void showModernConfirm(String title, String message, String positive, Runnable action) {
@@ -477,7 +483,11 @@ public class MainActivity extends Activity {
                 JSONObject order = unwrapOrder(response);
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
-                cacheOrderIfComplete(id, order, parsed);
+                try {
+                    cacheOrderIfComplete(id, order, parsed);
+                } catch (Exception cacheError) {
+                    // A failed/incomplete cache must not prevent the online order from being used.
+                }
                 mainHandler.post(() -> {
                     if (accessToken.isEmpty() || isFinishing()) return;
                     loading = false;
