@@ -176,19 +176,25 @@ final class Ui {
 
     static void setImageFocus(Context c, CardViews v, boolean focused) {
         if (Build.VERSION.SDK_INT < 23) return;
-        if (!focused) { v.root.setForeground(null); return; }
+        // The keyboard's virtual focus is on the picture, so draw the double ring
+        // directly around the image instead of outlining the entire product card.
+        v.root.setForeground(null);
+        if (!focused) {
+            v.image.setForeground(null);
+            return;
+        }
         GradientDrawable outer = new GradientDrawable();
         outer.setColor(Color.TRANSPARENT);
-        outer.setCornerRadius(dp(c, R_CARD));
+        outer.setCornerRadius(dp(c, R_IMAGE));
         outer.setStroke(dp(c, IMAGE_FOCUS_OUTER), P800);
         GradientDrawable inner = new GradientDrawable();
         inner.setColor(Color.TRANSPARENT);
-        inner.setCornerRadius(dp(c, R_CARD - IMAGE_FOCUS_INSET));
+        inner.setCornerRadius(dp(c, R_IMAGE - IMAGE_FOCUS_INSET));
         inner.setStroke(dp(c, IMAGE_FOCUS_INNER), P25);
         LayerDrawable rings = new LayerDrawable(new Drawable[]{outer, inner});
         int inset = dp(c, IMAGE_FOCUS_INSET);
         rings.setLayerInset(1, inset, inset, inset, inset);
-        v.root.setForeground(rings);
+        v.image.setForeground(rings);
     }
 
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {
