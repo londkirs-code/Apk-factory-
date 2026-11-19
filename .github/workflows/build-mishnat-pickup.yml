@@ -242,7 +242,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add downloads/mishnat-pickup/
+          git add downloads/mishnat-pickup/ apps/mishnat-pickup/app/build.gradle
           git commit -m "release: publish signed Mishnat Pickup APK ${{ steps.verify.outputs.version_code }}"
           for attempt in 1 2 3 4 5; do
             git fetch origin main
