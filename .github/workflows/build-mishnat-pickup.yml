@@ -35,21 +35,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35 packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Restore independent app source
+      - name: Restore and verify independent app source
         shell: bash
         run: |
           set -euo pipefail
-          ARCHIVE='build-sources/mishnat-pickup.tar.gz.b64'
+          ARCHIVE="$RUNNER_TEMP/mishnat-pickup-source.tar.gz"
+          cat build-sources/mishnat-pickup-source-part-*.b64 | base64 --decode > "$ARCHIVE"
           test -s "$ARCHIVE"
+          gzip -t "$ARCHIVE"
           mkdir -p apps/mishnat-pickup
-          base64 --decode "$ARCHIVE" | tar -xz --strip-components=1 -C apps/mishnat-pickup
+          tar -xzf "$ARCHIVE" --strip-components=1 -C apps/mishnat-pickup
           test -s apps/mishnat-pickup/app/build.gradle
           test -s apps/mishnat-pickup/app/src/main/AndroidManifest.xml
           test -s apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java
+          echo "Verified compressed source archive and restored all app files."
 
       - name: Validate existing APK Factory signing key
         env:
@@ -60,8 +68,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$APK_SIGNING_KEY_BASE64" || -z "$APK_SIGNING_STORE_PASSWORD" || -z "$APK_SIGNING_KEY_ALIAS" || -z "$APK_SIGNING_KEY_PASSWORD" ]]; then
-            echo '::error::APK Factory signing secrets are missing; refusing to create a new key.'
+          missing=()
+          [[ -n "$APK_SIGNING_KEY_BASE64" ]] || missing+=("APK_SIGNING_KEY_BASE64")
+          [[ -n "$APK_SIGNING_STORE_PASSWORD" ]] || missing+=("APK_SIGNING_STORE_PASSWORD")
+          [[ -n "$APK_SIGNING_KEY_ALIAS" ]] || missing+=("APK_SIGNING_KEY_ALIAS")
+          [[ -n "$APK_SIGNING_KEY_PASSWORD" ]] || missing+=("APK_SIGNING_KEY_PASSWORD")
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            printf '::error::Missing existing APK Factory signing secret(s): %s. No replacement key will be generated.\n' "${missing[*]}"
             exit 1
           fi
           mkdir -p "$HOME/.android"
@@ -79,21 +92,33 @@ jobs:
             -storepass "$APK_SIGNING_STORE_PASSWORD" -keypass "$APK_SIGNING_KEY_PASSWORD" \
             -file "$RUNNER_TEMP/apk-factory-signing-preflight.csr" -noprompt >/dev/null
           rm -f "$RUNNER_TEMP/apk-factory-signing-preflight.csr"
-          echo 'Existing APK Factory key and private-key password validated.'
+          echo "Existing APK Factory keystore and private-key password validated."
 
-      - name: Check package and increment version
+      - name: Calculate a strictly increasing version
         id: version
         shell: bash
         run: |
           set -euo pipefail
-          cd apps/mishnat-pickup
-          grep -q 'applicationId .org.mishnatyosef.pickup.' app/build.gradle
-          grep -q 'signingConfig signingConfigs.release' app/build.gradle
-          CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p' app/build.gradle | head -n1)"
-          [[ "$CODE" =~ ^[0-9]+$ ]]
-          NEXT=$((CODE + 1))
-          sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT/" app/build.gradle
-          echo "version_code=$NEXT" >> "$GITHUB_OUTPUT"
+          BUILD_FILE="apps/mishnat-pickup/app/build.gradle"
+          grep -q "applicationId 'org.mishnatyosef.pickup'" "$BUILD_FILE"
+          grep -q 'signingConfig signingConfigs.release' "$BUILD_FILE"
+          SOURCE_CODE="$(sed -nE "s/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p" "$BUILD_FILE" | head -n1)"
+          [[ "$SOURCE_CODE" =~ ^[0-9]+$ ]]
+          PREVIOUS_CODE=""
+          if [[ -s downloads/mishnat-pickup/build-info.txt ]]; then
+            PREVIOUS_CODE="$(sed -n 's/^version_code=//p' downloads/mishnat-pickup/build-info.txt | head -n1)"
+          fi
+          BASE_CODE="$SOURCE_CODE"
+          if [[ "$PREVIOUS_CODE" =~ ^[0-9]+$ ]] && (( PREVIOUS_CODE > BASE_CODE )); then
+            BASE_CODE="$PREVIOUS_CODE"
+          fi
+          NEXT_CODE=$((BASE_CODE + 1))
+          NEXT_NAME="1.$NEXT_CODE"
+          sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT_CODE/" "$BUILD_FILE"
+          sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
+          echo "version_code=$NEXT_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$NEXT_NAME" >> "$GITHUB_OUTPUT"
+          echo "Source versionCode=$SOURCE_CODE; previously published=$PREVIOUS_CODE; building=$NEXT_NAME ($NEXT_CODE)."
           git diff --check
 
       - name: Build signed Release APK
@@ -105,24 +130,27 @@ jobs:
           export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
           export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_PASSWORD="$APK_SIGNING_KEY_PASSWORD"
           cd apps/mishnat-pickup
-          gradle --build-cache assembleRelease -x lintVitalRelease
+          gradle --no-daemon --console=plain --stacktrace :app:assembleRelease
 
-      - name: Verify APK manifest and certificate
+      - name: Verify APK package, version and signing certificate
         id: verify
         shell: bash
         run: |
           set -euo pipefail
           APK='apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk'
           test -s "$APK"
-          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          ANALYZER="$(find "$SDK_ROOT" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n1)"
-          SIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -n1)"
-          test -n "$ANALYZER" && test -n "$SIGNER"
+          ANALYZER="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          if [[ ! -x "$ANALYZER" ]]; then
+            ANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n1)"
+          fi
+          SIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -x "$ANALYZER" && test -x "$SIGNER"
           PACKAGE="$("$ANALYZER" manifest application-id "$APK")"
           CODE="$("$ANALYZER" manifest version-code "$APK")"
           NAME="$("$ANALYZER" manifest version-name "$APK")"
           [[ "$PACKAGE" == 'org.mishnatyosef.pickup' ]]
-          [[ "$CODE" == '${{ steps.version.outputs.version_code }}' ]]
+          [[ "$CODE" == "${{ steps.version.outputs.version_code }}" ]]
+          [[ "$NAME" == "${{ steps.version.outputs.version_name }}" ]]
           OUTPUT="$("$SIGNER" verify --verbose --print-certs "$APK" 2>&1)"
           CERT="$(printf '%s\n' "$OUTPUT" | grep -i 'SHA-256 digest' | sed -E 's/.*digest:[[:space:]]*//I' | head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
           [[ "$CERT" =~ ^[0-9a-f]{64}$ ]]
@@ -130,13 +158,14 @@ jobs:
           if [[ -s "$OLD" ]]; then
             OLD_OUTPUT="$("$SIGNER" verify --print-certs "$OLD" 2>&1)"
             OLD_CERT="$(printf '%s\n' "$OLD_OUTPUT" | grep -i 'SHA-256 digest' | sed -E 's/.*digest:[[:space:]]*//I' | head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
-            [[ "$CERT" == "$OLD_CERT" ]] || { echo '::error::APK signing certificate differs from the previous publication.'; exit 1; }
+            [[ "$CERT" == "$OLD_CERT" ]] || { echo "::error::The new APK signing certificate differs from the previous published APK."; exit 1; }
           fi
           {
             echo "version_code=$CODE"
             echo "version_name=$NAME"
             echo "certificate=$CERT"
           } >> "$GITHUB_OUTPUT"
+          echo "APK package, version, v2/v3 signature and certificate continuity checks passed."
 
       - name: Prepare standalone APK and build metadata
         id: publish
@@ -177,27 +206,29 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Persist increasing version and publish to main
+      - name: Publish signed APK and metadata to main
         shell: bash
         run: |
           set -euo pipefail
-          tar -czf /tmp/mishnat-pickup.tar.gz -C apps/mishnat-pickup .
-          base64 -w0 /tmp/mishnat-pickup.tar.gz > build-sources/mishnat-pickup.tar.gz.b64
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add build-sources/mishnat-pickup.tar.gz.b64 downloads/mishnat-pickup/
+          git add downloads/mishnat-pickup/
           git commit -m "release: publish signed Mishnat Pickup APK ${{ steps.verify.outputs.version_code }}"
           for attempt in 1 2 3 4 5; do
             git fetch origin main
-            git rebase origin/main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "::error::Could not safely rebase the APK publication onto main. Retry after inspecting the concurrent main change."
+              exit 1
+            fi
             if git push origin HEAD:main; then
-              echo 'Published signed APK, metadata and updated source archive.'
+              echo "Published signed APK and matching metadata."
               exit 0
             fi
-            echo "Push attempt $attempt failed; retrying."
+            echo "Push attempt $attempt failed; retrying after fetching main."
             sleep $((attempt * 2))
           done
-          echo '::error::Could not publish after 5 attempts.'
+          echo "::error::Could not publish the signed APK after 5 push attempts."
           exit 1
 
       - name: Notify APK Factory subscribers
