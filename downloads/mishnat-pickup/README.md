@@ -1,1 +1,1 @@
-APK for mishnat-pickup, versionName 1.12, versionCode 16, built from commit 78edfa99d06a7dd8706cee9a7e4e403085cbe308.
+APK for mishnat-pickup, versionName 1.12, versionCode 17, built from commit 86eb246d0f17f62a6b8f1b8aee869c6779072dfa.
