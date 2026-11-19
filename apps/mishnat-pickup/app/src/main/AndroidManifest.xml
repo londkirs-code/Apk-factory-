@@ -4,7 +4,7 @@
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
-        android:label="משנת יוסף - איסוף"
+        android:label="משנת אוסף"
         android:icon="@drawable/ic_app_launcher" android:roundIcon="@drawable/ic_app_launcher"
         android:theme="@style/AppTheme">
         <activity
