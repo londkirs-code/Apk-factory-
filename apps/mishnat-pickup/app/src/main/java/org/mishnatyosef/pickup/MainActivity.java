@@ -815,8 +815,16 @@ public class MainActivity extends Activity {
 
         String fingerprint = DataGuard.fingerprint(rows);
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
-        Set<String> retainedTicks = verdict == DataGuard.Verdict.CONTENT_CHANGED
-                ? readCollectedTicks(String.valueOf(orderId)) : new HashSet<>();
+        Set<String> retainedTicks = new HashSet<>();
+        if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
+            retainedTicks.addAll(readCollectedTicks(String.valueOf(orderId)));
+            // A just-tapped item may still be queued on cacheWorker; include the live in-memory
+            // state so a server edit cannot discard the latest user action.
+            for (ProductRow previous : products) {
+                if (collected.contains(previous.key))
+                    retainedTicks.add(DataGuard.tick(previous));
+            }
+        }
         if (verdict == DataGuard.Verdict.NEW_ACCOUNT || verdict == DataGuard.Verdict.NEW_ORDER) {
             // Invalidate old metadata before the asynchronous disk wipe so logout cannot
             // accidentally re-expose the previous account/order during that window.
@@ -872,9 +880,10 @@ public class MainActivity extends Activity {
                         "Offline cache update failed; stale snapshot was not retained", cacheError);
                 if (generation == authGeneration && requestToken.equals(accessToken)) {
                     DataGuard.wipeCacheFiles(getFilesDir());
-                    preferences.edit().remove(DataGuard.K_ORDER).remove(DataGuard.K_PRINT)
-                            .putString(DataGuard.K_OWNER, stableOwner)
-                            .putString(DataGuard.K_TOKEN_FINGERPRINT, tokenFingerprint).commit();
+                    // Keep the online order identity and its checkmarks even when its offline
+                    // image snapshot failed. The next sync can retry the cache without resetting
+                    // collection progress or mistaking the same order for a new one.
+                    DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint, tokenFingerprint);
                 }
                 mainHandler.post(() -> {
                     if (generation == authGeneration && requestToken.equals(accessToken) && !isFinishing())
