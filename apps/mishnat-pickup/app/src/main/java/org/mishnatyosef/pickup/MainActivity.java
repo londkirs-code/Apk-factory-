@@ -1192,7 +1192,7 @@ public class MainActivity extends Activity {
         WebStorage.getInstance().deleteAllData();
         clearLoginCookies(() -> {
             if (generation != authGeneration) return;
-            mainHandler.post(() => {
+            mainHandler.post(() -> {
                 if (generation == authGeneration && !isFinishing()) showLoginScreen("");
             });
         });
