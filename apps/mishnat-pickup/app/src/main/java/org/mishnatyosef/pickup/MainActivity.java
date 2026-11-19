@@ -1518,7 +1518,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private static final class ProductRow {
+    static final class ProductRow {
         final String key, name, imageUrl, amount, note, imagePath;
         ProductRow(String key, String name, String imageUrl, String amount, String note) {
             this(key, name, imageUrl, amount, note, "");
