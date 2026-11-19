@@ -108,7 +108,10 @@ public class MainActivity extends Activity {
     };
 
     private SharedPreferences preferences;
-    private String accessToken = "";
+    private volatile String accessToken = "";
+    private String activeOwner = "";
+    private boolean cacheTrusted = false;
+    private Button retryButton;
     private JSONObject orderData;
     private String currentOrderId = "";
     private final List<ProductRow> products = new ArrayList<>();
@@ -180,10 +183,26 @@ public class MainActivity extends Activity {
 
     private void showLoginScreen(String notice) {
         authHandled = false;
-        loginWebView = new WebView(this);
-        loginWebView.setFocusable(true);
-        loginWebView.setFocusableInTouchMode(true);
-        WebSettings settings = loginWebView.getSettings();
+        loginWebView = createLoginWebView();
+        LinearLayout root = Ui.screen(this);
+        root.addView(Ui.title(this, "איסוף משנת יוסף"));
+        root.addView(Ui.text(this, "מתחברים לחשבון ובוחרים את ההזמנה האחרונה לאיסוף",
+                Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
+        root.addView(buildLoginMethods());
+        if (hasCachedOrder()) root.addView(buildCachedListButton());
+        if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
+        root.addView(buildLoginBrowser());
+        setContentView(root);
+        Ui.systemBars(this);
+        loginWebView.loadUrl(LOGIN_URL);
+        loginWebView.post(() -> loginWebView.requestFocus());
+    }
+
+    private WebView createLoginWebView() {
+        WebView web = new WebView(this);
+        web.setFocusable(true);
+        web.setFocusableInTouchMode(true);
+        WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(false);
@@ -193,9 +212,14 @@ public class MainActivity extends Activity {
         settings.setSupportMultipleWindows(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         CookieManager.getInstance().setAcceptCookie(true);
-        loginWebView.setWebChromeClient(new WebChromeClient());
-        loginWebView.addJavascriptInterface(new AuthBridge(), "PickupNative");
-        loginWebView.setWebViewClient(new WebViewClient() {
+        web.setWebChromeClient(new WebChromeClient());
+        web.addJavascriptInterface(new AuthBridge(), "PickupNative");
+        web.setWebViewClient(createLoginWebViewClient());
+        return web;
+    }
+
+    private WebViewClient createLoginWebViewClient() {
+        return new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return handleLoginNavigation(request.getUrl());
             }
@@ -206,51 +230,40 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 installTokenWatcher();
             }
-        });
+        };
+    }
 
-        LinearLayout root = verticalRoot();
-        root.setPadding(dp(18), dp(20), dp(18), dp(16));
-        root.addView(text("🧺  איסוף משנת יוסף", 28, INK, true));
-        TextView sub = text("מתחברים לחשבון ובוחרים את ההזמנה האחרונה לאיסוף", 15, MUTED, false);
-        addTop(root, sub, 6);
+    private LinearLayout buildLoginMethods() {
+        LinearLayout box = Ui.column(this);
+        box.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
+        box.setPadding(Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3),
+                Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
+        box.addView(Ui.text(this, "אפשר להתחבר בשתי דרכים", Ui.T_SECTION, Ui.P800, true));
+        String body = "אימייל וסיסמה, או מספר טלפון וקוד חד־פעמי ב־SMS. פרטי הכניסה מטופלים ישירות באתר משנת יוסף.";
+        box.addView(Ui.text(this, body, Ui.T_NOTE, Ui.MUTED, false),
+                Ui.row(this, Ui.S2, Ui.S1));
+        return box;
+    }
 
-        LinearLayout methods = card();
-        methods.setPadding(dp(14), dp(12), dp(14), dp(12));
-        TextView methodTitle = text("אפשר להתחבר בשתי דרכים", 15, INK, true);
-        methods.addView(methodTitle);
-        TextView methodBody = text("אימייל וסיסמה, או מספר טלפון וקוד חד־פעמי ב־SMS. פרטי הכניסה מטופלים ישירות באתר משנת יוסף.", 13, MUTED, false);
-        methodBody.setLineSpacing(dp(3), 1f);
-        addTop(methods, methodBody, 5);
-        addTop(root, methods, 14);
+    private Button buildCachedListButton() {
+        Button button = Ui.button(this, "הצגת הרשימה השמורה", Ui.Kind.SOFT);
+        button.setOnClickListener(v -> openCachedListFromLogin());
+        return button;
+    }
 
-        // A locally saved checklist remains accessible even while the user is signed out.
-        if (hasCachedOrder()) {
-            Button cachedListButton = smallButton("הצגת הרשימה השמורה", ORANGE_PALE, INK);
-            cachedListButton.setOnClickListener(v -> openCachedListFromLogin());
-            LinearLayout.LayoutParams cachedButtonParams = new LinearLayout.LayoutParams(-1, -2);
-            cachedButtonParams.topMargin = dp(12);
-            root.addView(cachedListButton, cachedButtonParams);
-        }
-
-        if (notice != null && !notice.isEmpty()) {
-            TextView warning = text(notice, 13, INK, true);
-            addTop(root, warning, 10);
-        }
-
-        FrameLayout browserFrame = new FrameLayout(this);
-        browserFrame.setBackground(shape(Color.WHITE, 18, BORDER));
-        browserFrame.setClipToOutline(true);
-        LinearLayout.LayoutParams browserParams = new LinearLayout.LayoutParams(-1, 0, 1f);
-        browserParams.topMargin = dp(14);
-        root.addView(browserFrame, browserParams);
-        browserFrame.addView(loginWebView, new FrameLayout.LayoutParams(-1, -1));
-        setContentView(root);
-        loginWebView.loadUrl(LOGIN_URL);
-        loginWebView.post(() -> loginWebView.requestFocus());
+    private FrameLayout buildLoginBrowser() {
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
+        frame.setClipToOutline(true);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, 0, 1f);
+        params.topMargin = Ui.dp(this, Ui.S3);
+        frame.setLayoutParams(params);
+        frame.addView(loginWebView, new FrameLayout.LayoutParams(-1, -1));
+        return frame;
     }
 
     private void openCachedListFromLogin() {
-        if (!hasCachedOrder()) return;
+        if (!cacheTrusted || !hasCachedOrder()) return;
         if (loginWebView != null) {
             loginWebView.stopLoading();
             loginWebView.removeJavascriptInterface("PickupNative");
@@ -305,25 +318,20 @@ public class MainActivity extends Activity {
         authHandled = true;
         final int generation = ++authGeneration;
         final String newOwner = DataGuard.ownerFromToken(token);
+        final String tokenFingerprint = DataGuard.tokenFingerprint(token);
         final String oldOwner = preferences.getString(DataGuard.K_OWNER, "");
-        final boolean sameAccount = !newOwner.isEmpty() && newOwner.equals(oldOwner);
+        final String oldFingerprint = preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "");
+        boolean sameAccount = (!newOwner.isEmpty() && newOwner.equals(oldOwner))
+                || (newOwner.isEmpty() && !oldFingerprint.isEmpty()
+                    && oldFingerprint.equals(tokenFingerprint));
         try {
             saveEncryptedToken(token);
             accessToken = token;
+            activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : "");
+            cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
-            if (sameAccount) {
-                showHomeScreen(true);
-                return;
-            }
-            invalidateSavedOrderPreferences(newOwner);
-            cacheWorker.execute(() -> {
-                if (generation != authGeneration) return;
-                DataGuard.wipeCacheFiles(getFilesDir());
-                if (generation != authGeneration) return;
-                mainHandler.post(() -> {
-                    if (generation == authGeneration && !isFinishing()) showHomeScreen(true);
-                });
-            });
+            if (!sameAccount && !newOwner.isEmpty()) queueOrderDataWipe(generation);
+            showHomeScreen(true);
         } catch (Exception e) {
             authHandled = false;
             showLoginScreen("לא ניתן לשמור את ההתחברות בצורה מאובטחת. נסו שוב.");
@@ -356,53 +364,49 @@ public class MainActivity extends Activity {
 
     /** Safely adopts a legacy cache only while its original encrypted login is still present. */
     private void initializeCacheOwnership() {
+        cacheTrusted = false;
+        activeOwner = "";
+        if (accessToken.isEmpty()) return;
         String tokenOwner = DataGuard.ownerFromToken(accessToken);
         String savedOwner = preferences.getString(DataGuard.K_OWNER, "");
-        if (!accessToken.isEmpty() && !tokenOwner.isEmpty()) {
-            if (savedOwner.isEmpty() && adoptLegacyCache(tokenOwner)) return;
-            if (!savedOwner.isEmpty() && !savedOwner.equals(tokenOwner)) {
-                invalidateSavedOrderPreferences(tokenOwner);
-                cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
-            } else if (savedOwner.isEmpty()) {
-                DataGuard.saveOwner(preferences, tokenOwner);
+        String savedToken = preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "");
+        String tokenFingerprint = DataGuard.tokenFingerprint(accessToken);
+        if (!tokenOwner.isEmpty()) {
+            activeOwner = tokenOwner;
+            if (savedOwner.isEmpty() || !savedOwner.equals(tokenOwner)) {
+                queueOrderDataWipe(authGeneration);
+                return;
             }
+            cacheTrusted = isCacheManifestValid(tokenOwner);
             return;
         }
-        if (savedOwner.isEmpty() || !accessToken.isEmpty()) {
-            invalidateSavedOrderPreferences("");
-            cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
+        if (!savedOwner.isEmpty() && !savedToken.isEmpty()
+                && savedToken.equals(tokenFingerprint)) {
+            activeOwner = savedOwner;
+            cacheTrusted = isCacheManifestValid(savedOwner);
         }
     }
 
-    private boolean adoptLegacyCache(String owner) {
+    private void queueOrderDataWipe(int generation) {
+        cacheWorker.execute(() -> {
+            if (generation == authGeneration) DataGuard.wipeOrderData(getFilesDir(), preferences);
+        });
+    }
+
+    private boolean isCacheManifestValid(String owner) {
         File manifest = new File(new File(getFilesDir(), "pickup_order_cache"), "order.json");
-        if (!manifest.isFile()) {
-            DataGuard.saveOwner(preferences, owner);
-            return false;
-        }
+        if (!manifest.isFile() || owner == null || owner.isEmpty()) return false;
         try (FileInputStream in = new FileInputStream(manifest);
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
-            int count;
-            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
             JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
-            JSONArray array = saved.optJSONArray("products");
-            long id = saved.optLong("order_id", -1);
-            if (id <= 0 || array == null || array.length() == 0) throw new Exception("invalid legacy cache");
-            List<ProductRow> rows = new ArrayList<>();
-            for (int i = 0; i < array.length(); i++) {
-                JSONObject row = array.optJSONObject(i);
-                if (row == null) throw new Exception("invalid legacy item");
-                rows.add(new ProductRow(first(row, "key"), first(row, "name"),
-                        first(row, "image_url"), first(row, "amount"), first(row, "note")));
-            }
-            DataGuard.saveMeta(preferences, owner, id, DataGuard.fingerprint(rows));
-            return true;
-        } catch (Exception e) {
-            invalidateSavedOrderPreferences(owner);
-            cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
-            return false;
-        }
+            return owner.equals(saved.optString("owner", ""))
+                    && String.valueOf(saved.optLong("order_id", -1))
+                        .equals(preferences.getString(DataGuard.K_ORDER, ""))
+                    && saved.optString("fingerprint", "")
+                        .equals(preferences.getString(DataGuard.K_PRINT, ""));
+        } catch (Exception ignored) { return false; }
     }
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
