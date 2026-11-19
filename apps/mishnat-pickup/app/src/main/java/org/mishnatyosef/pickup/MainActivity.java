@@ -957,26 +957,20 @@ public class MainActivity extends Activity {
     private void loadCollectedState() {
         collected.clear();
         if (currentOrderId.isEmpty()) return;
-        Set<String> saved = new HashSet<>();
-        try {
-            JSONArray array = new JSONArray(preferences.getString(
-                    DataGuard.COLLECTED_PREFIX + currentOrderId, "[]"));
-            for (int i = 0; i < array.length(); i++) saved.add(array.optString(i, ""));
-        } catch (Exception ignored) { }
-        for (ProductRow product : products) {
-            if (saved.contains(DataGuard.tick(product))) collected.add(product.key);
-        }
+        Set<String> saved = readCollectedTicks(currentOrderId);
+        for (ProductRow row : products)
+            if (saved.contains(DataGuard.tick(row))) collected.add(row.key);
         saveCollectedState();
     }
 
     private void saveCollectedState() {
         if (currentOrderId.isEmpty()) return;
-        JSONArray saved = new JSONArray();
-        for (ProductRow product : products) {
-            if (collected.contains(product.key)) saved.put(DataGuard.tick(product));
-        }
-        preferences.edit().putString(
-                DataGuard.COLLECTED_PREFIX + currentOrderId, saved.toString()).apply();
+        final String orderId = currentOrderId;
+        final int generation = authGeneration;
+        final JSONArray ticks = collectedTicksJson();
+        cacheWorker.execute(() -> {
+            if (generation == authGeneration) writeCollectedState(orderId, ticks);
+        });
     }
 
     private void renderProducts(boolean ignoredScrollFlag) {
@@ -1033,52 +1027,25 @@ public class MainActivity extends Activity {
     }
 
     private ProductCard createProductCard(ProductRow product) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(12), dp(10), dp(12), dp(10));
-        row.setFocusable(true);
-        // Keep keyboard navigation, but let the first touch activate the product row.
-        row.setFocusableInTouchMode(false);
-        row.setClickable(true);
-        row.setTag(product.key);
-        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
-        rowParams.bottomMargin = dp(9);
-        ImageView image = new ImageView(this);
-        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setBackground(shape(Color.rgb(242, 244, 247), 12, Color.TRANSPARENT));
-        image.setClipToOutline(true);
-        row.addView(image, new LinearLayout.LayoutParams(dp(70), dp(70)));
+        Ui.CardViews views = Ui.productCard(this);
+        ProductCard card = new ProductCard(views, product);
+        views.root.setTag(product.key);
         if (!product.imagePath.isEmpty()) {
             Bitmap local = BitmapFactory.decodeFile(product.imagePath);
-            if (local != null) image.setImageBitmap(local);
-            else image.setImageResource(android.R.drawable.ic_menu_gallery);
-        } else if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, image);
-        else image.setImageResource(android.R.drawable.ic_menu_gallery);
-        LinearLayout details = verticalRoot();
-        LinearLayout.LayoutParams detailsParams = new LinearLayout.LayoutParams(0, -2, 1f);
-        detailsParams.leftMargin = dp(12);
-        detailsParams.rightMargin = dp(10);
-        row.addView(details, detailsParams);
-        TextView name = text(product.name, 15, INK, true);
-        name.setMaxLines(3);
-        details.addView(name);
-        TextView qty = text("כמות: " + product.amount, 13, MUTED, false);
-        addTop(details, qty, 5);
-        if (!product.note.isEmpty()) addTop(details, text(product.note, 12, MUTED, false), 4);
-        ProductCard card = new ProductCard(row, name, product);
-        row.setOnClickListener(v -> toggleProduct(product.key));
-        row.setLayoutParams(rowParams);
+            if (local != null) views.image.setImageBitmap(local);
+            else views.image.setImageResource(android.R.drawable.ic_menu_gallery);
+        } else if (!product.imageUrl.isEmpty()) {
+            loadProductImage(product.imageUrl, views.image);
+        } else {
+            views.image.setImageResource(android.R.drawable.ic_menu_gallery);
+        }
+        views.root.setOnClickListener(v -> toggleProduct(product.key));
         return card;
     }
 
     private void bindProductCard(ProductCard card, ProductRow product, boolean done) {
         card.product = product;
-        card.row.setBackground(focusBackground(done ? GREEN_PALE : Color.WHITE, 17, done ? Color.rgb(211, 198, 231) : BORDER));
-        card.row.setContentDescription((done ? "נאסף: " : "ממתין לאיסוף: ") + product.name + ", כמות " + product.amount);
-        card.name.setText(product.name);
-        if (done) card.name.setPaintFlags(card.name.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-        else card.name.setPaintFlags(card.name.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+        Ui.bindProduct(card.views, product.name, product.note, product.amount, done);
     }
 
     private void toggleProduct(String key) {
@@ -1207,40 +1174,31 @@ public class MainActivity extends Activity {
     }
 
     private void logout() {
-        authGeneration++;
+        final int generation = ++authGeneration;
         loading = false;
-        clearToken();
         accessToken = "";
-        imageCache.evictAll();
-        orderData = null;
-        currentOrderId = "";
+        activeOwner = "";
+        cacheTrusted = false;
+        clearOrderMemory();
+        destroyLoginWebView();
+        WebStorage.getInstance().deleteAllData();
+        clearLoginCookies(() -> cacheWorker.execute(() -> {
+            if (generation != authGeneration) return;
+            DataGuard.wipeOrderData(getFilesDir(), preferences);
+            clearToken();
+            mainHandler.post(() -> {
+                if (generation == authGeneration && !isFinishing()) showLoginScreen("");
+            });
+        }));
+    }
+
+    private void clearOrderMemory() {
         products.clear();
         collected.clear();
         productCards.clear();
-        if (loginWebView != null) {
-            loginWebView.stopLoading();
-            loginWebView.clearHistory();
-            loginWebView.clearCache(true);
-            loginWebView.clearFormData();
-            loginWebView.removeJavascriptInterface("PickupNative");
-            loginWebView.destroy();
-            loginWebView = null;
-        }
-        WebStorage.getInstance().deleteAllData();
-        CookieManager cookies = CookieManager.getInstance();
-        if (Build.VERSION.SDK_INT >= 21) {
-            cookies.removeAllCookies(removed -> {
-                cookies.flush();
-                mainHandler.post(() -> {
-                    if (hasCachedOrder()) showHomeScreen(false);
-                    else showLoginScreen("");
-                });
-            });
-        } else {
-            cookies.removeAllCookie();
-            if (hasCachedOrder()) showHomeScreen(false);
-            else showLoginScreen("");
-        }
+        orderData = null;
+        currentOrderId = "";
+        imageCache.evictAll();
     }
 
     // ---------------------------------------------------------------------
@@ -1248,8 +1206,8 @@ public class MainActivity extends Activity {
     // uploaded v6.2 extension and checked against the existing APK Factory client.
     // ---------------------------------------------------------------------
 
-    private JSONArray apiGetArray(String path) throws Exception {
-        HttpResult response = authorizedRequest("GET", path, null);
+    private JSONArray apiGetArray(String path, RequestSession session) throws Exception {
+        HttpResult response = authorizedRequest(session, "GET", path, null);
         ensureSuccess(response);
         Object parsed = new JSONTokener(response.body).nextValue();
         if (parsed instanceof JSONArray) return (JSONArray) parsed;
@@ -1270,27 +1228,32 @@ public class MainActivity extends Activity {
         throw new Exception("השרת לא החזיר רשימת הזמנות תקינה.");
     }
 
-    private JSONObject apiGetObject(String path) throws Exception {
-        HttpResult response = authorizedRequest("GET", path, null);
+    private JSONObject apiGetObject(String path, RequestSession session) throws Exception {
+        HttpResult response = authorizedRequest(session, "GET", path, null);
         ensureSuccess(response);
         Object parsed = new JSONTokener(response.body).nextValue();
         if (!(parsed instanceof JSONObject)) throw new Exception("פרטי ההזמנה חזרו במבנה לא תקין.");
         return (JSONObject) parsed;
     }
 
-    private HttpResult authorizedRequest(String method, String path, JSONObject body) throws Exception {
-        final int requestGeneration = authGeneration;
-        final String requestToken = accessToken;
-        HttpResult response = rawRequest(method, path, requestToken, body);
-        if (response.code == 401 && requestGeneration == authGeneration && !accessToken.isEmpty()) {
-            HttpResult refreshed = rawRequest("POST", "/api/refresh", requestToken, new JSONObject().put("remember", 1));
-            if (refreshed.code >= 200 && refreshed.code < 300
-                    && requestGeneration == authGeneration && !accessToken.isEmpty()) {
+    private HttpResult authorizedRequest(RequestSession session, String method,
+                                         String path, JSONObject body) throws Exception {
+        if (!session.isCurrent(this)) throw new Exception("STALE_AUTH: בקשה של סשן קודם בוטלה.");
+        HttpResult response = rawRequest(method, path, session.token, body);
+        if (!session.isCurrent(this)) throw new Exception("STALE_AUTH: תשובת סשן קודם בוטלה.");
+        if (response.code == 401) {
+            HttpResult refreshed = rawRequest("POST", "/api/refresh", session.token,
+                    new JSONObject().put("remember", 1));
+            if (!session.isCurrent(this)) throw new Exception("STALE_AUTH: רענון של סשן קודם בוטל.");
+            if (refreshed.code >= 200 && refreshed.code < 300) {
                 String newToken = extractToken(refreshed.body);
                 if (!newToken.isEmpty()) {
+                    session.token = newToken;
                     accessToken = newToken;
                     saveEncryptedToken(newToken);
                     response = rawRequest(method, path, newToken, body);
+                    if (!session.isCurrent(this))
+                        throw new Exception("STALE_AUTH: תשובת רענון ישנה בוטלה.");
                 }
             }
         }
@@ -1537,70 +1500,11 @@ public class MainActivity extends Activity {
     // Small native UI helpers
     // ---------------------------------------------------------------------
 
-    private LinearLayout verticalRoot() {
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        return layout;
-    }
+    private LinearLayout verticalRoot() { return Ui.column(this); }
 
-    private LinearLayout card() {
-        LinearLayout layout = verticalRoot();
-        layout.setPadding(dp(16), dp(14), dp(16), dp(14));
-        layout.setBackground(shape(Color.WHITE, 20, BORDER));
-        return layout;
+    private void configureSystemBars() {
+        Ui.systemBars(this);
     }
-
-    private TextView sectionLabel(String title, String ignored) {
-        return text(title, 19, INK, true);
-    }
-
-    private Button smallButton(String title, int background, int foreground) {
-        Button button = new Button(this);
-        button.setText(title);
-        button.setTextSize(13);
-        button.setAllCaps(false);
-        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setTextColor(foreground);
-        // Keep buttons keyboard-focusable, but do not make touch mode focus a prerequisite
-        // for activation. This ensures the first finger tap performs the click.
-        button.setMinHeight(dp(48));
-        button.setMinimumHeight(dp(48));
-        button.setPadding(dp(16), 0, dp(16), 0);
-        button.setFocusable(true);
-        button.setFocusableInTouchMode(false);
-        button.setClickable(true);
-        button.setSoundEffectsEnabled(true);
-        button.setBackground(focusBackground(background, 14, background == Color.WHITE ? BORDER : Color.TRANSPARENT));
-        return button;
-    }
-
-    private TextView text(String value, int size, int color, boolean bold) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(color);
-        view.setGravity(Gravity.CENTER_VERTICAL);
-        view.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
-        view.setIncludeFontPadding(true);
-        return view;
-    }
-
-    private void addTop(LinearLayout parent, View child, int margin) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
-        params.topMargin = dp(margin);
-        parent.addView(child, params);
-    }
-
-    private GradientDrawable shape(int fill, int radius, int stroke) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(fill);
-        drawable.setCornerRadius(dp(radius));
-        if (stroke != Color.TRANSPARENT) drawable.setStroke(dp(1), stroke);
-        return drawable;
-    }
-
-    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
     private String safeError(Exception exception) {
         if (exception == null) return "אירעה שגיאה לא צפויה.";
@@ -1613,17 +1517,33 @@ public class MainActivity extends Activity {
 
     private boolean isAuthError(String message) { return message != null && message.startsWith("AUTH_REQUIRED:"); }
 
+    private static final class RequestSession {
+        final int generation;
+        volatile String token;
+        RequestSession(int generation, String token) {
+            this.generation = generation;
+            this.token = token == null ? "" : token;
+        }
+        boolean isCurrent(MainActivity activity) {
+            return generation == activity.authGeneration && token.equals(activity.accessToken);
+        }
+    }
+
     private static final class HttpResult {
         final int code; final String body;
         HttpResult(int code, String body) { this.code = code; this.body = body == null ? "" : body; }
     }
 
     private static final class ProductCard {
+        final Ui.CardViews views;
         final LinearLayout row;
         final TextView name;
         ProductRow product;
-        ProductCard(LinearLayout row, TextView name, ProductRow product) {
-            this.row = row; this.name = name; this.product = product;
+        ProductCard(Ui.CardViews views, ProductRow product) {
+            this.views = views;
+            this.row = views.root;
+            this.name = views.name;
+            this.product = product;
         }
     }
 
