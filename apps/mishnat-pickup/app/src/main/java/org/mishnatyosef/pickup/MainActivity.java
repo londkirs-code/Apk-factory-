@@ -590,6 +590,7 @@ public class MainActivity extends Activity {
         final int generation = ++authGeneration;
         loading = false;
         accessToken = "";
+        clearToken();
         activeOwner = "";
         cacheTrusted = false;
         clearOrderMemory();
@@ -598,7 +599,6 @@ public class MainActivity extends Activity {
         clearLoginCookies(() -> cacheWorker.execute(() -> {
             if (generation != authGeneration) return;
             DataGuard.wipeOrderData(getFilesDir(), preferences);
-            clearToken();
             mainHandler.post(() -> {
                 if (generation == authGeneration && !isFinishing())
                     showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
@@ -779,6 +779,13 @@ public class MainActivity extends Activity {
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
         Set<String> retainedTicks = verdict == DataGuard.Verdict.CONTENT_CHANGED
                 ? readCollectedTicks(String.valueOf(orderId)) : new HashSet<>();
+        if (verdict == DataGuard.Verdict.NEW_ACCOUNT || verdict == DataGuard.Verdict.NEW_ORDER) {
+            // Invalidate old metadata before the asynchronous disk wipe so logout cannot
+            // accidentally re-expose the previous account/order during that window.
+            invalidateSavedOrderPreferences(stableOwner);
+        } else if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
+            DataGuard.clearOrderMeta(preferences);
+        }
         activeOwner = stableOwner;
         cacheTrusted = true;
         orderData = order;
@@ -1177,6 +1184,7 @@ public class MainActivity extends Activity {
         final int generation = ++authGeneration;
         loading = false;
         accessToken = "";
+        clearToken();
         activeOwner = preferences.getString(DataGuard.K_OWNER, "");
         cacheTrusted = isCacheManifestValid(activeOwner);
         clearOrderMemory();
@@ -1184,8 +1192,7 @@ public class MainActivity extends Activity {
         WebStorage.getInstance().deleteAllData();
         clearLoginCookies(() -> {
             if (generation != authGeneration) return;
-            clearToken();
-            mainHandler.post(() -> {
+            mainHandler.post(() => {
                 if (generation == authGeneration && !isFinishing()) showLoginScreen("");
             });
         });
