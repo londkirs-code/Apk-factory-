@@ -53,35 +53,11 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Migrate source once and verify permanent app source
+      - name: Verify permanent app source (no archive extraction)
         shell: bash
         run: |
           set -euo pipefail
           APP_DIR="apps/mishnat-pickup"
-          if [[ ! -s "$APP_DIR/app/build.gradle" || ! -s "$APP_DIR/app/src/main/AndroidManifest.xml" || ! -s "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java" || ! -s "$APP_DIR/app/src/main/res/drawable-nodpi/ic_app_launcher.webp" ]]; then
-            echo "Permanent source tree is missing; performing the one-time migration."
-            ARCHIVE="$RUNNER_TEMP/mishnat-pickup-source.tar.gz"
-            cat build-sources/mishnat-pickup-source-part-*.b64 | base64 --decode > "$ARCHIVE"
-            test -s "$ARCHIVE"
-            gzip -t "$ARCHIVE"
-            mkdir -p "$APP_DIR"
-            tar -xzf "$ARCHIVE" --strip-components=1 -C "$APP_DIR"
-            python3 tools/patch-mishnat-pickup.py
-            sed -i -E 's/^[[:space:]]*targetSdk[[:space:]]+[0-9]+/        targetSdk 35/' "$APP_DIR/app/build.gradle"
-            grep -q 'targetSdk 35' "$APP_DIR/app/build.gradle"
-            git diff --check
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add "$APP_DIR/"
-            git rm -f build-sources/mishnat-pickup-source-part-*.b64 build-sources/mishnat-pickup.tar.gz.b64 tools/patch-mishnat-pickup.py
-            git commit -m "chore: migrate Mishnat Pickup source to permanent app directory"
-            git push origin HEAD:main
-            git fetch origin main
-            git reset --hard origin/main
-            echo "One-time source migration committed; future builds use the tracked app directory directly."
-          else
-            echo "Permanent app source exists; skipping all archive extraction and patching."
-          fi
           test -s "$APP_DIR/app/build.gradle"
           test -s "$APP_DIR/app/src/main/AndroidManifest.xml"
           test -s "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
@@ -90,7 +66,7 @@ jobs:
           grep -q 'confirmResetCollection' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
           grep -q 'confirmLogout' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
           git diff --check
-          echo "Permanent source tree and required pickup UI updates verified."
+          echo "Permanent source verified. This workflow never extracts an app archive."
 
       - name: Validate existing APK Factory signing key
         env:
