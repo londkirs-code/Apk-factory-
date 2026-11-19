@@ -123,6 +123,7 @@ public class MainActivity extends Activity {
     private final java.util.Map<String, ProductCard> productCards = new java.util.LinkedHashMap<>();
     private TextView messageText;
     private WebView loginWebView;
+    private TextView loginTermsNotice;
     private boolean authHandled = false;
     private boolean loading = false;
     private volatile int authGeneration = 0;
@@ -184,6 +185,9 @@ public class MainActivity extends Activity {
         root.addView(buildLoginMethods());
         if (hasCachedOrder()) root.addView(buildCachedListButton());
         if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
+        loginTermsNotice = Ui.banner(this, "האתר מבקש לאשר את התקנון. אפשר לאשר אותו בחלון האתר למטה; לאחר האישור טעינת המוצרים תמשיך אוטומטית.");
+        loginTermsNotice.setVisibility(View.GONE);
+        root.addView(loginTermsNotice);
         root.addView(buildLoginBrowser());
         setContentView(root);
         Ui.systemBars(this);
@@ -289,15 +293,30 @@ public class MainActivity extends Activity {
         if (loginWebView == null || authHandled) return;
         String script = "(function(){try{" +
                 "if(window.__pickupTokenWatch)clearInterval(window.__pickupTokenWatch);" +
+                "var stable=0,notice=false;" +
+                "function visible(e){if(!e)return false;var s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function termsRequired(){" +
+                "var body=(document.body&&document.body.innerText||'').toLowerCase();" +
+                "if(!/(תקנון|תנאי שימוש|terms of service|terms and conditions)/.test(body))return false;" +
+                "var controls=Array.from(document.querySelectorAll('input[type=checkbox],button,[role=button],input[type=submit]'));" +
+                "return controls.some(function(e){var t=((e.innerText||e.value||e.getAttribute('aria-label')||'')+'').toLowerCase();return visible(e)&&/(אישור|מסכים|המשך|accept|agree|confirm)/.test(t);});" +
+                "}" +
                 "window.__pickupTokenWatch=setInterval(function(){try{" +
-                "var t=localStorage.getItem('token');" +
-                "if(t&&t.length>12&&window.PickupNative){window.PickupNative.onToken(location.origin,t);clearInterval(window.__pickupTokenWatch);}" +
+                "var t=localStorage.getItem('token'),need=termsRequired();" +
+                "if(need){stable=0;if(!notice&&window.PickupNative){notice=true;window.PickupNative.onTermsRequired(true);}}" +
+                "else{if(notice&&window.PickupNative){notice=false;window.PickupNative.onTermsRequired(false);}if(t&&t.length>12&&window.PickupNative){stable++;if(stable>=4){window.PickupNative.onToken(location.origin,t);clearInterval(window.__pickupTokenWatch);}}else stable=0;}" +
                 "}catch(e){}},800);" +
                 "}catch(e){}})();";
         loginWebView.evaluateJavascript(script, null);
     }
 
     private final class AuthBridge {
+        @JavascriptInterface public void onTermsRequired(boolean required) {
+            mainHandler.post(() -> {
+                if (loginTermsNotice != null && loginWebView != null && !authHandled)
+                    loginTermsNotice.setVisibility(required ? View.VISIBLE : View.GONE);
+            });
+        }
         @JavascriptInterface public void onToken(String origin, String token) {
             Uri source = Uri.parse(origin == null ? "" : origin);
             if (!"https".equalsIgnoreCase(source.getScheme()) || !isTrustedHost(source.getHost())) return;
@@ -492,24 +511,27 @@ public class MainActivity extends Activity {
         layer.setFocusable(false);
         layer.setClickable(false);
         layer.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        // The white message sits underneath the confetti; falling pieces remain visible above it.
+        layer.addView(Ui.celebrationCard(this, "הידד! אספת את כל המוצרים בהצלחה!"));
 
         float animScale = 1f;
         try {
             animScale = Settings.Global.getFloat(
                     getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
         } catch (Exception ignored) { }
-        if (animScale > 0f) {
+        boolean animated = animScale > 0f;
+        if (animated) {
             ConfettiView confetti = new ConfettiView(this);
-            confetti.setOnDone(() -> { /* The message remains until its own timeout. */ });
+            confetti.setOnDone(this::dismissCelebration);
+            // Added last so confetti is the topmost visual layer.
             layer.addView(confetti, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
-        layer.addView(Ui.celebrationCard(this, "הידד! אספת את כל המוצרים בהצלחה!"));
 
         addContentView(layer, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         celebration = layer;
-        mainHandler.postDelayed(dismissCelebrationTask, 4000L);
+        if (!animated) mainHandler.postDelayed(dismissCelebrationTask, 1200L);
     }
 
     /** Removes the overlay and stops its animator without changing the current focus. */
@@ -564,12 +586,11 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeHeader() {
-        // Only the title row and collection progress remain fixed while the list scrolls.
+        // Keep only the title row fixed. Actions and progress belong to the scroll area.
         LinearLayout header = Ui.column(this);
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
                 Ui.dp(this, Ui.S5), 0);
         header.addView(buildHomeTitleRow());
-        header.addView(buildProgressCard());
         return header;
     }
 
@@ -660,6 +681,8 @@ public class MainActivity extends Activity {
         page.addView(messageText);
         page.addView(buildRetryButton());
         page.addView(buildHomeActions());
+        // Place the collected counter below the action buttons so its white card cannot crowd them.
+        page.addView(buildProgressCard(), Ui.row(this, Ui.S3, Ui.S2));
 
         pendingList = Ui.column(this);
         collectedList = Ui.column(this);
