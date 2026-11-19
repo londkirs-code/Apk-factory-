@@ -338,10 +338,10 @@ public class MainActivity extends Activity {
         titleParams.rightMargin = dp(12);
         top.addView(title, titleParams);
         fixedHeader.addView(top);
-        addTop(fixedHeader, text("מה חדש: תמיכה בטלפון מקשים, סימון פוקוס והתנתקות משופרת", 12, MUTED, false), 3);
+        addTop(fixedHeader, text(accessToken.isEmpty() && hasCachedOrder() ? "ההזמנה השמורה זמינה גם ללא חיבור לאינטרנט" : "מה חדש: שמירת הזמנה ותמונות ללא אינטרנט, סנכרון חכם ומחיקת נתונים", 12, MUTED, false), 3);
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        Button clearDataButton = smallButton("מחיקת נתונים שמורים", Color.WHITE, MUTED);
+        Button clearDataButton = smallButton("מחיקת נתונים", Color.WHITE, MUTED);
         clearDataButton.setOnClickListener(v -> confirmClearSavedData());
         actions.addView(clearDataButton);
         resetButton = smallButton("איפוס איסוף", ORANGE_PALE, INK);
