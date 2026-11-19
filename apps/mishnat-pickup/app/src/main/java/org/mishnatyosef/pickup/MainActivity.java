@@ -132,10 +132,8 @@ public class MainActivity extends Activity {
         configureSystemBars();
         accessToken = readEncryptedToken();
         initializeCacheOwnership();
-        if (accessToken.isEmpty()) {
-            if (hasCachedOrder()) showHomeScreen(false);
-            else showLoginScreen("");
-        } else showHomeScreen(true);
+        if (accessToken.isEmpty()) showLoginScreen("");
+        else showHomeScreen(true);
     }
 
     @Override protected void onResume() {
@@ -315,7 +313,10 @@ public class MainActivity extends Activity {
             activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : "");
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
-            if (!sameAccount && !newOwner.isEmpty()) queueOrderDataWipe(generation);
+            if (!sameAccount) {
+                invalidateSavedOrderPreferences(newOwner);
+                queueOrderDataWipe(generation);
+            }
             showHomeScreen(true);
         } catch (Exception e) {
             authHandled = false;
@@ -338,6 +339,7 @@ public class MainActivity extends Activity {
             if (key.startsWith(DataGuard.COLLECTED_PREFIX)) edit.remove(key);
         }
         edit.remove(DataGuard.K_ORDER).remove(DataGuard.K_PRINT)
+                .remove(DataGuard.K_TOKEN_FINGERPRINT)
                 .putString(DataGuard.K_OWNER, owner == null ? "" : owner).commit();
         collected.clear();
         imageCache.evictAll();
@@ -351,7 +353,11 @@ public class MainActivity extends Activity {
     private void initializeCacheOwnership() {
         cacheTrusted = false;
         activeOwner = "";
-        if (accessToken.isEmpty()) return;
+        if (accessToken.isEmpty()) {
+            activeOwner = preferences.getString(DataGuard.K_OWNER, "");
+            cacheTrusted = isCacheManifestValid(activeOwner);
+            return;
+        }
         String tokenOwner = DataGuard.ownerFromToken(accessToken);
         String savedOwner = preferences.getString(DataGuard.K_OWNER, "");
         String savedToken = preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "");
@@ -386,11 +392,26 @@ public class MainActivity extends Activity {
             byte[] buffer = new byte[8192]; int n;
             while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
             JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
-            return owner.equals(saved.optString("owner", ""))
-                    && String.valueOf(saved.optLong("order_id", -1))
+            String expectedPrint = preferences.getString(DataGuard.K_PRINT, "");
+            if (!owner.equals(saved.optString("owner", ""))
+                    || !String.valueOf(saved.optLong("order_id", -1))
                         .equals(preferences.getString(DataGuard.K_ORDER, ""))
-                    && saved.optString("fingerprint", "")
-                        .equals(preferences.getString(DataGuard.K_PRINT, ""));
+                    || expectedPrint.isEmpty()) return false;
+            String manifestPrint = saved.optString("fingerprint", "");
+            if (expectedPrint.equals(manifestPrint)) return true;
+            if (!manifestPrint.isEmpty()) return false;
+
+            // Version 1.19 manifests did not store a fingerprint; verify their rows before migration.
+            JSONArray rows = saved.optJSONArray("products");
+            if (rows == null || rows.length() == 0) return false;
+            List<ProductRow> restored = new ArrayList<>();
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null) return false;
+                restored.add(new ProductRow(first(row, "key"), first(row, "name"),
+                        first(row, "image_url"), first(row, "amount"), first(row, "note")));
+            }
+            return expectedPrint.equals(DataGuard.fingerprint(restored));
         } catch (Exception ignored) { return false; }
     }
 
@@ -1150,19 +1171,18 @@ public class MainActivity extends Activity {
         final int generation = ++authGeneration;
         loading = false;
         accessToken = "";
-        activeOwner = "";
-        cacheTrusted = false;
+        activeOwner = preferences.getString(DataGuard.K_OWNER, "");
+        cacheTrusted = isCacheManifestValid(activeOwner);
         clearOrderMemory();
         destroyLoginWebView();
         WebStorage.getInstance().deleteAllData();
-        clearLoginCookies(() -> cacheWorker.execute(() -> {
+        clearLoginCookies(() -> {
             if (generation != authGeneration) return;
-            DataGuard.wipeOrderData(getFilesDir(), preferences);
             clearToken();
             mainHandler.post(() -> {
                 if (generation == authGeneration && !isFinishing()) showLoginScreen("");
             });
-        }));
+        });
     }
 
     private void clearOrderMemory() {
