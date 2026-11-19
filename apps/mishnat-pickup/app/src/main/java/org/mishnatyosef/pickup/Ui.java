@@ -33,6 +33,7 @@ final class Ui {
             P700=0xFF533881, P800=0xFF3E2A63, P900=0xFF2A1D45;
     static final int INK=0xFF19161F, MUTED=0xFF443F4C;
     static final int BG=P50, SURFACE=P25, LINE=P200, FOCUS=P700, ON_DARK=P25;
+    static final int IMAGE_FOCUS_OUTER=2, IMAGE_FOCUS_INSET=4, IMAGE_FOCUS_INNER=1;
     static final int SCRIM=0xEB2A1D45;
 
     static final int S1=4, S2=8, S3=12, S4=16, S5=20, S6=24, S8=32;
@@ -171,6 +172,23 @@ final class Ui {
         amount.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
         root.addView(image); root.addView(details); root.addView(amount);
         return new CardViews(root,image,name,note,amount);
+    }
+
+    static void setImageFocus(Context c, CardViews v, boolean focused) {
+        if (Build.VERSION.SDK_INT < 23) return;
+        if (!focused) { v.root.setForeground(null); return; }
+        GradientDrawable outer = new GradientDrawable();
+        outer.setColor(Color.TRANSPARENT);
+        outer.setCornerRadius(dp(c, R_CARD));
+        outer.setStroke(dp(c, IMAGE_FOCUS_OUTER), P800);
+        GradientDrawable inner = new GradientDrawable();
+        inner.setColor(Color.TRANSPARENT);
+        inner.setCornerRadius(dp(c, R_CARD - IMAGE_FOCUS_INSET));
+        inner.setStroke(dp(c, IMAGE_FOCUS_INNER), P25);
+        LayerDrawable rings = new LayerDrawable(new Drawable[]{outer, inner});
+        int inset = dp(c, IMAGE_FOCUS_INSET);
+        rings.setLayerInset(1, inset, inset, inset, inset);
+        v.root.setForeground(rings);
     }
 
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {

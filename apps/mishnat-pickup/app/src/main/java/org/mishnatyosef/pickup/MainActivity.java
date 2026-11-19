@@ -27,6 +27,7 @@ import android.util.LruCache;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -132,6 +133,10 @@ public class MainActivity extends Activity {
     private boolean wasComplete;
     private View celebration;
     private ImageViewerOverlay imageViewer;
+    private boolean imageMode;
+    private ProductCard imageFocusCard;
+    private TextView imageModeHint;
+    private ViewTreeObserver.OnGlobalFocusChangeListener imageFocusListener;
     private final Runnable dismissCelebrationTask = this::dismissCelebration;
 
     @Override protected void onCreate(Bundle state) {
@@ -139,6 +144,7 @@ public class MainActivity extends Activity {
         imageViewer = new ImageViewerOverlay(this, imageLoader);
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         configureSystemBars();
+        installImageFocusListener();
         accessToken = readEncryptedToken();
         initializeCacheOwnership();
         if (accessToken.isEmpty()) showLoginScreen("");
@@ -154,11 +160,14 @@ public class MainActivity extends Activity {
 
     @Override protected void onPause() {
         if (imageViewer != null) imageViewer.reset();
+        setImageMode(false);
         super.onPause();
     }
 
     @Override protected void onDestroy() {
         if (imageViewer != null) imageViewer.reset();
+        setImageMode(false);
+        removeImageFocusListener();
         dismissCelebration();
         wasComplete = false;
         super.onDestroy();
@@ -183,6 +192,7 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showLoginScreen(String notice) {
+        setImageMode(false);
         if (imageViewer != null) imageViewer.reset();
         dismissCelebration();
         wasComplete = false;
@@ -450,6 +460,7 @@ public class MainActivity extends Activity {
     /** Clears cached order data and any transient celebration overlay. */
     private void wipeOrderData() {
         Runnable cleanup = () -> {
+            setImageMode(false);
             if (imageViewer != null) imageViewer.reset();
             dismissCelebration();
             wasComplete = false;
@@ -583,6 +594,8 @@ public class MainActivity extends Activity {
     }
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if (imageViewer != null && imageViewer.onKey(event)) return true;
+        if (handleImageModeKey(event)) return true;
         if (celebration != null && event.getAction() == KeyEvent.ACTION_DOWN) dismissCelebration();
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0
                 && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
@@ -612,6 +625,7 @@ public class MainActivity extends Activity {
         if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
         renderProducts(false);
         wireFocusOrder();
+        pageScroll.post(this::updateImageModeHint);
         if (loadData && !accessToken.isEmpty()) loadLatestOrder();
     }
 
@@ -621,6 +635,9 @@ public class MainActivity extends Activity {
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
                 Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2));
         header.addView(buildHomeTitleRow());
+        imageModeHint = Ui.text(this, imageHintText(true), Ui.T_NOTE, Ui.MUTED, false);
+        imageModeHint.setLayoutParams(Ui.row(this, Ui.S1, 0));
+        header.addView(imageModeHint);
         header.addView(buildProgressCard(), Ui.row(this, Ui.S2, 0));
         return header;
     }
@@ -967,7 +984,10 @@ public class MainActivity extends Activity {
         String fingerprint = DataGuard.fingerprint(rows);
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
         Set<String> retainedTicks = new HashSet<>();
-        if (verdict != DataGuard.Verdict.SAME && imageViewer != null) imageViewer.reset();
+        if (verdict != DataGuard.Verdict.SAME) {
+            setImageMode(false);
+            if (imageViewer != null) imageViewer.reset();
+        }
         if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
             retainedTicks.addAll(readCollectedTicks(String.valueOf(orderId)));
             // A just-tapped item may still be queued on cacheWorker; include the live in-memory
@@ -1267,6 +1287,108 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    private void installImageFocusListener() {
+        imageFocusListener = (oldFocus, newFocus) -> onImageFocusChanged(newFocus);
+        getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener(imageFocusListener);
+    }
+
+    private void removeImageFocusListener() {
+        if (imageFocusListener == null) return;
+        View decor = getWindow().getDecorView();
+        if (decor.getViewTreeObserver().isAlive())
+            decor.getViewTreeObserver().removeOnGlobalFocusChangeListener(imageFocusListener);
+        imageFocusListener = null;
+    }
+
+    private void onImageFocusChanged(View focused) {
+        if (!imageMode) return;
+        ProductCard next = findProductCard(focused);
+        if (next == null) { setImageMode(false); return; }
+        if (imageFocusCard != next) {
+            if (imageFocusCard != null) Ui.setImageFocus(this, imageFocusCard.views, false);
+            imageFocusCard = next;
+        }
+        Ui.setImageFocus(this, next.views, true);
+    }
+
+    private ProductCard findProductCard(View view) {
+        View current = view;
+        while (current != null) {
+            Object tag = current.getTag();
+            if (tag instanceof String) {
+                ProductCard card = productCards.get((String) tag);
+                if (card != null && card.row == current) return card;
+            }
+            if (!(current.getParent() instanceof View)) break;
+            current = (View) current.getParent();
+        }
+        return null;
+    }
+
+    private boolean imageIsOnRight(ProductCard card) {
+        if (card == null || card.views.root.getWidth() <= 0 || card.views.image.getWidth() <= 0)
+            return true;
+        int[] root = new int[2], image = new int[2];
+        card.views.root.getLocationOnScreen(root);
+        card.views.image.getLocationOnScreen(image);
+        return image[0] + card.views.image.getWidth() / 2f
+                > root[0] + card.views.root.getWidth() / 2f;
+    }
+
+    private String imageHintText(boolean fallback) {
+        ProductCard card = null;
+        if (pendingList != null && pendingList.getChildCount() > 0)
+            card = findProductCard(pendingList.getChildAt(0));
+        if (card == null && collectedList != null && collectedList.getChildCount() > 0)
+            card = findProductCard(collectedList.getChildAt(0));
+        boolean right = card == null ? fallback : imageIsOnRight(card);
+        return "לתמונה: " + (right ? "→" : "←") + "   הגדלה: OK / Enter   חזרה: " + (right ? "←" : "→");
+    }
+
+    private void updateImageModeHint() {
+        if (imageModeHint != null) imageModeHint.setText(imageHintText(true));
+    }
+
+    private void setImageMode(boolean enabled) {
+        imageMode = enabled;
+        if (!enabled) {
+            if (imageFocusCard != null) Ui.setImageFocus(this, imageFocusCard.views, false);
+            imageFocusCard = null;
+            return;
+        }
+        ProductCard focused = findProductCard(getCurrentFocus());
+        if (focused == null) { imageMode = false; return; }
+        imageFocusCard = focused;
+        Ui.setImageFocus(this, focused.views, true);
+    }
+
+    private boolean handleImageModeKey(KeyEvent event) {
+        if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+        ProductCard focused = findProductCard(getCurrentFocus());
+        int key = event.getKeyCode();
+        if (!imageMode) {
+            if (focused != null && key == (imageIsOnRight(focused)
+                    ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT)) {
+                setImageMode(true);
+                return true;
+            }
+            return false;
+        }
+        if (focused == null) { setImageMode(false); return false; }
+        int enter = imageIsOnRight(focused) ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT;
+        int leave = imageIsOnRight(focused) ? KeyEvent.KEYCODE_DPAD_LEFT : KeyEvent.KEYCODE_DPAD_RIGHT;
+        if (key == enter) return true;
+        if (key == leave || key == KeyEvent.KEYCODE_BACK) { setImageMode(false); return true; }
+        if (key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER
+                || key == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            openProductImage(focused);
+            return true;
+        }
+        if (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN) return false;
+        setImageMode(false);
+        return false;
+    }
+
     private void openProductImage(ProductCard card) {
         if (card == null || card.product == null || imageViewer == null) return;
         ProductRow product = card.product;
@@ -1308,6 +1430,8 @@ public class MainActivity extends Activity {
     private void bindProductCard(ProductCard card, ProductRow product, boolean done) {
         card.product = product;
         Ui.bindProduct(card.views, product.name, product.note, product.amount, done);
+        if (imageMode && card.row == (getCurrentFocus() == null ? null : findProductCard(getCurrentFocus()) == null ? null : findProductCard(getCurrentFocus()).row))
+            Ui.setImageFocus(this, card.views, true);
     }
 
     private void toggleProduct(String key) {
@@ -1425,6 +1549,7 @@ public class MainActivity extends Activity {
     }
 
     private void logout() {
+        setImageMode(false);
         if (imageViewer != null) imageViewer.reset();
         dismissCelebration();
         wasComplete = false;
