@@ -46,7 +46,7 @@ final class Ui {
 
     static int imageSize(Context c) {
         int w=c.getResources().getConfiguration().screenWidthDp;
-        return dp(c,w>=400?112:(w>=340?96:72));
+        return dp(c,w>=400?56:(w>=340?48:36));
     }
 
     static GradientDrawable shape(Context c,int fill,int radiusDp,int strokeDp,int stroke) {
@@ -147,7 +147,7 @@ final class Ui {
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); root.setFocusable(true);
         root.setFocusableInTouchMode(false); root.setClickable(true);
         root.setBackground(interactive(c,SURFACE,LINE,P100,FOCUS,R_CARD));
-        root.setPadding(dp(c,S4),dp(c,S4),dp(c,S4),dp(c,S4));
+        root.setPadding(dp(c,S4),dp(c,S2),dp(c,S4),dp(c,S2));
         root.setLayoutParams(row(c,0,S3));
 
         ImageView image=new ImageView(c); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -164,7 +164,7 @@ final class Ui {
 
         TextView amount=text(c,"",T_AMOUNT,P800,true); amount.setGravity(Gravity.CENTER);
         amount.setMinWidth(dp(c,56)); amount.setBackground(shape(c,P100,R_BUTTON,0,0));
-        amount.setPadding(dp(c,S3),dp(c,S2),dp(c,S3),dp(c,S2));
+        amount.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
         root.addView(image); root.addView(details); root.addView(amount);
         return new CardViews(root,image,name,note,amount);
     }
@@ -178,7 +178,7 @@ final class Ui {
         v.name.setTextColor(collected?MUTED:INK); v.amount.setTextColor(collected?P600:P800);
         v.image.setAlpha(collected?0.55f:1f);
         v.root.setBackground(interactive(c,collected?P100:SURFACE,collected?P200:LINE,P200,FOCUS,R_CARD));
-        v.root.setPadding(dp(c,S4),dp(c,S4),dp(c,S4),dp(c,S4));
+        v.root.setPadding(dp(c,S4),dp(c,S2),dp(c,S4),dp(c,S2));
         v.root.setContentDescription(name+", כמות "+amount+(collected?", לוקט":""));
     }
 
@@ -194,12 +194,13 @@ final class Ui {
         w.getDecorView().setSystemUiVisibility(flags);
     }
 
-    /** כרטיס החגיגה. ממורכז, כמעט ברוחב מלא. */
+    /** הודעת הצלחה שקופה המוצגת מעל הקונפטי. */
     static TextView celebrationCard(Context c, String msg) {
-        TextView t = text(c, msg, T_TITLE, P25, true);
+        TextView t = text(c, msg, T_TITLE, P800, true);
         t.setGravity(Gravity.CENTER);
-        t.setBackground(shape(c, P700, R_DIALOG, 3, P400));
-        t.setPadding(dp(c, S6), dp(c, S8), dp(c, S6), dp(c, S8));
+        t.setBackgroundColor(Color.TRANSPARENT);
+        t.setShadowLayer(dp(c, 2), 0f, dp(c, 1), 0x66FFFFFF);
+        t.setPadding(dp(c, S4), dp(c, S2), dp(c, S4), dp(c, S2));
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
         lp.setMargins(dp(c, S5), 0, dp(c, S5), 0);
