@@ -427,84 +427,131 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showHomeScreen(boolean loadData) {
-        // Keep the progress summary outside the scrolling list so it remains visible.
-        LinearLayout screenRoot = verticalRoot();
-        screenRoot.setBackgroundColor(BG);
-        LinearLayout fixedHeader = verticalRoot();
-        fixedHeader.setPadding(dp(18), dp(14), dp(18), 0);
-        pageScroll = new ScrollView(this);
-        pageScroll.setFillViewport(true);
-        pageScroll.setFocusable(false);
-        pageScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-        pageScroll.setBackgroundColor(BG);
-        page = verticalRoot();
-        page.setPadding(dp(18), 0, dp(18), dp(24));
-        page.setFocusable(false);
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        logoutButton = smallButton(accessToken.isEmpty() ? "התחברות" : "התנתקות", Color.WHITE, MUTED);
-        logoutButton.setId(View.generateViewId());
+        LinearLayout root = Ui.column(this);
+        root.setBackgroundColor(Ui.BG);
+        LinearLayout header = buildHomeHeader();
+        pageScroll = buildProductScroll();
+        root.addView(header, new LinearLayout.LayoutParams(-1, -2));
+        root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        setContentView(root);
+        Ui.systemBars(this);
+        if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
+        renderProducts(false);
+        wireFocusOrder();
+        if (loadData && !accessToken.isEmpty()) loadLatestOrder();
+    }
+
+    private LinearLayout buildHomeHeader() {
+        LinearLayout header = Ui.column(this);
+        header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
+                Ui.dp(this, Ui.S5), 0);
+        header.addView(buildHomeTitleRow());
+        messageText = Ui.banner(this, "");
+        messageText.setVisibility(View.GONE);
+        header.addView(messageText);
+        header.addView(buildRetryButton());
+        header.addView(buildHomeActions());
+        header.addView(buildProgressCard());
+        return header;
+    }
+
+    private LinearLayout buildHomeTitleRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        logoutButton = Ui.button(this, accessToken.isEmpty() ? "התחברות" : "התנתקות", Ui.Kind.SOFT);
+        logoutButton.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
         logoutButton.setOnClickListener(v -> {
             if (accessToken.isEmpty()) showLoginScreen("");
             else confirmLogout();
         });
-        top.addView(logoutButton);
-        TextView title = text("רשימת איסוף", 24, INK, true);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
-        titleParams.rightMargin = dp(12);
-        top.addView(title, titleParams);
-        fixedHeader.addView(top);
-        addTop(fixedHeader, text(accessToken.isEmpty() && hasCachedOrder() ? "ההזמנה השמורה זמינה גם ללא חיבור לאינטרנט" : "מה חדש: שמירת הזמנה ותמונות ללא אינטרנט, סנכרון חכם ומחיקת נתונים", 12, MUTED, false), 3);
+        TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
+        row.addView(logoutButton);
+        row.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+        return row;
+    }
+
+    private Button buildRetryButton() {
+        retryButton = Ui.button(this, "לנסות לסנכרן שוב", Ui.Kind.SOFT);
+        retryButton.setVisibility(View.GONE);
+        retryButton.setOnClickListener(v -> loadLatestOrder());
+        return retryButton;
+    }
+
+    private LinearLayout buildHomeActions() {
         LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        Button clearDataButton = smallButton("מחיקת נתונים", Color.WHITE, MUTED);
-        clearDataButton.setOnClickListener(v -> confirmClearSavedData());
-        actions.addView(clearDataButton);
-        resetButton = smallButton("איפוס איסוף", ORANGE_PALE, INK);
-        resetButton.setId(View.generateViewId());
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        resetButton = Ui.button(this, "איפוס ליקוט", Ui.Kind.SOFT);
         resetButton.setOnClickListener(v -> confirmResetCollection());
-        actions.addView(resetButton);
-        addTop(fixedHeader, actions, 8);
-        LinearLayout progressCard = card();
-        progressCard.setPadding(dp(15), dp(12), dp(15), dp(12));
-        addTop(fixedHeader, progressCard, 10);
-        LinearLayout progressHead = new LinearLayout(this);
-        progressHead.setGravity(Gravity.CENTER_VERTICAL);
-        progressHead.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        progressPercent = text("0%", 23, INK, true);
+        Button clear = Ui.button(this, "מחיקת כל הנתונים", Ui.Kind.STRONG);
+        clear.setOnClickListener(v -> confirmClearSavedData());
+        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);
+        first.setMargins(0, Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S1), 0);
+        LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, -2, 1f);
+        second.setMargins(Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2), 0, 0);
+        actions.addView(resetButton, first);
+        actions.addView(clear, second);
+        return actions;
+    }
+
+    private LinearLayout buildProgressCard() {
+        LinearLayout card = Ui.column(this);
+        card.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
+        card.setPadding(Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3),
+                Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        progressPercent = Ui.text(this, "0%", Ui.T_TITLE, Ui.P800, true);
         progressPercent.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(dp(58), -2);
-        progressPercent.setMinWidth(dp(58));
-        percentParams.rightMargin = dp(12);
-        progressHead.addView(progressPercent, percentParams);
-        progressText = text("נאספו 0 מתוך 0", 14, INK, true);
+        progressPercent.setMinWidth(Ui.dp(this, Ui.PERCENT_WIDTH));
+        LinearLayout.LayoutParams percent = new LinearLayout.LayoutParams(
+                Ui.dp(this, Ui.PERCENT_WIDTH), -2);
+        percent.rightMargin = Ui.dp(this, Ui.S3);
+        head.addView(progressPercent, percent);
+        progressText = Ui.text(this, "נאספו 0 מתוך 0", Ui.T_BODY, Ui.P800, true);
         progressText.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        progressText.setMaxLines(2);
-        progressHead.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
-        progressCard.addView(progressHead);
+        head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
+        card.addView(head);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
-        if (Build.VERSION.SDK_INT >= 21) progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GREEN));
-        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(-1, dp(6));
-        progressParams.topMargin = dp(8);
-        progressCard.addView(progressBar, progressParams);
-        addTop(page, sectionLabel("ממתינים לאיסוף", ""), 18);
-        pendingList = verticalRoot();
-        addTop(page, pendingList, 7);
-        collectedSection = verticalRoot();
-        collectedSection.addView(sectionLabel("נאספו", ""));
-        collectedList = verticalRoot();
-        addTop(collectedSection, collectedList, 7);
-        addTop(page, collectedSection, 18);
-        // Attach the screen content; otherwise the authenticated home screen is blank.
-        pageScroll.addView(page, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        screenRoot.addView(fixedHeader, new LinearLayout.LayoutParams(-1, -2));
-        screenRoot.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        setContentView(screenRoot);
-        loadCachedOrder();
-        renderProducts(false);
-        if (loadData && !accessToken.isEmpty()) loadLatestOrder();
+        Ui.styleProgress(this, progressBar);
+        card.addView(progressBar, Ui.row(this, Ui.S2, 0));
+        return card;
+    }
+
+    private ScrollView buildProductScroll() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setFocusable(false);
+        scroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        scroll.setBackgroundColor(Ui.BG);
+        page = Ui.column(this);
+        page.setPadding(Ui.dp(this, Ui.S5), 0, Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
+        page.setFocusable(false);
+        pendingList = Ui.column(this);
+        collectedList = Ui.column(this);
+        page.addView(Ui.section(this, "ממתינים לליקוט"));
+        page.addView(pendingList);
+        collectedSection = buildCollectedSection();
+        page.addView(collectedSection);
+        scroll.addView(page, new ScrollView.LayoutParams(-1, -2));
+        return scroll;
+    }
+
+    private LinearLayout buildCollectedSection() {
+        LinearLayout section = Ui.column(this);
+        section.addView(Ui.section(this, "כבר לוקט"));
+        section.addView(collectedList);
+        return section;
+    }
+
+    private void showSyncMessage(String value, boolean canRetry) {
+        if (messageText != null) {
+            messageText.setText(value == null ? "" : value);
+            messageText.setVisibility(value == null || value.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+        if (retryButton != null) retryButton.setVisibility(canRetry ? View.VISIBLE : View.GONE);
     }
 
     private void confirmResetCollection() {
@@ -518,7 +565,9 @@ public class MainActivity extends Activity {
     }
 
     private void confirmLogout() {
-        showModernConfirm("התנתקות מהחשבון", "לצאת מהחשבון ולמחוק את פרטי ההתחברות? ההזמנה השמורה תישאר זמינה גם ללא אינטרנט.", "התנתקות", this::logout);
+        showModernConfirm("התנתקות מהחשבון",
+                "לצאת מהחשבון ולמחוק את פרטי ההתחברות, ההזמנה השמורה, התמונות וסימוני הליקוט מהמכשיר?",
+                "התנתקות", this::logout);
     }
 
     private void confirmClearSavedData() {
@@ -528,66 +577,71 @@ public class MainActivity extends Activity {
     private void clearAllSavedData() {
         final int generation = ++authGeneration;
         loading = false;
-        clearToken();
         accessToken = "";
-        imageCache.evictAll();
-        products.clear();
-        collected.clear();
-        productCards.clear();
-        orderData = null;
-        currentOrderId = "";
-        cacheWorker.execute(() -> {
+        activeOwner = "";
+        cacheTrusted = false;
+        clearOrderMemory();
+        destroyLoginWebView();
+        WebStorage.getInstance().deleteAllData();
+        clearLoginCookies(() -> cacheWorker.execute(() -> {
+            if (generation != authGeneration) return;
             DataGuard.wipeOrderData(getFilesDir(), preferences);
+            clearToken();
             mainHandler.post(() -> {
-                if (generation != authGeneration || isFinishing()) return;
-                WebStorage.getInstance().deleteAllData();
-                CookieManager cookies = CookieManager.getInstance();
-                if (Build.VERSION.SDK_INT >= 21) cookies.removeAllCookies(removed -> cookies.flush());
-                else cookies.removeAllCookie();
-                showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
+                if (generation == authGeneration && !isFinishing())
+                    showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
             });
-        });
+        }));
+    }
+
+    private void clearLoginCookies(Runnable afterClear) {
+        CookieManager cookies = CookieManager.getInstance();
+        if (Build.VERSION.SDK_INT >= 21) {
+            cookies.removeAllCookies(removed -> { cookies.flush(); afterClear.run(); });
+        } else {
+            cookies.removeAllCookie();
+            afterClear.run();
+        }
     }
 
     private void showModernConfirm(String title, String message, String positive, Runnable action) {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = verticalRoot();
-        panel.setPadding(dp(22), dp(20), dp(22), dp(18));
-        panel.setBackground(shape(ORANGE_PALE, 22, BORDER));
-        TextView heading = text(title, 19, INK, true);
-        heading.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        panel.addView(heading);
-        TextView body = text(message, 14, INK, false);
-        body.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        body.setLineSpacing(dp(3), 1f);
-        addTop(panel, body, 9);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, message, Ui.T_BODY, Ui.MUTED, false),
+                Ui.row(this, Ui.S2, Ui.S3));
+        panel.addView(buildConfirmButtons(dialog, positive, action));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+    }
+
+    private LinearLayout buildConfirmButtons(Dialog dialog, String positive, Runnable action) {
         LinearLayout buttons = new LinearLayout(this);
         buttons.setGravity(Gravity.CENTER_VERTICAL);
-        Button cancel = smallButton("ביטול", Color.WHITE, MUTED);
-        Button approve = smallButton(positive, ORANGE, INK);
-        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        cancelParams.leftMargin = dp(6);
-        buttons.addView(cancel, cancelParams);
-        LinearLayout.LayoutParams approveParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        approveParams.rightMargin = dp(6);
-        buttons.addView(approve, approveParams);
-        addTop(panel, buttons, 18);
-        dialog.setContentView(panel);
-        dialog.setOnShowListener(d -> {
-            if (dialog.getWindow() != null) {
-                dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-                dialog.getWindow().setLayout(Math.min(getResources().getDisplayMetrics().widthPixels - dp(40), dp(360)), -2);
-            }
-            approve.requestFocus();
-        });
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        Button approve = Ui.button(this, positive, Ui.Kind.STRONG);
+        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);
+        first.setMargins(0, 0, Ui.dp(this, Ui.S1), 0);
+        LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, -2, 1f);
+        second.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
+        buttons.addView(cancel, first);
+        buttons.addView(approve, second);
         cancel.setOnClickListener(v -> dialog.dismiss());
         approve.setOnClickListener(v -> { dialog.dismiss(); action.run(); });
-        dialog.show();
-        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        dialog.getWindow().setLayout(Math.min(getResources().getDisplayMetrics().widthPixels - dp(40), dp(360)), -2);
-        approve.requestFocus();
+        dialog.setOnShowListener(d -> approve.requestFocus());
+        return buttons;
     }
+
+    private void styleConfirmWindow(Dialog dialog) {
+        if (dialog.getWindow() == null) return;
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        int width = Math.min(getResources().getDisplayMetrics().widthPixels
+                - Ui.dp(this, Ui.DIALOG_SIDE_MARGIN), Ui.dp(this, Ui.DIALOG_MAX_WIDTH));
+        dialog.getWindow().setLayout(width, -2);
+    }
+
     private void loadLatestOrder() {
         if (loading || accessToken.isEmpty()) return;
         final int generation = authGeneration;
