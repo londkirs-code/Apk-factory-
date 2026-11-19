@@ -88,15 +88,7 @@ public class MainActivity extends Activity {
     private static final String PREFS = "mishnat_pickup_preferences";
     private static final String TOKEN_KEY = "encrypted_access_token";
     private static final String KEY_ALIAS = "mishnat_pickup_auth_key_v1";
-    // Unified lavender/purple palette with near-black text throughout the app.
-    private static final int BG = Color.rgb(249, 247, 252);
-    private static final int INK = Color.rgb(25, 22, 31);
-    private static final int MUTED = Color.rgb(68, 63, 76);
-    private static final int ORANGE = Color.rgb(105, 72, 157);
-    private static final int ORANGE_PALE = Color.rgb(241, 235, 250);
-    private static final int GREEN = Color.rgb(105, 72, 157);
-    private static final int GREEN_PALE = Color.rgb(241, 235, 250);
-    private static final int BORDER = Color.rgb(229, 222, 239);
+    // כל צבעי הממשק מרוכזים ב-Ui.java.
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
@@ -167,14 +159,7 @@ public class MainActivity extends Activity {
     }
 
     private void configureSystemBars() {
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(Color.WHITE);
-        if (Build.VERSION.SDK_INT >= 26) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-        } else {
-            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
+        Ui.systemBars(this);
     }
 
     // ---------------------------------------------------------------------
@@ -187,7 +172,7 @@ public class MainActivity extends Activity {
         LinearLayout root = Ui.screen(this);
         root.addView(Ui.title(this, "איסוף משנת יוסף"));
         root.addView(Ui.text(this, "מתחברים לחשבון ובוחרים את ההזמנה האחרונה לאיסוף",
-                Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
+                Ui.T_BODY, Ui.Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildLoginMethods());
         if (hasCachedOrder()) root.addView(buildCachedListButton());
         if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
@@ -240,7 +225,7 @@ public class MainActivity extends Activity {
                 Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
         box.addView(Ui.text(this, "אפשר להתחבר בשתי דרכים", Ui.T_SECTION, Ui.P800, true));
         String body = "אימייל וסיסמה, או מספר טלפון וקוד חד־פעמי ב־SMS. פרטי הכניסה מטופלים ישירות באתר משנת יוסף.";
-        box.addView(Ui.text(this, body, Ui.T_NOTE, Ui.MUTED, false),
+        box.addView(Ui.text(this, body, Ui.T_NOTE, Ui.Ui.MUTED, false),
                 Ui.row(this, Ui.S2, Ui.S1));
         return box;
     }
@@ -428,7 +413,7 @@ public class MainActivity extends Activity {
 
     private void showHomeScreen(boolean loadData) {
         LinearLayout root = Ui.column(this);
-        root.setBackgroundColor(Ui.BG);
+        root.setBackgroundColor(Ui.Ui.BG);
         LinearLayout header = buildHomeHeader();
         pageScroll = buildProductScroll();
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
@@ -525,7 +510,7 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setFocusable(false);
         scroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-        scroll.setBackgroundColor(Ui.BG);
+        scroll.setBackgroundColor(Ui.Ui.BG);
         page = Ui.column(this);
         page.setPadding(Ui.dp(this, Ui.S5), 0, Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
         page.setFocusable(false);
@@ -609,7 +594,7 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, message, Ui.T_BODY, Ui.MUTED, false),
+        panel.addView(Ui.text(this, message, Ui.T_BODY, Ui.Ui.MUTED, false),
                 Ui.row(this, Ui.S2, Ui.S3));
         panel.addView(buildConfirmButtons(dialog, positive, action));
         dialog.setContentView(panel);
@@ -1112,16 +1097,9 @@ public class MainActivity extends Activity {
         else if (resetButton != null) resetButton.requestFocus();
     }
 
-    private android.graphics.drawable.Drawable focusBackground(int fill, int radius, int border) {
-        StateListDrawable states = new StateListDrawable();
-        GradientDrawable pressed = shape(fill == Color.WHITE ? ORANGE_PALE : Color.rgb(229, 218, 245), radius, ORANGE);
-        pressed.setStroke(dp(2), ORANGE);
-        states.addState(new int[]{android.R.attr.state_pressed}, pressed);
-        GradientDrawable focused = shape(fill == Color.WHITE ? ORANGE_PALE : GREEN_PALE, radius, ORANGE);
-        focused.setStroke(dp(3), ORANGE);
-        states.addState(new int[]{android.R.attr.state_focused}, focused);
-        states.addState(new int[]{}, shape(fill, radius, border));
-        return states;
+    private android.graphics.drawable.Drawable focusBackground(int fill, int radiusToken, int border) {
+        int focusFill = fill == Ui.P25 ? Ui.P100 : Ui.P200;
+        return Ui.interactive(this, fill, border, focusFill, Ui.FOCUS, radiusToken);
     }
 
     private void loadProductImage(String imageUrl, ImageView target) {
@@ -1150,7 +1128,7 @@ public class MainActivity extends Activity {
                     BitmapFactory.Options bounds = new BitmapFactory.Options();
                     bounds.inJustDecodeBounds = true;
                     BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, bounds);
-                    int targetPixels = Math.max(120, dp(78));
+                    int targetPixels = Math.max(120, Ui.imageSize(this));
                     int sample = 1;
                     while (bounds.outWidth / (sample * 2) >= targetPixels && bounds.outHeight / (sample * 2) >= targetPixels) sample *= 2;
                     BitmapFactory.Options options = new BitmapFactory.Options();
