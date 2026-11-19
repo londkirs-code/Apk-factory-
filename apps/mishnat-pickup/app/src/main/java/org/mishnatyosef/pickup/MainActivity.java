@@ -49,6 +49,9 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -130,8 +133,10 @@ public class MainActivity extends Activity {
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         configureSystemBars();
         accessToken = readEncryptedToken();
-        if (accessToken.isEmpty()) showLoginScreen("");
-        else showHomeScreen(true);
+        if (accessToken.isEmpty()) {
+            if (hasCachedOrder()) showHomeScreen(false);
+            else showLoginScreen("");
+        } else showHomeScreen(true);
     }
 
     @Override protected void onResume() {
@@ -318,9 +323,12 @@ public class MainActivity extends Activity {
         page.setFocusable(false);
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        logoutButton = smallButton("התנתקות", Color.WHITE, MUTED);
+        logoutButton = smallButton(accessToken.isEmpty() ? "התחברות" : "התנתקות", Color.WHITE, MUTED);
         logoutButton.setId(View.generateViewId());
-        logoutButton.setOnClickListener(v -> confirmLogout());
+        logoutButton.setOnClickListener(v -> {
+            if (accessToken.isEmpty()) showLoginScreen("");
+            else confirmLogout();
+        });
         top.addView(logoutButton);
         TextView title = text("רשימת איסוף", 24, INK, true);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
@@ -330,6 +338,9 @@ public class MainActivity extends Activity {
         addTop(fixedHeader, text("מה חדש: תמיכה בטלפון מקשים, סימון פוקוס והתנתקות משופרת", 12, MUTED, false), 3);
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        Button clearDataButton = smallButton("מחיקת נתונים שמורים", Color.WHITE, MUTED);
+        clearDataButton.setOnClickListener(v -> confirmClearSavedData());
+        actions.addView(clearDataButton);
         resetButton = smallButton("איפוס איסוף", ORANGE_PALE, INK);
         resetButton.setId(View.generateViewId());
         resetButton.setOnClickListener(v -> confirmResetCollection());
@@ -372,8 +383,9 @@ public class MainActivity extends Activity {
         screenRoot.addView(fixedHeader, new LinearLayout.LayoutParams(-1, -2));
         screenRoot.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(screenRoot);
-        if (loadData) loadLatestOrder();
-        else renderProducts(false);
+        loadCachedOrder();
+        renderProducts(false);
+        if (loadData && !accessToken.isEmpty()) loadLatestOrder();
     }
 
     private void confirmResetCollection() {
@@ -387,7 +399,24 @@ public class MainActivity extends Activity {
     }
 
     private void confirmLogout() {
-        showModernConfirm("התנתקות מהחשבון", "לצאת מהחשבון ולמחוק את פרטי ההתחברות השמורים במכשיר?", "התנתקות", this::logout);
+        showModernConfirm("התנתקות מהחשבון", "לצאת מהחשבון ולמחוק את פרטי ההתחברות? ההזמנה השמורה תישאר זמינה גם ללא אינטרנט.", "התנתקות", this::logout);
+    }
+
+    private void confirmClearSavedData() {
+        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק מהמכשיר את ההזמנה, התמונות ואת סימוני האיסוף? הנתונים בחשבון המקוון לא יימחקו.", "מחיקה", this::clearAllSavedData);
+    }
+
+    private void clearAllSavedData() {
+        deleteRecursively(new File(getFilesDir(), "pickup_order_cache"));
+        deleteRecursively(new File(getFilesDir(), "pickup_order_cache_tmp"));
+        deleteRecursively(new File(getFilesDir(), "pickup_order_cache_backup"));
+        SharedPreferences.Editor editor = preferences.edit();
+        for (String key : preferences.getAll().keySet()) if (key.startsWith("collected_")) editor.remove(key);
+        editor.apply();
+        products.clear(); collected.clear(); productCards.clear();
+        orderData = null; currentOrderId = "";
+        renderProducts(false);
+        if (accessToken.isEmpty()) showLoginScreen("הנתונים המקומיים נמחקו. אפשר להתחבר כדי להוריד הזמנה חדשה.");
     }
 
     private void showModernConfirm(String title, String message, String positive, Runnable action) {
@@ -448,6 +477,7 @@ public class MainActivity extends Activity {
                 JSONObject order = unwrapOrder(response);
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
+                cacheOrderIfComplete(id, order, parsed);
                 mainHandler.post(() -> {
                     if (accessToken.isEmpty() || isFinishing()) return;
                     loading = false;
@@ -465,22 +495,144 @@ public class MainActivity extends Activity {
                     if (isAuthError(msg)) {
                         clearToken();
                         accessToken = "";
-                        showLoginScreen("פג תוקף ההתחברות. התחברו מחדש כדי להמשיך.");
+                        if (hasCachedOrder()) showHomeScreen(false);
+                        else showLoginScreen("פג תוקף ההתחברות. התחברו מחדש כדי להמשיך.");
                     } else {
-                        if (messageText != null) messageText.setText(msg);
+                        if (products.isEmpty()) loadCachedOrder();
+                        renderProducts(false);
                         if (pendingList != null) {
-                            pendingList.removeAllViews();
-                            TextView error = text(msg, 14, INK, true);
-                            error.setLineSpacing(dp(3), 1f);
-                            pendingList.addView(error);
-                            Button retry = smallButton("לנסות שוב", ORANGE_PALE, INK);
-                            addTop(pendingList, retry, 10);
-                            retry.setOnClickListener(v -> loadLatestOrder());
+                            if (products.isEmpty()) pendingList.removeAllViews();
+                            TextView status = text(products.isEmpty() ? msg : "מוצגת ההזמנה השמורה מהמכשיר. הסנכרון נכשל: " + msg, 13, MUTED, false);
+                            addTop(pendingList, status, 8);
+                            if (!accessToken.isEmpty()) {
+                                Button retry = smallButton("לנסות לסנכרן שוב", ORANGE_PALE, INK);
+                                addTop(pendingList, retry, 10);
+                                retry.setOnClickListener(v -> loadLatestOrder());
+                            }
                         }
                     }
                 });
             }
         });
+    }
+
+    private void loadCachedOrder() {
+        File root = new File(getFilesDir(), "pickup_order_cache");
+        File manifest = new File(root, "order.json");
+        if (!manifest.isFile()) return;
+        try (FileInputStream in = new FileInputStream(manifest); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+            JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            long id = saved.optLong("order_id", -1);
+            JSONArray rows = saved.optJSONArray("products");
+            if (id <= 0 || rows == null || rows.length() == 0) throw new Exception("invalid cache");
+            List<ProductRow> restored = new ArrayList<>();
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null) throw new Exception("invalid item");
+                String imageFile = first(row, "image_file");
+                String imagePath = "";
+                if (!imageFile.isEmpty()) {
+                    File image = new File(root, imageFile);
+                    if (!image.isFile() || image.length() == 0) throw new Exception("missing image");
+                    imagePath = image.getAbsolutePath();
+                }
+                restored.add(new ProductRow(first(row,"key"), first(row,"name"), first(row,"image_url"),
+                        first(row,"amount"), first(row,"note"), imagePath));
+            }
+            currentOrderId = String.valueOf(id);
+            products.clear(); products.addAll(restored);
+            loadCollectedState();
+        } catch (Exception e) { deleteRecursively(root); }
+    }
+
+    private boolean hasCachedOrder() {
+        return new File(new File(getFilesDir(), "pickup_order_cache"), "order.json").isFile();
+    }
+
+    private void cacheOrderIfComplete(long orderId, JSONObject order, List<ProductRow> rows) throws Exception {
+        File root = new File(getFilesDir(), "pickup_order_cache");
+        File oldManifest = new File(root, "order.json");
+        long newSort = orderSortValue(order);
+        if (oldManifest.isFile()) {
+            try (FileInputStream in = new FileInputStream(oldManifest); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                byte[] b = new byte[4096]; int n;
+                while ((n = in.read(b)) != -1) out.write(b, 0, n);
+                JSONObject old = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+                long oldId = old.optLong("order_id", -1), oldSort = old.optLong("sort_value", oldId);
+                if (oldId != orderId && newSort <= oldSort) return;
+            } catch (Exception ignored) { }
+        }
+        File temp = new File(getFilesDir(), "pickup_order_cache_tmp");
+        File backup = new File(getFilesDir(), "pickup_order_cache_backup");
+        deleteRecursively(temp);
+        if (!temp.mkdirs()) throw new Exception("לא ניתן ליצור תיקיית שמירה");
+        JSONArray savedRows = new JSONArray();
+        for (int i = 0; i < rows.size(); i++) {
+            ProductRow p = rows.get(i);
+            String imageFile = "";
+            if (!p.imageUrl.isEmpty()) {
+                imageFile = "image_" + i + ".img";
+                if (!downloadImageToFile(p.imageUrl, new File(temp, imageFile))) {
+                    deleteRecursively(temp);
+                    throw new Exception("לא כל תמונות ההזמנה ירדו. ההזמנה הקודמת נשמרה וננסה שוב בסנכרון הבא.");
+                }
+            }
+            JSONObject item = new JSONObject();
+            item.put("key", p.key); item.put("name", p.name); item.put("image_url", p.imageUrl);
+            item.put("amount", p.amount); item.put("note", p.note); item.put("image_file", imageFile);
+            savedRows.put(item);
+        }
+        JSONObject snapshot = new JSONObject();
+        snapshot.put("order_id", orderId); snapshot.put("sort_value", newSort);
+        snapshot.put("saved_at", System.currentTimeMillis()); snapshot.put("products", savedRows);
+        try (FileOutputStream out = new FileOutputStream(new File(temp, "order.json"))) {
+            out.write(snapshot.toString().getBytes(StandardCharsets.UTF_8)); out.getFD().sync();
+        }
+        deleteRecursively(backup);
+        boolean hadOld = root.exists();
+        if (hadOld && !root.renameTo(backup)) { deleteRecursively(temp); throw new Exception("לא ניתן להחליף את המטמון בבטחה"); }
+        if (!temp.renameTo(root)) {
+            if (hadOld) backup.renameTo(root);
+            deleteRecursively(temp);
+            throw new Exception("שמירת ההזמנה נכשלה; העותק הקודם נשמר");
+        }
+        deleteRecursively(backup);
+    }
+
+    private boolean downloadImageToFile(String url, File destination) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(12000); connection.setReadTimeout(18000);
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) return false;
+            try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(destination)) {
+                byte[] buffer = new byte[8192]; int n; long total = 0;
+                while ((n = in.read(buffer)) != -1) {
+                    total += n;
+                    if (total > 8L * 1024L * 1024L) return false;
+                    out.write(buffer, 0, n);
+                }
+                out.getFD().sync();
+            }
+            Bitmap bitmap = BitmapFactory.decodeFile(destination.getAbsolutePath());
+            if (bitmap == null) return false;
+            bitmap.recycle();
+            return destination.length() > 0;
+        } catch (Exception e) { return false; }
+        finally { if (connection != null) connection.disconnect(); }
+    }
+
+    private void deleteRecursively(File file) {
+        if (file == null || !file.exists()) return;
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) for (File child : children) deleteRecursively(child);
+        }
+        file.delete();
     }
 
     private void loadCollectedState() {
@@ -569,7 +721,11 @@ public class MainActivity extends Activity {
         image.setBackground(shape(Color.rgb(242, 244, 247), 12, Color.TRANSPARENT));
         image.setClipToOutline(true);
         row.addView(image, new LinearLayout.LayoutParams(dp(70), dp(70)));
-        if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, image);
+        if (!product.imagePath.isEmpty()) {
+            Bitmap local = BitmapFactory.decodeFile(product.imagePath);
+            if (local != null) image.setImageBitmap(local);
+            else image.setImageResource(android.R.drawable.ic_menu_gallery);
+        } else if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, image);
         else image.setImageResource(android.R.drawable.ic_menu_gallery);
         LinearLayout details = verticalRoot();
         LinearLayout.LayoutParams detailsParams = new LinearLayout.LayoutParams(0, -2, 1f);
@@ -625,7 +781,8 @@ public class MainActivity extends Activity {
 
     private boolean sameProduct(ProductRow a, ProductRow b) {
         return a != null && b != null && a.key.equals(b.key) && a.name.equals(b.name)
-                && a.imageUrl.equals(b.imageUrl) && a.amount.equals(b.amount) && a.note.equals(b.note);
+                && a.imageUrl.equals(b.imageUrl) && a.amount.equals(b.amount) && a.note.equals(b.note)
+                && a.imagePath.equals(b.imagePath);
     }
 
     private ProductRow findProduct(String key) {
@@ -739,11 +896,15 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) {
             cookies.removeAllCookies(removed -> {
                 cookies.flush();
-                mainHandler.post(() -> showLoginScreen(""));
+                mainHandler.post(() -> {
+                    if (hasCachedOrder()) showHomeScreen(false);
+                    else showLoginScreen("");
+                });
             });
         } else {
             cookies.removeAllCookie();
-            showLoginScreen("");
+            if (hasCachedOrder()) showHomeScreen(false);
+            else showLoginScreen("");
         }
     }
 
@@ -1132,9 +1293,13 @@ public class MainActivity extends Activity {
     }
 
     private static final class ProductRow {
-        final String key, name, imageUrl, amount, note;
+        final String key, name, imageUrl, amount, note, imagePath;
         ProductRow(String key, String name, String imageUrl, String amount, String note) {
-            this.key = key; this.name = name; this.imageUrl = imageUrl; this.amount = amount; this.note = note;
+            this(key, name, imageUrl, amount, note, "");
+        }
+        ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath) {
+            this.key = key; this.name = name; this.imageUrl = imageUrl; this.amount = amount;
+            this.note = note; this.imagePath = imagePath == null ? "" : imagePath;
         }
     }
 }
