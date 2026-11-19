@@ -85,7 +85,8 @@ final class DataGuard {
             parts.add(row.key.length() + ":" + row.key
                     + row.amount.length() + ":" + row.amount
                     + row.name.length() + ":" + row.name
-                    + row.note.length() + ":" + row.note);
+                    + row.note.length() + ":" + row.note
+                    + row.imageUrl.length() + ":" + row.imageUrl);
         }
         Collections.sort(parts);
         StringBuilder joined = new StringBuilder();
