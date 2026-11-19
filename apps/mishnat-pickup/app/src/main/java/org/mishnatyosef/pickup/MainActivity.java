@@ -511,8 +511,14 @@ public class MainActivity extends Activity {
         layer.setFocusable(false);
         layer.setClickable(false);
         layer.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        // The white message sits underneath the confetti; falling pieces remain visible above it.
-        layer.addView(Ui.celebrationCard(this, "הידד! אספת את כל המוצרים בהצלחה!"));
+        // The message animates independently: a quick zoom-in, then a soft zoom-and-fade.
+        TextView celebrationMessage = Ui.celebrationCard(this, "הידד! אספת את כל המוצרים בהצלחה!");
+        if (android.os.Build.VERSION.SDK_INT >= 12) {
+            celebrationMessage.setScaleX(0.62f);
+            celebrationMessage.setScaleY(0.62f);
+            celebrationMessage.setAlpha(0f);
+        }
+        layer.addView(celebrationMessage);
 
         float animScale = 1f;
         try {
@@ -521,6 +527,19 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
         boolean animated = animScale > 0f;
         if (animated) {
+            celebrationMessage.animate()
+                    .scaleX(1.10f).scaleY(1.10f).alpha(1f)
+                    .setDuration(420L)
+                    .withEndAction(() -> celebrationMessage.animate()
+                            .scaleX(1f).scaleY(1f)
+                            .setDuration(130L)
+                            .withEndAction(() -> celebrationMessage.postDelayed(() ->
+                                    celebrationMessage.animate()
+                                            .scaleX(1.38f).scaleY(1.38f).alpha(0f)
+                                            .setDuration(650L)
+                                            .start(), 350L))
+                            .start())
+                    .start();
             ConfettiView confetti = new ConfettiView(this);
             confetti.setOnDone(this::dismissCelebration);
             // Added last so confetti is the topmost visual layer.
