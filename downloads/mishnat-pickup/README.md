@@ -1,1 +1,1 @@
-APK for mishnat-pickup, versionName 1.8, versionCode 9, built from commit 053b25681970ce9d0ba57402f48c815f2876c714.
+APK for mishnat-pickup, versionName 1.10, versionCode 11, built from commit d96ce68a88ce0d0cdff4c8d5e7940b4b49ea0bfd.
