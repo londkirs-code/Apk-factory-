@@ -128,8 +128,9 @@ final class Ui {
         if(Build.VERSION.SDK_INT>=21) b.setStateListAnimator(null);
         b.setFocusable(true); b.setFocusableInTouchMode(false);
         b.setBackground(interactive(c,fill,border,focusFill,focusBorder,R_BUTTON));
-        b.setMinHeight(dp(c,TAP_MIN)); b.setMinimumHeight(dp(c,TAP_MIN));
-        b.setPadding(dp(c,S6),dp(c,S3),dp(c,S6),dp(c,S3));
+        // Compact control dimensions while preserving the original 20sp label size.
+        b.setMinHeight(dp(c,TAP_MIN/2)); b.setMinimumHeight(dp(c,TAP_MIN/2));
+        b.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
         return b;
     }
 
@@ -199,9 +200,9 @@ final class Ui {
     static TextView celebrationCard(Context c, String msg) {
         TextView t = text(c, msg, T_TITLE, P800, true);
         t.setGravity(Gravity.CENTER);
-        t.setBackgroundColor(Color.TRANSPARENT);
-        t.setShadowLayer(dp(c, 2), 0f, dp(c, 1), 0x66FFFFFF);
-        t.setPadding(dp(c, S4), dp(c, S2), dp(c, S4), dp(c, S2));
+        t.setBackground(shape(c, P25, R_DIALOG, 1, P300));
+        t.setShadowLayer(dp(c, 3), 0f, dp(c, 2), 0x33000000);
+        t.setPadding(dp(c, S5), dp(c, S3), dp(c, S5), dp(c, S3));
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
         lp.setMargins(dp(c, S5), 0, dp(c, S5), 0);
