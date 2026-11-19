@@ -212,7 +212,7 @@ public class MainActivity extends Activity {
         addTop(root, methods, 14);
 
         if (notice != null && !notice.isEmpty()) {
-            TextView warning = text(notice, 13, ORANGE, true);
+            TextView warning = text(notice, 13, INK, true);
             addTop(root, warning, 10);
         }
 
@@ -330,7 +330,7 @@ public class MainActivity extends Activity {
         addTop(fixedHeader, text("מה חדש: תמיכה בטלפון מקשים, סימון פוקוס והתנתקות משופרת", 12, MUTED, false), 3);
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        resetButton = smallButton("איפוס איסוף", ORANGE_PALE, ORANGE);
+        resetButton = smallButton("איפוס איסוף", ORANGE_PALE, INK);
         resetButton.setId(View.generateViewId());
         resetButton.setOnClickListener(v -> confirmResetCollection());
         actions.addView(resetButton);
@@ -341,7 +341,7 @@ public class MainActivity extends Activity {
         LinearLayout progressHead = new LinearLayout(this);
         progressHead.setGravity(Gravity.CENTER_VERTICAL);
         progressHead.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        progressPercent = text("0%", 23, GREEN, true);
+        progressPercent = text("0%", 23, INK, true);
         progressPercent.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(dp(58), -2);
         progressPercent.setMinWidth(dp(58));
@@ -470,10 +470,10 @@ public class MainActivity extends Activity {
                         if (messageText != null) messageText.setText(msg);
                         if (pendingList != null) {
                             pendingList.removeAllViews();
-                            TextView error = text(msg, 14, ORANGE, true);
+                            TextView error = text(msg, 14, INK, true);
                             error.setLineSpacing(dp(3), 1f);
                             pendingList.addView(error);
-                            Button retry = smallButton("לנסות שוב", ORANGE_PALE, ORANGE);
+                            Button retry = smallButton("לנסות שוב", ORANGE_PALE, INK);
                             addTop(pendingList, retry, 10);
                             retry.setOnClickListener(v -> loadLatestOrder());
                         }
@@ -590,7 +590,7 @@ public class MainActivity extends Activity {
 
     private void bindProductCard(ProductCard card, ProductRow product, boolean done) {
         card.product = product;
-        card.row.setBackground(focusBackground(done ? GREEN_PALE : Color.WHITE, 17, done ? Color.rgb(190, 226, 204) : BORDER));
+        card.row.setBackground(focusBackground(done ? GREEN_PALE : Color.WHITE, 17, done ? Color.rgb(211, 198, 231) : BORDER));
         card.row.setContentDescription((done ? "נאסף: " : "ממתין לאיסוף: ") + product.name + ", כמות " + product.amount);
         card.name.setText(product.name);
         if (done) card.name.setPaintFlags(card.name.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
