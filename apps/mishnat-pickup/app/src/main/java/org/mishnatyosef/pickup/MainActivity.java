@@ -662,6 +662,9 @@ public class MainActivity extends Activity {
 
     private android.graphics.drawable.Drawable focusBackground(int fill, int radius, int border) {
         StateListDrawable states = new StateListDrawable();
+        GradientDrawable pressed = shape(fill == Color.WHITE ? ORANGE_PALE : Color.rgb(229, 218, 245), radius, ORANGE);
+        pressed.setStroke(dp(2), ORANGE);
+        states.addState(new int[]{android.R.attr.state_pressed}, pressed);
         GradientDrawable focused = shape(fill == Color.WHITE ? ORANGE_PALE : GREEN_PALE, radius, ORANGE);
         focused.setStroke(dp(3), ORANGE);
         states.addState(new int[]{android.R.attr.state_focused}, focused);
@@ -1063,11 +1066,15 @@ public class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setTextColor(foreground);
-        button.setMinHeight(dp(40));
-        button.setMinimumHeight(dp(40));
-        button.setPadding(dp(14), 0, dp(14), 0);
+        // Keep buttons keyboard-focusable, but do not make touch mode focus a prerequisite
+        // for activation. This ensures the first finger tap performs the click.
+        button.setMinHeight(dp(48));
+        button.setMinimumHeight(dp(48));
+        button.setPadding(dp(16), 0, dp(16), 0);
         button.setFocusable(true);
-        button.setFocusableInTouchMode(true);
+        button.setFocusableInTouchMode(false);
+        button.setClickable(true);
+        button.setSoundEffectsEnabled(true);
         button.setBackground(focusBackground(background, 14, background == Color.WHITE ? BORDER : Color.TRANSPARENT));
         return button;
     }
