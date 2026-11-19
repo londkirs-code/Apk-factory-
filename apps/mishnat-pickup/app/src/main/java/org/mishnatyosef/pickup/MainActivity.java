@@ -253,8 +253,9 @@ public class MainActivity extends Activity {
         if (loginWebView != null) {
             loginWebView.stopLoading();
             loginWebView.removeJavascriptInterface("PickupNative");
-            ViewParent parent = loginWebView.getParent();
-            if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(loginWebView);
+            if (loginWebView.getParent() instanceof ViewGroup) {
+                ((ViewGroup) loginWebView.getParent()).removeView(loginWebView);
+            }
             loginWebView.destroy();
             loginWebView = null;
         }
