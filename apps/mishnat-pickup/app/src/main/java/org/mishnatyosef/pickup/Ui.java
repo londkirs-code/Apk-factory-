@@ -37,7 +37,7 @@ final class Ui {
     static final float T_TITLE=26, T_SECTION=15, T_BODY=18, T_NAME=20, T_AMOUNT=34,
             T_NOTE=15, T_BUTTON=20;
     static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=360,
-            DIALOG_SIDE_MARGIN=40, IMAGE_SAMPLE_MIN=78;
+            DIALOG_SIDE_MARGIN=40, IMAGE_SAMPLE_MIN=78, MAX_NAME_LINES=3, MAX_NOTE_LINES=2;
 
     static int dp(Context c, int v) {
         return Math.round(v*c.getResources().getDisplayMetrics().density);
@@ -128,7 +128,7 @@ final class Ui {
         b.setBackground(interactive(c,fill,border,focusFill,focusBorder,R_BUTTON));
         b.setMinHeight(dp(c,TAP_MIN)); b.setMinimumHeight(dp(c,TAP_MIN));
         b.setPadding(dp(c,S6),dp(c,S3),dp(c,S6),dp(c,S3));
-        b.setLayoutParams(row(c,0,S2)); return b;
+        return b;
     }
 
     static final class CardViews {
