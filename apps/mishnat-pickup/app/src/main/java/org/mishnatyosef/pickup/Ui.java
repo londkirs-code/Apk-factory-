@@ -129,7 +129,8 @@ final class Ui {
         b.setFocusable(true); b.setFocusableInTouchMode(false);
         b.setBackground(interactive(c,fill,border,focusFill,focusBorder,R_BUTTON));
         // Compact control dimensions while preserving the original 20sp label size.
-        b.setMinHeight(dp(c,TAP_MIN/2)); b.setMinimumHeight(dp(c,TAP_MIN/2));
+        b.setMinHeight(dp(c,48)); b.setMinimumHeight(dp(c,48));
+        b.setGravity(Gravity.CENTER);
         b.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
         return b;
     }
