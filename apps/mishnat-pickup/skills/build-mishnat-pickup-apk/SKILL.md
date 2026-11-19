@@ -9,8 +9,8 @@ description: Build and verify the standalone Mishnat Yosef pickup checklist app 
 - APK Factory: `londkirs-code/Apk-factory-`
 - App ID: `mishnat-pickup`
 - Android package: `org.mishnatyosef.pickup`
-- Unpacked app source at build time: `apps/mishnat-pickup/`
-- Source archive in Git: `build-sources/mishnat-pickup.tar.gz`
+- Canonical, persistent app source: `apps/mishnat-pickup/` (edit these tracked files directly)
+- No source archive or extraction/patch step is used for normal builds
 - Build workflow: `.github/workflows/build-mishnat-pickup.yml`
 - Published APK: `downloads/mishnat-pickup/app.apk`
 - Direct APK URL: `https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/app.apk`
@@ -30,12 +30,13 @@ description: Build and verify the standalone Mishnat Yosef pickup checklist app 
 
 ## Build procedure
 1. Read this skill, app README, changelog, Gradle file, manifest, and current Java source before editing.
-2. Edit the unpacked app source, increment/document changes in Hebrew, and re-create the archive at `build-sources/mishnat-pickup.tar.gz`.
-3. Preserve package `org.mishnatyosef.pickup` and the existing APK Factory signing configuration. Never create or replace the keystore or expose signing secrets.
-4. For an explicit build request, post exactly `/build-mishnat-pickup` to issue #1. Verify a fresh run exists and wait until it completes.
-5. Verify Gradle Release build, APK manifest package/version, signature verification and continuity with any previously published APK, Actions artifact upload, publication to `downloads/mishnat-pickup/app.apk`, matching build metadata, and the notification comment.
-6. Do not provide the stable URL as a new build until publication and metadata are confirmed.
-7. State clearly when physical-device installation or live-account authentication has not been tested.
+2. Edit the canonical tracked source directly under `apps/mishnat-pickup/`; do not recreate or use source archives, extraction scripts, or temporary patch copies.
+3. Increment/document changes in Hebrew in `CHANGELOG.md` and update the in-app `מה חדש` content when user-visible behavior changes.
+4. Preserve package `org.mishnatyosef.pickup` and the existing APK Factory signing configuration. Never create or replace the keystore or expose signing secrets.
+5. For an explicit build request, post exactly `/build-mishnat-pickup` to issue #1. Verify a fresh run exists and wait until it completes.
+6. Verify Gradle Release build, APK manifest package/version, signature verification and continuity with any previously published APK, Actions artifact upload, publication to `downloads/mishnat-pickup/app.apk`, matching build metadata, and the notification comment.
+7. Do not provide the stable URL as a new build until publication and metadata are confirmed.
+8. State clearly when physical-device installation or live-account authentication has not been tested.
 
 ## Security and testing
 - Never ask the user to send a password or SMS code in chat.
