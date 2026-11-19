@@ -222,6 +222,15 @@ public class MainActivity extends Activity {
         addTop(methods, methodBody, 5);
         addTop(root, methods, 14);
 
+        // A locally saved checklist remains accessible even while the user is signed out.
+        if (hasCachedOrder()) {
+            Button cachedListButton = smallButton("הצגת הרשימה השמורה", ORANGE_PALE, INK);
+            cachedListButton.setOnClickListener(v -> openCachedListFromLogin());
+            LinearLayout.LayoutParams cachedButtonParams = new LinearLayout.LayoutParams(-1, -2);
+            cachedButtonParams.topMargin = dp(12);
+            root.addView(cachedListButton, cachedButtonParams);
+        }
+
         if (notice != null && !notice.isEmpty()) {
             TextView warning = text(notice, 13, INK, true);
             addTop(root, warning, 10);
@@ -237,6 +246,19 @@ public class MainActivity extends Activity {
         setContentView(root);
         loginWebView.loadUrl(LOGIN_URL);
         loginWebView.post(() -> loginWebView.requestFocus());
+    }
+
+    private void openCachedListFromLogin() {
+        if (!hasCachedOrder()) return;
+        if (loginWebView != null) {
+            loginWebView.stopLoading();
+            loginWebView.removeJavascriptInterface("PickupNative");
+            ViewParent parent = loginWebView.getParent();
+            if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(loginWebView);
+            loginWebView.destroy();
+            loginWebView = null;
+        }
+        showHomeScreen(false);
     }
 
     private boolean handleLoginNavigation(Uri uri) {
