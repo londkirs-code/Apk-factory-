@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -191,6 +192,21 @@ final class Ui {
         int flags=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         if(Build.VERSION.SDK_INT>=26) flags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         w.getDecorView().setSystemUiVisibility(flags);
+    }
+
+    /** כרטיס החגיגה. ממורכז, כמעט ברוחב מלא. */
+    static TextView celebrationCard(Context c, String msg) {
+        TextView t = text(c, msg, T_TITLE, P25, true);
+        t.setGravity(Gravity.CENTER);
+        t.setBackground(shape(c, P700, R_DIALOG, 3, P400));
+        t.setPadding(dp(c, S6), dp(c, S8), dp(c, S6), dp(c, S8));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        lp.setMargins(dp(c, S5), 0, dp(c, S5), 0);
+        t.setLayoutParams(lp);
+        t.setFocusable(false);
+        t.setClickable(false);
+        return t;
     }
 
     static ColorStateList tint(int color) { return ColorStateList.valueOf(color); }

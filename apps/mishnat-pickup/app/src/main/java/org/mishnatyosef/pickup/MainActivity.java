@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -126,6 +127,9 @@ public class MainActivity extends Activity {
     private boolean loading = false;
     private volatile int authGeneration = 0;
     private long lastSyncAttemptAt = 0;
+    private boolean wasComplete;
+    private View celebration;
+    private final Runnable dismissCelebrationTask = this::dismissCelebration;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -145,6 +149,8 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        dismissCelebration();
+        wasComplete = false;
         super.onDestroy();
         network.shutdownNow();
         imageLoader.shutdownNow();
@@ -167,6 +173,8 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showLoginScreen(String notice) {
+        dismissCelebration();
+        wasComplete = false;
         authHandled = false;
         loginWebView = createLoginWebView();
         LinearLayout root = Ui.screen(this);
@@ -406,8 +414,19 @@ public class MainActivity extends Activity {
 
     private void queueOrderDataWipe(int generation) {
         cacheWorker.execute(() -> {
-            if (generation == authGeneration) DataGuard.wipeOrderData(getFilesDir(), preferences);
+            if (generation == authGeneration) wipeOrderData();
         });
+    }
+
+    /** Clears cached order data and any transient celebration overlay. */
+    private void wipeOrderData() {
+        Runnable cleanup = () -> {
+            dismissCelebration();
+            wasComplete = false;
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) cleanup.run();
+        else mainHandler.post(cleanup);
+        DataGuard.wipeOrderData(getFilesDir(), preferences);
     }
 
     private boolean isCacheManifestValid(String owner) {
@@ -444,7 +463,75 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { return false; }
     }
 
+    /** True only when a non-empty order has every product marked as collected. */
+    private boolean isAllCollected() {
+        if (products.isEmpty()) return false;
+        for (ProductRow row : products) {
+            if (!collected.contains(row.key)) return false;
+        }
+        return true;
+    }
+
+    /** Synchronize loaded/reset data without treating it as a user completion. */
+    private void syncCompletionState() {
+        wasComplete = isAllCollected();
+    }
+
+    /** Celebrate only a user-triggered transition from incomplete to complete. */
+    private void checkCelebration() {
+        boolean complete = isAllCollected();
+        boolean justCompleted = complete && !wasComplete;
+        wasComplete = complete;
+        if (justCompleted) showCelebration();
+    }
+
+    private void showCelebration() {
+        dismissCelebration();
+
+        FrameLayout layer = new FrameLayout(this);
+        layer.setFocusable(false);
+        layer.setClickable(false);
+        layer.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        float animScale = 1f;
+        try {
+            animScale = Settings.Global.getFloat(
+                    getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+        } catch (Exception ignored) { }
+        if (animScale > 0f) {
+            ConfettiView confetti = new ConfettiView(this);
+            confetti.setOnDone(() -> { /* The message remains until its own timeout. */ });
+            layer.addView(confetti, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        layer.addView(Ui.celebrationCard(this, "הידד! אספת את כל המוצרים בהצלחה!"));
+
+        addContentView(layer, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        celebration = layer;
+        mainHandler.postDelayed(dismissCelebrationTask, 4000L);
+    }
+
+    /** Removes the overlay and stops its animator without changing the current focus. */
+    private void dismissCelebration() {
+        mainHandler.removeCallbacks(dismissCelebrationTask);
+        View layer = celebration;
+        celebration = null;
+        if (layer == null) return;
+        if (layer instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) layer;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View child = group.getChildAt(i);
+                if (child instanceof ConfettiView) ((ConfettiView) child).stop();
+            }
+        }
+        if (layer.getParent() instanceof ViewGroup) {
+            ((ViewGroup) layer.getParent()).removeView(layer);
+        }
+    }
+
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if (celebration != null && event.getAction() == KeyEvent.ACTION_DOWN) dismissCelebration();
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0
                 && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
                 || event.getKeyCode() == KeyEvent.KEYCODE_ENTER
@@ -598,6 +685,7 @@ public class MainActivity extends Activity {
         if (collected.isEmpty()) return;
         showModernConfirm("איפוס האיסוף", "להחזיר את כל המוצרים לרשימת הממתינים?", "איפוס", () -> {
             collected.clear();
+            syncCompletionState();
             saveCollectedState();
             renderProducts(false);
             pageScroll.post(this::focusFirstPending);
@@ -615,6 +703,8 @@ public class MainActivity extends Activity {
     }
 
     private void clearAllSavedData() {
+        dismissCelebration();
+        wasComplete = false;
         final int generation = ++authGeneration;
         loading = false;
         accessToken = "";
@@ -626,7 +716,7 @@ public class MainActivity extends Activity {
         WebStorage.getInstance().deleteAllData();
         clearLoginCookies(() -> cacheWorker.execute(() -> {
             if (generation != authGeneration) return;
-            DataGuard.wipeOrderData(getFilesDir(), preferences);
+            wipeOrderData();
             clearToken();
             mainHandler.post(() -> {
                 if (generation == authGeneration && !isFinishing())
@@ -784,6 +874,7 @@ public class MainActivity extends Activity {
             products.clear();
             products.addAll(restored);
             loadCollectedState();
+            syncCompletionState();
         } catch (Exception error) {
             cacheTrusted = false;
             cacheWorker.execute(() -> DataGuard.wipeOrderData(getFilesDir(), preferences));
@@ -805,10 +896,11 @@ public class MainActivity extends Activity {
             clearOrderMemory();
             currentOrderId = String.valueOf(orderId);
             products.addAll(rows);
+            syncCompletionState();
             renderProducts(false);
             showSyncMessage("לא ניתן לאמת את זהות החשבון; הרשימה מוצגת אך לא תישמר במטמון.", false);
             cacheWorker.execute(() -> {
-                if (generation == authGeneration) DataGuard.wipeOrderData(getFilesDir(), preferences);
+                if (generation == authGeneration) wipeOrderData();
             });
             return;
         }
@@ -845,6 +937,7 @@ public class MainActivity extends Activity {
             for (ProductRow row : rows)
                 if (retainedTicks.contains(DataGuard.tick(row))) collected.add(row.key);
         }
+        syncCompletionState();
         renderProducts(false);
         wireFocusOrder();
         showSyncMessage("", false);
@@ -866,7 +959,7 @@ public class MainActivity extends Activity {
         final DataGuard.Verdict decision = verdict;
         cacheWorker.execute(() -> {
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
-            if (decision != DataGuard.Verdict.SAME) DataGuard.wipeOrderData(getFilesDir(), preferences);
+            if (decision != DataGuard.Verdict.SAME) wipeOrderData();
             else DataGuard.wipeCacheFiles(getFilesDir());
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
             writeCollectedState(orderKey, ticks);
@@ -1023,11 +1116,12 @@ public class MainActivity extends Activity {
 
     private void loadCollectedState() {
         collected.clear();
-        if (currentOrderId.isEmpty()) return;
+        if (currentOrderId.isEmpty()) { syncCompletionState(); return; }
         Set<String> saved = readCollectedTicks(currentOrderId);
         for (ProductRow row : products)
             if (saved.contains(DataGuard.tick(row))) collected.add(row.key);
         saveCollectedState();
+        syncCompletionState();
     }
 
     private void saveCollectedState() {
@@ -1139,6 +1233,7 @@ public class MainActivity extends Activity {
         updateProgress();
         wireFocusOrder();
         if (neighbor == null) moving.row.requestFocus();
+        checkCelebration();
     }
 
     private boolean sameProduct(ProductRow a, ProductRow b) {
@@ -1229,6 +1324,8 @@ public class MainActivity extends Activity {
     }
 
     private void logout() {
+        dismissCelebration();
+        wasComplete = false;
         final int generation = ++authGeneration;
         loading = false;
         String trustedOwner = activeOwner;
@@ -1252,6 +1349,8 @@ public class MainActivity extends Activity {
     }
 
     private void clearOrderMemory() {
+        dismissCelebration();
+        wasComplete = false;
         products.clear();
         collected.clear();
         productCards.clear();
