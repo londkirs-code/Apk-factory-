@@ -1541,10 +1541,6 @@ public class MainActivity extends Activity {
     // Small native UI helpers
     // ---------------------------------------------------------------------
 
-    private void configureSystemBars() {
-        Ui.systemBars(this);
-    }
-
     private String safeError(Exception exception) {
         if (exception == null) return "אירעה שגיאה לא צפויה.";
         String message = exception.getMessage();
