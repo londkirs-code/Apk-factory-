@@ -35,10 +35,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK 35 packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Ensure Android SDK 35 is installed
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
+          if [[ ! -d "$ANDROID_HOME/platforms/android-35" || ! -x "$ANDROID_HOME/build-tools/35.0.0/apksigner" ]]; then
+            test -x "$SDKMANAGER"
+            yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+            "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          fi
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          echo "Android SDK 35 and Build Tools 35.0.0 are ready."
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -139,12 +148,9 @@ jobs:
           set -euo pipefail
           APK='apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk'
           test -s "$APK"
-          ANALYZER="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
-          if [[ ! -x "$ANALYZER" ]]; then
-            ANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n1)"
-          fi
+          ANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n1)"
           SIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          test -x "$ANALYZER" && test -x "$SIGNER"
+          test -n "$ANALYZER" && test -x "$SIGNER"
           PACKAGE="$("$ANALYZER" manifest application-id "$APK")"
           CODE="$("$ANALYZER" manifest version-code "$APK")"
           NAME="$("$ANALYZER" manifest version-name "$APK")"
@@ -165,7 +171,7 @@ jobs:
             echo "version_name=$NAME"
             echo "certificate=$CERT"
           } >> "$GITHUB_OUTPUT"
-          echo "APK package, version, v2/v3 signature and certificate continuity checks passed."
+          echo "APK package, version, signature and certificate continuity checks passed."
 
       - name: Prepare standalone APK and build metadata
         id: publish
