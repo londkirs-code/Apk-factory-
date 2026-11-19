@@ -14,7 +14,7 @@ import java.util.Random;
 /** Purple-only confetti rendered on Canvas without external libraries. */
 final class ConfettiView extends View {
     private static final int COUNT = 90;
-    private static final long DURATION_MS = 3200L;
+    private static final long DURATION_MS = 2400L;
     private static final int[] PALETTE = {
             Ui.P300, Ui.P400, Ui.P500, Ui.P600, Ui.P700, Ui.P800
     };
