@@ -359,14 +359,12 @@ public class MainActivity extends Activity {
         cacheTrusted = false;
         activeOwner = "";
         if (accessToken.isEmpty()) {
-            // An unsigned-in user may see the offline list only after a server 401
-            // expired the same session. An explicit logout always removes this marker.
-            boolean expiredSession = preferences.getBoolean(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY, false);
-            if (expiredSession) {
-                activeOwner = preferences.getString(DataGuard.K_OWNER, "");
-                cacheTrusted = isCacheManifestValid(activeOwner);
-                if (!cacheTrusted) preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
-            } else if (!preferences.getString(DataGuard.K_OWNER, "").isEmpty() || hasAnyOrderCacheFiles()) {
+            // A saved list remains available while signed out, but only when its
+            // owner, order ID and content fingerprint all validate locally.
+            activeOwner = preferences.getString(DataGuard.K_OWNER, "");
+            cacheTrusted = isCacheManifestValid(activeOwner);
+            if (!cacheTrusted
+                    && (!activeOwner.isEmpty() || hasAnyOrderCacheFiles())) {
                 invalidateSavedOrderPreferences("");
                 queueOrderDataWipe(authGeneration);
             }
@@ -429,7 +427,7 @@ public class MainActivity extends Activity {
             if (expectedPrint.equals(manifestPrint)) return true;
             if (!manifestPrint.isEmpty()) return false;
 
-            // Version 1.19 manifests did not store a fingerprint; verify their rows before migration.
+            // Version-1 manifests used a digest that did not include image URLs.
             JSONArray rows = saved.optJSONArray("products");
             if (rows == null || rows.length() == 0) return false;
             List<ProductRow> restored = new ArrayList<>();
@@ -439,7 +437,10 @@ public class MainActivity extends Activity {
                 restored.add(new ProductRow(first(row, "key"), first(row, "name"),
                         first(row, "image_url"), first(row, "amount"), first(row, "note")));
             }
-            return expectedPrint.equals(DataGuard.fingerprint(restored));
+            int version = saved.optInt("fingerprint_version", 1);
+            String calculated = version >= 2
+                    ? DataGuard.fingerprint(restored) : DataGuard.legacyFingerprint(restored);
+            return expectedPrint.equals(calculated);
         } catch (Exception ignored) { return false; }
     }
 
@@ -481,7 +482,7 @@ public class MainActivity extends Activity {
                 Ui.dp(this, Ui.S5), 0);
         header.addView(buildHomeTitleRow());
         header.addView(Ui.text(this,
-                "מה חדש: עיצוב סגול אחיד, כמות ברורה וסימוני ליקוט שנשמרים לפי פריט וכמות",
+                "מה חדש: הרשימה נשמרת גם אחרי התנתקות, חשבונות מופרדים וסימוני ליקוט נשמרים לפי פריט וכמות",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
@@ -1222,21 +1223,15 @@ public class MainActivity extends Activity {
         final int generation = ++authGeneration;
         loading = false;
         accessToken = "";
-        activeOwner = "";
-        cacheTrusted = false;
-        // Remove the expiry marker immediately so a process restart cannot expose the old list
-        // while the serialized worker finishes deleting files and account data.
+        clearToken();
+        activeOwner = preferences.getString(DataGuard.K_OWNER, "");
+        cacheTrusted = isCacheManifestValid(activeOwner);
         preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).commit();
         clearOrderMemory();
         destroyLoginWebView();
         WebStorage.getInstance().deleteAllData();
-        clearLoginCookies(() -> cacheWorker.execute(() -> {
-            if (generation != authGeneration) return;
-            DataGuard.wipeOrderData(getFilesDir(), preferences);
-            clearToken();
-            mainHandler.post(() -> {
-                if (generation == authGeneration && !isFinishing()) showLoginScreen("");
-            });
+        clearLoginCookies(() -> mainHandler.post(() -> {
+            if (generation == authGeneration && !isFinishing()) showLoginScreen("");
         }));
     }
 
