@@ -127,6 +127,7 @@ public class MainActivity extends Activity {
     private boolean authHandled = false;
     private boolean loading = false;
     private volatile int authGeneration = 0;
+    private long lastSyncAttemptAt = 0;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -142,6 +143,8 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (loginWebView != null) installTokenWatcher();
+        else if (!accessToken.isEmpty() && pendingList != null && !loading
+                && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) loadLatestOrder();
     }
 
     @Override protected void onDestroy() {
@@ -467,6 +470,7 @@ public class MainActivity extends Activity {
     private void loadLatestOrder() {
         if (loading || accessToken.isEmpty()) return;
         loading = true;
+        lastSyncAttemptAt = System.currentTimeMillis();
         if (messageText != null) messageText.setText("מתחבר לשרת וטוען הזמנה אחרונה…");
         if (pendingList != null && products.isEmpty()) {
             pendingList.removeAllViews();
@@ -609,6 +613,12 @@ public class MainActivity extends Activity {
             throw new Exception("שמירת ההזמנה נכשלה; העותק הקודם נשמר");
         }
         deleteRecursively(backup);
+        // Keep collection state only for the currently cached order.
+        SharedPreferences.Editor cleanup = preferences.edit();
+        for (String key : preferences.getAll().keySet()) {
+            if (key.startsWith("collected_") && !key.equals("collected_" + orderId)) cleanup.remove(key);
+        }
+        cleanup.apply();
     }
 
     private boolean downloadImageToFile(String url, File destination) {
