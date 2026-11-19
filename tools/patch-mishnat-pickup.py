@@ -1,189 +1,41 @@
 from pathlib import Path
-
-p = Path("apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java")
-s = p.read_text()
-s = s.replace("import android.app.Activity;", "import android.app.Activity;\nimport android.app.AlertDialog;")
-s = s.replace("    private LinearLayout page;", "    private LinearLayout page;\n    private TextView progressPercent;\n    private Button resetButton;")
-start = s.index("    private void showHomeScreen(boolean loadData) {")
-end = s.index("\n    private void loadLatestOrder() {", start)
-replacement = """    private void showHomeScreen(boolean loadData) {
-        LinearLayout root = verticalRoot();
-        root.setBackgroundColor(BG);
-        LinearLayout sticky = new LinearLayout(this);
-        sticky.setOrientation(LinearLayout.VERTICAL);
-        sticky.setPadding(dp(16), dp(7), dp(16), dp(7));
-        sticky.setBackgroundColor(Color.WHITE);
-        LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        progressText = text("נאספו 0 מתוך 0", 13, INK, true);
-        head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
-        progressPercent = text("0%", 14, GREEN, true);
-        head.addView(progressPercent);
-        sticky.addView(head);
-        progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progressBar.setMax(100);
-        if (Build.VERSION.SDK_INT >= 21) progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GREEN));
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(4));
-        bp.topMargin = dp(5);
-        sticky.addView(progressBar, bp);
-        LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        resetButton = smallButton("איפוס איסוף", Color.WHITE, MUTED);
-        resetButton.setOnClickListener(v -> confirmResetCollection());
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-2, dp(29));
-        rp.topMargin = dp(2);
-        actions.addView(resetButton, rp);
-        sticky.addView(actions);
-        root.addView(sticky, new LinearLayout.LayoutParams(-1, -2));
-
-        pageScroll = new ScrollView(this);
-        pageScroll.setFillViewport(true);
-        pageScroll.setBackgroundColor(BG);
-        page = verticalRoot();
-        page.setPadding(dp(16), dp(16), dp(16), dp(24));
-        pageScroll.addView(page);
-        root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-        page.addView(text("רשימת איסוף", 25, INK, true));
-        addTop(page, text("לוחצים על מוצר כדי להעביר אותו בין הרשימות", 13, MUTED, false), 3);
-        messageText = text("", 13, MUTED, false);
-        messageText.setVisibility(View.GONE);
-        page.addView(messageText);
-        addTop(page, sectionLabel("ממתינים לאיסוף", ""), 18);
-        pendingList = verticalRoot();
-        addTop(page, pendingList, 8);
-        collectedSection = verticalRoot();
-        collectedSection.addView(sectionLabel("נאספו", ""));
-        collectedList = verticalRoot();
-        addTop(collectedSection, collectedList, 8);
-        addTop(page, collectedSection, 20);
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setGravity(Gravity.CENTER);
-        Button logout = smallButton("התנתקות", Color.WHITE, MUTED);
-        logout.setOnClickListener(v -> logout());
-        bottom.addView(logout);
-        addTop(page, bottom, 22);
-        setContentView(root);
-        if (loadData) loadLatestOrder(); else renderProducts(false);
-    }
-
-    private void confirmResetCollection() {
-        if (collected.isEmpty()) return;
-        new AlertDialog.Builder(this)
-                .setTitle("לאפס את האיסוף?")
-                .setMessage("כל המוצרים יחזרו לרשימת הממתינים. ההזמנה באתר לא תשתנה.")
-                .setNegativeButton("ביטול", (d, w) -> d.dismiss())
-                .setPositiveButton("איפוס", (d, w) -> {
-                    collected.clear();
-                    saveCollectedState();
-                    renderProducts(false);
-                }).show();
-    }
-"""
-s = s[:start] + replacement + s[end:]
-old = """        if (progressText != null) progressText.setText("נאספו " + done + " מתוך " + products.size());
-        if (progressBar != null) progressBar.setProgress(products.isEmpty() ? 0 : (int) Math.round(done * 100.0 / products.size()));
-        if (scrollToCollected && pageScroll != null && collectedSection != null) {
-            pageScroll.post(() -> pageScroll.smoothScrollTo(0, collectedSection.getTop()));
-        }"""
-new = """        int percent = products.isEmpty() ? 0 : (int) Math.round(done * 100.0 / products.size());
-        if (progressText != null) progressText.setText("נאספו " + done + " מתוך " + products.size());
-        if (progressPercent != null) progressPercent.setText(percent + "%");
-        if (progressBar != null) progressBar.setProgress(percent);
-        if (resetButton != null) resetButton.setEnabled(done > 0);"""
-assert old in s
-s = s.replace(old, new)
-old = """        TextView check = text(isCollected ? "✓" : "", 21, Color.WHITE, true);
-        check.setGravity(Gravity.CENTER);
-        check.setBackground(shape(isCollected ? GREEN : Color.WHITE, 24, isCollected ? GREEN : Color.rgb(190, 198, 209)));
-        row.addView(check, new LinearLayout.LayoutParams(dp(34), dp(34)));
-
-        row.setOnClickListener(v -> {
-            if (collected.contains(product.key)) {
-                collected.remove(product.key);
-                saveCollectedState();
-                renderProducts(false);
-                if (pageScroll != null) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
-            } else {
-                collected.add(product.key);
-                saveCollectedState();
-                renderProducts(true);
-            }
-        });"""
-new = """        TextView check = text(isCollected ? "✓" : "＋", 22, isCollected ? GREEN : Color.rgb(174, 184, 197), true);
-        check.setGravity(Gravity.CENTER);
-        check.setBackgroundColor(Color.TRANSPARENT);
-        row.addView(check, new LinearLayout.LayoutParams(dp(28), dp(40)));
-
-        row.setOnClickListener(v -> {
-            int oldScrollY = pageScroll == null ? 0 : pageScroll.getScrollY();
-            if (collected.contains(product.key)) collected.remove(product.key);
-            else collected.add(product.key);
-            saveCollectedState();
-            renderProducts(false);
-            if (pageScroll != null) pageScroll.post(() -> pageScroll.scrollTo(0, oldScrollY));
-        });"""
-assert old in s
-s = s.replace(old, new)
-p.write_text(s)
-
-gradle = Path("apps/mishnat-pickup/app/build.gradle")
-g = gradle.read_text().replace("#E97828", "#6D28D9")
-gradle.write_text(g)
-
-# Final checklist UI and supplied launcher-icon integration.
+import base64
+import zlib
+import subprocess
 import shutil
+import re
 
-main_activity = Path("apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java")
-ui = main_activity.read_text()
-
-old_progress = """        progressText = text("נאספו 0 מתוך 0", 13, INK, true);
-        head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
-        progressPercent = text("0%", 14, GREEN, true);
-        head.addView(progressPercent);"""
-new_progress = """        // Keep the Hebrew progress label at the far right and the larger
-        // percentage at the far left, with deliberate breathing room.
-        head.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        progressPercent = text("0%", 22, GREEN, true);
-        progressPercent.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(-2, -2);
-        percentParams.rightMargin = dp(18);
-        head.addView(progressPercent, percentParams);
-        progressText = text("נאספו 0 מתוך 0", 13, INK, true);
-        progressText.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));"""
-if old_progress not in ui:
-    raise SystemExit("Could not find the progress-header block to reposition and enlarge the percentage.")
-ui = ui.replace(old_progress, new_progress, 1)
-
-old_marker = """        TextView check = text(isCollected ? "✓" : "＋", 22, isCollected ? GREEN : Color.rgb(174, 184, 197), true);
-        check.setGravity(Gravity.CENTER);
-        check.setBackgroundColor(Color.TRANSPARENT);
-        row.addView(check, new LinearLayout.LayoutParams(dp(28), dp(40)));
-"""
-if old_marker not in ui:
-    raise SystemExit("Could not find the per-item plus/check marker to remove.")
-ui = ui.replace(old_marker, "", 1)
-if "＋" in ui:
-    raise SystemExit("A plus marker remains in the item-list UI after removal.")
-main_activity.write_text(ui)
+JAVA_DIFF_ZLIB_B64 = """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"""
+patch_text = zlib.decompress(base64.b64decode(JAVA_DIFF_ZLIB_B64)).decode("utf-8")
+subprocess.run(["patch", "-p1", "--forward"], cwd="apps/mishnat-pickup", input=patch_text, text=True, check=True)
 
 icon_source = Path("assets/mishnat-pickup/app-icon.webp")
 if not icon_source.is_file() or icon_source.stat().st_size == 0:
-    raise SystemExit("The supplied purple launcher icon asset is missing from the repository.")
+    raise SystemExit("Missing supplied purple launcher icon: assets/mishnat-pickup/app-icon.webp")
 icon_target = Path("apps/mishnat-pickup/app/src/main/res/drawable-nodpi/ic_app_launcher.webp")
 icon_target.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(icon_source, icon_target)
 
 manifest = Path("apps/mishnat-pickup/app/src/main/AndroidManifest.xml")
-manifest_text = manifest.read_text()
-import re
-manifest_text, icon_count = re.subn(r'android:icon="[^"]+"', 'android:icon="@drawable/ic_app_launcher"', manifest_text, count=1)
-if icon_count == 0:
-    manifest_text = manifest_text.replace("<application", '<application android:icon="@drawable/ic_app_launcher"', 1)
-round_text, round_count = re.subn(r'android:roundIcon="[^"]+"', 'android:roundIcon="@drawable/ic_app_launcher"', manifest_text, count=1)
-if round_count == 0:
-    manifest_text = manifest_text.replace('android:icon="@drawable/ic_app_launcher"', 'android:icon="@drawable/ic_app_launcher" android:roundIcon="@drawable/ic_app_launcher"', 1)
-if 'android:icon="@drawable/ic_app_launcher"' not in manifest_text:
-    raise SystemExit("Could not set the launcher icon to the uploaded purple app icon.")
-manifest.write_text(manifest_text)
+m = manifest.read_text(encoding="utf-8")
+if "android.hardware.touchscreen" not in m:
+    m = m.replace('    <uses-permission android:name="android.permission.INTERNET" />',
+                  '    <uses-permission android:name="android.permission.INTERNET" />\n'
+                  '    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />')
+m = m.replace("keyboard|keyboardHidden|orientation|screenSize",
+              "keyboard|keyboardHidden|navigation|orientation|screenSize")
+m = m.replace('android:icon="@drawable/ic_pickup"', 'android:icon="@drawable/ic_app_launcher"')
+if 'android:roundIcon=' in m:
+    m = re.sub(r'android:roundIcon="[^"]+"', 'android:roundIcon="@drawable/ic_app_launcher"', m, count=1)
+else:
+    m = m.replace('android:icon="@drawable/ic_app_launcher"',
+                  'android:icon="@drawable/ic_app_launcher" android:roundIcon="@drawable/ic_app_launcher"', 1)
+manifest.write_text(m, encoding="utf-8")
+
+changelog = Path("apps/mishnat-pickup/CHANGELOG.md")
+c = changelog.read_text(encoding="utf-8")
+heading = "## 2026-11-19 — ניווט מקשים, התנתקות ועיצוב איסוף"
+if heading not in c:
+    c += '\n\n## 2026-11-19 — ניווט מקשים, התנתקות ועיצוב איסוף\n- תמיכה בניווט מלא באמצעות D-pad, OK ו-Enter, עם סימון פוקוס ברור.\n- העברת כרטיס מוצר בין הרשימות בלי לבנות מחדש את כל הכרטיסים ובלי לאבד מיקום.\n- שמירת הפוקוס לאחר רענון נתונים; רינדור מחדש רק כאשר נתוני המוצרים השתנו.\n- העברת כפתור ההתנתקות לראש המסך והוספת אישור התנתקות.\n- ניקוי טוקן מוצפן, מפתח Keystore, Cookies ונתוני Web Storage בעת התנתקות כדי למנוע התחברות אוטומטית.\n- חלונות איפוס והתנתקות בעיצוב מותאם, עם כפתורים מעוגלים וניווט מקשים.\n- הסרת פרטי ההזמנה, שעת האיסוף וכפתור הרענון ממסך הרשימה.\n- החלפת אייקון האפליקציה לאייקון הסגול שסופק, ללא שימוש באייקון הישן.\n- תמיכה במכשירים ללא מסך מגע.\n'
+changelog.write_text(c, encoding="utf-8")
+print("Applied Mishnat Pickup keyboard, focus, logout, dialogs, layout and launcher-icon updates.")
