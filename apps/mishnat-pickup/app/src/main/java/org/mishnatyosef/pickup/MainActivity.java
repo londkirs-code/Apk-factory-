@@ -365,6 +365,7 @@ public class MainActivity extends Activity {
         if (!tokenOwner.isEmpty()) {
             activeOwner = tokenOwner;
             if (savedOwner.isEmpty() || !savedOwner.equals(tokenOwner)) {
+                invalidateSavedOrderPreferences(tokenOwner);
                 queueOrderDataWipe(authGeneration);
                 return;
             }
@@ -375,7 +376,12 @@ public class MainActivity extends Activity {
                 && savedToken.equals(tokenFingerprint)) {
             activeOwner = savedOwner;
             cacheTrusted = isCacheManifestValid(savedOwner);
+            return;
         }
+        // An opaque token that cannot be matched to the cached account is never allowed
+        // to inherit that account's local checklist.
+        invalidateSavedOrderPreferences("");
+        queueOrderDataWipe(authGeneration);
     }
 
     private void queueOrderDataWipe(int generation) {
