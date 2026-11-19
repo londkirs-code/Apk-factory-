@@ -2,8 +2,10 @@ package org.mishnatyosef.pickup;
 
 import android.content.SharedPreferences;
 import android.util.Base64;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -12,27 +14,29 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-/** Centralized ownership and validity checks for the offline pickup snapshot. */
+/** כל ההחלטות על בעלות ותקפות המידע המקומי במקום אחד. */
 final class DataGuard {
     private DataGuard() {}
+
     enum Verdict { SAME, CONTENT_CHANGED, NEW_ORDER, NEW_ACCOUNT }
 
     static final String K_OWNER = "meta_owner";
     static final String K_ORDER = "meta_order_id";
     static final String K_PRINT = "meta_fingerprint";
+    static final String K_TOKEN_FINGERPRINT = "meta_token_fingerprint";
     static final String COLLECTED_PREFIX = "collected_";
     static final String[] CACHE_DIRS = {
             "pickup_order_cache", "pickup_order_cache_tmp", "pickup_order_cache_backup"
     };
 
-    /** Stable account identity from JWT subject/user claims; never use token IDs or expiry claims. */
+    /** זהות יציבה מה-JWT בלבד. מזהה הטוקן עצמו אינו זהות חשבון. */
     static String ownerFromToken(String token) {
         try {
             String[] parts = token == null ? new String[0] : token.split("\\.");
             if (parts.length < 2) return "";
             byte[] raw = Base64.decode(parts[1], Base64.URL_SAFE | Base64.NO_WRAP);
             JSONObject payload = new JSONObject(new String(raw, StandardCharsets.UTF_8));
-            for (String key : new String[]{"sub", "user_id", "userId", "uid", "email"}) {
+            for (String key : new String[]{"sub", "user_id", "userId", "uid", "id", "email"}) {
                 String value = payload.optString(key, "").trim();
                 if (!value.isEmpty() && !"null".equalsIgnoreCase(value))
                     return sha256(value.toLowerCase(Locale.ROOT));
@@ -41,7 +45,7 @@ final class DataGuard {
         return "";
     }
 
-    /** Fallback for opaque access tokens when the orders response includes account identity. */
+    /** מזהה לקוח יציב מתוך תשובת /api/orders כאשר הטוקן אינו JWT קריא. */
     static String ownerFromOrders(JSONArray orders) {
         if (orders == null) return "";
         for (int i = 0; i < orders.length(); i++) {
@@ -69,11 +73,19 @@ final class DataGuard {
         return "";
     }
 
+    /** Fallback לאימות אותו טוקן כשהשרת אינו חושף מזהה חשבון. נשמר רק hash. */
+    static String tokenFingerprint(String token) {
+        return token == null || token.isEmpty() ? "" : sha256(token);
+    }
+
+    /** טביעת תוכן שאינה תלויה בסדר הפריטים. */
     static String fingerprint(List<MainActivity.ProductRow> rows) {
         List<String> parts = new ArrayList<>();
         for (MainActivity.ProductRow row : rows) {
-            parts.add(row.key.length() + ":" + row.key + row.amount.length() + ":" + row.amount
-                    + row.name.length() + ":" + row.name + row.note.length() + ":" + row.note);
+            parts.add(row.key.length() + ":" + row.key
+                    + row.amount.length() + ":" + row.amount
+                    + row.name.length() + ":" + row.name
+                    + row.note.length() + ":" + row.note);
         }
         Collections.sort(parts);
         StringBuilder joined = new StringBuilder();
@@ -81,17 +93,19 @@ final class DataGuard {
         return sha256(joined.toString());
     }
 
-    /** A collected mark remains valid only while product key AND requested amount match. */
-    static String tick(MainActivity.ProductRow row) { return row.key + "|" + row.amount; }
+    /** סימון תקף רק לצירוף מזהה מוצר וכמות. */
+    static String tick(MainActivity.ProductRow row) {
+        return row.key + "|" + row.amount;
+    }
 
-    static Verdict judge(SharedPreferences prefs, String owner, long orderId, String fingerprint) {
+    static Verdict judge(SharedPreferences prefs, String owner, long orderId, String print) {
         String oldOwner = prefs.getString(K_OWNER, "");
         String oldOrder = prefs.getString(K_ORDER, "");
-        String oldFingerprint = prefs.getString(K_PRINT, "");
+        String oldPrint = prefs.getString(K_PRINT, "");
         if (owner == null || owner.isEmpty() || oldOwner.isEmpty() || !owner.equals(oldOwner))
             return Verdict.NEW_ACCOUNT;
         if (!String.valueOf(orderId).equals(oldOrder)) return Verdict.NEW_ORDER;
-        if (!fingerprint.equals(oldFingerprint)) return Verdict.CONTENT_CHANGED;
+        if (!print.equals(oldPrint)) return Verdict.CONTENT_CHANGED;
         return Verdict.SAME;
     }
 
@@ -99,21 +113,25 @@ final class DataGuard {
         prefs.edit().putString(K_OWNER, owner == null ? "" : owner).commit();
     }
 
-    static void saveMeta(SharedPreferences prefs, String owner, long orderId, String fingerprint) {
-        prefs.edit().putString(K_OWNER, owner).putString(K_ORDER, String.valueOf(orderId))
-                .putString(K_PRINT, fingerprint).commit();
+    static void saveMeta(SharedPreferences prefs, String owner, long orderId,
+                         String print, String tokenFingerprint) {
+        prefs.edit().putString(K_OWNER, owner)
+                .putString(K_ORDER, String.valueOf(orderId))
+                .putString(K_PRINT, print)
+                .putString(K_TOKEN_FINGERPRINT, tokenFingerprint == null ? "" : tokenFingerprint)
+                .commit();
     }
 
     static void clearOrderMeta(SharedPreferences prefs) {
         prefs.edit().remove(K_ORDER).remove(K_PRINT).commit();
     }
 
-    /** Disk-only invalidation. All calls must run through the single-thread cache worker. */
+    /** כל קריאה לפונקציות המחיקה מתבצעת מתוך cacheWorker. */
     static void wipeCacheFiles(File filesDir) {
         for (String name : CACHE_DIRS) deleteRecursively(new File(filesDir, name));
     }
 
-    /** Clears every saved order value, but never the login token. */
+    /** מוחק רשימה, תמונות, סימונים ומטא; אינו נוגע בטוקן ההתחברות. */
     static void wipeOrderData(File filesDir, SharedPreferences prefs) {
         wipeCacheFiles(filesDir);
         SharedPreferences.Editor edit = prefs.edit();
