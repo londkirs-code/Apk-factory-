@@ -136,6 +136,7 @@ public class MainActivity extends Activity {
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         configureSystemBars();
         accessToken = readEncryptedToken();
+        initializeCacheOwnership();
         if (accessToken.isEmpty()) {
             if (hasCachedOrder()) showHomeScreen(false);
             else showLoginScreen("");
@@ -302,20 +303,105 @@ public class MainActivity extends Activity {
     private void acceptLoginToken(String token) {
         if (authHandled || isFinishing()) return;
         authHandled = true;
-        authGeneration++;
+        final int generation = ++authGeneration;
+        final String newOwner = DataGuard.ownerFromToken(token);
+        final String oldOwner = preferences.getString(DataGuard.K_OWNER, "");
+        final boolean sameAccount = !newOwner.isEmpty() && newOwner.equals(oldOwner);
         try {
             saveEncryptedToken(token);
             accessToken = token;
-            if (loginWebView != null) {
-                loginWebView.stopLoading();
-                loginWebView.removeJavascriptInterface("PickupNative");
-                loginWebView.destroy();
-                loginWebView = null;
+            destroyLoginWebView();
+            if (sameAccount) {
+                showHomeScreen(true);
+                return;
             }
-            showHomeScreen(true);
+            invalidateSavedOrderPreferences(newOwner);
+            cacheWorker.execute(() -> {
+                if (generation != authGeneration) return;
+                DataGuard.wipeCacheFiles(getFilesDir());
+                if (generation != authGeneration) return;
+                mainHandler.post(() -> {
+                    if (generation == authGeneration && !isFinishing()) showHomeScreen(true);
+                });
+            });
         } catch (Exception e) {
             authHandled = false;
             showLoginScreen("לא ניתן לשמור את ההתחברות בצורה מאובטחת. נסו שוב.");
+        }
+    }
+
+    private void destroyLoginWebView() {
+        if (loginWebView == null) return;
+        loginWebView.stopLoading();
+        loginWebView.removeJavascriptInterface("PickupNative");
+        loginWebView.destroy();
+        loginWebView = null;
+    }
+
+    /** Removes old-account state immediately; the serialized cache worker removes its files. */
+    private void invalidateSavedOrderPreferences(String owner) {
+        SharedPreferences.Editor edit = preferences.edit();
+        for (String key : preferences.getAll().keySet()) {
+            if (key.startsWith(DataGuard.COLLECTED_PREFIX)) edit.remove(key);
+        }
+        edit.remove(DataGuard.K_ORDER).remove(DataGuard.K_PRINT)
+                .putString(DataGuard.K_OWNER, owner == null ? "" : owner).commit();
+        collected.clear();
+        imageCache.evictAll();
+        orderData = null;
+        currentOrderId = "";
+        products.clear();
+        productCards.clear();
+    }
+
+    /** Safely adopts a legacy cache only while its original encrypted login is still present. */
+    private void initializeCacheOwnership() {
+        String tokenOwner = DataGuard.ownerFromToken(accessToken);
+        String savedOwner = preferences.getString(DataGuard.K_OWNER, "");
+        if (!accessToken.isEmpty() && !tokenOwner.isEmpty()) {
+            if (savedOwner.isEmpty() && adoptLegacyCache(tokenOwner)) return;
+            if (!savedOwner.isEmpty() && !savedOwner.equals(tokenOwner)) {
+                invalidateSavedOrderPreferences(tokenOwner);
+                cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
+            } else if (savedOwner.isEmpty()) {
+                DataGuard.saveOwner(preferences, tokenOwner);
+            }
+            return;
+        }
+        if (savedOwner.isEmpty() || !accessToken.isEmpty()) {
+            invalidateSavedOrderPreferences("");
+            cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
+        }
+    }
+
+    private boolean adoptLegacyCache(String owner) {
+        File manifest = new File(new File(getFilesDir(), "pickup_order_cache"), "order.json");
+        if (!manifest.isFile()) {
+            DataGuard.saveOwner(preferences, owner);
+            return false;
+        }
+        try (FileInputStream in = new FileInputStream(manifest);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            JSONArray array = saved.optJSONArray("products");
+            long id = saved.optLong("order_id", -1);
+            if (id <= 0 || array == null || array.length() == 0) throw new Exception("invalid legacy cache");
+            List<ProductRow> rows = new ArrayList<>();
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject row = array.optJSONObject(i);
+                if (row == null) throw new Exception("invalid legacy item");
+                rows.add(new ProductRow(first(row, "key"), first(row, "name"),
+                        first(row, "image_url"), first(row, "amount"), first(row, "note")));
+            }
+            DataGuard.saveMeta(preferences, owner, id, DataGuard.fingerprint(rows));
+            return true;
+        } catch (Exception e) {
+            invalidateSavedOrderPreferences(owner);
+            cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
+            return false;
         }
     }
 
@@ -436,22 +522,27 @@ public class MainActivity extends Activity {
     }
 
     private void clearAllSavedData() {
-        deleteRecursively(new File(getFilesDir(), "pickup_order_cache"));
-        deleteRecursively(new File(getFilesDir(), "pickup_order_cache_tmp"));
-        deleteRecursively(new File(getFilesDir(), "pickup_order_cache_backup"));
-        SharedPreferences.Editor editor = preferences.edit();
-        for (String key : preferences.getAll().keySet()) if (key.startsWith("collected_")) editor.remove(key);
-        editor.apply();
+        final int generation = ++authGeneration;
+        loading = false;
         clearToken();
         accessToken = "";
-        WebStorage.getInstance().deleteAllData();
-        CookieManager cookies = CookieManager.getInstance();
-        if (Build.VERSION.SDK_INT >= 21) cookies.removeAllCookies(removed -> cookies.flush());
-        else cookies.removeAllCookie();
-        products.clear(); collected.clear(); productCards.clear();
-        orderData = null; currentOrderId = "";
-        renderProducts(false);
-        showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
+        imageCache.evictAll();
+        products.clear();
+        collected.clear();
+        productCards.clear();
+        orderData = null;
+        currentOrderId = "";
+        cacheWorker.execute(() -> {
+            DataGuard.wipeOrderData(getFilesDir(), preferences);
+            mainHandler.post(() -> {
+                if (generation != authGeneration || isFinishing()) return;
+                WebStorage.getInstance().deleteAllData();
+                CookieManager cookies = CookieManager.getInstance();
+                if (Build.VERSION.SDK_INT >= 21) cookies.removeAllCookies(removed -> cookies.flush());
+                else cookies.removeAllCookie();
+                showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
+            });
+        });
     }
 
     private void showModernConfirm(String title, String message, String positive, Runnable action) {
@@ -495,6 +586,7 @@ public class MainActivity extends Activity {
     }
     private void loadLatestOrder() {
         if (loading || accessToken.isEmpty()) return;
+        final int generation = authGeneration;
         loading = true;
         lastSyncAttemptAt = System.currentTimeMillis();
         if (messageText != null) messageText.setText("מתחבר לשרת וטוען הזמנה אחרונה…");
@@ -503,8 +595,11 @@ public class MainActivity extends Activity {
             pendingList.addView(text("טוען מוצרים…", 14, MUTED, false));
         }
         network.execute(() -> {
+            if (generation != authGeneration || accessToken.isEmpty()) return;
             try {
                 JSONArray orders = apiGetArray("/api/orders");
+                String owner = DataGuard.ownerFromToken(accessToken);
+                if (owner.isEmpty()) owner = DataGuard.ownerFromOrders(orders);
                 JSONObject latest = chooseLatestPickupOrder(orders);
                 if (latest == null) throw new Exception("לא נמצאה הזמנה בחשבון.");
                 long id = extractOrderId(latest);
@@ -513,28 +608,13 @@ public class MainActivity extends Activity {
                 JSONObject order = unwrapOrder(response);
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
-                // Show the products as soon as the API response is parsed.
-                // Image downloads and durable offline-cache replacement run separately.
-                mainHandler.post(() -> {
-                    if (accessToken.isEmpty() || isFinishing()) return;
-                    loading = false;
-                    orderData = order;
-                    currentOrderId = String.valueOf(id);
-                    products.clear(); products.addAll(parsed);
-                    loadCollectedState();
-                    renderProducts(false);
-                });
-                cacheWorker.execute(() -> {
-                    try {
-                        cacheOrderIfComplete(id, order, parsed);
-                    } catch (Exception cacheError) {
-                        android.util.Log.w("MishnatPickup", "Offline cache update failed; previous snapshot retained", cacheError);
-                    }
-                });
+                // Render immediately; disk/image work stays on the serialized cache worker.
+                final String resolvedOwner = owner;
+                mainHandler.post(() -> onFreshOrder(generation, resolvedOwner, id, order, parsed));
             } catch (Exception e) {
                 String msg = safeError(e);
                 mainHandler.post(() -> {
-                    if (accessToken.isEmpty() || isFinishing()) return;
+                    if (generation != authGeneration || isFinishing()) return;
                     loading = false;
                     if (isAuthError(msg)) {
                         clearToken();
@@ -569,8 +649,13 @@ public class MainActivity extends Activity {
             while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
             JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
             long id = saved.optLong("order_id", -1);
+            String owner = preferences.getString(DataGuard.K_OWNER, "");
+            String cachedOwner = saved.optString("owner", "");
             JSONArray rows = saved.optJSONArray("products");
-            if (id <= 0 || rows == null || rows.length() == 0) throw new Exception("invalid cache");
+            if (id <= 0 || owner.isEmpty()
+                    || !String.valueOf(id).equals(preferences.getString(DataGuard.K_ORDER, ""))
+                    || (!cachedOwner.isEmpty() && !owner.equals(cachedOwner))
+                    || rows == null || rows.length() == 0) throw new Exception("invalid or foreign cache");
             List<ProductRow> restored = new ArrayList<>();
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.optJSONObject(i);
@@ -585,17 +670,85 @@ public class MainActivity extends Activity {
                 restored.add(new ProductRow(first(row,"key"), first(row,"name"), first(row,"image_url"),
                         first(row,"amount"), first(row,"note"), imagePath));
             }
+            if (!DataGuard.fingerprint(restored).equals(preferences.getString(DataGuard.K_PRINT, "")))
+                throw new Exception("cache fingerprint mismatch");
             currentOrderId = String.valueOf(id);
             products.clear(); products.addAll(restored);
             loadCollectedState();
-        } catch (Exception e) { deleteRecursively(root); }
+        } catch (Exception e) {
+            cacheWorker.execute(() -> DataGuard.wipeCacheFiles(getFilesDir()));
+        }
     }
 
     private boolean hasCachedOrder() {
-        return new File(new File(getFilesDir(), "pickup_order_cache"), "order.json").isFile();
+        File manifest = new File(new File(getFilesDir(), "pickup_order_cache"), "order.json");
+        if (!manifest.isFile()) return false;
+        String owner = preferences.getString(DataGuard.K_OWNER, "");
+        String order = preferences.getString(DataGuard.K_ORDER, "");
+        if (owner.isEmpty() || order.isEmpty()) return false;
+        try (FileInputStream in = new FileInputStream(manifest);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            String manifestOwner = saved.optString("owner", "");
+            return order.equals(String.valueOf(saved.optLong("order_id", -1)))
+                    && (manifestOwner.isEmpty() || owner.equals(manifestOwner));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
-    private void cacheOrderIfComplete(long orderId, JSONObject order, List<ProductRow> rows) throws Exception {
+    /** Applies ownership/content rules before replacing the durable snapshot. */
+    private void onFreshOrder(int generation, String owner, long orderId,
+                              JSONObject order, List<ProductRow> rows) {
+        if (generation != authGeneration || accessToken.isEmpty() || isFinishing()) return;
+        loading = false;
+        if (owner == null || owner.isEmpty()) owner = DataGuard.ownerFromToken(accessToken);
+        String fingerprint = DataGuard.fingerprint(rows);
+        DataGuard.Verdict verdict = DataGuard.judge(preferences, owner, orderId, fingerprint);
+
+        if (verdict == DataGuard.Verdict.NEW_ACCOUNT || verdict == DataGuard.Verdict.NEW_ORDER) {
+            invalidateSavedOrderPreferences(owner);
+        } else if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
+            DataGuard.clearOrderMeta(preferences);
+            imageCache.evictAll();
+        }
+        if (owner != null && !owner.isEmpty()) DataGuard.saveOwner(preferences, owner);
+
+        orderData = order;
+        currentOrderId = String.valueOf(orderId);
+        products.clear();
+        products.addAll(rows);
+        loadCollectedState();
+        renderProducts(false);
+
+        if (owner == null || owner.isEmpty()) {
+            if (pendingList != null) addTop(pendingList,
+                    text("לא ניתן לאמת את זהות החשבון ולכן הרשימה לא תישמר במטמון משותף.", 13, MUTED, false), 8);
+            return;
+        }
+        final String safeOwner = owner;
+        final String print = fingerprint;
+        final boolean replaceCache = verdict != DataGuard.Verdict.SAME || !hasCachedOrder();
+        if (!replaceCache) return;
+        cacheWorker.execute(() -> {
+            if (generation != authGeneration) return;
+            try {
+                if (verdict != DataGuard.Verdict.SAME) DataGuard.wipeCacheFiles(getFilesDir());
+                if (generation != authGeneration) return;
+                cacheOrderIfComplete(generation, safeOwner, orderId, order, rows);
+                if (generation == authGeneration) DataGuard.saveMeta(preferences, safeOwner, orderId, print);
+            } catch (Exception cacheError) {
+                android.util.Log.w("MishnatPickup", "Offline cache update failed; invalid snapshot was not retained", cacheError);
+            }
+        });
+    }
+
+    private void cacheOrderIfComplete(int generation, String owner, long orderId,
+                                      JSONObject order, List<ProductRow> rows) throws Exception {
+        if (generation != authGeneration) return;
         File root = new File(getFilesDir(), "pickup_order_cache");
         File oldManifest = new File(root, "order.json");
         long newSort = orderSortValue(order);
@@ -614,6 +767,10 @@ public class MainActivity extends Activity {
         if (!temp.mkdirs()) throw new Exception("לא ניתן ליצור תיקיית שמירה");
         JSONArray savedRows = new JSONArray();
         for (int i = 0; i < rows.size(); i++) {
+            if (generation != authGeneration) {
+                deleteRecursively(temp);
+                return;
+            }
             ProductRow p = rows.get(i);
             String imageFile = "";
             if (!p.imageUrl.isEmpty()) {
@@ -628,11 +785,20 @@ public class MainActivity extends Activity {
             item.put("amount", p.amount); item.put("note", p.note); item.put("image_file", imageFile);
             savedRows.put(item);
         }
+        if (generation != authGeneration) {
+            deleteRecursively(temp);
+            return;
+        }
         JSONObject snapshot = new JSONObject();
-        snapshot.put("order_id", orderId); snapshot.put("sort_value", newSort);
+        snapshot.put("order_id", orderId); snapshot.put("owner", owner);
+        snapshot.put("sort_value", newSort);
         snapshot.put("saved_at", System.currentTimeMillis()); snapshot.put("products", savedRows);
         try (FileOutputStream out = new FileOutputStream(new File(temp, "order.json"))) {
             out.write(snapshot.toString().getBytes(StandardCharsets.UTF_8)); out.getFD().sync();
+        }
+        if (generation != authGeneration) {
+            deleteRecursively(temp);
+            return;
         }
         deleteRecursively(backup);
         boolean hadOld = root.exists();
@@ -643,12 +809,6 @@ public class MainActivity extends Activity {
             throw new Exception("שמירת ההזמנה נכשלה; העותק הקודם נשמר");
         }
         deleteRecursively(backup);
-        // Keep collection state only for the currently cached order.
-        SharedPreferences.Editor cleanup = preferences.edit();
-        for (String key : preferences.getAll().keySet()) {
-            if (key.startsWith("collected_") && !key.equals("collected_" + orderId)) cleanup.remove(key);
-        }
-        cleanup.apply();
     }
 
     private boolean downloadImageToFile(String url, File destination) {
@@ -687,19 +847,27 @@ public class MainActivity extends Activity {
 
     private void loadCollectedState() {
         collected.clear();
+        if (currentOrderId.isEmpty()) return;
+        Set<String> saved = new HashSet<>();
         try {
-            JSONArray saved = new JSONArray(preferences.getString("collected_" + currentOrderId, "[]"));
-            for (int i = 0; i < saved.length(); i++) {
-                String key = saved.optString(i, "");
-                if (!key.isEmpty()) collected.add(key);
-            }
+            JSONArray array = new JSONArray(preferences.getString(
+                    DataGuard.COLLECTED_PREFIX + currentOrderId, "[]"));
+            for (int i = 0; i < array.length(); i++) saved.add(array.optString(i, ""));
         } catch (Exception ignored) { }
+        for (ProductRow product : products) {
+            if (saved.contains(DataGuard.tick(product))) collected.add(product.key);
+        }
+        saveCollectedState();
     }
 
     private void saveCollectedState() {
+        if (currentOrderId.isEmpty()) return;
         JSONArray saved = new JSONArray();
-        for (ProductRow product : products) if (collected.contains(product.key)) saved.put(product.key);
-        preferences.edit().putString("collected_" + currentOrderId, saved.toString()).apply();
+        for (ProductRow product : products) {
+            if (collected.contains(product.key)) saved.put(DataGuard.tick(product));
+        }
+        preferences.edit().putString(
+                DataGuard.COLLECTED_PREFIX + currentOrderId, saved.toString()).apply();
     }
 
     private void renderProducts(boolean ignoredScrollFlag) {
@@ -885,6 +1053,7 @@ public class MainActivity extends Activity {
         if (cached != null) { target.setImageBitmap(cached); return; }
         target.setImageResource(android.R.drawable.ic_menu_gallery);
         target.setTag(imageUrl);
+        final int imageGeneration = authGeneration;
         imageLoader.execute(() -> {
             HttpURLConnection connection = null;
             try {
@@ -912,9 +1081,14 @@ public class MainActivity extends Activity {
                     options.inSampleSize = sample;
                     Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, options);
                     if (bitmap != null) {
+                        if (imageGeneration != authGeneration) {
+                            bitmap.recycle();
+                            return;
+                        }
                         imageCache.put(imageUrl, bitmap);
                         mainHandler.post(() -> {
-                            if (imageUrl.equals(target.getTag())) target.setImageBitmap(bitmap);
+                            if (imageGeneration == authGeneration && imageUrl.equals(target.getTag()))
+                                target.setImageBitmap(bitmap);
                         });
                     }
                 }
@@ -928,6 +1102,7 @@ public class MainActivity extends Activity {
         loading = false;
         clearToken();
         accessToken = "";
+        imageCache.evictAll();
         orderData = null;
         currentOrderId = "";
         products.clear();
