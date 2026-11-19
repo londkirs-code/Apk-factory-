@@ -564,18 +564,11 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeHeader() {
+        // Only the title row and collection progress remain fixed while the list scrolls.
         LinearLayout header = Ui.column(this);
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
                 Ui.dp(this, Ui.S5), 0);
         header.addView(buildHomeTitleRow());
-        header.addView(Ui.text(this,
-                "מה חדש: הרשימה נשמרת גם אחרי התנתקות, חשבונות מופרדים וסימוני ליקוט נשמרים לפי פריט וכמות",
-                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        messageText = Ui.banner(this, "");
-        messageText.setVisibility(View.GONE);
-        header.addView(messageText);
-        header.addView(buildRetryButton());
-        header.addView(buildHomeActions());
         header.addView(buildProgressCard());
         return header;
     }
@@ -654,8 +647,20 @@ public class MainActivity extends Activity {
         scroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         scroll.setBackgroundColor(Ui.BG);
         page = Ui.column(this);
-        page.setPadding(Ui.dp(this, Ui.S5), 0, Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
+        page.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2),
+                Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
         page.setFocusable(false);
+
+        // Secondary controls and notices belong to the scrolling content, not the sticky header.
+        page.addView(Ui.text(this,
+                "מה חדש: הרשימה נשמרת גם אחרי התנתקות, חשבונות מופרדים וסימוני ליקוט נשמרים לפי פריט וכמות",
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        messageText = Ui.banner(this, "");
+        messageText.setVisibility(View.GONE);
+        page.addView(messageText);
+        page.addView(buildRetryButton());
+        page.addView(buildHomeActions());
+
         pendingList = Ui.column(this);
         collectedList = Ui.column(this);
         page.addView(Ui.section(this, "ממתינים לליקוט"));
