@@ -130,3 +130,55 @@ p.write_text(s)
 gradle = Path("apps/mishnat-pickup/app/build.gradle")
 g = gradle.read_text().replace("#E97828", "#6D28D9")
 gradle.write_text(g)
+
+# Final checklist UI and supplied launcher-icon integration.
+import shutil
+
+main_activity = Path("apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java")
+ui = main_activity.read_text()
+
+old_progress = """        progressText = text("נאספו 0 מתוך 0", 13, INK, true);
+        head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
+        progressPercent = text("0%", 14, GREEN, true);
+        head.addView(progressPercent);"""
+new_progress = """        // Keep the Hebrew progress label at the far right and the larger
+        // percentage at the far left, with deliberate breathing room.
+        head.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        progressPercent = text("0%", 22, GREEN, true);
+        progressPercent.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(-2, -2);
+        percentParams.rightMargin = dp(18);
+        head.addView(progressPercent, percentParams);
+        progressText = text("נאספו 0 מתוך 0", 13, INK, true);
+        progressText.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));"""
+if old_progress not in ui:
+    raise SystemExit("Could not find the progress-header block to reposition and enlarge the percentage.")
+ui = ui.replace(old_progress, new_progress, 1)
+
+old_marker = """        TextView check = text(isCollected ? "✓" : "＋", 22, isCollected ? GREEN : Color.rgb(174, 184, 197), true);
+        check.setGravity(Gravity.CENTER);
+        check.setBackgroundColor(Color.TRANSPARENT);
+        row.addView(check, new LinearLayout.LayoutParams(dp(28), dp(40)));
+"""
+if old_marker not in ui:
+    raise SystemExit("Could not find the per-item plus/check marker to remove.")
+ui = ui.replace(old_marker, "", 1)
+if "＋" in ui:
+    raise SystemExit("A plus marker remains in the item-list UI after removal.")
+main_activity.write_text(ui)
+
+icon_source = Path("assets/mishnat-pickup/app-icon.webp")
+if not icon_source.is_file() or icon_source.stat().st_size == 0:
+    raise SystemExit("The supplied purple launcher icon asset is missing from the repository.")
+icon_target = Path("apps/mishnat-pickup/app/src/main/res/drawable-nodpi/ic_app_launcher.webp")
+icon_target.parent.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(icon_source, icon_target)
+
+manifest = Path("apps/mishnat-pickup/app/src/main/AndroidManifest.xml")
+manifest_text = manifest.read_text()
+manifest_text = manifest_text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/ic_app_launcher"')
+manifest_text = manifest_text.replace('android:roundIcon="@mipmap/ic_launcher"', 'android:roundIcon="@drawable/ic_app_launcher"')
+if 'android:icon="@drawable/ic_app_launcher"' not in manifest_text or 'android:roundIcon="@drawable/ic_app_launcher"' not in manifest_text:
+    raise SystemExit("Could not set the launcher and round icons to the uploaded purple app icon.")
+manifest.write_text(manifest_text)
