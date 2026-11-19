@@ -70,6 +70,14 @@ jobs:
           sed -i -E 's/^[[:space:]]*targetSdk[[:space:]]+[0-9]+/        targetSdk 35/' apps/mishnat-pickup/app/build.gradle
           grep -q 'targetSdk 35' apps/mishnat-pickup/app/build.gradle
           echo "Verified compressed source archive, restored all app files, and set targetSdk 35."
+      - name: Apply pickup UI improvements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/patch-mishnat-pickup.py
+          git diff --check
+          grep -q 'confirmResetCollection' apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java
+          echo "Pickup UI improvements applied."
 
       - name: Validate existing APK Factory signing key
         env:
