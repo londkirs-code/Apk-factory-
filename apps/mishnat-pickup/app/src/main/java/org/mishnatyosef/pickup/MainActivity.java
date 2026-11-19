@@ -586,11 +586,12 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeHeader() {
-        // Keep only the title row fixed. Actions and progress belong to the scroll area.
+        // Keep the title and the collected/progress bar fixed; all controls stay scrollable.
         LinearLayout header = Ui.column(this);
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
-                Ui.dp(this, Ui.S5), 0);
+                Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2));
         header.addView(buildHomeTitleRow());
+        header.addView(buildProgressCard(), Ui.row(this, Ui.S2, 0));
         return header;
     }
 
@@ -620,14 +621,16 @@ public class MainActivity extends Activity {
     private LinearLayout buildHomeActions() {
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPadding(0, 0, 0, Ui.dp(this, Ui.S3));
         resetButton = Ui.button(this, "איפוס ליקוט", Ui.Kind.SOFT);
         resetButton.setOnClickListener(v -> confirmResetCollection());
         Button clear = Ui.button(this, "מחיקת כל הנתונים", Ui.Kind.STRONG);
         clear.setOnClickListener(v -> confirmClearSavedData());
-        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);
-        first.setMargins(0, Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S1), 0);
-        LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, -2, 1f);
-        second.setMargins(Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2), 0, 0);
+        // Explicit height and bottom breathing room prevent the compact buttons being clipped.
+        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1f);
+        first.setMargins(0, Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2));
+        LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1f);
+        second.setMargins(Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2));
         actions.addView(resetButton, first);
         actions.addView(clear, second);
         return actions;
@@ -681,8 +684,6 @@ public class MainActivity extends Activity {
         page.addView(messageText);
         page.addView(buildRetryButton());
         page.addView(buildHomeActions());
-        // Place the collected counter below the action buttons so its white card cannot crowd them.
-        page.addView(buildProgressCard(), Ui.row(this, Ui.S3, Ui.S2));
 
         pendingList = Ui.column(this);
         collectedList = Ui.column(this);
