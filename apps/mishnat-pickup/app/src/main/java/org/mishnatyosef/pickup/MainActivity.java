@@ -738,7 +738,8 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(12), dp(10), dp(12), dp(10));
         row.setFocusable(true);
-        row.setFocusableInTouchMode(true);
+        // Keep keyboard navigation, but let the first touch activate the product row.
+        row.setFocusableInTouchMode(false);
         row.setClickable(true);
         row.setTag(product.key);
         LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
