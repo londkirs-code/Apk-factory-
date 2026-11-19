@@ -196,7 +196,7 @@ final class Ui {
         w.getDecorView().setSystemUiVisibility(flags);
     }
 
-    /** הודעת הצלחה שקופה המוצגת מעל הקונפטי. */
+    /** בועת הצלחה שמופיעה מתחת לשכבת הקונפטי. */
     static TextView celebrationCard(Context c, String msg) {
         TextView t = text(c, msg, T_TITLE, P800, true);
         t.setGravity(Gravity.CENTER);
