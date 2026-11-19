@@ -85,14 +85,15 @@ public class MainActivity extends Activity {
     private static final String PREFS = "mishnat_pickup_preferences";
     private static final String TOKEN_KEY = "encrypted_access_token";
     private static final String KEY_ALIAS = "mishnat_pickup_auth_key_v1";
-    private static final int BG = Color.rgb(247, 248, 250);
-    private static final int INK = Color.rgb(30, 41, 59);
-    private static final int MUTED = Color.rgb(103, 116, 135);
-    private static final int ORANGE = Color.rgb(231, 120, 40);
-    private static final int ORANGE_PALE = Color.rgb(255, 242, 231);
-    private static final int GREEN = Color.rgb(35, 132, 91);
-    private static final int GREEN_PALE = Color.rgb(232, 247, 239);
-    private static final int BORDER = Color.rgb(226, 231, 238);
+    // Unified lavender/purple palette with near-black text throughout the app.
+    private static final int BG = Color.rgb(249, 247, 252);
+    private static final int INK = Color.rgb(25, 22, 31);
+    private static final int MUTED = Color.rgb(68, 63, 76);
+    private static final int ORANGE = Color.rgb(105, 72, 157);
+    private static final int ORANGE_PALE = Color.rgb(241, 235, 250);
+    private static final int GREEN = Color.rgb(105, 72, 157);
+    private static final int GREEN_PALE = Color.rgb(241, 235, 250);
+    private static final int BORDER = Color.rgb(229, 222, 239);
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
@@ -302,13 +303,18 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showHomeScreen(boolean loadData) {
+        // Keep the progress summary outside the scrolling list so it remains visible.
+        LinearLayout screenRoot = verticalRoot();
+        screenRoot.setBackgroundColor(BG);
+        LinearLayout fixedHeader = verticalRoot();
+        fixedHeader.setPadding(dp(18), dp(14), dp(18), 0);
         pageScroll = new ScrollView(this);
         pageScroll.setFillViewport(true);
         pageScroll.setFocusable(false);
         pageScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         pageScroll.setBackgroundColor(BG);
         page = verticalRoot();
-        page.setPadding(dp(18), dp(14), dp(18), dp(24));
+        page.setPadding(dp(18), 0, dp(18), dp(24));
         page.setFocusable(false);
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
@@ -320,28 +326,30 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
         titleParams.rightMargin = dp(12);
         top.addView(title, titleParams);
-        page.addView(top);
-        addTop(page, text("מה חדש: תמיכה בטלפון מקשים, סימון פוקוס והתנתקות משופרת", 12, MUTED, false), 3);
+        fixedHeader.addView(top);
+        addTop(fixedHeader, text("מה חדש: תמיכה בטלפון מקשים, סימון פוקוס והתנתקות משופרת", 12, MUTED, false), 3);
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         resetButton = smallButton("איפוס איסוף", ORANGE_PALE, ORANGE);
         resetButton.setId(View.generateViewId());
         resetButton.setOnClickListener(v -> confirmResetCollection());
         actions.addView(resetButton);
-        addTop(page, actions, 8);
+        addTop(fixedHeader, actions, 8);
         LinearLayout progressCard = card();
         progressCard.setPadding(dp(15), dp(12), dp(15), dp(12));
-        addTop(page, progressCard, 10);
+        addTop(fixedHeader, progressCard, 10);
         LinearLayout progressHead = new LinearLayout(this);
         progressHead.setGravity(Gravity.CENTER_VERTICAL);
         progressHead.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         progressPercent = text("0%", 23, GREEN, true);
         progressPercent.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(-2, -2);
-        percentParams.rightMargin = dp(16);
+        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(dp(58), -2);
+        progressPercent.setMinWidth(dp(58));
+        percentParams.rightMargin = dp(12);
         progressHead.addView(progressPercent, percentParams);
         progressText = text("נאספו 0 מתוך 0", 14, INK, true);
         progressText.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        progressText.setMaxLines(2);
         progressHead.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
         progressCard.addView(progressHead);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -361,7 +369,9 @@ public class MainActivity extends Activity {
         // Attach the screen content; otherwise the authenticated home screen is blank.
         pageScroll.addView(page, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        setContentView(pageScroll);
+        screenRoot.addView(fixedHeader, new LinearLayout.LayoutParams(-1, -2));
+        screenRoot.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        setContentView(screenRoot);
         if (loadData) loadLatestOrder();
         else renderProducts(false);
     }
@@ -385,18 +395,18 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = verticalRoot();
         panel.setPadding(dp(22), dp(20), dp(22), dp(18));
-        panel.setBackground(shape(Color.WHITE, 22, BORDER));
+        panel.setBackground(shape(ORANGE_PALE, 22, BORDER));
         TextView heading = text(title, 19, INK, true);
         heading.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         panel.addView(heading);
-        TextView body = text(message, 14, MUTED, false);
+        TextView body = text(message, 14, INK, false);
         body.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         body.setLineSpacing(dp(3), 1f);
         addTop(panel, body, 9);
         LinearLayout buttons = new LinearLayout(this);
         buttons.setGravity(Gravity.CENTER_VERTICAL);
         Button cancel = smallButton("ביטול", Color.WHITE, MUTED);
-        Button approve = smallButton(positive, ORANGE, Color.WHITE);
+        Button approve = smallButton(positive, ORANGE, INK);
         LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
         cancelParams.leftMargin = dp(6);
         buttons.addView(cancel, cancelParams);
