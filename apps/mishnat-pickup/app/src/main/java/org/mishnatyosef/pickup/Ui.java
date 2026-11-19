@@ -33,6 +33,7 @@ final class Ui {
             P700=0xFF533881, P800=0xFF3E2A63, P900=0xFF2A1D45;
     static final int INK=0xFF19161F, MUTED=0xFF443F4C;
     static final int BG=P50, SURFACE=P25, LINE=P200, FOCUS=P700, ON_DARK=P25;
+    static final int SCRIM=0xEB2A1D45;
 
     static final int S1=4, S2=8, S3=12, S4=16, S5=20, S6=24, S8=32;
     static final int R_CARD=20, R_BUTTON=16, R_IMAGE=16, R_DIALOG=24;

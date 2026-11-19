@@ -13,6 +13,7 @@ import android.graphics.Paint;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -130,10 +131,12 @@ public class MainActivity extends Activity {
     private long lastSyncAttemptAt = 0;
     private boolean wasComplete;
     private View celebration;
+    private ImageViewerOverlay imageViewer;
     private final Runnable dismissCelebrationTask = this::dismissCelebration;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        imageViewer = new ImageViewerOverlay(this, imageLoader);
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         configureSystemBars();
         accessToken = readEncryptedToken();
@@ -149,7 +152,13 @@ public class MainActivity extends Activity {
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) loadLatestOrder();
     }
 
+    @Override protected void onPause() {
+        if (imageViewer != null) imageViewer.reset();
+        super.onPause();
+    }
+
     @Override protected void onDestroy() {
+        if (imageViewer != null) imageViewer.reset();
         dismissCelebration();
         wasComplete = false;
         super.onDestroy();
@@ -174,6 +183,7 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showLoginScreen(String notice) {
+        if (imageViewer != null) imageViewer.reset();
         dismissCelebration();
         wasComplete = false;
         authHandled = false;
@@ -440,6 +450,7 @@ public class MainActivity extends Activity {
     /** Clears cached order data and any transient celebration overlay. */
     private void wipeOrderData() {
         Runnable cleanup = () -> {
+            if (imageViewer != null) imageViewer.reset();
             dismissCelebration();
             wasComplete = false;
         };
@@ -956,6 +967,7 @@ public class MainActivity extends Activity {
         String fingerprint = DataGuard.fingerprint(rows);
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
         Set<String> retainedTicks = new HashSet<>();
+        if (verdict != DataGuard.Verdict.SAME && imageViewer != null) imageViewer.reset();
         if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
             retainedTicks.addAll(readCollectedTicks(String.valueOf(orderId)));
             // A just-tapped item may still be queued on cacheWorker; include the live in-memory
@@ -1248,8 +1260,49 @@ public class MainActivity extends Activity {
         } else {
             views.image.setImageResource(android.R.drawable.ic_menu_gallery);
         }
+        views.image.setOnClickListener(v -> openProductImage(card));
+        views.image.setFocusable(false);
+        views.image.setFocusableInTouchMode(false);
         views.root.setOnClickListener(v -> toggleProduct(product.key));
         return card;
+    }
+
+    private void openProductImage(ProductCard card) {
+        if (card == null || card.product == null || imageViewer == null) return;
+        ProductRow product = card.product;
+        Bitmap preview = null;
+        android.graphics.drawable.Drawable drawable = card.views.image.getDrawable();
+        if (drawable instanceof BitmapDrawable) preview = ((BitmapDrawable) drawable).getBitmap();
+        File localFile = cachedImageFile(product);
+        imageViewer.show(product.name, product.amount, preview, localFile);
+    }
+
+    /** Resolves only an already-published local image; opening the viewer never starts a download. */
+    private File cachedImageFile(ProductRow product) {
+        if (product == null) return null;
+        if (product.imagePath != null && !product.imagePath.isEmpty()) {
+            File direct = new File(product.imagePath);
+            if (direct.isFile() && direct.length() > 0) return direct;
+        }
+        File root = new File(getFilesDir(), "pickup_order_cache");
+        File manifest = new File(root, "order.json");
+        try (FileInputStream in = new FileInputStream(manifest);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096]; int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            JSONArray rows = saved.optJSONArray("products");
+            if (rows == null) return null;
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null || !product.key.equals(first(row, "key"))) continue;
+                String imageFile = first(row, "image_file");
+                if (imageFile.isEmpty()) return null;
+                File image = new File(root, imageFile);
+                return image.isFile() && image.length() > 0 ? image : null;
+            }
+        } catch (Exception ignored) { }
+        return null;
     }
 
     private void bindProductCard(ProductCard card, ProductRow product, boolean done) {
@@ -1372,6 +1425,7 @@ public class MainActivity extends Activity {
     }
 
     private void logout() {
+        if (imageViewer != null) imageViewer.reset();
         dismissCelebration();
         wasComplete = false;
         final int generation = ++authGeneration;
