@@ -358,6 +358,9 @@ public class MainActivity extends Activity {
         collectedList = verticalRoot();
         addTop(collectedSection, collectedList, 7);
         addTop(page, collectedSection, 18);
+        // Attach the screen content; otherwise the authenticated home screen is blank.
+        pageScroll.addView(page, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         setContentView(pageScroll);
         if (loadData) loadLatestOrder();
         else renderProducts(false);
