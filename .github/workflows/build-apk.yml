@@ -12,6 +12,7 @@ on:
     branches: [main, master]
     paths:
       - "apps/**"
+      - "!apps/mishnat-pickup/**"
       - "templates/**"
       - "scripts/**"
       - "gradle/**"
@@ -32,7 +33,9 @@ concurrency:
 
 jobs:
   build:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      !(github.event_name == 'push' && contains(github.event.head_commit.message, 'Mishnat Pickup'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           ALL_APPS=()
-          mapfile -t ALL_APPS < <(find apps -mindepth 1 -maxdepth 1 -type d -print | sort | while read -r d; do [[ -f "$d/app/build.gradle" ]] && basename "$d"; done)
+          mapfile -t ALL_APPS < <(find apps -mindepth 1 -maxdepth 1 -type d -print | sort | while read -r d; do app="$(basename "$d")"; [[ -f "$d/app/build.gradle" && "$app" != "mishnat-pickup" ]] && printf '%s\n' "$app"; done)
           if [[ "${#ALL_APPS[@]}" -eq 0 ]]; then
             echo "::error::No Android apps found under apps/"
             exit 1
@@ -66,6 +69,7 @@ jobs:
           APPS=()
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_APP" != "all" ]]; then
             [[ "$REQUESTED_APP" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "::error::Invalid app id"; exit 1; }
+            [[ "$REQUESTED_APP" != "mishnat-pickup" ]] || { echo "::error::Mishnat Pickup uses its dedicated signed build workflow."; exit 1; }
             [[ -f "apps/$REQUESTED_APP/app/build.gradle" ]] || { echo "::error::App not found: $REQUESTED_APP"; exit 1; }
             APPS=("$REQUESTED_APP")
           elif [[ "$EVENT_NAME" == "push" ]]; then
@@ -96,7 +100,10 @@ jobs:
             if [[ "$SHARED_CHANGE" == true || "${#TOUCHED_APPS[@]}" -eq 0 ]]; then
               APPS=("${ALL_APPS[@]}")
             else
-              while IFS= read -r app; do APPS+=("$app"); done < <(printf '%s\n' "${!TOUCHED_APPS[@]}" | sort)
+              while IFS= read -r app; do
+                [[ "$app" == "mishnat-pickup" ]] && continue
+                APPS+=("$app")
+              done < <(printf '%s\n' "${!TOUCHED_APPS[@]}" | sort)
             fi
           else
             APPS=("${ALL_APPS[@]}")
