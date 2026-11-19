@@ -1222,10 +1222,17 @@ public class MainActivity extends Activity {
     private void logout() {
         final int generation = ++authGeneration;
         loading = false;
+        String trustedOwner = activeOwner;
+        boolean preserveOfflineList = cacheTrusted && trustedOwner != null
+                && !trustedOwner.isEmpty() && isCacheManifestValid(trustedOwner);
+        if (!preserveOfflineList) {
+            invalidateSavedOrderPreferences("");
+            queueOrderDataWipe(generation);
+        }
         accessToken = "";
         clearToken();
-        activeOwner = preferences.getString(DataGuard.K_OWNER, "");
-        cacheTrusted = isCacheManifestValid(activeOwner);
+        activeOwner = preserveOfflineList ? trustedOwner : "";
+        cacheTrusted = preserveOfflineList;
         preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).commit();
         clearOrderMemory();
         destroyLoginWebView();
