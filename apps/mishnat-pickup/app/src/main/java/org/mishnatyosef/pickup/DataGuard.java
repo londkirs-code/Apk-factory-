@@ -94,6 +94,21 @@ final class DataGuard {
         return sha256(joined.toString());
     }
 
+    /** Version-1 digest retained only to validate already-saved offline snapshots. */
+    static String legacyFingerprint(List<MainActivity.ProductRow> rows) {
+        List<String> parts = new ArrayList<>();
+        for (MainActivity.ProductRow row : rows) {
+            parts.add(row.key.length() + ":" + row.key
+                    + row.amount.length() + ":" + row.amount
+                    + row.name.length() + ":" + row.name
+                    + row.note.length() + ":" + row.note);
+        }
+        Collections.sort(parts);
+        StringBuilder joined = new StringBuilder();
+        for (String part : parts) joined.append(part).append('\n');
+        return sha256(joined.toString());
+    }
+
     /** סימון תקף רק לצירוף מזהה מוצר וכמות. */
     static String tick(MainActivity.ProductRow row) {
         return row.key + "|" + row.amount;
