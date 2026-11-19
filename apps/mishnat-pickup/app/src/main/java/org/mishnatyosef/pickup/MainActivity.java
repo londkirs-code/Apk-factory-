@@ -101,6 +101,8 @@ public class MainActivity extends Activity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final ExecutorService imageLoader = Executors.newFixedThreadPool(3);
+    // Offline image downloads must never block displaying the order.
+    private final ExecutorService cacheWorker = Executors.newSingleThreadExecutor();
     private final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(8 * 1024 * 1024) {
         @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
     };
@@ -151,6 +153,7 @@ public class MainActivity extends Activity {
         super.onDestroy();
         network.shutdownNow();
         imageLoader.shutdownNow();
+        cacheWorker.shutdownNow();
         if (loginWebView != null) {
             loginWebView.stopLoading();
             loginWebView.removeJavascriptInterface("PickupNative");
@@ -487,11 +490,8 @@ public class MainActivity extends Activity {
                 JSONObject order = unwrapOrder(response);
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
-                try {
-                    cacheOrderIfComplete(id, order, parsed);
-                } catch (Exception cacheError) {
-                    // A failed/incomplete cache must not prevent the online order from being used.
-                }
+                // Show the products as soon as the API response is parsed.
+                // Image downloads and durable offline-cache replacement run separately.
                 mainHandler.post(() -> {
                     if (accessToken.isEmpty() || isFinishing()) return;
                     loading = false;
@@ -499,7 +499,14 @@ public class MainActivity extends Activity {
                     currentOrderId = String.valueOf(id);
                     products.clear(); products.addAll(parsed);
                     loadCollectedState();
-                            renderProducts(false);
+                    renderProducts(false);
+                });
+                cacheWorker.execute(() -> {
+                    try {
+                        cacheOrderIfComplete(id, order, parsed);
+                    } catch (Exception cacheError) {
+                        android.util.Log.w("MishnatPickup", "Offline cache update failed; previous snapshot retained", cacheError);
+                    }
                 });
             } catch (Exception e) {
                 String msg = safeError(e);
