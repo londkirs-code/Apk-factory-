@@ -309,6 +309,7 @@ public class MainActivity extends Activity {
         boolean sameAccount = (!newOwner.isEmpty() && newOwner.equals(oldOwner))
                 || (newOwner.isEmpty() && !oldFingerprint.isEmpty()
                     && oldFingerprint.equals(tokenFingerprint));
+        boolean identityPending = newOwner.isEmpty() && !sameAccount && !oldOwner.isEmpty();
         try {
             saveEncryptedToken(token);
             preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
@@ -316,7 +317,7 @@ public class MainActivity extends Activity {
             activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : "");
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
-            if (!sameAccount) {
+            if (!sameAccount && !identityPending) {
                 invalidateSavedOrderPreferences(newOwner);
                 queueOrderDataWipe(generation);
             }
@@ -393,10 +394,10 @@ public class MainActivity extends Activity {
             cacheTrusted = isCacheManifestValid(savedOwner);
             return;
         }
-        // An opaque token that cannot be matched to the cached account is never allowed
-        // to inherit that account's local checklist.
-        invalidateSavedOrderPreferences("");
-        queueOrderDataWipe(authGeneration);
+        // Opaque/rotated tokens are quarantined until /api/orders returns a stable owner ID.
+        // The cache is not displayed, but can still be retained if the server confirms the same account.
+        activeOwner = "";
+        cacheTrusted = false;
     }
 
     private boolean hasAnyOrderCacheFiles() {
