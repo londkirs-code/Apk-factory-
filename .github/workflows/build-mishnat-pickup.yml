@@ -66,7 +66,10 @@ jobs:
           test -s apps/mishnat-pickup/app/build.gradle
           test -s apps/mishnat-pickup/app/src/main/AndroidManifest.xml
           test -s apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java
-          echo "Verified compressed source archive and restored all app files."
+          # The starter source originally targets API 28; modern Android Lint rejects that.
+          sed -i -E 's/^[[:space:]]*targetSdk[[:space:]]+[0-9]+/        targetSdk 35/' apps/mishnat-pickup/app/build.gradle
+          grep -q 'targetSdk 35' apps/mishnat-pickup/app/build.gradle
+          echo "Verified compressed source archive, restored all app files, and set targetSdk 35."
 
       - name: Validate existing APK Factory signing key
         env:
