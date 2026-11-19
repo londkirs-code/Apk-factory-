@@ -87,6 +87,7 @@ public class MainActivity extends Activity {
     private static final String LOGIN_URL = "https://new.mishnatyosef.org/sign-up";
     private static final String PREFS = "mishnat_pickup_preferences";
     private static final String TOKEN_KEY = "encrypted_access_token";
+    private static final String PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY = "allow_offline_cache_after_auth_expiry";
     private static final String KEY_ALIAS = "mishnat_pickup_auth_key_v1";
     // כל צבעי הממשק מרוכזים ב-Ui.java.
 
@@ -309,6 +310,7 @@ public class MainActivity extends Activity {
                     && oldFingerprint.equals(tokenFingerprint));
         try {
             saveEncryptedToken(token);
+            preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
             accessToken = token;
             activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : "");
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
@@ -340,6 +342,7 @@ public class MainActivity extends Activity {
         }
         edit.remove(DataGuard.K_ORDER).remove(DataGuard.K_PRINT)
                 .remove(DataGuard.K_TOKEN_FINGERPRINT)
+                .remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY)
                 .putString(DataGuard.K_OWNER, owner == null ? "" : owner).commit();
         collected.clear();
         imageCache.evictAll();
@@ -354,10 +357,21 @@ public class MainActivity extends Activity {
         cacheTrusted = false;
         activeOwner = "";
         if (accessToken.isEmpty()) {
-            activeOwner = preferences.getString(DataGuard.K_OWNER, "");
-            cacheTrusted = isCacheManifestValid(activeOwner);
+            // An unsigned-in user may see the offline list only after a server 401
+            // expired the same session. An explicit logout always removes this marker.
+            boolean expiredSession = preferences.getBoolean(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY, false);
+            if (expiredSession) {
+                activeOwner = preferences.getString(DataGuard.K_OWNER, "");
+                cacheTrusted = isCacheManifestValid(activeOwner);
+                if (!cacheTrusted) preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
+            } else if (!preferences.getString(DataGuard.K_OWNER, "").isEmpty() || hasAnyOrderCacheFiles()) {
+                invalidateSavedOrderPreferences("");
+                queueOrderDataWipe(authGeneration);
+            }
             return;
         }
+
+        preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
         String tokenOwner = DataGuard.ownerFromToken(accessToken);
         String savedOwner = preferences.getString(DataGuard.K_OWNER, "");
         String savedToken = preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "");
@@ -382,6 +396,12 @@ public class MainActivity extends Activity {
         // to inherit that account's local checklist.
         invalidateSavedOrderPreferences("");
         queueOrderDataWipe(authGeneration);
+    }
+
+    private boolean hasAnyOrderCacheFiles() {
+        for (String name : DataGuard.CACHE_DIRS)
+            if (new File(getFilesDir(), name).exists()) return true;
+        return false;
     }
 
     private void queueOrderDataWipe(int generation) {
@@ -458,6 +478,9 @@ public class MainActivity extends Activity {
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
                 Ui.dp(this, Ui.S5), 0);
         header.addView(buildHomeTitleRow());
+        header.addView(Ui.text(this,
+                "מה חדש: עיצוב סגול אחיד, כמות ברורה וסימוני ליקוט שנשמרים לפי פריט וכמות",
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
         header.addView(messageText);
@@ -528,7 +551,9 @@ public class MainActivity extends Activity {
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
         Ui.styleProgress(this, progressBar);
-        card.addView(progressBar, Ui.row(this, Ui.S2, 0));
+        LinearLayout.LayoutParams progressParams = (LinearLayout.LayoutParams) progressBar.getLayoutParams();
+        progressParams.topMargin = Ui.dp(this, Ui.S2);
+        card.addView(progressBar, progressParams);
         return card;
     }
 
@@ -590,15 +615,16 @@ public class MainActivity extends Activity {
         final int generation = ++authGeneration;
         loading = false;
         accessToken = "";
-        clearToken();
         activeOwner = "";
         cacheTrusted = false;
+        preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).commit();
         clearOrderMemory();
         destroyLoginWebView();
         WebStorage.getInstance().deleteAllData();
         clearLoginCookies(() -> cacheWorker.execute(() -> {
             if (generation != authGeneration) return;
             DataGuard.wipeOrderData(getFilesDir(), preferences);
+            clearToken();
             mainHandler.post(() -> {
                 if (generation == authGeneration && !isFinishing())
                     showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
@@ -696,7 +722,12 @@ public class MainActivity extends Activity {
             final int generation = ++authGeneration;
             accessToken = "";
             cacheWorker.execute(() -> {
-                if (generation == authGeneration) clearToken();
+                if (generation != authGeneration) return;
+                clearToken();
+                SharedPreferences.Editor state = preferences.edit();
+                if (useCache) state.putBoolean(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY, true);
+                else state.remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY);
+                state.commit();
             });
             if (useCache) {
                 showHomeScreen(false);
@@ -1184,18 +1215,22 @@ public class MainActivity extends Activity {
         final int generation = ++authGeneration;
         loading = false;
         accessToken = "";
-        clearToken();
-        activeOwner = preferences.getString(DataGuard.K_OWNER, "");
-        cacheTrusted = isCacheManifestValid(activeOwner);
+        activeOwner = "";
+        cacheTrusted = false;
+        // Remove the expiry marker immediately so a process restart cannot expose the old list
+        // while the serialized worker finishes deleting files and account data.
+        preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).commit();
         clearOrderMemory();
         destroyLoginWebView();
         WebStorage.getInstance().deleteAllData();
-        clearLoginCookies(() -> {
+        clearLoginCookies(() -> cacheWorker.execute(() -> {
             if (generation != authGeneration) return;
+            DataGuard.wipeOrderData(getFilesDir(), preferences);
+            clearToken();
             mainHandler.post(() -> {
                 if (generation == authGeneration && !isFinishing()) showLoginScreen("");
             });
-        });
+        }));
     }
 
     private void clearOrderMemory() {
