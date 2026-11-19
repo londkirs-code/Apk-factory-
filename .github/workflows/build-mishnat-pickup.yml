@@ -53,31 +53,44 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Restore and verify independent app source
+      - name: Migrate source once and verify permanent app source
         shell: bash
         run: |
           set -euo pipefail
-          ARCHIVE="$RUNNER_TEMP/mishnat-pickup-source.tar.gz"
-          cat build-sources/mishnat-pickup-source-part-*.b64 | base64 --decode > "$ARCHIVE"
-          test -s "$ARCHIVE"
-          gzip -t "$ARCHIVE"
-          mkdir -p apps/mishnat-pickup
-          tar -xzf "$ARCHIVE" --strip-components=1 -C apps/mishnat-pickup
-          test -s apps/mishnat-pickup/app/build.gradle
-          test -s apps/mishnat-pickup/app/src/main/AndroidManifest.xml
-          test -s apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java
-          # The starter source originally targets API 28; modern Android Lint rejects that.
-          sed -i -E 's/^[[:space:]]*targetSdk[[:space:]]+[0-9]+/        targetSdk 35/' apps/mishnat-pickup/app/build.gradle
-          grep -q 'targetSdk 35' apps/mishnat-pickup/app/build.gradle
-          echo "Verified compressed source archive, restored all app files, and set targetSdk 35."
-      - name: Apply pickup UI improvements
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/patch-mishnat-pickup.py
+          APP_DIR="apps/mishnat-pickup"
+          if [[ ! -s "$APP_DIR/app/build.gradle" || ! -s "$APP_DIR/app/src/main/AndroidManifest.xml" || ! -s "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java" || ! -s "$APP_DIR/app/src/main/res/drawable-nodpi/ic_app_launcher.webp" ]]; then
+            echo "Permanent source tree is missing; performing the one-time migration."
+            ARCHIVE="$RUNNER_TEMP/mishnat-pickup-source.tar.gz"
+            cat build-sources/mishnat-pickup-source-part-*.b64 | base64 --decode > "$ARCHIVE"
+            test -s "$ARCHIVE"
+            gzip -t "$ARCHIVE"
+            mkdir -p "$APP_DIR"
+            tar -xzf "$ARCHIVE" --strip-components=1 -C "$APP_DIR"
+            python3 tools/patch-mishnat-pickup.py
+            sed -i -E 's/^[[:space:]]*targetSdk[[:space:]]+[0-9]+/        targetSdk 35/' "$APP_DIR/app/build.gradle"
+            grep -q 'targetSdk 35' "$APP_DIR/app/build.gradle"
+            git diff --check
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "$APP_DIR/"
+            git rm -f build-sources/mishnat-pickup-source-part-*.b64 build-sources/mishnat-pickup.tar.gz.b64 tools/patch-mishnat-pickup.py
+            git commit -m "chore: migrate Mishnat Pickup source to permanent app directory"
+            git push origin HEAD:main
+            git fetch origin main
+            git reset --hard origin/main
+            echo "One-time source migration committed; future builds use the tracked app directory directly."
+          else
+            echo "Permanent app source exists; skipping all archive extraction and patching."
+          fi
+          test -s "$APP_DIR/app/build.gradle"
+          test -s "$APP_DIR/app/src/main/AndroidManifest.xml"
+          test -s "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
+          test -s "$APP_DIR/app/src/main/res/drawable-nodpi/ic_app_launcher.webp"
+          grep -q 'targetSdk 35' "$APP_DIR/app/build.gradle"
+          grep -q 'confirmResetCollection' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
+          grep -q 'confirmLogout' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
           git diff --check
-          grep -q 'confirmResetCollection' apps/mishnat-pickup/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java
-          echo "Pickup UI improvements applied."
+          echo "Permanent source tree and required pickup UI updates verified."
 
       - name: Validate existing APK Factory signing key
         env:
@@ -189,7 +202,6 @@ jobs:
         env:
           RUN_ID: ${{ github.run_id }}
           RUN_NUMBER: ${{ github.run_number }}
-          SOURCE_SHA: ${{ github.sha }}
           VERSION_CODE: ${{ steps.verify.outputs.version_code }}
           VERSION_NAME: ${{ steps.verify.outputs.version_name }}
           CERT: ${{ steps.verify.outputs.certificate }}
@@ -200,6 +212,7 @@ jobs:
           cp apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk downloads/mishnat-pickup/app.apk
           cp downloads/mishnat-pickup/app.apk "downloads/mishnat-pickup/history/mishnat-pickup-v${VERSION_NAME}-code${VERSION_CODE}.apk"
           SHA="$(sha256sum downloads/mishnat-pickup/app.apk | cut -d ' ' -f1)"
+          SOURCE_SHA="$(git rev-parse HEAD)"
           UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           cat > downloads/mishnat-pickup/build-info.txt <<INFO
           app=mishnat-pickup
