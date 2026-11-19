@@ -148,7 +148,8 @@ public class MainActivity extends Activity {
         super.onDestroy();
         network.shutdownNow();
         imageLoader.shutdownNow();
-        cacheWorker.shutdownNow();
+        // Let queued collection/cache commits finish instead of dropping the last user action.
+        cacheWorker.shutdown();
         if (loginWebView != null) {
             loginWebView.stopLoading();
             loginWebView.removeJavascriptInterface("PickupNative");
@@ -771,7 +772,11 @@ public class MainActivity extends Activity {
                 restored.add(new ProductRow(first(row, "key"), first(row, "name"),
                         first(row, "image_url"), first(row, "amount"), first(row, "note"), imagePath));
             }
-            if (!DataGuard.fingerprint(restored).equals(preferences.getString(DataGuard.K_PRINT, "")))
+            // Version 1 caches predate image URLs being included in the content digest.
+            // Keep them readable offline; the next online sync upgrades their fingerprint to v2.
+            int fingerprintVersion = saved.optInt("fingerprint_version", 1);
+            if (fingerprintVersion >= 2
+                    && !DataGuard.fingerprint(restored).equals(preferences.getString(DataGuard.K_PRINT, "")))
                 throw new Exception("cache fingerprint mismatch");
             currentOrderId = String.valueOf(id);
             products.clear();
@@ -935,6 +940,7 @@ public class MainActivity extends Activity {
         snapshot.put("order_id", orderId);
         snapshot.put("owner", owner);
         snapshot.put("fingerprint", fingerprint);
+        snapshot.put("fingerprint_version", 2);
         snapshot.put("sort_value", orderSortValue(order));
         snapshot.put("saved_at", System.currentTimeMillis());
         snapshot.put("products", savedRows);
