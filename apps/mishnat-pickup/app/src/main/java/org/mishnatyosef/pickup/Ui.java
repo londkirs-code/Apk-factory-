@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Paint;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ClipDrawable;
 import android.graphics.drawable.Drawable;
