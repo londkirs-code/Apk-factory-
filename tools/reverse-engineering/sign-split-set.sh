@@ -59,7 +59,7 @@ signed,out,pkg,version=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3],int(sys.a
 files=sorted(signed.glob("*.apk"))
 manifest={"package_name":pkg,"version_code":version,"split_apks":[p.name for p in files]}
 (out/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
-with zipfile.ZipFile(out/"reconstructed-signed-splits.xapk","w",zipfile.ZIP_DEFLATED) as z:
+with zipfile.ZipFile(out/"reconstructed-signed-split-set.zip","w",zipfile.ZIP_DEFLATED) as z:
     z.write(out/"manifest.json","manifest.json")
     for p in files: z.write(p,p.name)
 PY
@@ -73,5 +73,5 @@ mapfile -t APKS < <(find "$DIR" -maxdepth 1 -type f -name '*.apk' | sort)
 adb install-multiple -r "${APKS[@]}"
 SH
 chmod +x "$OUT_DIR/install-with-adb.sh"
-sha256sum "$OUT_DIR"/signed/*.apk "$OUT_DIR/reconstructed-signed-splits.xapk" > "$OUT_DIR/analysis/SHA256SUMS.txt"
+sha256sum "$OUT_DIR"/signed/*.apk "$OUT_DIR/reconstructed-signed-split-set.zip" > "$OUT_DIR/analysis/SHA256SUMS.txt"
 echo "All split APKs signed by one key and verified. Original update compatibility: $compatibility"
