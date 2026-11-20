@@ -7,8 +7,8 @@ APKTOOL_JAR="$HOME/apktool_3.0.3.jar"
 JADX_BIN="$(find "$HOME/jadx" -type f -path "*/bin/jadx" -print -quit)"
 BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
 
-if [[ -z "$INPUT_APK" || -z "$OUT_DIR" ]]; then
-  echo "::error::Usage: reverse-engineer-apk.sh input.apk output-directory"; exit 2
+if [[ -z "$INPUT_DIR" || -z "$OUT_DIR" ]]; then
+  echo "::error::Usage: reverse-engineer-apk.sh normalized-input-directory output-directory"; exit 2
 fi
 mkdir -p "$OUT_DIR"/{analysis,logs,native-libs,outputs}
 INPUT_DIR="$(realpath "$INPUT_DIR")"
