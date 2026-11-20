@@ -38,7 +38,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: rebuild-reverse-engineered-${{ github.event.issue.number || github.run_id }}
+  group: debug-rebuild-reverse-engineered-${{ github.event.issue.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -335,6 +335,7 @@ jobs:
           set -euo pipefail
           if compgen -G "incoming/split-set/aligned/*.apk" >/dev/null; then
             bash tools/reverse-engineering/sign-split-set.sh incoming/split-set/aligned incoming/split-set/output "$EXPECTED_CERT"
+            mv incoming/split-set/output/reconstructed-signed-split-set.zip incoming/split-set/output/debug-signed-split-set.zip
             COMPATIBILITY="$(sed -n 's/^original_signer_match=//p' incoming/split-set/output/analysis/split-signing-result.txt)"
             cp incoming/split-set/output/analysis/split-signing-result.txt incoming/split-set/output/signature-summary.txt
             echo "Split set signed and verified. Original signer match: $COMPATIBILITY"
