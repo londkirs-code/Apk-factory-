@@ -3,7 +3,7 @@
 import os, subprocess, sys, tempfile, zipfile
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[2]
+ROOT=Path(__file__).resolve().parents[3]
 PREP=ROOT/"tools/reverse-engineering/prepare-apk-input.py"
 
 with tempfile.TemporaryDirectory() as td:
