@@ -19,6 +19,7 @@ INPUT_APK="$INPUT_DIR/splits/base.apk"
 
 # Preserve the complete input set and record hashes for every base/split APK.
 cp -a "$INPUT_DIR/splits" "$OUT_DIR/input-apks"
+if [[ -d "$INPUT_DIR/obb" ]]; then cp -a "$INPUT_DIR/obb" "$OUT_DIR/input-obb"; fi
 cp "$INPUT_DIR/split-inventory.tsv" "$OUT_DIR/analysis/split-inventory.tsv"
 cp "$INPUT_DIR/package-name.txt" "$OUT_DIR/analysis/package-name.txt"
 (
@@ -102,7 +103,7 @@ Generated from the APK you supplied.
 ## Contents
 - apktool-project/: editable Smali, decoded AndroidManifest.xml, resources and assets. This is the closest reconstruction and the round-trip build input.
 - jadx-gradle-export/: readable best-effort Java/Gradle reconstruction. Decompiled Java is not the original source and may need repair before it compiles.
-- input-apks/: complete original base APK and every split APK, retained unchanged for later split-aware packaging.
+- input-apks/: complete original base APK and every split APK, retained unchanged for later split-aware packaging.\n- input-obb/: original XAPK expansion files, retained for inclusion in the rebuilt transport package.
 - native-libs/: extracted lib/*.so files from every base/split APK. Native binaries are not converted back into original C/C++ source.
 - analysis/: input hash, package metadata and signing information.
 - logs/: decoder, builder and signer logs.
