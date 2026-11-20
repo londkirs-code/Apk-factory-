@@ -4,9 +4,10 @@ APK Factory includes an Actions-based reverse-engineering pipeline for APKs that
 
 ## What it produces
 
-The workflow **Reverse Engineer Android APK** accepts one complete APK at a direct HTTPS URL and creates a downloadable workspace:
+The workflow **Reverse Engineer Android APK** accepts a direct HTTPS URL to an APK, XAPK, APKS, or ZIP bundle. It validates the archive, identifies one base APK, checks package-name consistency across splits, and preserves the complete APK set. It creates a downloadable workspace:
 
-- **apktool-project/** — Apktool's editable reconstruction: decoded manifest, resources, assets and Smali source. This is the most reliable route for rebuilding the same package layout after small changes.
+- **input-apks/** — unchanged base APK plus every split APK, with a split inventory and SHA-256 hashes.
+- **apktool-project/** — Apktool's editable reconstruction of the base APK: decoded manifest, resources, assets and Smali source. This is the most reliable route for rebuilding the same package layout after small changes.
 - **jadx-gradle-export/** — JADX's best-effort readable Java/Gradle export. This is useful for understanding application logic and searching methods/classes. It is not the original source tree and may need significant repair before it compiles.
 - **native-libs/** — safely extracted .so files, organized by ABI, for separate native analysis (for example with Ghidra).
 - **analysis/** — input SHA-256, manifest/badging, signer information and result summaries.
@@ -18,7 +19,7 @@ JADX's Gradle export is also tested with a best-effort assembleDebug. The result
 ## Start a reverse-engineering run
 
 1. Open **Actions → Reverse Engineer Android APK → Run workflow**.
-2. Enter a direct HTTPS URL to one complete APK. The URL may be a public raw GitHub URL or another HTTPS download URL.
+2. Enter a direct HTTPS URL to an APK, XAPK, APKS, or ZIP containing one complete base APK and its split APKs. The URL may be a public raw GitHub URL or another HTTPS download URL.
 3. Choose a short output slug (letters, numbers, underscore and hyphen).
 4. Confirm both required checkboxes: you own the app or have permission to modify it, and you understand the artifact is public in this repository.
 5. Optionally enable **Run MobSF static security analysis**. This downloads the large MobSF Docker image and adds a JSON security report; it is not dynamic analysis and does not run the app in an emulator.
@@ -63,7 +64,8 @@ Private source checkout is supported with SOURCE_REPO_TOKEN, but it does not mak
 
 ## Scope, limits and troubleshooting
 
-- This pipeline takes one complete .apk. It does not yet accept an .aab, XAPK or a set of split APKs. For split apps, provide the complete base and all splits only after adding a dedicated bundle-handling process.
+- The input stage accepts one APK or a ZIP/XAPK/APKS bundle containing one base APK and up to 127 split APKs. It rejects ambiguous bundles, mismatched package IDs, unsafe paths, encrypted entries and oversized archives.
+- For split sets, the pipeline preserves every APK and gives the full set to JADX, but Apktool currently decodes/rebuilds the base APK only. The existing signed rebuild workflow is still single-APK; it does not yet create a complete re-signed split installation set.
 - JADX decompiles DEX bytecode into an approximation. Original Kotlin/Java source, comments, variable names, build scripts and exact project structure usually cannot be recovered.
 - Apktool preserves a buildable Smali/resource representation, not the original Java/Kotlin source.
 - Obfuscation, missing framework resources, encrypted assets, packers, Play Integrity, server-side logic, dynamic modules and native .so libraries can require manual work.

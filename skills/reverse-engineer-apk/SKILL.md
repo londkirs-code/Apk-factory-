@@ -9,7 +9,7 @@ Use APK Factory's reverse-engineering workflows to turn an APK the user owns or 
 1. **Confirm lawful scope from the request.** Proceed only for an APK the user owns or has explicit permission to analyze and modify. Do not remove DRM, licensing, authentication, anti-cheat, payment or other access controls.
 2. **Read the project instructions and this skill.** Inspect the current main state of the APK Factory workflows before invoking them.
 3. **Run the Reverse Engineer Android APK workflow.**
-   - Supply a direct HTTPS URL to one complete APK.
+   - Supply a direct HTTPS URL to one APK or a ZIP/XAPK/APKS bundle containing one base APK and its split APKs. The workflow validates package IDs, preserves every split and passes the full set to JADX; Apktool edits the base APK only.
    - Use a safe project slug.
    - The workflow owner/comment trigger must provide the authorization and public-artifact confirmations.
    - Download the artifact from the exact successful run; do not use an older artifact.
@@ -27,7 +27,7 @@ Use APK Factory's reverse-engineering workflows to turn an APK the user owns or 
 6. **Preserve project identity and behavior.**
    - Do not change the package/application ID unless the user explicitly asks for a distinct app.
    - Do not remove required permissions, signatures, license checks or authentication.
-   - Keep original APK and analysis evidence unchanged.
+   - Keep original APK and analysis evidence unchanged. For bundles, retain all original files under input-apks/ and use analysis/split-inventory.tsv. Do not present a base-only rebuild as a complete split-set release.
    - Make edits in a working copy or a dedicated branch. Do not commit original private signing keys.
 7. **Commit the edited Apktool project to a GitHub repository the user controls.** The build workflow needs a folder containing apktool.yml and AndroidManifest.xml. For a private source repository, use SOURCE_REPO_TOKEN in APK Factory; never expose the token in chat or code.
 8. **Run Build Reconstructed APK.**

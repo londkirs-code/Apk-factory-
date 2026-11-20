@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       apk_url:
-        description: "Direct HTTPS URL to one complete APK"
+        description: "Direct HTTPS URL to an APK, XAPK, APKS or ZIP containing a complete APK set"
         required: true
         type: string
       project_slug:
@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       apk_url:
-        description: "Direct HTTPS URL to one complete APK"
+        description: "Direct HTTPS URL to an APK, XAPK, APKS or ZIP containing a complete APK set"
         required: true
         type: string
       project_slug:
@@ -80,7 +80,7 @@ jobs:
       - name: Checkout APK Factory
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'main' }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -157,7 +157,13 @@ jobs:
           java -jar "$HOME/apktool_3.0.3.jar" --version
           "$JADX_BIN" --version
 
-      - name: Download and validate APK or ZIP
+      - name: Test APK bundle normalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/reverse-engineering/tests/test-prepare-apk-input.py
+
+      - name: Download and normalize APK, XAPK or APKS bundle
         shell: bash
         env:
           APK_URL: ${{ steps.request.outputs.apk_url }}
@@ -165,61 +171,15 @@ jobs:
           set -euo pipefail
           mkdir -p input
           curl --fail --location --silent --show-error --retry 3 \
-            --proto '=https' --proto-redir '=https' --max-filesize 536870912 \
-            --connect-timeout 20 --max-time 300 "$APK_URL" --output input/source-download
+            --proto '=https' --proto-redir '=https' --max-filesize 1073741824 \
+            --connect-timeout 20 --max-time 600 "$APK_URL" --output input/source-download
           test -s input/source-download
-          python3 - <<'PY'
-          from pathlib import Path
-          import zipfile
-
-          downloaded = Path("input/source-download")
-          target = Path("input/source.apk")
-          max_apk_size = 512 * 1024 * 1024
-
-          if not zipfile.is_zipfile(downloaded):
-              raise SystemExit("Downloaded file is not a valid ZIP/APK archive")
-
-          with zipfile.ZipFile(downloaded) as archive:
-              names = set(archive.namelist())
-              # An APK is itself a ZIP archive. If AndroidManifest.xml is at
-              # the archive root, this is an APK even when its filename ends
-              # in .zip (for example, when only the extension was changed).
-              if "AndroidManifest.xml" in names:
-                  if downloaded.stat().st_size > max_apk_size:
-                      raise SystemExit("APK exceeds the 512 MiB limit")
-                  downloaded.replace(target)
-                  print("Input is an APK archive; no extraction needed.")
-              else:
-                  candidates = [
-                      info for info in archive.infolist()
-                      if not info.is_dir() and info.filename.lower().endswith(".apk")
-                  ]
-                  if len(candidates) != 1:
-                      raise SystemExit(
-                          "ZIP must either be an APK archive itself or contain exactly one .apk file; "
-                          f"found {len(candidates)} embedded APK files"
-                      )
-                  apk_info = candidates[0]
-                  if apk_info.file_size <= 0 or apk_info.file_size > max_apk_size:
-                      raise SystemExit("APK inside ZIP is empty or exceeds the 512 MiB limit")
-                  with archive.open(apk_info) as source, target.open("wb") as output:
-                      total = 0
-                      while chunk := source.read(1024 * 1024):
-                          total += len(chunk)
-                          if total > max_apk_size:
-                              raise SystemExit("Extracted APK exceeds the 512 MiB limit")
-                          output.write(chunk)
-                  print(f"Extracted APK from ZIP: {apk_info.filename}")
-
-          if not target.exists():
-              raise SystemExit("APK input was not produced")
-          with zipfile.ZipFile(target) as apk:
-              if "AndroidManifest.xml" not in apk.namelist():
-                  raise SystemExit("Archive does not contain AndroidManifest.xml at its root; not an APK")
-          print(f"Validated APK size: {target.stat().st_size} bytes")
-          PY
-          stat -c 'Source APK size: %s bytes' input/source.apk
-          sha256sum input/source.apk
+          python3 tools/reverse-engineering/prepare-apk-input.py \
+            input/source-download input/normalized "$ANDROID_HOME/build-tools/36.0.0/aapt"
+          echo "Normalized APK set:"
+          cat input/normalized/split-inventory.tsv
+          du -sh input/normalized/splits
+          sha256sum input/source-download
 
       - name: Run Apktool and JADX reconstruction
         shell: bash
@@ -228,7 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           bash tools/reverse-engineering/reverse-engineer-apk.sh \
-            input/source.apk "reverse-output/$PROJECT_SLUG"
+            input/normalized "reverse-output/$PROJECT_SLUG"
 
       - name: Repair Nine-Patch resources in JADX Gradle export
         shell: bash
@@ -324,7 +284,7 @@ jobs:
             sleep 5
           done
           [[ "$READY" == true ]] || { docker logs apkfactory-mobsf; exit 1; }
-          UPLOAD="$(curl --fail --silent --show-error -F "file=@input/source.apk" \
+          UPLOAD="$(curl --fail --silent --show-error -F "file=@input/normalized/splits/base.apk" \
             -H "Authorization: $MOBSF_API_KEY" http://127.0.0.1:8000/api/v1/upload)"
           HASH="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["hash"])' <<< "$UPLOAD")"
           curl --fail --silent --show-error -X POST --data "hash=$HASH" \
@@ -360,7 +320,7 @@ jobs:
               ok ? '## APK Reverse Engineering — התהליך הסתיים' : '## APK Reverse Engineering — התהליך נכשל',
               '',
               'פרויקט: ' + slug,
-              ok ? 'נוצר Workspace עם פרויקט Apktool, ייצוא JADX, דוחות ולוגים.' : 'לא נוצר תוצר מלא. יש לפתוח את הלוגים ולבדוק את השלב הראשון שנכשל.',
+              ok ? 'נוצר Workspace עם פרויקט Apktool, ייצוא JADX, דוחות ולוגים. חבילות XAPK/APKS כוללות גם את כל קובצי ה-Split המקוריים.' : 'לא נוצר תוצר מלא. יש לפתוח את הלוגים ולבדוק את השלב הראשון שנכשל.',
               '',
               'הקבצים זמינים ב־Artifacts של ריצת Actions:',
               process.env.RUN_URL,
