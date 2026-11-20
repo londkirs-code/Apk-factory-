@@ -59,7 +59,7 @@ For an APK the user owns or is explicitly authorized to modify, use the two dedi
 - User guide: docs/APK_REVERSE_ENGINEERING.md
 - AI procedure: skills/reverse-engineer-apk/SKILL.md
 
-The reverse workflow uses pinned Apktool and JADX, outputs editable Smali/resources plus best-effort Java/Gradle source, extracts native libraries, and stores logs/reports. The separate rebuild workflow increments versionCode, assembles and aligns an edited Apktool project, then signs it with the existing APK Factory key in a dedicated downstream job. Never generate/rotate the signing key or give signing secrets to the APK parsing/decompilation/build job.
+The reverse workflow accepts APK, XAPK, APKS and ZIP inputs, validates the base/split package set, preserves every APK split (plus XAPK OBB/manifest data), sends all APKs to JADX, decodes the base APK with Apktool, extracts native libraries from every split, and stores logs/reports. The current rebuild/sign workflow remains single-APK; it does not yet produce a complete signed split set. The separate rebuild workflow increments versionCode, assembles and aligns an edited Apktool project, then signs it with the existing APK Factory key in a dedicated downstream job. Never generate/rotate the signing key or give signing secrets to the APK parsing/decompilation/build job.
 
 Run only against APKs the user owns or has explicit permission to modify. Do not remove DRM, license checks, authentication or other access controls. The repo is public: Actions artifacts include reconstructed source/resources and a copy of the APK and are publicly downloadable to people who can view the run. Never place confidential/proprietary APKs in this public repository; use a private copy for private work.
 
