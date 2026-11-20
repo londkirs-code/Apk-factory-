@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-INPUT_APK="$1"
+INPUT_DIR="$1"
 OUT_DIR="$2"
 APKTOOL_JAR="$HOME/apktool_3.0.3.jar"
 JADX_BIN="$(find "$HOME/jadx" -type f -path "*/bin/jadx" -print -quit)"
@@ -11,9 +11,10 @@ if [[ -z "$INPUT_APK" || -z "$OUT_DIR" ]]; then
   echo "::error::Usage: reverse-engineer-apk.sh input.apk output-directory"; exit 2
 fi
 mkdir -p "$OUT_DIR"/{analysis,logs,native-libs,outputs}
-INPUT_APK="$(realpath "$INPUT_APK")"
+INPUT_DIR="$(realpath "$INPUT_DIR")"
 OUT_DIR="$(realpath "$OUT_DIR")"
-[[ -s "$INPUT_APK" && -s "$APKTOOL_JAR" && -x "$JADX_BIN" ]] || { echo "::error::Input or pinned decompiler is missing."; exit 1; }
+INPUT_APK="$INPUT_DIR/splits/base.apk"
+[[ -s "$INPUT_APK" && -s "$APKTOOL_JAR" && -x "$JADX_BIN" ]] || { echo "::error::Normalized base APK or pinned decompiler is missing."; exit 1; }
 [[ -x "$BUILD_TOOLS/apksigner" && -x "$BUILD_TOOLS/zipalign" ]] || { echo "::error::Android apksigner/zipalign are missing."; exit 1; }
 
 # Preserve the complete input set and record hashes for every base/split APK.
