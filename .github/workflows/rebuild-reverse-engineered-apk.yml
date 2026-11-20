@@ -152,6 +152,7 @@ jobs:
           SPLIT_COUNT="$(find source-workspace/input-apks -maxdepth 1 -type f -name '*.apk' 2>/dev/null | wc -l | tr -d ' ')"
           if [[ "$SPLIT_COUNT" =~ ^[0-9]+$ ]] && (( SPLIT_COUNT > 1 )); then
             bash tools/reverse-engineering/rebuild-split-set.sh source-workspace/input-apks "$PROJECT_DIR" export/split-set
+            if [[ -d source-workspace/input-obb ]]; then cp -a source-workspace/input-obb export/split-set/obb; fi
             test "$(find export/split-set/aligned -maxdepth 1 -name '*.apk' | wc -l)" -eq "$SPLIT_COUNT"
             sha256sum export/split-set/aligned/*.apk > export/split-set/analysis/unsigned-SHA256SUMS.txt
             echo "APK_SET_TYPE=split" >> "$GITHUB_ENV"
@@ -173,7 +174,7 @@ jobs:
             export/logs/
             export/split-set/aligned/
             export/split-set/analysis/
-            export/split-set/logs/
+            export/split-set/logs/\n            export/split-set/obb/
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
