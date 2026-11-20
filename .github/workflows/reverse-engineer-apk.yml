@@ -80,7 +80,7 @@ jobs:
       - name: Checkout APK Factory
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.ref }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -156,6 +156,12 @@ jobs:
           chmod +x "$JADX_BIN"
           java -jar "$HOME/apktool_3.0.3.jar" --version
           "$JADX_BIN" --version
+
+      - name: Test APK bundle normalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/reverse-engineering/tests/test-prepare-apk-input.py
 
       - name: Download and normalize APK, XAPK or APKS bundle
         shell: bash
