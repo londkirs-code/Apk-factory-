@@ -65,7 +65,7 @@ Private source checkout is supported with SOURCE_REPO_TOKEN, but it does not mak
 ## Scope, limits and troubleshooting
 
 - The input stage accepts one APK or a ZIP/XAPK/APKS bundle containing one base APK and up to 127 split APKs. It rejects ambiguous bundles, mismatched package IDs, unsafe paths, encrypted entries and oversized archives.
-- For split sets, the pipeline preserves every APK and gives the full set to JADX, but Apktool currently decodes/rebuilds the base APK only. The existing signed rebuild workflow is still single-APK; it does not yet create a complete re-signed split installation set.
+- For split sets, the reverse pipeline preserves every APK and gives the full set to JADX. The signed rebuild workflow now attempts to decode, rebuild and align every split, synchronize versionCode, sign all components with one APK Factory certificate, and verify the complete set. If any split cannot be rebuilt or validated, the workflow fails instead of publishing a base-only substitute. See docs/APK_SPLIT_REBUILD.md.
 - JADX decompiles DEX bytecode into an approximation. Original Kotlin/Java source, comments, variable names, build scripts and exact project structure usually cannot be recovered.
 - Apktool preserves a buildable Smali/resource representation, not the original Java/Kotlin source.
 - Obfuscation, missing framework resources, encrypted assets, packers, Play Integrity, server-side logic, dynamic modules and native .so libraries can require manual work.
