@@ -3,13 +3,18 @@ name: Rebuild and Sign Reverse-Engineered APK
 on:
   workflow_dispatch:
     inputs:
+      source_url:
+        description: "Optional direct HTTPS URL to an APK, APKM, XAPK, APKS or ZIP. If supplied, this replaces source_run_id."
+        required: false
+        type: string
       source_run_id:
-        description: "Successful Reverse Engineer Android APK run ID"
-        required: true
+        description: "Successful Reverse Engineer Android APK run ID (required only when source_url is empty)"
+        required: false
         type: string
       project_slug:
-        description: "Slug used by the reverse-engineering workflow"
+        description: "Safe project name used for the downloaded or previously analyzed app"
         required: true
+        default: "reconstructed-app"
         type: string
       original_cert_sha256:
         description: "Original APK signer SHA-256 fingerprint (optional)"
@@ -49,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
-      original_cert_sha256: ${{ steps.request.outputs.original_cert_sha256 }}
+      original_cert_sha256: ${{ steps.source_signer.outputs.original_cert_sha256 || steps.request.outputs.original_cert_sha256 }}
     steps:
       - name: Checkout APK Factory
         uses: actions/checkout@v4
@@ -64,11 +69,13 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          INPUT_SOURCE_URL: ${{ inputs.source_url }}
           INPUT_SOURCE_RUN_ID: ${{ inputs.source_run_id }}
           INPUT_PROJECT_SLUG: ${{ inputs.project_slug }}
           INPUT_ORIGINAL_CERT: ${{ inputs.original_cert_sha256 }}
         run: |
           set -euo pipefail
+          SOURCE_URL="$INPUT_SOURCE_URL"
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             SOURCE_RUN_ID="$INPUT_SOURCE_RUN_ID"
             PROJECT_SLUG="$INPUT_PROJECT_SLUG"
@@ -80,14 +87,28 @@ jobs:
               exit 1
             }
           fi
-          [[ "$SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::Source run ID must be numeric."; exit 1; }
+          if [[ -n "$SOURCE_URL" ]]; then
+            python3 - "$SOURCE_URL" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+          u=urlparse(sys.argv[1])
+          if u.scheme != "https" or not u.hostname or u.username or u.password:
+              raise SystemExit("Source URL must be HTTPS and must not embed credentials")
+          PY
+            SOURCE_MODE="url"
+          else
+            [[ "$SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::Provide source_url or a numeric source_run_id."; exit 1; }
+            SOURCE_MODE="artifact"
+          fi
           [[ "$PROJECT_SLUG" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$ ]] || { echo "::error::Project slug must be 1-40 safe characters."; exit 1; }
           if [[ -n "$ORIGINAL_CERT" && ! "$ORIGINAL_CERT" =~ ^([A-Fa-f0-9]{64}|([A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2})$ ]]; then
             echo "::error::Certificate fingerprint must be 64 hexadecimal characters, optionally colon-separated."
             exit 1
           fi
           {
+            echo "source_mode=$SOURCE_MODE"
             echo "source_run_id=$SOURCE_RUN_ID"
+            echo "source_url=$SOURCE_URL"
             echo "project_slug=$PROJECT_SLUG"
             echo "source_artifact_name=apk-reverse-engineering-$PROJECT_SLUG"
             echo "original_cert_sha256=$ORIGINAL_CERT"
@@ -95,6 +116,7 @@ jobs:
           echo "Rebuild request validated."
 
       - name: Download previous reverse-engineering workspace
+        if: steps.request.outputs.source_mode == 'artifact'
         uses: actions/download-artifact@v4
         with:
           name: ${{ steps.request.outputs.source_artifact_name }}
@@ -103,7 +125,8 @@ jobs:
           run-id: ${{ steps.request.outputs.source_run_id }}
           path: source-workspace
 
-      - name: Verify decoded Apktool project
+      - name: Verify decoded Apktool project from previous run
+        if: steps.request.outputs.source_mode == 'artifact'
         shell: bash
         run: |
           set -euo pipefail
@@ -143,6 +166,60 @@ jobs:
             --output "$HOME/apktool_3.0.3.jar"
           echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/apktool_3.0.3.jar" | sha256sum --check
           java -jar "$HOME/apktool_3.0.3.jar" --version
+
+      - name: Download and normalize direct APK/APKM/XAPK/APKS/ZIP URL
+        if: steps.request.outputs.source_mode == 'url'
+        shell: bash
+        env:
+          SOURCE_URL: ${{ steps.request.outputs.source_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p source-workspace/download source-workspace/normalized
+          curl --fail --location --silent --show-error --retry 3 \
+            --proto '=https' --proto-redir '=https' --max-filesize 1073741824 \
+            --connect-timeout 20 --max-time 600 "$SOURCE_URL" \
+            --output source-workspace/download/source-package
+          test -s source-workspace/download/source-package
+          python3 tools/reverse-engineering/prepare-apk-input.py \
+            source-workspace/download/source-package source-workspace/normalized \
+            "$ANDROID_HOME/build-tools/36.0.0/aapt"
+          mkdir -p source-workspace/input-apks
+          cp -a source-workspace/normalized/splits/. source-workspace/input-apks/
+          if [[ -d source-workspace/normalized/obb ]]; then
+            cp -a source-workspace/normalized/obb source-workspace/input-obb
+          fi
+          cat source-workspace/normalized/split-inventory.tsv
+
+      - name: Verify original split signatures and capture source certificate
+        id: source_signer
+        if: steps.request.outputs.source_mode == 'url'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED=""
+          for apk in source-workspace/input-apks/*.apk; do
+            REPORT="$RUNNER_TEMP/$(basename "$apk").signature.txt"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$REPORT"
+            CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$REPORT" | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            [[ "$CERT" =~ ^[A-F0-9]{64}$ ]] || { echo "::error::Could not read a valid signer fingerprint from $(basename "$apk")."; exit 1; }
+            if [[ -z "$EXPECTED" ]]; then EXPECTED="$CERT"; fi
+            [[ "$CERT" == "$EXPECTED" ]] || { echo "::error::Original split APKs do not share one signing certificate."; exit 1; }
+          done
+          [[ -n "$EXPECTED" ]] || { echo "::error::No signed APKs were found in the downloaded package."; exit 1; }
+          echo "original_cert_sha256=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "All original APK components have valid signatures and share one signer."
+
+      - name: Decode base APK for direct-URL rebuild
+        if: steps.request.outputs.source_mode == 'url'
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -jar "$HOME/apktool_3.0.3.jar" d --force --all-src \
+            -o "$RUNNER_TEMP/rebuild-input/apktool-project" \
+            source-workspace/input-apks/base.apk
+          test -s "$RUNNER_TEMP/rebuild-input/apktool-project/apktool.yml"
+          test -s "$RUNNER_TEMP/rebuild-input/apktool-project/AndroidManifest.xml"
+          echo "PROJECT_DIR=$RUNNER_TEMP/rebuild-input/apktool-project" >> "$GITHUB_ENV"
 
       - name: Rebuild complete APK set and align every component
         shell: bash

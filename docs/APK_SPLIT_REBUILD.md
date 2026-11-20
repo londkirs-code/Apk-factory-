@@ -1,6 +1,15 @@
 # APK Split Rebuild and Signing
 
-The reverse-engineering workspace retains the original APK set under `input-apks/`. For a multi-APK input, **Rebuild and Sign Reverse-Engineered APK** now rebuilds the edited base Apktool project and separately decodes/rebuilds every original split.
+The reverse-engineering workspace retains the original APK set under `input-apks/`. For a multi-APK input, **Rebuild and Sign Reverse-Engineered APK** rebuilds the edited base Apktool project and separately decodes/rebuilds every original split. The workflow can now also start directly from a downloadable package URL, without requiring a previous reverse-engineering run.
+
+## Start from a direct download URL
+
+1. Open **Actions → Rebuild and Sign Reverse-Engineered APK → Run workflow**.
+2. Enter `source_url` with a direct HTTPS download URL to an APK, APKM, XAPK, APKS, or ZIP containing the complete APK set. Leave `source_run_id` empty. Alternatively, leave `source_url` empty and provide the run ID from a previous reverse-engineering job.
+3. Set a safe `project_slug` and provide an original certificate fingerprint only when using a previous workspace. For a direct URL, the workflow verifies every downloaded APK signature and automatically captures the original signer fingerprint.
+4. Confirm ownership/permission and public-artifact disclosure, then start the run.
+
+The URL is downloaded in the GitHub Actions runner (maximum 1 GiB, HTTPS redirects only). The package normalizer safely extracts the APK set and OBB files, checks package-ID consistency, and the workflow checks that all original split APKs are signed by the same certificate before attempting reconstruction. The signed output is still produced with the configured APK Factory key; automatic source-certificate detection does not recover that private key or make a different key update-compatible. This is intended only for apps you own or are explicitly authorized to modify. Do not use this rebuild-and-sign path to create modified copies of third-party proprietary apps without permission.
 
 ## Split-set rebuild guarantees
 
