@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_url:
-        description: "Optional direct HTTPS URL to an APK, XAPK, APKS or ZIP. If supplied, this replaces source_run_id."
+        description: "Optional direct HTTPS URL to an APK, APKM, XAPK, APKS or ZIP. If supplied, this replaces source_run_id."
         required: false
         type: string
       source_run_id:
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
-      original_cert_sha256: ${{ steps.request.outputs.original_cert_sha256 }}
+      original_cert_sha256: ${{ steps.source_signer.outputs.original_cert_sha256 || steps.request.outputs.original_cert_sha256 }}
     steps:
       - name: Checkout APK Factory
         uses: actions/checkout@v4
@@ -167,7 +167,7 @@ jobs:
           echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/apktool_3.0.3.jar" | sha256sum --check
           java -jar "$HOME/apktool_3.0.3.jar" --version
 
-      - name: Download and normalize direct APK/APKM/XAPK/APKS URL
+      - name: Download and normalize direct APK/APKM/XAPK/APKS/ZIP URL
         if: steps.request.outputs.source_mode == 'url'
         shell: bash
         env:
@@ -189,6 +189,25 @@ jobs:
             cp -a source-workspace/normalized/obb source-workspace/input-obb
           fi
           cat source-workspace/normalized/split-inventory.tsv
+
+      - name: Verify original split signatures and capture source certificate
+        id: source_signer
+        if: steps.request.outputs.source_mode == 'url'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED=""
+          for apk in source-workspace/input-apks/*.apk; do
+            REPORT="$RUNNER_TEMP/$(basename "$apk").signature.txt"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$REPORT"
+            CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$REPORT" | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            [[ "$CERT" =~ ^[A-F0-9]{64}$ ]] || { echo "::error::Could not read a valid signer fingerprint from $(basename "$apk")."; exit 1; }
+            if [[ -z "$EXPECTED" ]]; then EXPECTED="$CERT"; fi
+            [[ "$CERT" == "$EXPECTED" ]] || { echo "::error::Original split APKs do not share one signing certificate."; exit 1; }
+          done
+          [[ -n "$EXPECTED" ]] || { echo "::error::No signed APKs were found in the downloaded package."; exit 1; }
+          echo "original_cert_sha256=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "All original APK components have valid signatures and share one signer."
 
       - name: Decode base APK for direct-URL rebuild
         if: steps.request.outputs.source_mode == 'url'
