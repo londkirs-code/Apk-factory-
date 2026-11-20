@@ -80,7 +80,7 @@ jobs:
       - name: Checkout APK Factory
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'main' }}
           fetch-depth: 1
           persist-credentials: false
 
