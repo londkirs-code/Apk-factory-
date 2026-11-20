@@ -103,7 +103,8 @@ Generated from the APK you supplied.
 ## Contents
 - apktool-project/: editable Smali, decoded AndroidManifest.xml, resources and assets. This is the closest reconstruction and the round-trip build input.
 - jadx-gradle-export/: readable best-effort Java/Gradle reconstruction. Decompiled Java is not the original source and may need repair before it compiles.
-- input-apks/: complete original base APK and every split APK, retained unchanged for later split-aware packaging.\n- input-obb/: original XAPK expansion files, retained for inclusion in the rebuilt transport package.
+- input-apks/: complete original base APK and every split APK, retained unchanged for later split-aware packaging.
+- input-obb/: original XAPK expansion files, retained for inclusion in the rebuilt transport package.
 - native-libs/: extracted lib/*.so files from every base/split APK. Native binaries are not converted back into original C/C++ source.
 - analysis/: input hash, package metadata and signing information.
 - logs/: decoder, builder and signer logs.
