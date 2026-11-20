@@ -174,7 +174,8 @@ jobs:
             export/logs/
             export/split-set/aligned/
             export/split-set/analysis/
-            export/split-set/logs/\n            export/split-set/obb/
+            export/split-set/logs/
+            export/split-set/obb/
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
