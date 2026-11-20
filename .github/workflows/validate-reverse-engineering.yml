@@ -47,7 +47,10 @@ jobs:
           set -euo pipefail
           bash -n tools/reverse-engineering/reverse-engineer-apk.sh
           bash -n tools/reverse-engineering/rebuild-apktool-project.sh
-          python3 -m py_compile tools/reverse-engineering/repair-jadx-ninepatch.py
+          bash -n tools/reverse-engineering/rebuild-split-set.sh
+          bash -n tools/reverse-engineering/sign-split-set.sh
+          python3 -m py_compile tools/reverse-engineering/repair-jadx-ninepatch.py tools/reverse-engineering/set-apk-version.py
+          python3 tools/reverse-engineering/tests/test-set-apk-version.py
 
       - name: Install ShellCheck
         run: |
@@ -58,7 +61,9 @@ jobs:
         run: |
           shellcheck --severity=warning \
             tools/reverse-engineering/reverse-engineer-apk.sh \
-            tools/reverse-engineering/rebuild-apktool-project.sh
+            tools/reverse-engineering/rebuild-apktool-project.sh \
+            tools/reverse-engineering/rebuild-split-set.sh \
+            tools/reverse-engineering/sign-split-set.sh
 
       - name: Set up Go for actionlint
         uses: actions/setup-go@v5

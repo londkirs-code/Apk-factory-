@@ -9,7 +9,7 @@ Use APK Factory's reverse-engineering workflows to turn an APK the user owns or 
 1. **Confirm lawful scope from the request.** Proceed only for an APK the user owns or has explicit permission to analyze and modify. Do not remove DRM, licensing, authentication, anti-cheat, payment or other access controls.
 2. **Read the project instructions and this skill.** Inspect the current main state of the APK Factory workflows before invoking them.
 3. **Run the Reverse Engineer Android APK workflow.**
-   - Supply a direct HTTPS URL to one APK or a ZIP/XAPK/APKS bundle containing one base APK and its split APKs. The workflow validates package IDs, preserves every split and passes the full set to JADX; Apktool edits the base APK only.
+   - Supply a direct HTTPS URL to one APK or a ZIP/XAPK/APKS bundle containing one base APK and its split APKs. The workflow validates package IDs, preserves every split and passes the full set to JADX; Apktool edits the base APK project; the split rebuild workflow separately rebuilds all original split APKs.
    - Use a safe project slug.
    - The workflow owner/comment trigger must provide the authorization and public-artifact confirmations.
    - Download the artifact from the exact successful run; do not use an older artifact.
@@ -33,11 +33,11 @@ Use APK Factory's reverse-engineering workflows to turn an APK the user owns or 
 8. **Run Build Reconstructed APK.**
    - Provide repository, branch/ref and project path.
    - Provide the original signer SHA-256 from analysis/input-signature.txt when update compatibility matters.
-   - The build workflow increments versionCode in its disposable checkout, assembles with Apktool and aligns the APK.
+   - The build workflow increments versionCode in its disposable checkout, assembles with Apktool and aligns the APK. When the source artifact contains multiple APKs, it rebuilds each split, enforces the same package ID and versionCode, signs every APK with the same existing APK Factory key, and validates the complete set.
    - A separate job signs the completed APK with the existing APK Factory signing key. Never create or rotate the key.
 9. **Verify before reporting success.**
    - Confirm build-project succeeded, the signing job succeeded, apksigner verify succeeded, and the final artifact belongs to this run.
-   - Compare signer fingerprint with the original. false means it cannot update the installed app in place; not-verified means compatibility is unknown.
+   - For split outputs, verify that every APK has the same signer, package ID and versionCode. The workflow packages all components and includes an adb install-multiple helper; never install only the base APK. Compare signer fingerprint with the original. false means it cannot update the installed app in place; not-verified means compatibility is unknown.
    - Compare package name and versionCode in badging.txt; ensure versionCode increased.
    - Report separately: decode success, Gradle export compile status, Apktool round-trip status, final signed APK status, signer compatibility status, and whether any real device/emulator runtime test was performed.
 10. **Never claim more than the evidence supports.** Decompilation/packaging success is not runtime proof. Do not claim the original source was recovered or every feature works unless independently verified.
@@ -66,4 +66,4 @@ When the edited Apktool project remains in the workspace artifact and no source-
 
     /rebuild-reconstructed-authorized RUN_ID PROJECT_SLUG ORIGINAL_CERT_SHA256
 
-The build workflow downloads the prior run artifact, copies apktool-project into a temporary workspace, increments versionCode, rebuilds and zipaligns it, then passes the unsigned APK to a separate signing job that uses the existing APK Factory key. Confirm the final artifact and apksigner report. Never call a build update-compatible unless the signer fingerprint matches the original and package ID is unchanged.
+The build workflow downloads the prior run artifact and copies apktool-project into a temporary workspace. For a split set it rebuilds every APK component, enforces one package ID and incremented versionCode, then passes the aligned set to a separate signing job that uses the existing APK Factory key. That job signs and verifies each component with the same certificate and publishes a complete split-set transport ZIP plus an adb install-multiple helper. Single APK inputs retain the single-APK path. Confirm the final artifact and apksigner report. Never call a build update-compatible unless the signer fingerprint matches the original and package ID is unchanged.

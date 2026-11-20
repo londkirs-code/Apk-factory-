@@ -144,17 +144,27 @@ jobs:
           echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  $HOME/apktool_3.0.3.jar" | sha256sum --check
           java -jar "$HOME/apktool_3.0.3.jar" --version
 
-      - name: Increment versionCode, rebuild and align APK
+      - name: Rebuild complete APK set and align every component
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p export
-          bash tools/reverse-engineering/rebuild-apktool-project.sh "$PROJECT_DIR" export
-          test -s export/reconstructed-aligned-unsigned.apk
-          unzip -t export/reconstructed-aligned-unsigned.apk >/dev/null
-          sha256sum export/reconstructed-aligned-unsigned.apk > export/analysis/unsigned-SHA256SUMS.txt
+          SPLIT_COUNT="$(find source-workspace/input-apks -maxdepth 1 -type f -name '*.apk' 2>/dev/null | wc -l | tr -d ' ')"
+          if [[ "$SPLIT_COUNT" =~ ^[0-9]+$ ]] && (( SPLIT_COUNT > 1 )); then
+            bash tools/reverse-engineering/rebuild-split-set.sh source-workspace/input-apks "$PROJECT_DIR" export/split-set
+            if [[ -d source-workspace/input-obb ]]; then cp -a source-workspace/input-obb export/split-set/obb; fi
+            test "$(find export/split-set/aligned -maxdepth 1 -name '*.apk' | wc -l)" -eq "$SPLIT_COUNT"
+            sha256sum export/split-set/aligned/*.apk > export/split-set/analysis/unsigned-SHA256SUMS.txt
+            echo "APK_SET_TYPE=split" >> "$GITHUB_ENV"
+          else
+            bash tools/reverse-engineering/rebuild-apktool-project.sh "$PROJECT_DIR" export
+            test -s export/reconstructed-aligned-unsigned.apk
+            unzip -t export/reconstructed-aligned-unsigned.apk >/dev/null
+            sha256sum export/reconstructed-aligned-unsigned.apk > export/analysis/unsigned-SHA256SUMS.txt
+            echo "APK_SET_TYPE=single" >> "$GITHUB_ENV"
+          fi
 
-      - name: Upload unsigned APK for isolated signing
+      - name: Upload unsigned APK set for isolated signing
         uses: actions/upload-artifact@v4
         with:
           name: reconstructed-apk-unsigned-internal
@@ -162,6 +172,10 @@ jobs:
             export/reconstructed-aligned-unsigned.apk
             export/analysis/
             export/logs/
+            export/split-set/aligned/
+            export/split-set/analysis/
+            export/split-set/logs/
+            export/split-set/obb/
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
@@ -176,11 +190,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Download unsigned APK
+      - name: Download unsigned APK set
         uses: actions/download-artifact@v4
         with:
           name: reconstructed-apk-unsigned-internal
           path: incoming
+
+      - name: Checkout APK Factory signing scripts
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -199,8 +220,14 @@ jobs:
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "build-tools;36.0.0"
-          test -s incoming/reconstructed-aligned-unsigned.apk
-          unzip -t incoming/reconstructed-aligned-unsigned.apk >/dev/null
+          if [[ -s incoming/reconstructed-aligned-unsigned.apk ]]; then
+            unzip -t incoming/reconstructed-aligned-unsigned.apk >/dev/null
+          elif compgen -G "incoming/split-set/aligned/*.apk" >/dev/null; then
+            for apk in incoming/split-set/aligned/*.apk; do unzip -t "$apk" >/dev/null; done
+          else
+            echo "::error::No complete unsigned APK or split set was downloaded."
+            exit 1
+          fi
 
       - name: Validate and load existing APK Factory signing key
         shell: bash
@@ -235,28 +262,35 @@ jobs:
           EXPECTED_CERT: ${{ needs.build-project.outputs.original_cert_sha256 }}
         run: |
           set -euo pipefail
-          SIGNED="incoming/reconstructed.apk"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
-            --ks "$APK_FACTORY_KEYSTORE" --ks-key-alias "$APK_FACTORY_KEY_ALIAS" \
-            --ks-pass env:APK_FACTORY_STORE_PASSWORD --key-pass env:APK_FACTORY_KEY_PASSWORD \
-            --out "$SIGNED" incoming/reconstructed-aligned-unsigned.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED" > incoming/signature.txt
-          ACTUAL_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' incoming/signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          EXPECTED_CERT="$(printf '%s' "$EXPECTED_CERT" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          if [[ -n "$EXPECTED_CERT" && "$ACTUAL_CERT" == "$EXPECTED_CERT" ]]; then
-            COMPATIBILITY="true"
-          elif [[ -n "$EXPECTED_CERT" ]]; then
-            COMPATIBILITY="false"
-            echo "::warning::Signer differs from the original certificate; Android will reject this as an in-place update."
+          if compgen -G "incoming/split-set/aligned/*.apk" >/dev/null; then
+            bash tools/reverse-engineering/sign-split-set.sh incoming/split-set/aligned incoming/split-set/output "$EXPECTED_CERT"
+            COMPATIBILITY="$(sed -n 's/^original_signer_match=//p' incoming/split-set/output/analysis/split-signing-result.txt)"
+            cp incoming/split-set/output/analysis/split-signing-result.txt incoming/split-set/output/signature-summary.txt
+            echo "Split set signed and verified. Original signer match: $COMPATIBILITY"
           else
-            COMPATIBILITY="not-verified"
-            echo "::warning::No original signer fingerprint was supplied; update compatibility is unverified."
+            SIGNED="incoming/reconstructed.apk"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+              --ks "$APK_FACTORY_KEYSTORE" --ks-key-alias "$APK_FACTORY_KEY_ALIAS" \
+              --ks-pass env:APK_FACTORY_STORE_PASSWORD --key-pass env:APK_FACTORY_KEY_PASSWORD \
+              --out "$SIGNED" incoming/reconstructed-aligned-unsigned.apk
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED" > incoming/signature.txt
+            ACTUAL_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' incoming/signature.txt | head -n1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            NORMALIZED_EXPECTED="$(printf '%s' "$EXPECTED_CERT" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            if [[ -n "$NORMALIZED_EXPECTED" && "$ACTUAL_CERT" == "$NORMALIZED_EXPECTED" ]]; then
+              COMPATIBILITY="true"
+            elif [[ -n "$NORMALIZED_EXPECTED" ]]; then
+              COMPATIBILITY="false"
+              echo "::warning::Signer differs from the original certificate; Android will reject this as an in-place update."
+            else
+              COMPATIBILITY="not-verified"
+              echo "::warning::No original signer fingerprint was supplied; update compatibility is unverified."
+            fi
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$SIGNED" > incoming/badging.txt
+            sha256sum "$SIGNED" > incoming/SHA256SUMS.txt
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging incoming/reconstructed-aligned-unsigned.apk > incoming/badging-before-signing.txt
+            grep -m1 "^package:" incoming/badging.txt
           fi
           echo "update_compatible=$COMPATIBILITY" >> "$GITHUB_OUTPUT"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$SIGNED" > incoming/badging.txt
-          sha256sum "$SIGNED" > incoming/SHA256SUMS.txt
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging incoming/reconstructed-aligned-unsigned.apk > incoming/badging-before-signing.txt
-          grep -m1 "^package:" incoming/badging.txt
 
       - name: Upload verified signed APK
         uses: actions/upload-artifact@v4
@@ -270,6 +304,7 @@ jobs:
             incoming/SHA256SUMS.txt
             incoming/analysis/
             incoming/logs/
+            incoming/split-set/output/
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

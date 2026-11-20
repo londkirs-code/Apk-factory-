@@ -19,6 +19,7 @@ INPUT_APK="$INPUT_DIR/splits/base.apk"
 
 # Preserve the complete input set and record hashes for every base/split APK.
 cp -a "$INPUT_DIR/splits" "$OUT_DIR/input-apks"
+if [[ -d "$INPUT_DIR/obb" ]]; then cp -a "$INPUT_DIR/obb" "$OUT_DIR/input-obb"; fi
 cp "$INPUT_DIR/split-inventory.tsv" "$OUT_DIR/analysis/split-inventory.tsv"
 cp "$INPUT_DIR/package-name.txt" "$OUT_DIR/analysis/package-name.txt"
 (
@@ -103,6 +104,7 @@ Generated from the APK you supplied.
 - apktool-project/: editable Smali, decoded AndroidManifest.xml, resources and assets. This is the closest reconstruction and the round-trip build input.
 - jadx-gradle-export/: readable best-effort Java/Gradle reconstruction. Decompiled Java is not the original source and may need repair before it compiles.
 - input-apks/: complete original base APK and every split APK, retained unchanged for later split-aware packaging.
+- input-obb/: original XAPK expansion files, retained for inclusion in the rebuilt transport package.
 - native-libs/: extracted lib/*.so files from every base/split APK. Native binaries are not converted back into original C/C++ source.
 - analysis/: input hash, package metadata and signing information.
 - logs/: decoder, builder and signer logs.
@@ -121,14 +123,14 @@ Generated from the APK you supplied.
 - JADX: $JADX_VERSION
 
 ## Edit and rebuild
-The original APK set is preserved under input-apks/ and listed in analysis/split-inventory.tsv. Apktool edits currently target the base APK; JADX is given all split APKs to improve code visibility. For split applications, do not treat the base-only round-trip as a complete installable replacement: a future split-aware signing/package stage is required to rebuild and sign every split consistently.
+The original APK set is preserved under input-apks/ and listed in analysis/split-inventory.tsv. Apktool edits currently target the base APK; JADX is given all split APKs to improve code visibility. For split applications, the dedicated Rebuild and Sign workflow rebuilds every APK split and signs them with one APK Factory key; the base-only round-trip output in this analysis artifact is not the final release.
 Edit Smali/resources in apktool-project, then run the APK Factory workflow "Build Reconstructed APK" against the folder containing apktool.yml and AndroidManifest.xml. The separate build workflow signs the edited project with the existing APK Factory key. Java edits in jadx-gradle-export are best effort: original source, comments, names and build configuration may not be recoverable.
 
 ## Signing compatibility
 An update requires the same package ID and an Android-accepted signing certificate. The original private key cannot be extracted from an APK. The APK Factory key does not automatically match the original app's certificate. Check analysis/input-signature.txt and the signature verification report from the build workflow before attempting an update. A different certificate normally requires uninstalling the old app first, which can remove local data.
 
 ## Limitations
-- APK, XAPK, APKS and ZIP bundles containing one base APK plus split APKs are accepted. Apktool decodes the base APK; JADX receives the complete APK set; all original splits are preserved under input-apks/. The current round-trip/rebuild workflow rebuilds the base APK only and does not yet produce a re-signed installable split set.
+- APK, XAPK, APKS and ZIP bundles containing one base APK plus split APKs are accepted. Apktool decodes the base APK; JADX receives the complete APK set; all original splits are preserved under input-apks/. The analysis round-trip output rebuilds the base APK only; use the dedicated Rebuild and Sign workflow for the complete split set.
 - JADX cannot restore the exact original project. Behavior may depend on APIs, servers, certificates, Play Integrity, licensing, native code or dynamic modules.
 - Build success proves packaging, not app behavior. Test on an authorized emulator/device before distribution.
 EOF
