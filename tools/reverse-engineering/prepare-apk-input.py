@@ -41,6 +41,8 @@ if src.stat().st_size > MAX_ARCHIVE:
 dst.mkdir(parents=True, exist_ok=True)
 splits = dst / "splits"
 splits.mkdir(exist_ok=True)
+obb_dir = dst / "obb"
+obb_dir.mkdir(exist_ok=True)
 
 if is_apk(src):
     shutil.copy2(src, splits / "base.apk")
@@ -54,6 +56,21 @@ else:
             raise SystemExit("Archive contains too many entries")
         if sum(i.file_size for i in infos) > MAX_TOTAL_UNPACKED:
             raise SystemExit("Archive expands beyond the 2 GiB safety limit")
+        # Preserve XAPK expansion files and the vendor manifest as project evidence.
+        for info in infos:
+            suffix = PurePosixPath(info.filename).suffix.lower()
+            if suffix == ".obb":
+                if not safe_name(info.filename):
+                    raise SystemExit("Unsafe OBB path: " + info.filename)
+                target = obb_dir / PurePosixPath(info.filename).name
+                if target.exists():
+                    raise SystemExit("Duplicate OBB filename in bundle")
+                with archive.open(info) as inp, target.open("wb") as out:
+                    shutil.copyfileobj(inp, out, 1024 * 1024)
+            elif PurePosixPath(info.filename).name.lower() == "manifest.json":
+                if not safe_name(info.filename):
+                    raise SystemExit("Unsafe manifest path")
+                (dst / "bundle-manifest.json").write_bytes(archive.read(info))
         apk_infos = [i for i in infos if i.filename.lower().endswith(".apk")]
         if not apk_infos:
             raise SystemExit("Bundle contains no APK files")
