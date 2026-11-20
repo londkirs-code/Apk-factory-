@@ -23,6 +23,8 @@ root = re.search(r"<manifest\b[^>]*>", manifest, re.S)
 if not root:
     raise SystemExit(f"Manifest root missing: {project}")
 tag = root.group(0)
+if re.search(r"\\bandroid:versionCodeMajor\\s*=", tag):
+    raise SystemExit("versionCodeMajor is present; refusing an unsafe versionCode rewrite")
 attr = re.search(r"\bandroid:versionCode\s*=\s*(['\"])(.*?)\1", tag, re.S)
 if attr:
     tag = tag[:attr.start(2)] + str(new) + tag[attr.end(2):]
