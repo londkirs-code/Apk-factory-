@@ -57,11 +57,15 @@ import json,sys,zipfile
 from pathlib import Path
 signed,out,pkg,version=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3],int(sys.argv[4])
 files=sorted(signed.glob("*.apk"))
-manifest={"package_name":pkg,"version_code":version,"split_apks":[p.name for p in files]}
+obb_dir=out.parent/"obb"
+obb=sorted(p for p in obb_dir.rglob("*.obb") if p.is_file()) if obb_dir.exists() else []
+manifest={"package_name":pkg,"version_code":version,"split_apks":[p.name for p in files],
+          "expansion_files":[p.name for p in obb]}
 (out/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
 with zipfile.ZipFile(out/"reconstructed-signed-split-set.zip","w",zipfile.ZIP_DEFLATED) as z:
     z.write(out/"manifest.json","manifest.json")
     for p in files: z.write(p,p.name)
+    for p in obb: z.write(p,"obb/"+p.name)
 PY
 cat > "$OUT_DIR/install-with-adb.sh" <<'SH'
 #!/usr/bin/env bash
