@@ -49,6 +49,12 @@ jobs:
           echo "source_run_id=$SOURCE_RUN_ID" >> "$GITHUB_OUTPUT"
           echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout APK Factory
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
       - name: Download workspace from the exact analysis run
         uses: actions/download-artifact@v4
         with:
