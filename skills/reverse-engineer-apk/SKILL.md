@@ -13,7 +13,13 @@ Use APK Factory's reverse-engineering workflows to turn an APK the user owns or 
    - Use a safe project slug.
    - The workflow owner/comment trigger must provide the authorization and public-artifact confirmations.
    - Download the artifact from the exact successful run; do not use an older artifact.
-4. **Inspect outputs before editing.**
+4. **Register a permanent project workspace when future edits are expected.**
+   - After a successful analysis run, use Actions → **Save Reverse-Engineered APK as Persistent Project**.
+   - Supply that exact successful run ID and the same project slug used by the analysis workflow.
+   - This repository is public. The workflow requires explicit confirmation that decompiled source/resources will be public; use a private APK Factory copy for confidential apps.
+   - The workflow stores the Apktool project, JADX export, textual analysis and logs under `apps/reverse-engineered/<slug>/`. It refuses to overwrite an existing project and excludes APK/OBB binaries, generated APKs, ZIPs and native binary libraries.
+   - Before subsequent edits, inspect `project.json` and run `python3 tools/reverse-engineering/project-manager.py validate <slug>`. Continue from the saved folder; do not re-decompile or start from a temporary artifact unless the user requests a fresh analysis.
+5. **Inspect outputs before editing.**
    - Read analysis/result.txt, analysis/aapt-badging.txt, signer information and both tool logs.
    - Use jadx-gradle-export/ to understand class names, control flow, method calls and likely behavior.
    - Use apktool-project/ as the editable source of truth for manifest, resources, assets and Smali.
