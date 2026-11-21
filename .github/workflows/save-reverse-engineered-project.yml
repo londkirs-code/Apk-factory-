@@ -68,6 +68,7 @@ jobs:
         shell: bash
         env:
           PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
+          SOURCE_RUN_ID: ${{ steps.request.outputs.source_run_id }}
         run: |
           set -euo pipefail
           SRC="incoming-workspace"
@@ -85,7 +86,7 @@ jobs:
           if [[ -d "$SRC/jadx-gradle-export" ]]; then cp -a "$SRC/jadx-gradle-export" "$DEST/"; fi
           if [[ -d "$SRC/analysis" ]]; then
             mkdir -p "$DEST/analysis"
-            find "$SRC/analysis" -type f ! -name '*.apk' ! -name '*.aab' ! -name '*.zip' -exec cp --parents {} "$DEST" \;
+            (cd "$SRC" && find analysis -type f ! -name "*.apk" ! -name "*.aab" ! -name "*.zip" -exec cp --parents {} "$GITHUB_WORKSPACE/$DEST" \\;)
           fi
           if [[ -d "$SRC/logs" ]]; then cp -a "$SRC/logs" "$DEST/"; fi
           PACKAGE_NAME="$(sed -n 's/.*package: name=\x27\([^\x27]*\)\x27.*/\1/p' "$SRC/analysis/aapt-badging.txt" 2>/dev/null | head -n1 || true)"
