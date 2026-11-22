@@ -139,6 +139,7 @@ public class MainActivity extends Activity {
     private int syncQueueTotal = 0;
     private String syncReturnSource = "", syncReturnMode = "SINGLE";
     private boolean syncAllRunning = false, syncAwaitingResult = false;
+    private boolean sourceMergeInProgress = false;
     private Button viewModeButton;
     private boolean combinedView = false;
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
@@ -1013,6 +1014,7 @@ public class MainActivity extends Activity {
     }
 
     private void showAccountsScreen() {
+        if (sourceMergeInProgress) { showSyncMessage("החשבון מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו לפני מעבר בין חשבונות.", false); return; }
         accountsScreenVisible = true;
         LinearLayout root = Ui.screen(this);
@@ -1363,6 +1365,7 @@ public class MainActivity extends Activity {
     }
 
     private void clearAllSavedData() {
+        if (sourceMergeInProgress) { showSyncMessage("החשבון מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("המתינו לסיום הסנכרון לפני מחיקת נתונים.", false); return; }
         dismissCelebration();
         wasComplete = false;
@@ -1625,28 +1628,41 @@ public class MainActivity extends Activity {
             return;
         }
 
-        boolean reconnectedExistingSource = false;
         SourceRegistry.Source existingOwnerSource = sourceRegistry.findByOwner(stableOwner);
-        if (existingOwnerSource != null && !existingOwnerSource.id.equals(activeSourceId)) {
-            String temporarySourceId = activeSourceId;
-            try {
-                secretStore.put(existingOwnerSource.id, requestToken);
-                sourceRegistry.promoteToAccount(existingOwnerSource.id);
-                String email = emailFromToken(requestToken);
-                if (!email.isEmpty()) sourceRegistry.rename(existingOwnerSource.id, email);
-                sourceRegistry.setActive(existingOwnerSource.id);
-                activeSourceId = existingOwnerSource.id;
-                activeSourceDirectory = sourceRegistry.sourceDir(activeSourceId);
-                preferences = sourceRegistry.prefs(activeSourceId);
-                accessToken = requestToken;
-                activeOwner = stableOwner;
-                cacheTrusted = isCacheManifestValid(stableOwner);
-                clearOrderMemory();
-                sourceRegistry.remove(temporarySourceId);
-                reconnectedExistingSource = true;
-            } catch (Exception mergeError) {
-                android.util.Log.w("MishnatPickup", "Could not reconnect existing source", mergeError);
-            }
+        String currentSavedOwner = preferences.getString(DataGuard.K_OWNER, "");
+        if (existingOwnerSource != null && !existingOwnerSource.id.equals(activeSourceId)
+                && !stableOwner.equals(currentSavedOwner)) {
+            final String existingId = existingOwnerSource.id;
+            final String temporaryId = activeSourceId;
+            sourceMergeInProgress = true;
+            loading = true;
+            showSyncMessage("נמצא מקור קיים לאותו מזהה לקוח. מחבר אליו את החשבון…", false);
+            // switchSource drains all queued writes from the temporary source before moving
+            // the active preferences and cache directory to the existing source.
+            switchSource(existingId, () -> {
+                try {
+                    secretStore.put(existingId, requestToken);
+                    sourceRegistry.promoteToAccount(existingId);
+                    String email = emailFromToken(requestToken);
+                    if (!email.isEmpty()) sourceRegistry.rename(existingId, email);
+                    sourceRegistry.updateOwner(existingId, stableOwner);
+                    accessToken = requestToken;
+                    activeOwner = stableOwner;
+                    cacheTrusted = isCacheManifestValid(stableOwner);
+                    boolean removed = sourceRegistry.remove(temporaryId);
+                    sourceMergeInProgress = false;
+                    showHomeScreen(true);
+                    if (!removed) showSyncMessage("החשבון חובר לרשימה הקיימת, אך המקור הזמני לא הוסר. ניתן להסירו מניהול החשבונות.", false);
+                    else showSyncMessage("החשבון חובר לרשימה הקיימת ללא יצירת כפילות.", false);
+                } catch (Exception mergeError) {
+                    sourceMergeInProgress = false;
+                    loading = false;
+                    android.util.Log.w("MishnatPickup", "Could not reconnect existing source", mergeError);
+                    showHomeScreen(false);
+                    showSyncMessage("לא ניתן היה לחבר אוטומטית את המקור הקיים. החשבון הזמני נשאר שמור.", false);
+                }
+            });
+            return;
         }
 
         String fingerprint = DataGuard.fingerprint(rows);
@@ -1690,9 +1706,7 @@ public class MainActivity extends Activity {
         syncCompletionState();
         renderProducts(false);
         wireFocusOrder();
-        showSyncMessage(reconnectedExistingSource
-                ? "נמצא מקור קיים לאותו מזהה לקוח. הטוקן חובר אליו כדי למנוע כפילות."
-                : "", false);
+        showSyncMessage("", false);
 
         boolean rewrite = verdict != DataGuard.Verdict.SAME || !isCacheManifestValid(stableOwner);
         if (!rewrite) {
@@ -2227,6 +2241,7 @@ public class MainActivity extends Activity {
     }
 
     private void toggleProduct(String key) {
+        if (sourceMergeInProgress) return;
         ProductCard moving = productCards.get(key);
         if (moving == null) return;
         boolean wasCollected = collected.contains(key);
@@ -2345,6 +2360,7 @@ public class MainActivity extends Activity {
     }
 
     private void logout() {
+        if (sourceMergeInProgress) { showSyncMessage("החשבון מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("המתינו לסיום הסנכרון לפני התנתקות.", false); return; }
         setImageMode(false);
         if (imageViewer != null) imageViewer.reset();
