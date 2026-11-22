@@ -976,11 +976,25 @@ public class MainActivity extends Activity {
     }
 
     private void confirmResetCollection() {
-        if (collected.isEmpty()) return;
+        boolean hasTicks = !collected.isEmpty();
+        if (combinedView) {
+            for (java.util.List<SourcePart> parts : combinedParts.values())
+                for (SourcePart part : parts) if (part.collected) hasTicks = true;
+        }
+        if (!hasTicks) return;
         showModernConfirm("איפוס האיסוף", "להחזיר את כל המוצרים לרשימת הממתינים?", "איפוס", () -> {
+            if (combinedView) {
+                for (String key : new ArrayList<>(combinedParts.keySet())) {
+                    updateCombinedParts(key, false);
+                    ProductCard card = productCards.get(key);
+                    if (card != null) {
+                        card.views.note.setText(combinedNote(combinedParts.get(key)));
+                        card.views.note.setVisibility(card.views.note.getText().length() == 0 ? View.GONE : View.VISIBLE);
+                    }
+                }
+            } else saveCollectedState();
             collected.clear();
             syncCompletionState();
-            saveCollectedState();
             renderProducts(false);
             pageScroll.post(this::focusFirstPending);
         });
@@ -1795,6 +1809,7 @@ public class MainActivity extends Activity {
         if (combinedView) {
             updateCombinedParts(key, !wasCollected);
             moving.views.note.setText(combinedNote(combinedParts.get(key)));
+            moving.views.note.setVisibility(moving.views.note.getText().length() == 0 ? View.GONE : View.VISIBLE);
         } else saveCollectedState();
         LinearLayout target = wasCollected ? pendingList : collectedList;
         ViewGroup parent = (ViewGroup) moving.row.getParent();
