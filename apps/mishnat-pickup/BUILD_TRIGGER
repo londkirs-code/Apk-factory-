@@ -1,2 +1,2 @@
-Final build request after fixing the API19 theme inheritance cycle and serializing source merges.
-requested_at=2026-11-23T23:30Z
+Final build request including asynchronous cleanup when reconnecting a duplicate account source.
+requested_at=2026-11-23T23:45Z

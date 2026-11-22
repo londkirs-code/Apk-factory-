@@ -1649,11 +1649,15 @@ public class MainActivity extends Activity {
                     accessToken = requestToken;
                     activeOwner = stableOwner;
                     cacheTrusted = isCacheManifestValid(stableOwner);
-                    boolean removed = sourceRegistry.remove(temporaryId);
-                    sourceMergeInProgress = false;
-                    showHomeScreen(true);
-                    if (!removed) showSyncMessage("החשבון חובר לרשימה הקיימת, אך המקור הזמני לא הוסר. ניתן להסירו מניהול החשבונות.", false);
-                    else showSyncMessage("החשבון חובר לרשימה הקיימת ללא יצירת כפילות.", false);
+                    cacheWorker.execute(() -> {
+                        boolean removed = sourceRegistry.remove(temporaryId);
+                        mainHandler.post(() -> {
+                            sourceMergeInProgress = false;
+                            showHomeScreen(true);
+                            if (!removed) showSyncMessage("החשבון חובר לרשימה הקיימת, אך המקור הזמני לא הוסר. ניתן להסירו מניהול החשבונות.", false);
+                            else showSyncMessage("החשבון חובר לרשימה הקיימת ללא יצירת כפילות.", false);
+                        });
+                    });
                 } catch (Exception mergeError) {
                     sourceMergeInProgress = false;
                     loading = false;
