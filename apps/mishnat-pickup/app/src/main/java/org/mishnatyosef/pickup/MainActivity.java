@@ -139,6 +139,7 @@ public class MainActivity extends Activity {
     private int syncQueueTotal = 0;
     private String syncReturnSource = "", syncReturnMode = "SINGLE";
     private boolean syncAllRunning = false, syncAwaitingResult = false;
+    private Button viewModeButton;
     private boolean combinedView = false;
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
@@ -1007,6 +1008,7 @@ public class MainActivity extends Activity {
     }
 
     private void showAccountsScreen() {
+        if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו לפני מעבר בין חשבונות.", false); return; }
         accountsScreenVisible = true;
         LinearLayout root = Ui.screen(this);
         root.addView(Ui.title(this, "ניהול חשבונות"));
@@ -1102,7 +1104,7 @@ public class MainActivity extends Activity {
         cacheWorker.execute(() -> mainHandler.post(() -> {
             try {
                 SourceRegistry.Source next = sourceRegistry.find(id);
-                if (next == null || isFinishing()) return;
+                if (next == null || isFinishing() || generation != authGeneration) return;
                 if (loginWebView != null) destroyLoginWebView();
                 activeSourceId = id;
                 sourceRegistry.setActive(id);
@@ -1210,6 +1212,8 @@ public class MainActivity extends Activity {
         String label = "SINGLE".equals(mode) ? "תצוגה: חשבון נוכחי"
                 : ("COMBINED_SUM".equals(mode) ? "תצוגה: כל החשבונות — סיכום" : "תצוגה: לפי חשבון");
         Button b = Ui.button(this, label, Ui.Kind.SOFT);
+        viewModeButton = b;
+        b.setEnabled(!syncAllRunning);
         b.setOnClickListener(v -> {
             String current = sourceRegistry.viewMode();
             String next = "SINGLE".equals(current) ? "COMBINED_SUM"
@@ -1438,6 +1442,8 @@ public class MainActivity extends Activity {
         }
         syncReturnSource=activeSourceId;syncReturnMode=sourceRegistry.viewMode();
         syncQueueIndex=0;syncQueueTotal=syncQueue.size();syncAllRunning=true;syncAwaitingResult=false;
+        sourceRegistry.setViewMode("SINGLE"); combinedView=false;
+        if(viewModeButton!=null)viewModeButton.setEnabled(false);
         showSyncMessage("מתחיל סנכרון סדרתי של "+syncQueueTotal+" חשבונות…",false);
         syncNextAccount();
     }
@@ -1448,7 +1454,9 @@ public class MainActivity extends Activity {
         String id=syncQueue.get(syncQueueIndex++);
         if(sourceRegistry.find(id)==null){syncNextAccount();return;}
         syncAwaitingResult=true;
-        if(id.equals(activeSourceId))loadLatestOrder();else switchSource(id);
+        if(id.equals(activeSourceId)) {
+            if(accessToken.isEmpty()) advanceSyncQueue(); else loadLatestOrder();
+        } else switchSource(id);
     }
 
     private void advanceSyncQueue() {
