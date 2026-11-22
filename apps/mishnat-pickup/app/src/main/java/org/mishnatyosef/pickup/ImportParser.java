@@ -57,7 +57,9 @@ final class ImportParser {
         Object parsed;try{JSONTokener t=new JSONTokener(text);parsed=t.nextValue();if(t.nextClean()!=0)throw new Exception("יש תווים מיותרים אחרי ה־JSON.");}catch(Exception e){throw new Exception("קובץ JSON לא תקין: "+e.getMessage());}
         if(!(parsed instanceof JSONObject))throw new Exception("מבנה הקובץ אינו אובייקט JSON.");
         JSONObject root=(JSONObject)parsed;if(!FORMAT.equals(clean(root.optString("format",""))))throw new Exception("סוג הקובץ אינו mishnat-pickup-list.");
-        int version=root.optInt("version",-1);if(version>VERSION)throw new Exception("הקובץ נוצר בגרסה חדשה יותר. עדכן את האפליקציה.");if(version<1)throw new Exception("גרסת קובץ לא תקינה.");
+        Object versionValue=root.opt("version");if(!(versionValue instanceof Number))throw new Exception("version חייב להיות מספר שלם.");
+        double versionNumber=((Number)versionValue).doubleValue();if(versionNumber!=Math.rint(versionNumber))throw new Exception("version חייב להיות מספר שלם.");
+        int version=(int)versionNumber;if(version>VERSION)throw new Exception("הקובץ נוצר בגרסה חדשה יותר. עדכן את האפליקציה.");if(version<1)throw new Exception("גרסת קובץ לא תקינה.");
         JSONArray lists=root.optJSONArray("lists");if(lists==null||lists.length()<1||lists.length()>MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
         Bundle bundle=new Bundle(dir);Set<String> accountIds=new HashSet<>();
         for(int i=0;i<lists.length();i++){int ln=i+1;JSONObject l=lists.optJSONObject(i);if(l==null)throw new Exception("רשימה "+ln+": מבנה לא תקין.");
@@ -77,8 +79,8 @@ final class ImportParser {
             }bundle.lists.add(list);
         }return bundle;
     }
-    private static String required(JSONObject o,String k,String where)throws Exception{String v=clean(o.optString(k,""));if(v.isEmpty())throw new Exception(where+": חסר "+k+".");return v;}
-    private static String optional(JSONObject o,String k,int max){String v=clean(o.optString(k,""));if(v.length()>max)v=v.substring(0,max);StringBuilder b=new StringBuilder();for(int i=0;i<v.length();i++){char c=v.charAt(i);if(c>=32&&c!=127)b.append(c);}return b.toString();}
+    private static String required(JSONObject o,String k,String where)throws Exception{Object raw=o.opt(k);if(!(raw instanceof String))throw new Exception(where+": "+k+" חייב להיות טקסט.");String v=clean((String)raw);if(v.isEmpty())throw new Exception(where+": חסר "+k+".");if(v.length()>512)throw new Exception(where+": "+k+" ארוך מדי.");return v;}
+    private static String optional(JSONObject o,String k,int max)throws Exception{Object raw=o.opt(k);if(raw==null||raw==JSONObject.NULL)return "";if(!(raw instanceof String))throw new Exception(k+" חייב להיות טקסט.");String v=clean((String)raw);if(v.length()>max)throw new Exception(k+" ארוך מהמותר ("+max+" תווים).");StringBuilder b=new StringBuilder();for(int i=0;i<v.length();i++){char c=v.charAt(i);if(c>=32&&c!=127)b.append(c);}return b.toString();}
     private static String clean(String s){return s==null?"":s.replace("\r","").trim();}
     private static boolean validImagePath(String p){return p!=null&&p.startsWith("images/")&&!p.startsWith("/")&&!p.contains("..")&&!p.contains("\\")&&p.indexOf(':')<0&&validImageName(p.substring(7));}
     private static boolean validImageName(String n){if(n==null||n.length()<5||n.length()>100||!n.matches("[A-Za-z0-9._-]+"))return false;String x=n.toLowerCase(Locale.ROOT);return x.endsWith(".jpg")||x.endsWith(".jpeg")||x.endsWith(".png")||x.endsWith(".webp");}

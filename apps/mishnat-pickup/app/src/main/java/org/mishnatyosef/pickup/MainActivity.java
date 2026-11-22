@@ -811,11 +811,15 @@ public class MainActivity extends Activity {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel=Ui.dialogPanel(this);
         panel.addView(Ui.text(this,"נמצאו "+bundle.lists.size()+" רשימות",Ui.T_NAME,Ui.P900,true));
+        boolean replacesExisting = false;
         for(ImportParser.ImportedList list:bundle.lists) {
             String name=list.accountName.isEmpty()?"רשימה מיובאת":list.accountName;
+            String owner=DataGuard.sha256(list.accountId.toLowerCase(Locale.ROOT));
+            replacesExisting |= sourceRegistry.findByOwner(owner)!=null;
             panel.addView(Ui.text(this,name+" · "+(list.orderName.isEmpty()?"הזמנה "+list.orderId:list.orderName)
                     +" · "+list.items.size()+" מוצרים",Ui.T_NOTE,Ui.INK,false),Ui.row(this,Ui.S2,0));
         }
+        if(replacesExisting) panel.addView(Ui.banner(this,"נמצא מקור קיים. בדקו שתאריך העדכון בקובץ אינו ישן יותר; הייבוא עשוי להחליף את הרשימה המקומית."),Ui.row(this,Ui.S2,0));
         Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
         Button apply=Ui.button(this,"ייבא רשימות",Ui.Kind.PRIMARY);
         cancel.setOnClickListener(v->{dialog.dismiss();ImportParser.delete(bundle.workDir);});
@@ -1563,7 +1567,7 @@ public class MainActivity extends Activity {
             JSONObject saved = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
             long id = saved.optLong("order_id", -1);
             JSONArray rows = saved.optJSONArray("products");
-            if (id <= 0 || rows == null || rows.length() == 0) throw new Exception("invalid cache");
+            if (id <= 0 || rows == null || (rows.length() == 0 && !saved.optBoolean("imported", false))) throw new Exception("invalid cache");
             List<ProductRow> restored = new ArrayList<>();
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject row = rows.optJSONObject(i);
