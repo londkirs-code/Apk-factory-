@@ -1,1 +1,2 @@
-Trigger for the Mishnat Pickup signed APK release workflow. Update this file to request a fresh build.
+Final build request for Mishnat Pickup multi-account/import release. Build from the current main source.
+requested_at=2026-11-23
