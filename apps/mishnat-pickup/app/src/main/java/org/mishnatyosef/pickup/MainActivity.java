@@ -104,6 +104,9 @@ public class MainActivity extends Activity {
     };
 
     private SharedPreferences preferences;
+    private SourceRegistry sourceRegistry;
+    private String activeSourceId = "";
+    private File activeSourceDirectory;
     private volatile String accessToken = "";
     private String activeOwner = "";
     private boolean cacheTrusted = false;
@@ -142,7 +145,18 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         imageViewer = new ImageViewerOverlay(this, imageLoader);
-        preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        SharedPreferences legacyPreferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        sourceRegistry = new SourceRegistry(this);
+        sourceRegistry.migrateLegacy(legacyPreferences);
+        SourceRegistry.Source initialSource = sourceRegistry.active();
+        if (initialSource != null) {
+            activeSourceId = initialSource.id;
+            activeSourceDirectory = sourceRegistry.sourceDir(activeSourceId);
+            preferences = sourceRegistry.prefs(activeSourceId);
+        } else {
+            preferences = legacyPreferences;
+            activeSourceDirectory = super.getFilesDir();
+        }
         configureSystemBars();
         installImageFocusListener();
         accessToken = readEncryptedToken();
@@ -181,6 +195,10 @@ public class MainActivity extends Activity {
             loginWebView.destroy();
             loginWebView = null;
         }
+    }
+
+    private File activeFilesDir() {
+        return activeSourceDirectory == null ? super.getFilesDir() : activeSourceDirectory;
     }
 
     private void configureSystemBars() {
@@ -351,20 +369,34 @@ public class MainActivity extends Activity {
         final int generation = ++authGeneration;
         final String newOwner = DataGuard.ownerFromToken(token);
         final String tokenFingerprint = DataGuard.tokenFingerprint(token);
-        final String oldOwner = preferences.getString(DataGuard.K_OWNER, "");
-        final String oldFingerprint = preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "");
-        boolean sameAccount = (!newOwner.isEmpty() && newOwner.equals(oldOwner))
-                || (newOwner.isEmpty() && !oldFingerprint.isEmpty()
-                    && oldFingerprint.equals(tokenFingerprint));
-        boolean identityPending = newOwner.isEmpty() && !sameAccount && !oldOwner.isEmpty();
         try {
+            SourceRegistry.Source target = sourceRegistry.findByOwner(newOwner);
+            if (target == null && newOwner.isEmpty()) {
+                for (SourceRegistry.Source candidate : sourceRegistry.all()) {
+                    String saved = sourceRegistry.prefs(candidate.id).getString(DataGuard.K_TOKEN_FINGERPRINT, "");
+                    if (!saved.isEmpty() && saved.equals(tokenFingerprint)) { target = candidate; break; }
+                }
+            }
+            if (target == null) {
+                String email = emailFromToken(token);
+                target = sourceRegistry.create(SourceRegistry.KIND_ACCOUNT,
+                        email.isEmpty() ? "חשבון חדש" : email, newOwner);
+            }
+            sourceRegistry.setActive(target.id);
+            activeSourceId = target.id;
+            activeSourceDirectory = sourceRegistry.sourceDir(activeSourceId);
+            preferences = sourceRegistry.prefs(activeSourceId);
+            final String oldOwner = preferences.getString(DataGuard.K_OWNER, "");
+            final String oldFingerprint = preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "");
+            boolean sameAccount = (!newOwner.isEmpty() && newOwner.equals(oldOwner))
+                    || (newOwner.isEmpty() && !oldFingerprint.isEmpty() && oldFingerprint.equals(tokenFingerprint));
             saveEncryptedToken(token);
             preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
             accessToken = token;
-            activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : "");
+            activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : target.ownerKey);
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
-            if (!sameAccount && !identityPending) {
+            if (!sameAccount) {
                 invalidateSavedOrderPreferences(newOwner);
                 queueOrderDataWipe(generation);
             }
@@ -373,6 +405,15 @@ public class MainActivity extends Activity {
             authHandled = false;
             showLoginScreen("לא ניתן לשמור את ההתחברות בצורה מאובטחת. נסו שוב.");
         }
+    }
+
+    private String emailFromToken(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return "";
+            byte[] payload = android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP);
+            return new JSONObject(new String(payload, "UTF-8")).optString("email", "").trim();
+        } catch (Exception ignored) { return ""; }
     }
 
     private void destroyLoginWebView() {
@@ -1564,6 +1605,7 @@ public class MainActivity extends Activity {
         }
         accessToken = "";
         clearToken();
+        if (sourceRegistry != null && !activeSourceId.isEmpty()) sourceRegistry.markNeedsLogin(activeSourceId);
         activeOwner = preserveOfflineList ? trustedOwner : "";
         cacheTrusted = preserveOfflineList;
         preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).commit();
@@ -1873,12 +1915,9 @@ public class MainActivity extends Activity {
     }
 
     private void clearToken() {
+        // The encryption key is shared by isolated per-source preference files.
+        // Removing one account token must not invalidate tokens belonging to other sources.
         preferences.edit().remove(TOKEN_KEY).apply();
-        try {
-            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-            keyStore.load(null);
-            if (keyStore.containsAlias(KEY_ALIAS)) keyStore.deleteEntry(KEY_ALIAS);
-        } catch (Exception ignored) { }
     }
 
     // ---------------------------------------------------------------------
