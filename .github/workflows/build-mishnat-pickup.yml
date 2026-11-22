@@ -2,6 +2,10 @@ name: Build Mishnat Pickup APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mishnat-pickup/BUILD_TRIGGER'
   issue_comment:
     types: [created]
 
@@ -17,6 +21,7 @@ jobs:
   build:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.number == 1 &&
        github.event.comment.user.login == 'londkirs-code' &&
