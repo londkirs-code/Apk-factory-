@@ -45,6 +45,12 @@ final class DataGuard {
         return "";
     }
 
+    /** מזהה לקוח יציב מתוך פרטי הזמנה בודדת, כולל clientID. */
+    static String ownerFromOrder(JSONObject order) {
+        String value = ownerInObject(order);
+        return value.isEmpty() ? "" : sha256(value.toLowerCase(Locale.ROOT));
+    }
+
     /** מזהה לקוח יציב מתוך תשובת /api/orders כאשר הטוקן אינו JWT קריא. */
     static String ownerFromOrders(JSONArray orders) {
         if (orders == null) return "";

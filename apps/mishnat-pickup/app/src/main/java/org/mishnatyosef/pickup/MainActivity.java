@@ -133,6 +133,7 @@ public class MainActivity extends Activity {
     private boolean authHandled = false;
     private boolean accountsScreenVisible = false;
     private static final int REQUEST_IMPORT_FILE = 6101;
+    private static boolean cookieSyncManagerReady = false;
     private boolean combinedView = false;
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
@@ -399,8 +400,16 @@ public class MainActivity extends Activity {
         if (authHandled || isFinishing()) return;
         authHandled = true;
         final int generation = ++authGeneration;
-        final String newOwner = DataGuard.ownerFromToken(token);
-        final String tokenFingerprint = DataGuard.tokenFingerprint(token);
+        loading = false;
+        final String tokenValue = token;
+        final String newOwner = DataGuard.ownerFromToken(tokenValue);
+        final String tokenFingerprint = DataGuard.tokenFingerprint(tokenValue);
+        // Drain writes already queued for the previous source before switching preferences/directories.
+        cacheWorker.execute(() -> mainHandler.post(() -> completeLoginToken(tokenValue, generation, newOwner, tokenFingerprint)));
+    }
+
+    private void completeLoginToken(String token, int generation, String newOwner, String tokenFingerprint) {
+        if (isFinishing() || generation != authGeneration) return;
         try {
             SourceRegistry.Source target = sourceRegistry.findByOwner(newOwner);
             if (target == null && newOwner.isEmpty()) {
@@ -444,7 +453,6 @@ public class MainActivity extends Activity {
             showLoginScreen("לא ניתן לשמור את ההתחברות בצורה מאובטחת. נסו שוב.");
         }
     }
-
     private String emailFromToken(String token) {
         try {
             String[] parts = token.split("\\.");
@@ -999,7 +1007,7 @@ public class MainActivity extends Activity {
         root.addView(Ui.banner(this, "כל חשבון שומר את הרשימה, התמונות וסימוני הליקוט שלו בנפרד."));
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             String status = SourceRegistry.KIND_IMPORTED.equals(source.kind) ? "רשימה מיובאת"
-                    : ("LOGIN_EXPIRED".equals(source.state) || sourceRegistry.prefs(source.id).getString(TOKEN_KEY, "").isEmpty()
+                    : ("LOGIN_EXPIRED".equals(source.state) || secretStore.get(source.id) == null
                         ? "דורש התחברות" : "מחובר");
             String active = source.id.equals(activeSourceId) ? " · פעיל" : "";
             Button item = Ui.button(this, source.label + " · " + status + active, Ui.Kind.SOFT);
@@ -1130,6 +1138,8 @@ public class MainActivity extends Activity {
 
     private void removeSource(String id) {
         final boolean removingActive = id.equals(activeSourceId);
+        final int removeGeneration = ++authGeneration;
+        loading = false;
         cacheWorker.execute(() -> {
             imageCache.evictAll();
             sourceRegistry.remove(id);
@@ -1262,7 +1272,7 @@ public class MainActivity extends Activity {
 
         // Secondary controls and notices belong to the scrolling content, not the sticky header.
         page.addView(Ui.text(this,
-                "מה חדש: הרשימה נשמרת גם אחרי התנתקות, חשבונות מופרדים וסימוני ליקוט נשמרים לפי פריט וכמות",
+                "מה חדש: ריבוי חשבונות, תצוגה מאוחדת לפי מוצר, ייבוא רשימות JSON/TXT/ZIP ותמיכה החל מ־Android 4.4",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
@@ -1323,7 +1333,7 @@ public class MainActivity extends Activity {
 
     private void confirmLogout() {
         showModernConfirm("התנתקות מהחשבון",
-                "לצאת מהחשבון ולמחוק את פרטי ההתחברות, ההזמנה השמורה, התמונות וסימוני הליקוט מהמכשיר?",
+                "למחוק את פרטי ההתחברות? הרשימה, התמונות וסימוני הליקוט יישארו שמורים לצפייה ללא אינטרנט.",
                 "התנתקות", this::logout);
     }
 
@@ -1359,7 +1369,11 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) {
             cookies.removeAllCookies(removed -> { cookies.flush(); afterClear.run(); });
         } else {
-            CookieSyncManager.createInstance(this);
+            if (!cookieSyncManagerReady) {
+                try { CookieSyncManager.getInstance(); }
+                catch (Exception notCreated) { CookieSyncManager.createInstance(this); }
+                cookieSyncManagerReady = true;
+            }
             cookies.removeAllCookie();
             CookieSyncManager.getInstance().sync();
             afterClear.run();
@@ -1419,15 +1433,16 @@ public class MainActivity extends Activity {
                 JSONArray orders = apiGetArray("/api/orders", session);
                 String owner = DataGuard.ownerFromToken(session.token);
                 if (owner.isEmpty()) owner = DataGuard.ownerFromOrders(orders);
-                if (owner.isEmpty()
-                        && DataGuard.tokenFingerprint(session.token).equals(
-                            preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "")))
-                    owner = preferences.getString(DataGuard.K_OWNER, "");
-                JSONObject latest = chooseLatestPickupOrder(orders);
+                                JSONObject latest = chooseLatestPickupOrder(orders);
                 if (latest == null) throw new Exception("לא נמצאה הזמנה בחשבון.");
                 long id = extractOrderId(latest);
                 if (id <= 0) throw new Exception("לא נמצא מזהה להזמנה האחרונה.");
                 JSONObject order = unwrapOrder(apiGetObject("/api/orders/" + id, session));
+                if (owner.isEmpty()) owner = DataGuard.ownerFromOrder(order);
+                if (!session.isCurrent(this)) return;
+                if (owner.isEmpty() && DataGuard.tokenFingerprint(session.token).equals(
+                        preferences.getString(DataGuard.K_TOKEN_FINGERPRINT, "")))
+                    owner = preferences.getString(DataGuard.K_OWNER, "");
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
                 if (!session.isCurrent(this)) return;
@@ -2192,7 +2207,7 @@ public class MainActivity extends Activity {
         imageLoader.execute(() -> {
             HttpURLConnection connection = null;
             try {
-                connection = (HttpURLConnection) new URL(imageUrl).openConnection();
+                connection = openConnection(new URL(imageUrl));
                 connection.setConnectTimeout(12000);
                 connection.setReadTimeout(15000);
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0");
