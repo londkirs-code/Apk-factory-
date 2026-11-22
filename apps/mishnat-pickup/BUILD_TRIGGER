@@ -1,2 +1,2 @@
-Release build request: include API19-safe Holo base theme and clientID-first account identity. Build current main.
-requested_at=2026-11-23T23:00Z
+Final build request after fixing the API19 theme inheritance cycle and serializing source merges.
+requested_at=2026-11-23T23:30Z
