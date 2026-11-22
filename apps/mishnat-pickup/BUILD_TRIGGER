@@ -1,2 +1,2 @@
-Final build request for Mishnat Pickup multi-account/import release. Build from the current main source.
-requested_at=2026-11-23
+Release build request: include API19-safe Holo base theme and clientID-first account identity. Build current main.
+requested_at=2026-11-23T23:00Z
