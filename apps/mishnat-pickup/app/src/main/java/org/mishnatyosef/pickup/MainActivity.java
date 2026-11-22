@@ -131,6 +131,7 @@ public class MainActivity extends Activity {
     private TextView loginTermsNotice;
     private boolean authHandled = false;
     private boolean accountsScreenVisible = false;
+    private static final int REQUEST_IMPORT_FILE = 6101;
     private boolean combinedView = false;
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
@@ -166,6 +167,21 @@ public class MainActivity extends Activity {
         initializeCacheOwnership();
         if (accessToken.isEmpty()) showLoginScreen("");
         else showHomeScreen(true);
+        handleIncomingImport(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingImport(intent);
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_IMPORT_FILE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) importFromUri(uri);
+        }
     }
 
     @Override protected void onResume() {
@@ -225,6 +241,14 @@ public class MainActivity extends Activity {
                 Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildLoginMethods());
         if (hasCachedOrder()) root.addView(buildCachedListButton());
+        Button importOffline = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
+        importOffline.setOnClickListener(v -> openImportPicker());
+        root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
+        if (sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
+            Button accounts = Ui.button(this, "ניהול חשבונות", Ui.Kind.SOFT);
+            accounts.setOnClickListener(v -> showAccountsScreen());
+            root.addView(accounts, Ui.row(this, Ui.S2, Ui.S2));
+        }
         if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
         loginTermsNotice = Ui.banner(this, "האתר מבקש לאשר את התקנון. אפשר לאשר אותו בחלון האתר למטה; לאחר האישור טעינת המוצרים תמשיך אוטומטית.");
         loginTermsNotice.setVisibility(View.GONE);
@@ -680,6 +704,287 @@ public class MainActivity extends Activity {
         if (loadData && !accessToken.isEmpty()) loadLatestOrder();
     }
 
+    private void openImportPicker() {
+        Intent open = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        open.addCategory(Intent.CATEGORY_OPENABLE);
+        open.setType("*/*");
+        open.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/json","text/plain","application/zip","application/octet-stream"});
+        try { startActivityForResult(open, REQUEST_IMPORT_FILE); }
+        catch (android.content.ActivityNotFoundException e) {
+            Intent get = new Intent(Intent.ACTION_GET_CONTENT);
+            get.addCategory(Intent.CATEGORY_OPENABLE); get.setType("*/*");
+            try { startActivityForResult(get, REQUEST_IMPORT_FILE); }
+            catch (android.content.ActivityNotFoundException ignored) {
+                showSyncMessage("לא נמצא בורר קבצים. אפשר להעתיק קובץ לתיקייה המוצגת במסך ניהול החשבונות.", false);
+            }
+        }
+    }
+
+    private void showImportFolder() {
+        File dir=getExternalFilesDir("import");
+        if(dir==null){showSyncMessage("תיקיית הייבוא אינה זמינה במכשיר.",false);return;}
+        if(!dir.exists())dir.mkdirs();
+        File[] files=dir.listFiles();
+        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel=Ui.dialogPanel(this);
+        panel.addView(Ui.text(this,"קבצים בתיקיית import",Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,dir.getAbsolutePath(),Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S2,Ui.S2));
+        int count=0;
+        if(files!=null)for(File file:files)if(file.isFile()&&isImportFile(file.getName())){
+            count++;Button b=Ui.button(this,file.getName(),Ui.Kind.SOFT);
+            b.setOnClickListener(v->{dialog.dismiss();importFromFile(file);});
+            panel.addView(b,Ui.row(this,Ui.S2,0));
+        }
+        if(count==0)panel.addView(Ui.text(this,"לא נמצאו קובצי JSON, TXT או ZIP.",Ui.T_BODY,Ui.MUTED,false),Ui.row(this,Ui.S2,Ui.S2));
+        Button close=Ui.button(this,"סגירה",Ui.Kind.SOFT);close.setOnClickListener(v->dialog.dismiss());panel.addView(close,Ui.row(this,Ui.S3,0));
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+    }
+
+    private boolean isImportFile(String name) {
+        String n=name==null?"":name.toLowerCase(Locale.ROOT);
+        return n.endsWith(".json")||n.endsWith(".txt")||n.endsWith(".zip");
+    }
+
+    private void importFromFile(File file) {
+        try { importInput(new FileInputStream(file)); }
+        catch(Exception e){showSyncMessage("לא ניתן לפתוח את הקובץ: "+safeError(e),false);}
+    }
+
+    private void importFromUri(Uri uri) {
+        try {
+            InputStream in=getContentResolver().openInputStream(uri);
+            if(in==null)throw new Exception("לא ניתן לפתוח את הקובץ שנבחר.");
+            importInput(in);
+        } catch(Exception e) { showSyncMessage("ייבוא הקובץ נכשל: "+safeError(e),false); }
+    }
+
+    private void importInput(InputStream input) {
+        final File work=new File(getCacheDir(),"pickup_import_"+System.currentTimeMillis());
+        showSyncMessage("בודק את קובץ הייבוא…",false);
+        cacheWorker.execute(() -> {
+            try {
+                ImportParser.Bundle bundle=ImportParser.parse(input,work);
+                mainHandler.post(() -> showImportSummary(bundle));
+            } catch(Exception e) {
+                final String message=e.getMessage()==null?"קובץ לא תקין.":e.getMessage();
+                mainHandler.post(() -> showSyncMessage("הייבוא לא בוצע: "+message,false));
+            }
+        });
+    }
+
+    private void handleIncomingImport(Intent intent) {
+        if(intent==null)return;
+        String action=intent.getAction();Uri uri=null;
+        if(Intent.ACTION_VIEW.equals(action))uri=intent.getData();
+        else if(Intent.ACTION_SEND.equals(action)) {
+            Object stream=intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if(stream instanceof Uri)uri=(Uri)stream;
+            if(uri==null&&intent.getClipData()!=null&&intent.getClipData().getItemCount()>0)
+                uri=intent.getClipData().getItemAt(0).getUri();
+        }
+        if(uri!=null)importFromUri(uri);
+    }
+
+    private void showImportSummary(ImportParser.Bundle bundle) {
+        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel=Ui.dialogPanel(this);
+        panel.addView(Ui.text(this,"נמצאו "+bundle.lists.size()+" רשימות",Ui.T_NAME,Ui.P900,true));
+        for(ImportParser.ImportedList list:bundle.lists) {
+            String name=list.accountName.isEmpty()?"רשימה מיובאת":list.accountName;
+            panel.addView(Ui.text(this,name+" · "+(list.orderName.isEmpty()?"הזמנה "+list.orderId:list.orderName)
+                    +" · "+list.items.size()+" מוצרים",Ui.T_NOTE,Ui.INK,false),Ui.row(this,Ui.S2,0));
+        }
+        Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
+        Button apply=Ui.button(this,"ייבא רשימות",Ui.Kind.PRIMARY);
+        cancel.setOnClickListener(v->{dialog.dismiss();ImportParser.delete(bundle.workDir);});
+        apply.setOnClickListener(v->{
+            dialog.dismiss();
+            if(hasConnectedImportConflict(bundle))showImportConflict(bundle);
+            else commitImport(bundle,false);
+        });
+        panel.addView(apply,Ui.row(this,Ui.S3,Ui.S1));panel.addView(cancel);
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+    }
+
+    private boolean hasConnectedImportConflict(ImportParser.Bundle bundle) {
+        for(ImportParser.ImportedList list:bundle.lists) {
+            String owner=DataGuard.sha256(list.accountId.toLowerCase(Locale.ROOT));
+            SourceRegistry.Source existing=sourceRegistry.findByOwner(owner);
+            if(existing!=null&&SourceRegistry.KIND_ACCOUNT.equals(existing.kind))return true;
+        }
+        return false;
+    }
+
+    private void showImportConflict(ImportParser.Bundle bundle) {
+        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel=Ui.dialogPanel(this);
+        panel.addView(Ui.text(this,"נמצא חשבון מחובר עם אותו מזהה",Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,"כדי למנוע כפילות בתצוגה המאוחדת, בחר כיצד לייבא.",Ui.T_BODY,Ui.MUTED,false),Ui.row(this,Ui.S2,Ui.S3));
+        Button update=Ui.button(this,"עדכן את החשבון המחובר",Ui.Kind.PRIMARY);
+        Button separate=Ui.button(this,"הוסף כמקור נפרד",Ui.Kind.SOFT);
+        Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
+        update.setOnClickListener(v->{dialog.dismiss();commitImport(bundle,false);});
+        separate.setOnClickListener(v->{dialog.dismiss();commitImport(bundle,true);});
+        cancel.setOnClickListener(v->{dialog.dismiss();ImportParser.delete(bundle.workDir);});
+        panel.addView(update);panel.addView(separate,Ui.row(this,Ui.S2,0));panel.addView(cancel,Ui.row(this,Ui.S2,0));
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+    }
+
+    private void commitImport(ImportParser.Bundle bundle,boolean separateConnected) {
+        showSyncMessage("שומר את הרשימות המיובאות…",false);
+        cacheWorker.execute(() -> {
+            List<String> created=new ArrayList<>();
+            List<File[]> committed=new ArrayList<>();
+            List<String> targetIds=new ArrayList<>();
+            try {
+                if(bundle.lists.size()>SourceRegistry.MAX_SOURCES-sourceRegistry.all().size()) {
+                    int newCount=0;
+                    for(ImportParser.ImportedList l:bundle.lists) {
+                        String owner=DataGuard.sha256(l.accountId.toLowerCase(Locale.ROOT));
+                        SourceRegistry.Source ex=sourceRegistry.findByOwner(owner);
+                        if(ex==null||(separateConnected&&SourceRegistry.KIND_ACCOUNT.equals(ex.kind)))newCount++;
+                    }
+                    if(newCount>SourceRegistry.MAX_SOURCES-sourceRegistry.all().size())
+                        throw new Exception("אין מספיק מקום. אפשר לשמור עד 10 מקורות.");
+                }
+                List<PreparedImport> prepared=new ArrayList<>();
+                for(ImportParser.ImportedList list:bundle.lists) {
+                    String owner=DataGuard.sha256(list.accountId.toLowerCase(Locale.ROOT));
+                    SourceRegistry.Source source=sourceRegistry.findByOwner(owner);
+                    if(source!=null&&SourceRegistry.KIND_ACCOUNT.equals(source.kind)&&separateConnected) {
+                        String separateOwner=owner+"#imported";
+                        source=sourceRegistry.findByOwner(separateOwner);
+                        if(source==null){source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,
+                                list.accountName.isEmpty()?"רשימה מיובאת":list.accountName,separateOwner);created.add(source.id);}
+                    } else if(source==null) {
+                        source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,
+                                list.accountName.isEmpty()?"רשימה מיובאת":list.accountName,owner);created.add(source.id);
+                    }
+                    if(SourceRegistry.KIND_IMPORTED.equals(source.kind)&&!list.accountName.isEmpty())
+                        sourceRegistry.rename(source.id,list.accountName);
+                    PreparedImport item=prepareImportedList(bundle,list,source,owner);
+                    prepared.add(item);targetIds.add(source.id);
+                }
+                for(PreparedImport item:prepared) {
+                    File root=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache");
+                    File temp=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_tmp");
+                    File backup=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_backup");
+                    ImportParser.delete(temp);ImportParser.delete(backup);
+                    if(!copyImportTree(item.ready,temp))throw new Exception("לא ניתן להכין רשימה לשמירה.");
+                    boolean had=root.exists();
+                    if(had&&!root.renameTo(backup))throw new Exception("לא ניתן לגבות רשימה קיימת.");
+                    if(!temp.renameTo(root)){if(had)backup.renameTo(root);throw new Exception("שמירת רשימה נכשלה.");}
+                    committed.add(new File[]{root,backup});
+                }
+                for(PreparedImport item:prepared) {
+                    SharedPreferences prefs=sourceRegistry.prefs(item.source.id);
+                    SharedPreferences.Editor edit=prefs.edit();
+                    for(String key:prefs.getAll().keySet())
+                        if(key.startsWith(DataGuard.COLLECTED_PREFIX)&&!key.equals(DataGuard.COLLECTED_PREFIX+item.orderId))edit.remove(key);
+                    edit.putString(DataGuard.COLLECTED_PREFIX+item.orderId,item.ticks.toString());
+                    if(!edit.commit())throw new Exception("לא ניתן לשמור סימוני ליקוט.");
+                    DataGuard.saveMeta(prefs,item.owner,item.orderIdLong,item.fingerprint,"");
+                    if(SourceRegistry.KIND_IMPORTED.equals(item.source.kind))sourceRegistry.markImported(item.source.id);
+                }
+                for(File[] pair:committed)ImportParser.delete(pair[1]);
+                ImportParser.delete(bundle.workDir);
+                String last=targetIds.isEmpty()?"":targetIds.get(targetIds.size()-1);
+                mainHandler.post(() -> {
+                    try {
+                        if(!last.isEmpty()) {
+                            sourceRegistry.setActive(last);activeSourceId=last;
+                            activeSourceDirectory=sourceRegistry.sourceDir(last);preferences=sourceRegistry.prefs(last);
+                            accessToken=readEncryptedToken();activeOwner=preferences.getString(DataGuard.K_OWNER,"");
+                            cacheTrusted=isCacheManifestValid(activeOwner);clearOrderMemory();
+                        }
+                        sourceRegistry.setViewMode(bundle.lists.size()>1?"COMBINED_SUM":"SINGLE");
+                        showHomeScreen(false);showSyncMessage("הייבוא הושלם בהצלחה.",false);
+                    } catch(Exception e){showSyncMessage("הרשימות נשמרו, אך לא ניתן לפתוח אותן כרגע.",false);}
+                });
+            } catch(Exception e) {
+                for(File[] pair:committed) {
+                    ImportParser.delete(pair[0]);
+                    if(pair[1].exists())pair[1].renameTo(pair[0]);
+                }
+                for(String id:created)sourceRegistry.remove(id);
+                final String message=e.getMessage()==null?"שגיאה בשמירת הייבוא.":e.getMessage();
+                mainHandler.post(() -> showSyncMessage("הייבוא לא הושלם: "+message,false));
+                ImportParser.delete(bundle.workDir);
+            }
+        });
+    }
+
+    private PreparedImport prepareImportedList(ImportParser.Bundle bundle,ImportParser.ImportedList list,
+                                                SourceRegistry.Source source,String owner)throws Exception {
+        File ready=new File(bundle.workDir,"ready_"+source.id);ImportParser.delete(ready);
+        if(!ready.mkdirs())throw new Exception("לא ניתן להכין תיקיית רשימה זמנית.");
+        JSONArray savedRows=new JSONArray();List<ProductRow> rows=new ArrayList<>();
+        for(int i=0;i<list.items.size();i++) {
+            ImportParser.Item item=list.items.get(i);String imageFile="";
+            File image=bundle.imageFile(item.image);
+            if(image!=null&&image.isFile()&&image.length()>0) {
+                String ext=item.image.substring(item.image.lastIndexOf('.')+1).toLowerCase(Locale.ROOT);
+                imageFile="image_"+i+"."+ext;
+                if(!copyImportFile(image,new File(ready,imageFile)))throw new Exception("לא ניתן להעתיק תמונת מוצר.");
+            }
+            String note=item.note;
+            if(!item.unit.isEmpty())note=(note.isEmpty()?"":note+" · ")+"יחידה: "+item.unit;
+            if(!item.category.isEmpty())note=(note.isEmpty()?"":note+" · ")+item.category;
+            ProductRow row=new ProductRow(item.id,item.name,item.imageUrl,item.quantity,note);
+            rows.add(row);
+            JSONObject saved=new JSONObject().put("key",item.id).put("name",item.name)
+                    .put("image_url",item.imageUrl).put("amount",item.quantity)
+                    .put("note",note).put("image_file",imageFile);
+            savedRows.put(saved);
+        }
+        long orderId;
+        try{orderId=Long.parseLong(list.orderId);}catch(Exception e){orderId=(long)(list.orderId.hashCode()&0x7fffffff);}
+        if(orderId<=0)orderId=1;
+        String orderKey=String.valueOf(orderId);
+        String fingerprint=DataGuard.fingerprint(rows);
+        JSONObject snapshot=new JSONObject().put("order_id",orderId).put("order_id_text",list.orderId)
+                .put("owner",owner).put("fingerprint",fingerprint).put("fingerprint_version",2)
+                .put("saved_at",System.currentTimeMillis()).put("products",savedRows)
+                .put("imported",true).put("order_name",list.orderName).put("pickup_date",list.pickupDate)
+                .put("updated_at",list.updatedAt);
+        try(FileOutputStream out=new FileOutputStream(new File(ready,"order.json"))) {
+            out.write(snapshot.toString().getBytes("UTF-8"));out.getFD().sync();
+        }
+        JSONArray retained=new JSONArray();
+        File oldManifest=new File(new File(sourceRegistry.sourceDir(source.id),"pickup_order_cache"),"order.json");
+        if(oldManifest.isFile()) {
+            try {
+                JSONObject old=new JSONObject(readImportText(oldManifest));
+                if(old.optLong("order_id",-1)==orderId) {
+                    Set<String> valid=new HashSet<>();for(ProductRow row:rows)valid.add(DataGuard.tick(row));
+                    JSONArray ticks=new JSONArray(sourceRegistry.prefs(source.id).getString(DataGuard.COLLECTED_PREFIX+orderKey,"[]"));
+                    for(int i=0;i<ticks.length();i++){String tick=ticks.optString(i,"");if(valid.contains(tick))retained.put(tick);}
+                }
+            }catch(Exception ignored){}
+        }
+        return new PreparedImport(source,ready,owner,orderId,fingerprint,retained);
+    }
+
+    private String readImportText(File file)throws Exception {
+        ByteArrayOutputStream out=new ByteArrayOutputStream();try(InputStream in=new FileInputStream(file)){
+            byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}
+        return new String(out.toByteArray(),"UTF-8");
+    }
+    private boolean copyImportFile(File from,File to) {
+        try(InputStream in=new FileInputStream(from);FileOutputStream out=new FileOutputStream(to)){
+            byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);out.getFD().sync();return true;
+        }catch(Exception e){return false;}
+    }
+    private boolean copyImportTree(File from,File to) {
+        if(from.isDirectory()){if(!to.exists()&&!to.mkdirs())return false;File[] files=from.listFiles();if(files==null)return true;
+            for(File f:files)if(!copyImportTree(f,new File(to,f.getName())))return false;return true;}
+        return copyImportFile(from,to);
+    }
+    private static final class PreparedImport {
+        final SourceRegistry.Source source;final File ready;final String owner,fingerprint;final long orderIdLong;final String orderId;final JSONArray ticks;
+        PreparedImport(SourceRegistry.Source s,File r,String o,long id,String f,JSONArray t){source=s;ready=r;owner=o;orderIdLong=id;orderId=String.valueOf(id);fingerprint=f;ticks=t;}
+    }
+
     private void showAccountsScreen() {
         accountsScreenVisible = true;
         LinearLayout root = Ui.screen(this);
@@ -699,6 +1004,14 @@ public class MainActivity extends Activity {
         add.setLayoutParams(Ui.row(this, Ui.S3, Ui.S2));
         add.setOnClickListener(v -> beginAddAccount());
         root.addView(add);
+        Button importFile = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
+        importFile.setOnClickListener(v -> openImportPicker());
+        root.addView(importFile, Ui.row(this, Ui.S2, 0));
+        Button importFolder = Ui.button(this, "ייבוא מתיקיית import", Ui.Kind.SOFT);
+        importFolder.setOnClickListener(v -> showImportFolder());
+        root.addView(importFolder, Ui.row(this, Ui.S2, 0));
+        File importDir = getExternalFilesDir("import");
+        root.addView(Ui.text(this, "אפשר להעתיק קבצים גם לתיקייה: " + (importDir == null ? "לא זמינה" : importDir.getAbsolutePath()), Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S2, Ui.S2));
         Button back = Ui.button(this, "חזרה לרשימה", Ui.Kind.SOFT);
         back.setOnClickListener(v -> { accountsScreenVisible=false; showHomeScreen(false); });
         root.addView(back);
