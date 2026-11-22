@@ -55,7 +55,11 @@ final class SourceRegistry {
         File target=sourceDir(id);
         for(String name:new String[]{"pickup_order_cache","pickup_order_cache_tmp","pickup_order_cache_backup"}){
             File from=new File(context.getFilesDir(),name);if(from.exists()&&!copy(from,new File(target,name)))return false;}
-        sources.add(s);active=id;save();return true;
+        sources.add(s);active=id;save();
+        // The new source and its copied files are now indexed. Only now remove the legacy copy.
+        old.edit().clear().commit();
+        for(String name:new String[]{"pickup_order_cache","pickup_order_cache_tmp","pickup_order_cache_backup"}) deleteTree(new File(context.getFilesDir(),name));
+        return true;
     }
     private void load(){try{JSONArray a=new JSONArray(index.getString(LIST,"[]"));for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null)sources.add(new Source(o.optString("id"),o.optString("kind",KIND_ACCOUNT),o.optString("label","חשבון"),o.optString("ownerKey",""),o.optString("state","NEVER_SYNCED"),o.optBoolean("includeInCombined",true),o.optLong("lastSyncAt"),o.optInt("generation",1)));}active=index.getString(ACTIVE,"");if(find(active)==null)active=sources.isEmpty()?"":sources.get(0).id;}catch(Exception e){sources.clear();active="";}}
     private synchronized void save(){JSONArray a=new JSONArray();try{for(Source s:sources)a.put(s.json());}catch(Exception ignored){}index.edit().putString(LIST,a.toString()).putString(ACTIVE,active).commit();}

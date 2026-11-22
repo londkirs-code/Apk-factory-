@@ -392,7 +392,8 @@ public class MainActivity extends Activity {
             boolean sameAccount = (!newOwner.isEmpty() && newOwner.equals(oldOwner))
                     || (newOwner.isEmpty() && !oldFingerprint.isEmpty() && oldFingerprint.equals(tokenFingerprint));
             saveEncryptedToken(token);
-            preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
+            preferences.edit().putString(DataGuard.K_TOKEN_FINGERPRINT, tokenFingerprint)
+                    .remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
             accessToken = token;
             activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : target.ownerKey);
             sourceRegistry.updateOwner(target.id, activeOwner);
@@ -710,7 +711,7 @@ public class MainActivity extends Activity {
         addSourceAction(panel, dialog, "הפוך לחשבון הפעיל", () -> switchSource(source.id));
         addSourceAction(panel, dialog, "שינוי שם", () -> renameSource(source));
         if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
-            addSourceAction(panel, dialog, "התחבר מחדש", () -> { switchSource(source.id); });
+            addSourceAction(panel, dialog, "התחבר מחדש", () -> switchSourceThen(source.id, this::logout));
             addSourceAction(panel, dialog, "התנתק", () -> switchSourceThen(source.id, this::logout));
         }
         addSourceAction(panel, dialog, "הסר חשבון ורשימה מהמכשיר", () ->
@@ -1083,6 +1084,7 @@ public class MainActivity extends Activity {
             final boolean useCache = cacheTrusted && hasCachedOrder();
             final int generation = ++authGeneration;
             accessToken = "";
+            if (sourceRegistry != null && !activeSourceId.isEmpty()) sourceRegistry.markNeedsLogin(activeSourceId);
             cacheWorker.execute(() -> {
                 if (generation != authGeneration) return;
                 clearToken();
@@ -1198,6 +1200,8 @@ public class MainActivity extends Activity {
             DataGuard.clearOrderMeta(preferences);
         }
         activeOwner = stableOwner;
+        sourceRegistry.updateOwner(activeSourceId, stableOwner);
+        sourceRegistry.markSynced(activeSourceId);
         cacheTrusted = true;
         orderData = order;
         currentOrderId = String.valueOf(orderId);
