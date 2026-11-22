@@ -429,6 +429,7 @@ public class MainActivity extends Activity {
                 target = sourceRegistry.create(SourceRegistry.KIND_ACCOUNT,
                         email.isEmpty() ? "חשבון חדש" : email, newOwner);
             }
+            if (SourceRegistry.KIND_IMPORTED.equals(target.kind)) sourceRegistry.promoteToAccount(target.id);
             sourceRegistry.setActive(target.id);
             activeSourceId = target.id;
             activeSourceDirectory = sourceRegistry.sourceDir(activeSourceId);
@@ -964,8 +965,8 @@ public class MainActivity extends Activity {
             savedRows.put(saved);
         }
         long orderId;
-        try{orderId=Long.parseLong(list.orderId);}catch(Exception e){orderId=Long.parseLong(DataGuard.sha256(list.orderId).substring(0,15),16);}
-        if(orderId<=0)orderId=1;
+        try{orderId=Long.parseLong(list.orderId);if(orderId<=0)throw new NumberFormatException();}
+        catch(Exception e){orderId=Long.parseLong(DataGuard.sha256(list.orderId).substring(0,15),16);}
         String orderKey=String.valueOf(orderId);
         String fingerprint=DataGuard.fingerprint(rows);
         JSONObject snapshot=new JSONObject().put("order_id",orderId).put("order_id_text",list.orderId)
@@ -1624,6 +1625,30 @@ public class MainActivity extends Activity {
             return;
         }
 
+        boolean reconnectedExistingSource = false;
+        SourceRegistry.Source existingOwnerSource = sourceRegistry.findByOwner(stableOwner);
+        if (existingOwnerSource != null && !existingOwnerSource.id.equals(activeSourceId)) {
+            String temporarySourceId = activeSourceId;
+            try {
+                secretStore.put(existingOwnerSource.id, requestToken);
+                sourceRegistry.promoteToAccount(existingOwnerSource.id);
+                String email = emailFromToken(requestToken);
+                if (!email.isEmpty()) sourceRegistry.rename(existingOwnerSource.id, email);
+                sourceRegistry.setActive(existingOwnerSource.id);
+                activeSourceId = existingOwnerSource.id;
+                activeSourceDirectory = sourceRegistry.sourceDir(activeSourceId);
+                preferences = sourceRegistry.prefs(activeSourceId);
+                accessToken = requestToken;
+                activeOwner = stableOwner;
+                cacheTrusted = isCacheManifestValid(stableOwner);
+                clearOrderMemory();
+                sourceRegistry.remove(temporarySourceId);
+                reconnectedExistingSource = true;
+            } catch (Exception mergeError) {
+                android.util.Log.w("MishnatPickup", "Could not reconnect existing source", mergeError);
+            }
+        }
+
         String fingerprint = DataGuard.fingerprint(rows);
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
         Set<String> retainedTicks = new HashSet<>();
@@ -1665,7 +1690,9 @@ public class MainActivity extends Activity {
         syncCompletionState();
         renderProducts(false);
         wireFocusOrder();
-        showSyncMessage("", false);
+        showSyncMessage(reconnectedExistingSource
+                ? "נמצא מקור קיים לאותו מזהה לקוח. הטוקן חובר אליו כדי למנוע כפילות."
+                : "", false);
 
         boolean rewrite = verdict != DataGuard.Verdict.SAME || !isCacheManifestValid(stableOwner);
         if (!rewrite) {
