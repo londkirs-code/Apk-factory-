@@ -1,7 +1,7 @@
 <resources>
-    <style name="AppTheme.Base" parent="android:style/Theme.Holo.Light.NoActionBar">
+    <style name="MishnatPickupBase" parent="android:style/Theme.Holo.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
-    <style name="AppTheme" parent="@style/AppTheme.Base" />
+    <style name="AppTheme" parent="@style/MishnatPickupBase" />
 </resources>
