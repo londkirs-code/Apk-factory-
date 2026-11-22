@@ -199,7 +199,10 @@ final class Ui {
     static void systemBars(Activity a) {
         Window w=a.getWindow();
         int flags=0;
-        if(Build.VERSION.SDK_INT>=21){w.setStatusBarColor(BG);w.setNavigationBarColor(BG);}
+        if(Build.VERSION.SDK_INT>=21){
+            w.setStatusBarColor(Build.VERSION.SDK_INT>=23?BG:P800);
+            w.setNavigationBarColor(Build.VERSION.SDK_INT>=26?BG:P800);
+        }
         if(Build.VERSION.SDK_INT>=23)flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         if(Build.VERSION.SDK_INT>=26)flags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         if(flags!=0)w.getDecorView().setSystemUiVisibility(flags);
