@@ -29,9 +29,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
+import android.webkit.CookieSyncManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -104,6 +104,7 @@ public class MainActivity extends Activity {
     };
 
     private SharedPreferences preferences;
+    private SecretStore secretStore;
     private SourceRegistry sourceRegistry;
     private String activeSourceId = "";
     private File activeSourceDirectory;
@@ -151,6 +152,7 @@ public class MainActivity extends Activity {
         imageViewer = new ImageViewerOverlay(this, imageLoader);
         SharedPreferences legacyPreferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         sourceRegistry = new SourceRegistry(this);
+        secretStore = new SecretStore(this);
         sourceRegistry.migrateLegacy(legacyPreferences);
         SourceRegistry.Source initialSource = sourceRegistry.active();
         if (initialSource != null) {
@@ -256,8 +258,14 @@ public class MainActivity extends Activity {
         root.addView(buildLoginBrowser());
         setContentView(root);
         Ui.systemBars(this);
-        loginWebView.loadUrl(LOGIN_URL);
-        loginWebView.post(() -> loginWebView.requestFocus());
+        final WebView freshWebView = loginWebView;
+        clearLoginCookies(() -> mainHandler.post(() -> {
+            if (loginWebView != freshWebView || isFinishing()) return;
+            WebStorage.getInstance().deleteAllData();
+            freshWebView.clearCache(true); freshWebView.clearHistory(); freshWebView.clearFormData();
+            freshWebView.loadUrl(LOGIN_URL);
+            freshWebView.post(() -> freshWebView.requestFocus());
+        }));
     }
 
     private WebView createLoginWebView() {
@@ -272,7 +280,7 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setSupportMultipleWindows(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        if (Build.VERSION.SDK_INT >= 21) settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         CookieManager.getInstance().setAcceptCookie(true);
         web.setWebChromeClient(new WebChromeClient());
         web.addJavascriptInterface(new AuthBridge(), "PickupNative");
@@ -282,9 +290,6 @@ public class MainActivity extends Activity {
 
     private WebViewClient createLoginWebViewClient() {
         return new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleLoginNavigation(request.getUrl());
-            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return handleLoginNavigation(Uri.parse(url));
             }
@@ -316,7 +321,7 @@ public class MainActivity extends Activity {
     private FrameLayout buildLoginBrowser() {
         FrameLayout frame = new FrameLayout(this);
         frame.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
-        frame.setClipToOutline(true);
+        if (Build.VERSION.SDK_INT >= 21) frame.setClipToOutline(true);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, 0, 1f);
         params.topMargin = Ui.dp(this, Ui.S3);
         frame.setLayoutParams(params);
@@ -427,6 +432,8 @@ public class MainActivity extends Activity {
             if (!emailLabel.isEmpty()) sourceRegistry.rename(target.id, emailLabel);
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
+            WebStorage.getInstance().deleteAllData();
+            clearLoginCookies(() -> { });
             if (!sameAccount) {
                 invalidateSavedOrderPreferences(newOwner);
                 queueOrderDataWipe(generation);
@@ -938,7 +945,7 @@ public class MainActivity extends Activity {
             savedRows.put(saved);
         }
         long orderId;
-        try{orderId=Long.parseLong(list.orderId);}catch(Exception e){orderId=(long)(list.orderId.hashCode()&0x7fffffff);}
+        try{orderId=Long.parseLong(list.orderId);}catch(Exception e){orderId=Long.parseLong(DataGuard.sha256(list.orderId).substring(0,15),16);}
         if(orderId<=0)orderId=1;
         String orderKey=String.valueOf(orderId);
         String fingerprint=DataGuard.fingerprint(rows);
@@ -1124,6 +1131,7 @@ public class MainActivity extends Activity {
     private void removeSource(String id) {
         final boolean removingActive = id.equals(activeSourceId);
         cacheWorker.execute(() -> {
+            imageCache.evictAll();
             sourceRegistry.remove(id);
             mainHandler.post(() -> {
                 if (isFinishing()) return;
@@ -1351,7 +1359,9 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) {
             cookies.removeAllCookies(removed -> { cookies.flush(); afterClear.run(); });
         } else {
+            CookieSyncManager.createInstance(this);
             cookies.removeAllCookie();
+            CookieSyncManager.getInstance().sync();
             afterClear.run();
         }
     }
@@ -1715,7 +1725,7 @@ public class MainActivity extends Activity {
     private boolean downloadImageToFile(String url, File destination) {
         HttpURLConnection connection = null;
         try {
-            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection = openConnection(new URL(url));
             connection.setConnectTimeout(12000); connection.setReadTimeout(18000);
             connection.setRequestProperty("User-Agent", "Mozilla/5.0");
             int code = connection.getResponseCode();
@@ -2320,8 +2330,19 @@ public class MainActivity extends Activity {
         return response;
     }
 
+    private HttpURLConnection openConnection(URL url) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        if (Build.VERSION.SDK_INT < 21 && connection instanceof javax.net.ssl.HttpsURLConnection) {
+            javax.net.ssl.SSLContext context = javax.net.ssl.SSLContext.getInstance("TLSv1.2");
+            context.init(null, null, null);
+            ((javax.net.ssl.HttpsURLConnection) connection).setSSLSocketFactory(
+                    new Tls12SocketFactory(context.getSocketFactory()));
+        }
+        return connection;
+    }
+
     private HttpResult rawRequest(String method, String path, String token, JSONObject body) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(API + path).openConnection();
+        HttpURLConnection connection = openConnection(new URL(API + path));
         connection.setRequestMethod(method);
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(22000);
@@ -2514,31 +2535,32 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void saveEncryptedToken(String token) throws Exception {
-        SecretKey key = getOrCreateKey();
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, key);
-        byte[] encrypted = cipher.doFinal(token.getBytes(StandardCharsets.UTF_8));
-        String value = Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP) + ":" + Base64.encodeToString(encrypted, Base64.NO_WRAP);
-        preferences.edit().putString(TOKEN_KEY, value).apply();
+        if (activeSourceId.isEmpty()) throw new Exception("לא נבחר מקור לחשבון.");
+        secretStore.put(activeSourceId, token);
+        preferences.edit().remove(TOKEN_KEY).apply();
     }
 
     private String readEncryptedToken() {
+        if (activeSourceId.isEmpty()) return "";
+        String token = secretStore.get(activeSourceId);
+        if (token != null && !token.isEmpty()) return token;
         String stored = preferences.getString(TOKEN_KEY, "");
-        if (stored.isEmpty()) return "";
+        if (stored.isEmpty() || Build.VERSION.SDK_INT < 23) return "";
         try {
             String[] parts = stored.split(":", 2);
-            if (parts.length != 2) throw new Exception("Invalid token storage");
+            if (parts.length != 2) throw new Exception("Invalid legacy token storage");
             byte[] iv = Base64.decode(parts[0], Base64.NO_WRAP);
             byte[] encrypted = Base64.decode(parts[1], Base64.NO_WRAP);
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), new GCMParameterSpec(128, iv));
-            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            clearToken();
-            return "";
-        }
+            token = new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
+            secretStore.put(activeSourceId, token);
+            preferences.edit().remove(TOKEN_KEY).commit();
+            return token;
+        } catch (Exception e) { return ""; }
     }
 
+    @android.annotation.TargetApi(23)
     private SecretKey getOrCreateKey() throws Exception {
         KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
         keyStore.load(null);
@@ -2556,8 +2578,7 @@ public class MainActivity extends Activity {
     }
 
     private void clearToken() {
-        // The encryption key is shared by isolated per-source preference files.
-        // Removing one account token must not invalidate tokens belonging to other sources.
+        if (secretStore != null && !activeSourceId.isEmpty()) secretStore.delete(activeSourceId);
         preferences.edit().remove(TOKEN_KEY).apply();
     }
 

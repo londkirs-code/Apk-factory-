@@ -4,9 +4,12 @@ plugins {
 android {
     namespace 'org.mishnatyosef.pickup'
     compileSdk 35
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+    lint { abortOnError true; checkReleaseBuilds true }
+
     defaultConfig {
         applicationId 'org.mishnatyosef.pickup'
-        minSdk 23
+        minSdk 19
         targetSdk 35
         versionCode 30
         versionName '1.30'

@@ -155,8 +155,8 @@ final class Ui {
         root.setPadding(dp(c,S4),dp(c,S2),dp(c,S4),dp(c,S2));
         root.setLayoutParams(row(c,0,S3));
 
-        ImageView image=new ImageView(c); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setBackground(shape(c,P100,R_IMAGE,0,0)); image.setClipToOutline(true);
+        ImageView image=new RoundedImageView(c,dp(c,R_IMAGE)); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setBackground(shape(c,P100,R_IMAGE,0,0));
         int size=imageSize(c); image.setLayoutParams(new LinearLayout.LayoutParams(size,size));
 
         LinearLayout details=column(c);
@@ -175,26 +175,7 @@ final class Ui {
     }
 
     static void setImageFocus(Context c, CardViews v, boolean focused) {
-        if (Build.VERSION.SDK_INT < 23) return;
-        // The keyboard's virtual focus is on the picture, so draw the double ring
-        // directly around the image instead of outlining the entire product card.
-        v.root.setForeground(null);
-        if (!focused) {
-            v.image.setForeground(null);
-            return;
-        }
-        GradientDrawable outer = new GradientDrawable();
-        outer.setColor(Color.TRANSPARENT);
-        outer.setCornerRadius(dp(c, R_IMAGE));
-        outer.setStroke(dp(c, IMAGE_FOCUS_OUTER), P800);
-        GradientDrawable inner = new GradientDrawable();
-        inner.setColor(Color.TRANSPARENT);
-        inner.setCornerRadius(dp(c, R_IMAGE - IMAGE_FOCUS_INSET));
-        inner.setStroke(dp(c, IMAGE_FOCUS_INNER), P25);
-        LayerDrawable rings = new LayerDrawable(new Drawable[]{outer, inner});
-        int inset = dp(c, IMAGE_FOCUS_INSET);
-        rings.setLayerInset(1, inset, inset, inset, inset);
-        v.image.setForeground(rings);
+        if (v.image instanceof RoundedImageView) ((RoundedImageView) v.image).setRing(focused);
     }
 
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {
@@ -216,10 +197,12 @@ final class Ui {
     }
 
     static void systemBars(Activity a) {
-        Window w=a.getWindow(); w.setStatusBarColor(BG); w.setNavigationBarColor(BG);
-        int flags=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-        if(Build.VERSION.SDK_INT>=26) flags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-        w.getDecorView().setSystemUiVisibility(flags);
+        Window w=a.getWindow();
+        int flags=0;
+        if(Build.VERSION.SDK_INT>=21){w.setStatusBarColor(BG);w.setNavigationBarColor(BG);}
+        if(Build.VERSION.SDK_INT>=23)flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if(Build.VERSION.SDK_INT>=26)flags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        if(flags!=0)w.getDecorView().setSystemUiVisibility(flags);
     }
 
     /** בועת הצלחה שמופיעה מתחת לשכבת הקונפטי. */
