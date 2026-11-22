@@ -130,6 +130,7 @@ public class MainActivity extends Activity {
     private WebView loginWebView;
     private TextView loginTermsNotice;
     private boolean authHandled = false;
+    private boolean accountsScreenVisible = false;
     private boolean loading = false;
     private volatile int authGeneration = 0;
     private long lastSyncAttemptAt = 0;
@@ -394,6 +395,9 @@ public class MainActivity extends Activity {
             preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).apply();
             accessToken = token;
             activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : target.ownerKey);
+            sourceRegistry.updateOwner(target.id, activeOwner);
+            String emailLabel = emailFromToken(token);
+            if (!emailLabel.isEmpty()) sourceRegistry.rename(target.id, emailLabel);
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
             if (!sameAccount) {
@@ -488,7 +492,7 @@ public class MainActivity extends Activity {
 
     private boolean hasAnyOrderCacheFiles() {
         for (String name : DataGuard.CACHE_DIRS)
-            if (new File(getFilesDir(), name).exists()) return true;
+            if (new File(activeFilesDir(), name).exists()) return true;
         return false;
     }
 
@@ -508,11 +512,11 @@ public class MainActivity extends Activity {
         };
         if (Looper.myLooper() == Looper.getMainLooper()) cleanup.run();
         else mainHandler.post(cleanup);
-        DataGuard.wipeOrderData(getFilesDir(), preferences);
+        DataGuard.wipeOrderData(activeFilesDir(), preferences);
     }
 
     private boolean isCacheManifestValid(String owner) {
-        File manifest = new File(new File(getFilesDir(), "pickup_order_cache"), "order.json");
+        File manifest = new File(new File(activeFilesDir(), "pickup_order_cache"), "order.json");
         if (!manifest.isFile() || owner == null || owner.isEmpty()) return false;
         try (FileInputStream in = new FileInputStream(manifest);
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -647,6 +651,7 @@ public class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (loginWebView != null && loginWebView.canGoBack()) loginWebView.goBack();
+        else if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
         else super.onBackPressed();
     }
 
@@ -668,6 +673,149 @@ public class MainActivity extends Activity {
         wireFocusOrder();
         pageScroll.post(this::updateImageModeHint);
         if (loadData && !accessToken.isEmpty()) loadLatestOrder();
+    }
+
+    private void showAccountsScreen() {
+        accountsScreenVisible = true;
+        LinearLayout root = Ui.screen(this);
+        root.addView(Ui.title(this, "ניהול חשבונות"));
+        root.addView(Ui.banner(this, "כל חשבון שומר את הרשימה, התמונות וסימוני הליקוט שלו בנפרד."));
+        for (SourceRegistry.Source source : sourceRegistry.all()) {
+            String status = SourceRegistry.KIND_IMPORTED.equals(source.kind) ? "רשימה מיובאת"
+                    : ("LOGIN_EXPIRED".equals(source.state) || sourceRegistry.prefs(source.id).getString(TOKEN_KEY, "").isEmpty()
+                        ? "דורש התחברות" : "מחובר");
+            String active = source.id.equals(activeSourceId) ? " · פעיל" : "";
+            Button item = Ui.button(this, source.label + " · " + status + active, Ui.Kind.SOFT);
+            item.setLayoutParams(Ui.row(this, Ui.S2, Ui.S2));
+            item.setOnClickListener(v -> showSourceActions(source));
+            root.addView(item);
+        }
+        Button add = Ui.button(this, "הוספת חשבון", Ui.Kind.PRIMARY);
+        add.setLayoutParams(Ui.row(this, Ui.S3, Ui.S2));
+        add.setOnClickListener(v -> beginAddAccount());
+        root.addView(add);
+        Button back = Ui.button(this, "חזרה לרשימה", Ui.Kind.SOFT);
+        back.setOnClickListener(v -> { accountsScreenVisible=false; showHomeScreen(false); });
+        root.addView(back);
+        setContentView(root);
+        Ui.systemBars(this);
+        if (root.getChildCount() > 1) root.getChildAt(1).requestFocus();
+    }
+
+    private void showSourceActions(SourceRegistry.Source source) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, source.label, Ui.T_NAME, Ui.P900, true));
+        addSourceAction(panel, dialog, "הפוך לחשבון הפעיל", () -> switchSource(source.id));
+        addSourceAction(panel, dialog, "שינוי שם", () -> renameSource(source));
+        if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
+            addSourceAction(panel, dialog, "התחבר מחדש", () -> { switchSource(source.id); });
+            addSourceAction(panel, dialog, "התנתק", () -> switchSourceThen(source.id, this::logout));
+        }
+        addSourceAction(panel, dialog, "הסר חשבון ורשימה מהמכשיר", () ->
+                showModernConfirm("הסרת מקור", "כל הטוקן, הרשימה, התמונות וסימוני הליקוט של המקור יימחקו מהמכשיר. הפעולה אינה דורשת אינטרנט.", "הסר", () -> removeSource(source.id)));
+        Button cancel = Ui.button(this, "סגירה", Ui.Kind.SOFT);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(cancel, Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+    }
+
+    private void addSourceAction(LinearLayout panel, Dialog dialog, String label, Runnable action) {
+        Button b = Ui.button(this, label, Ui.Kind.SOFT);
+        b.setOnClickListener(v -> { dialog.dismiss(); action.run(); });
+        panel.addView(b, Ui.row(this, Ui.S2, 0));
+    }
+
+    private void beginAddAccount() {
+        if (!sourceRegistry.canAdd()) {
+            showSyncMessage("אפשר לשמור עד 10 חשבונות או רשימות.", false);
+            accountsScreenVisible=false; showHomeScreen(false); return;
+        }
+        accountsScreenVisible=false;
+        clearLoginCookies(() -> mainHandler.post(() -> {
+            if (isFinishing()) return;
+            WebStorage.getInstance().deleteAllData();
+            showLoginScreen("התחברו לחשבון הנוסף. הרשימות הקיימות יישארו שמורות.");
+        }));
+    }
+
+    private void switchSourceThen(String id, Runnable action) {
+        switchSource(id, action);
+    }
+
+    private void switchSource(String id) { switchSource(id, null); }
+
+    private void switchSource(String id, Runnable afterSwitch) {
+        if (id.equals(activeSourceId)) {
+            accountsScreenVisible=false;
+            if (afterSwitch != null) afterSwitch.run(); else showHomeScreen(false);
+            return;
+        }
+        // Drain already queued writes before changing the active source directory/preferences.
+        final int generation = ++authGeneration;
+        loading = false;
+        cacheWorker.execute(() -> mainHandler.post(() -> {
+            try {
+                SourceRegistry.Source next = sourceRegistry.find(id);
+                if (next == null || isFinishing()) return;
+                if (loginWebView != null) destroyLoginWebView();
+                activeSourceId = id;
+                sourceRegistry.setActive(id);
+                activeSourceDirectory = sourceRegistry.sourceDir(id);
+                preferences = sourceRegistry.prefs(id);
+                accessToken = readEncryptedToken();
+                activeOwner = preferences.getString(DataGuard.K_OWNER, next.ownerKey);
+                cacheTrusted = isCacheManifestValid(activeOwner);
+                clearOrderMemory();
+                initializeCacheOwnership();
+                accountsScreenVisible=false;
+                if (afterSwitch != null) afterSwitch.run();
+                else showHomeScreen(!accessToken.isEmpty());
+            } catch (Exception e) {
+                showAccountsScreen();
+            }
+        }));
+    }
+
+    private void renameSource(SourceRegistry.Source source) {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
+        input.setText(source.label);
+        input.setSelectAllOnFocus(true);
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "שינוי שם החשבון", Ui.T_NAME, Ui.P900, true));
+        panel.addView(input, Ui.row(this, Ui.S2, Ui.S3));
+        Button save = Ui.button(this, "שמירה", Ui.Kind.PRIMARY);
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        save.setOnClickListener(v -> { sourceRegistry.rename(source.id, input.getText().toString()); dialog.dismiss(); showAccountsScreen(); });
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(save); panel.addView(cancel, Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel); dialog.show(); styleConfirmWindow(dialog);
+        input.requestFocus();
+    }
+
+    private void removeSource(String id) {
+        final boolean removingActive = id.equals(activeSourceId);
+        cacheWorker.execute(() -> {
+            sourceRegistry.remove(id);
+            mainHandler.post(() -> {
+                if (isFinishing()) return;
+                if (removingActive) {
+                    SourceRegistry.Source next=sourceRegistry.active();
+                    if (next == null) {
+                        activeSourceId=""; activeSourceDirectory=super.getFilesDir();
+                        preferences=getSharedPreferences(PREFS,MODE_PRIVATE);
+                        accessToken=""; activeOwner=""; cacheTrusted=false; clearOrderMemory();
+                        showLoginScreen("המקור הוסר מהמכשיר.");
+                    } else switchSource(next.id);
+                } else showAccountsScreen();
+            });
+        });
     }
 
     private LinearLayout buildHomeHeader() {
@@ -693,8 +841,12 @@ public class MainActivity extends Activity {
             if (accessToken.isEmpty()) showLoginScreen("");
             else confirmLogout();
         });
+        Button accounts = Ui.button(this, "חשבונות (" + (sourceRegistry == null ? 0 : sourceRegistry.all().size()) + ")", Ui.Kind.SOFT);
+        accounts.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
+        accounts.setOnClickListener(v -> showAccountsScreen());
         TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
         row.addView(logoutButton);
+        row.addView(accounts);
         row.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
         return row;
     }
@@ -957,7 +1109,7 @@ public class MainActivity extends Activity {
 
     private void loadCachedOrder() {
         if (!cacheTrusted || !hasCachedOrder()) return;
-        File root = new File(getFilesDir(), "pickup_order_cache");
+        File root = new File(activeFilesDir(), "pickup_order_cache");
         File manifest = new File(root, "order.json");
         try (FileInputStream in = new FileInputStream(manifest);
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -994,7 +1146,7 @@ public class MainActivity extends Activity {
             syncCompletionState();
         } catch (Exception error) {
             cacheTrusted = false;
-            cacheWorker.execute(() -> DataGuard.wipeOrderData(getFilesDir(), preferences));
+            cacheWorker.execute(() -> DataGuard.wipeOrderData(activeFilesDir(), preferences));
         }
     }
 
@@ -1081,7 +1233,7 @@ public class MainActivity extends Activity {
         cacheWorker.execute(() -> {
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
             if (decision != DataGuard.Verdict.SAME) wipeOrderData();
-            else DataGuard.wipeCacheFiles(getFilesDir());
+            else DataGuard.wipeCacheFiles(activeFilesDir());
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
             writeCollectedState(orderKey, ticks);
             try {
@@ -1093,7 +1245,7 @@ public class MainActivity extends Activity {
                 android.util.Log.w("MishnatPickup",
                         "Offline cache update failed; stale snapshot was not retained", cacheError);
                 if (generation == authGeneration && requestToken.equals(accessToken)) {
-                    DataGuard.wipeCacheFiles(getFilesDir());
+                    DataGuard.wipeCacheFiles(activeFilesDir());
                     // Keep the online order identity and its checkmarks even when its offline
                     // image snapshot failed. The next sync can retry the cache without resetting
                     // collection progress or mistaking the same order for a new one.
@@ -1132,9 +1284,9 @@ public class MainActivity extends Activity {
                                       long orderId, JSONObject order, List<ProductRow> rows,
                                       String fingerprint) throws Exception {
         if (generation != authGeneration || !requestToken.equals(accessToken)) return;
-        File root = new File(getFilesDir(), "pickup_order_cache");
-        File temp = new File(getFilesDir(), "pickup_order_cache_tmp");
-        File backup = new File(getFilesDir(), "pickup_order_cache_backup");
+        File root = new File(activeFilesDir(), "pickup_order_cache");
+        File temp = new File(activeFilesDir(), "pickup_order_cache_tmp");
+        File backup = new File(activeFilesDir(), "pickup_order_cache_backup");
         deleteRecursively(temp);
         if (!temp.mkdirs()) throw new Exception("לא ניתן ליצור תיקיית שמירה");
         JSONArray savedRows = new JSONArray();
@@ -1447,7 +1599,7 @@ public class MainActivity extends Activity {
             File direct = new File(product.imagePath);
             if (direct.isFile() && direct.length() > 0) return direct;
         }
-        File root = new File(getFilesDir(), "pickup_order_cache");
+        File root = new File(activeFilesDir(), "pickup_order_cache");
         File manifest = new File(root, "order.json");
         try (FileInputStream in = new FileInputStream(manifest);
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -1810,9 +1962,17 @@ public class MainActivity extends Activity {
             JSONObject data = row.optJSONObject("data");
             JSONObject item = findMatchingItem(orderItems, row);
             JSONObject saleProduct = nestedProduct(item);
-            String id = first(row, "item_salesID", "item_sales_id", "itemID", "id");
-            if (id.isEmpty() && data != null) id = first(data, "item_salesID", "item_sales_id", "itemID", "id");
-            String key = (id.isEmpty() ? "line" : id) + "_" + i;
+            // The catalog product ID is stable across orders and accounts. Line IDs
+            // (item_salesID / order-item id) are not suitable for cross-account aggregation.
+            String catalogProductId = first(saleProduct, "id", "product_id", "productID");
+            if (catalogProductId.isEmpty()) {
+                JSONObject itemSale = item == null ? null : item.optJSONObject("item_sale");
+                catalogProductId = first(itemSale, "product_id", "productID");
+            }
+            String lineId = first(row, "item_salesID", "item_sales_id", "itemID", "id");
+            if (lineId.isEmpty() && data != null) lineId = first(data, "item_salesID", "item_sales_id", "itemID", "id");
+            String key = !catalogProductId.isEmpty() ? catalogProductId
+                    : (lineId.isEmpty() ? "line" : lineId) + "_" + i;
             String name = first(data, "full_name", "name", "product_name");
             if (name.isEmpty()) name = first(row, "full_name", "name", "product_name");
             if (name.isEmpty()) name = first(saleProduct, "full_name", "name", "title");

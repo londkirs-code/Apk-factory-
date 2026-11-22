@@ -32,6 +32,7 @@ final class SourceRegistry {
     }
     synchronized void setActive(String id)throws Exception{if(find(id)==null)throw new Exception("החשבון אינו קיים.");active=id;save();}
     synchronized void rename(String id,String label){Source s=find(id);if(s!=null){s.label=clean(label);save();}}
+    synchronized void updateOwner(String id,String owner){Source s=find(id);if(s!=null&&owner!=null&&!owner.isEmpty()){s.ownerKey=owner;save();}}
     synchronized void markNeedsLogin(String id){Source s=find(id);if(s!=null){s.state="LOGIN_EXPIRED";s.generation++;save();}}
     synchronized void markSynced(String id){Source s=find(id);if(s!=null){s.state="OK";s.lastSyncAt=System.currentTimeMillis();save();}}
     synchronized void remove(String id){Source s=find(id);if(s==null)return;s.generation++;sources.remove(s);if(id.equals(active))active=sources.isEmpty()?"":sources.get(0).id;save();deleteTree(sourceDir(id));prefs(id).edit().clear().commit();}
