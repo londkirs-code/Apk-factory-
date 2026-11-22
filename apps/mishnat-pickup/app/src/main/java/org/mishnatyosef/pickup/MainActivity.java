@@ -134,6 +134,11 @@ public class MainActivity extends Activity {
     private boolean accountsScreenVisible = false;
     private static final int REQUEST_IMPORT_FILE = 6101;
     private static boolean cookieSyncManagerReady = false;
+    private final List<String> syncQueue = new ArrayList<>();
+    private int syncQueueIndex = 0;
+    private int syncQueueTotal = 0;
+    private String syncReturnSource = "", syncReturnMode = "SINGLE";
+    private boolean syncAllRunning = false, syncAwaitingResult = false;
     private boolean combinedView = false;
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
@@ -713,6 +718,7 @@ public class MainActivity extends Activity {
         combinedView = sourceRegistry != null && !"SINGLE".equals(sourceRegistry.viewMode());
         if (combinedView) loadCombinedSnapshot();
         else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
+        if (combinedView && retryButton != null) { retryButton.setText("סנכרן את כל החשבונות"); retryButton.setVisibility(View.VISIBLE); }
         renderProducts(false);
         wireFocusOrder();
         pageScroll.post(this::updateImageModeHint);
@@ -1111,6 +1117,7 @@ public class MainActivity extends Activity {
                 accountsScreenVisible=false;
                 if (afterSwitch != null) afterSwitch.run();
                 else showHomeScreen(!accessToken.isEmpty());
+                if (syncAllRunning && accessToken.isEmpty()) advanceSyncQueue();
             } catch (Exception e) {
                 showAccountsScreen();
             }
@@ -1418,11 +1425,51 @@ public class MainActivity extends Activity {
         dialog.getWindow().setLayout(width, -2);
     }
 
-    private void loadLatestOrder() {
-        if (combinedView) {
-            showSyncMessage("בתצוגה מאוחדת מוצגות הרשימות השמורות. כדי לסנכרן, בחרו חשבון במסך ניהול החשבונות.", false);
+    private void syncAllAccounts() {
+        if (syncAllRunning) return;
+        syncQueue.clear();
+        for (SourceRegistry.Source source : sourceRegistry.all()) {
+            if (SourceRegistry.KIND_ACCOUNT.equals(source.kind) && secretStore.get(source.id) != null)
+                syncQueue.add(source.id);
+        }
+        if (syncQueue.isEmpty()) {
+            showSyncMessage("אין חשבונות מחוברים לסנכרון. אפשר להתחבר מחדש דרך ניהול החשבונות.", false);
             return;
         }
+        syncReturnSource=activeSourceId;syncReturnMode=sourceRegistry.viewMode();
+        syncQueueIndex=0;syncQueueTotal=syncQueue.size();syncAllRunning=true;syncAwaitingResult=false;
+        showSyncMessage("מתחיל סנכרון סדרתי של "+syncQueueTotal+" חשבונות…",false);
+        syncNextAccount();
+    }
+
+    private void syncNextAccount() {
+        if(!syncAllRunning)return;
+        if(syncQueueIndex>=syncQueue.size()){finishSyncAll();return;}
+        String id=syncQueue.get(syncQueueIndex++);
+        if(sourceRegistry.find(id)==null){syncNextAccount();return;}
+        syncAwaitingResult=true;
+        if(id.equals(activeSourceId))loadLatestOrder();else switchSource(id);
+    }
+
+    private void advanceSyncQueue() {
+        if(!syncAllRunning||!syncAwaitingResult)return;
+        syncAwaitingResult=false;
+        cacheWorker.execute(() -> mainHandler.post(this::syncNextAccount));
+    }
+
+    private void finishSyncAll() {
+        if(!syncAllRunning)return;
+        syncAllRunning=false;syncAwaitingResult=false;syncQueue.clear();
+        final String restoreId=syncReturnSource,restoreMode=syncReturnMode;
+        Runnable finish=()->{sourceRegistry.setViewMode(restoreMode);showHomeScreen(false);
+            showSyncMessage("הסנכרון הסתיים עבור "+syncQueueTotal+" חשבונות.",false);};
+        if(!restoreId.isEmpty()&&!restoreId.equals(activeSourceId)&&sourceRegistry.find(restoreId)!=null)
+            switchSource(restoreId,finish);
+        else finish.run();
+    }
+
+    private void loadLatestOrder() {
+        if (combinedView) { syncAllAccounts(); return; }
         if (loading || accessToken.isEmpty()) return;
         final RequestSession session = new RequestSession(authGeneration, accessToken);
         loading = true;
@@ -1480,6 +1527,7 @@ public class MainActivity extends Activity {
                 cacheTrusted = false;
                 showLoginScreen("פג תוקף ההתחברות. התחברו מחדש כדי להמשיך.");
             }
+            advanceSyncQueue();
             return;
         }
         if (products.isEmpty() && cacheTrusted) loadCachedOrder();
@@ -1487,6 +1535,7 @@ public class MainActivity extends Activity {
         showSyncMessage(products.isEmpty() ? message
                 : "מוצגת ההזמנה השמורה מהמכשיר. הסנכרון נכשל: " + message,
                 !accessToken.isEmpty());
+        advanceSyncQueue();
     }
 
     private void loadCachedOrder() {
@@ -1552,6 +1601,7 @@ public class MainActivity extends Activity {
             showSyncMessage("לא ניתן לאמת את זהות החשבון; הרשימה מוצגת אך לא תישמר במטמון.", false);
             cacheWorker.execute(() -> {
                 if (generation == authGeneration) wipeOrderData();
+                mainHandler.post(this::advanceSyncQueue);
             });
             return;
         }
@@ -1606,6 +1656,7 @@ public class MainActivity extends Activity {
                 if (generation == authGeneration && requestToken.equals(accessToken))
                     DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint,
                             DataGuard.tokenFingerprint(requestToken));
+                mainHandler.post(this::advanceSyncQueue);
             });
             return;
         }
@@ -1640,6 +1691,7 @@ public class MainActivity extends Activity {
                         showSyncMessage("ההזמנה נטענה, אך שמירת העותק הלא־מקוון נכשלה.", false);
                 });
             }
+            mainHandler.post(this::advanceSyncQueue);
         });
     }
 
