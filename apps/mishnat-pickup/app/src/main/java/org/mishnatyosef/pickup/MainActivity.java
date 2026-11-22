@@ -1151,8 +1151,9 @@ public class MainActivity extends Activity {
         loading = false;
         cacheWorker.execute(() -> {
             imageCache.evictAll();
-            sourceRegistry.remove(id);
+            boolean removed = sourceRegistry.remove(id);
             mainHandler.post(() -> {
+                if (!removed) { showSyncMessage("לא ניתן היה לשמור את הסרת המקור. הנתונים נשארו במכשיר.", false); return; }
                 if (isFinishing()) return;
                 if (removingActive) {
                     SourceRegistry.Source next=sourceRegistry.active();
@@ -1314,7 +1315,11 @@ public class MainActivity extends Activity {
             messageText.setText(value == null ? "" : value);
             messageText.setVisibility(value == null || value.isEmpty() ? View.GONE : View.VISIBLE);
         }
-        if (retryButton != null) retryButton.setVisibility(canRetry ? View.VISIBLE : View.GONE);
+        if (retryButton != null) {
+            boolean combinedSync = combinedView && !syncAllRunning;
+            if (combinedSync) retryButton.setText("סנכרן את כל החשבונות");
+            retryButton.setVisibility(canRetry || combinedSync ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void confirmResetCollection() {
@@ -1353,6 +1358,7 @@ public class MainActivity extends Activity {
     }
 
     private void clearAllSavedData() {
+        if (syncAllRunning) { showSyncMessage("המתינו לסיום הסנכרון לפני מחיקת נתונים.", false); return; }
         dismissCelebration();
         wasComplete = false;
         final int generation = ++authGeneration;
@@ -2308,6 +2314,7 @@ public class MainActivity extends Activity {
     }
 
     private void logout() {
+        if (syncAllRunning) { showSyncMessage("המתינו לסיום הסנכרון לפני התנתקות.", false); return; }
         setImageMode(false);
         if (imageViewer != null) imageViewer.reset();
         dismissCelebration();
