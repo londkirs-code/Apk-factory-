@@ -63,8 +63,8 @@ final class DataGuard {
 
     private static String ownerInObject(JSONObject object) {
         if (object == null) return "";
-        for (String key : new String[]{"user_id", "userId", "customer_id", "customerId",
-                "client_id", "clientId", "clientID", "account_id", "accountId", "accountID",
+        for (String key : new String[]{"clientID", "client_id", "clientId", "account_id", "accountId", "accountID",
+                "user_id", "userId", "customer_id", "customerId",
                 "owner_id", "ownerId", "email"}) {
             String value = object.optString(key, "").trim();
             if (!value.isEmpty() && !"null".equalsIgnoreCase(value)) return value;
