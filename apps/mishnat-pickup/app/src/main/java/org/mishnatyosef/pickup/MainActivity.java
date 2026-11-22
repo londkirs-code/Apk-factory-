@@ -131,6 +131,8 @@ public class MainActivity extends Activity {
     private TextView loginTermsNotice;
     private boolean authHandled = false;
     private boolean accountsScreenVisible = false;
+    private boolean combinedView = false;
+    private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
     private volatile int authGeneration = 0;
     private long lastSyncAttemptAt = 0;
@@ -169,7 +171,7 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (loginWebView != null) installTokenWatcher();
-        else if (!accessToken.isEmpty() && pendingList != null && !loading
+        else if (!combinedView && !accessToken.isEmpty() && pendingList != null && !loading
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) loadLatestOrder();
     }
 
@@ -669,7 +671,9 @@ public class MainActivity extends Activity {
         root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
         Ui.systemBars(this);
-        if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
+        combinedView = sourceRegistry != null && !"SINGLE".equals(sourceRegistry.viewMode());
+        if (combinedView) loadCombinedSnapshot();
+        else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
         renderProducts(false);
         wireFocusOrder();
         pageScroll.post(this::updateImageModeHint);
@@ -710,6 +714,9 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this, source.label, Ui.T_NAME, Ui.P900, true));
         addSourceAction(panel, dialog, "הפוך לחשבון הפעיל", () -> switchSource(source.id));
         addSourceAction(panel, dialog, "שינוי שם", () -> renameSource(source));
+        addSourceAction(panel, dialog, source.includeInCombined ? "אל תכלול בתצוגה המאוחדת" : "כלול בתצוגה המאוחדת", () -> {
+            sourceRegistry.setIncluded(source.id, !source.includeInCombined); showAccountsScreen();
+        });
         if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
             addSourceAction(panel, dialog, "התחבר מחדש", () -> switchSourceThen(source.id, this::logout));
             addSourceAction(panel, dialog, "התנתק", () -> switchSourceThen(source.id, this::logout));
@@ -765,6 +772,7 @@ public class MainActivity extends Activity {
                 if (loginWebView != null) destroyLoginWebView();
                 activeSourceId = id;
                 sourceRegistry.setActive(id);
+                sourceRegistry.setViewMode("SINGLE");
                 activeSourceDirectory = sourceRegistry.sourceDir(id);
                 preferences = sourceRegistry.prefs(id);
                 accessToken = readEncryptedToken();
@@ -859,6 +867,21 @@ public class MainActivity extends Activity {
         return retryButton;
     }
 
+    private Button buildViewModeButton() {
+        String mode = sourceRegistry == null ? "SINGLE" : sourceRegistry.viewMode();
+        String label = "SINGLE".equals(mode) ? "תצוגה: חשבון נוכחי"
+                : ("COMBINED_SUM".equals(mode) ? "תצוגה: כל החשבונות — סיכום" : "תצוגה: לפי חשבון");
+        Button b = Ui.button(this, label, Ui.Kind.SOFT);
+        b.setOnClickListener(v -> {
+            String current = sourceRegistry.viewMode();
+            String next = "SINGLE".equals(current) ? "COMBINED_SUM"
+                    : ("COMBINED_SUM".equals(current) ? "COMBINED_BY_SOURCE" : "SINGLE");
+            sourceRegistry.setViewMode(next);
+            showHomeScreen(false);
+        });
+        return b;
+    }
+
     private LinearLayout buildHomeActions() {
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER_VERTICAL);
@@ -924,6 +947,7 @@ public class MainActivity extends Activity {
         messageText.setVisibility(View.GONE);
         page.addView(messageText);
         page.addView(buildRetryButton());
+        page.addView(buildViewModeButton());
         page.addView(buildHomeActions());
 
         pendingList = Ui.column(this);
@@ -1044,6 +1068,10 @@ public class MainActivity extends Activity {
     }
 
     private void loadLatestOrder() {
+        if (combinedView) {
+            showSyncMessage("בתצוגה מאוחדת מוצגות הרשימות השמורות. כדי לסנכרן, בחרו חשבון במסך ניהול החשבונות.", false);
+            return;
+        }
         if (loading || accessToken.isEmpty()) return;
         final RequestSession session = new RequestSession(authGeneration, accessToken);
         loading = true;
@@ -1631,6 +1659,124 @@ public class MainActivity extends Activity {
             Ui.setImageFocus(this, card.views, true);
     }
 
+    private void loadCombinedSnapshot() {
+        products.clear(); collected.clear(); combinedParts.clear();
+        java.util.LinkedHashMap<String, java.util.List<SourcePart>> grouped = new java.util.LinkedHashMap<>();
+        for (SourceRegistry.Source source : sourceRegistry.all()) {
+            if (!source.includeInCombined) continue;
+            File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
+            File manifest = new File(root, "order.json");
+            if (!manifest.isFile()) continue;
+            try {
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                try (InputStream in = new FileInputStream(manifest)) {
+                    byte[] buffer = new byte[8192]; int n;
+                    while ((n=in.read(buffer))!=-1) bytes.write(buffer,0,n);
+                }
+                JSONObject snapshot = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+                String orderId = String.valueOf(snapshot.optLong("order_id", -1));
+                JSONArray rows = snapshot.optJSONArray("products");
+                if (rows == null || "-1".equals(orderId)) continue;
+                Set<String> ticks = new HashSet<>();
+                try {
+                    JSONArray saved = new JSONArray(sourceRegistry.prefs(source.id)
+                            .getString(DataGuard.COLLECTED_PREFIX + orderId, "[]"));
+                    for (int i=0;i<saved.length();i++) ticks.add(saved.optString(i,""));
+                } catch (Exception ignored) { }
+                for (int i=0;i<rows.length();i++) {
+                    JSONObject o=rows.optJSONObject(i); if(o==null) continue;
+                    String imageFile=first(o,"image_file");
+                    String imagePath="";
+                    if(!imageFile.isEmpty()) {
+                        File image=new File(root,imageFile);
+                        if(image.isFile()&&image.length()>0) imagePath=image.getAbsolutePath();
+                    }
+                    ProductRow original=new ProductRow(first(o,"key"),first(o,"name"),
+                            first(o,"image_url"),first(o,"amount"),first(o,"note"),imagePath);
+                    if(original.key.isEmpty()||original.name.isEmpty())continue;
+                    boolean done=ticks.contains(DataGuard.tick(original));
+                    SourcePart part=new SourcePart(source.id,orderId,original,done,source.label);
+                    String displayKey="COMBINED_SUM".equals(sourceRegistry.viewMode())
+                            ? original.key : source.id+"__"+original.key;
+                    java.util.List<SourcePart> list=grouped.get(displayKey);
+                    if(list==null){list=new ArrayList<>();grouped.put(displayKey,list);}
+                    list.add(part);
+                }
+            } catch(Exception ignored) { }
+        }
+        for (java.util.Map.Entry<String, java.util.List<SourcePart>> entry : grouped.entrySet()) {
+            java.util.List<SourcePart> parts=entry.getValue();
+            if(parts.isEmpty())continue;
+            SourcePart first=parts.get(0);
+            String amount;
+            String note=combinedNote(parts);
+            if("COMBINED_SUM".equals(sourceRegistry.viewMode())) {
+                double total=0;
+                for(SourcePart part:parts) total+=parseQuantity(part.product.amount);
+                amount=formatQuantity(total);
+            } else amount=first.product.amount;
+            ProductRow base=first.product;
+            products.add(new ProductRow(entry.getKey(),base.name,base.imageUrl,amount,note,base.imagePath));
+            combinedParts.put(entry.getKey(),parts);
+            boolean all=true;
+            for(SourcePart part:parts)if(!part.collected){all=false;break;}
+            if(all)collected.add(entry.getKey());
+        }
+        syncCompletionState();
+        if(products.isEmpty()) showSyncMessage("אין רשימות שמורות להצגה בתצוגה המאוחדת.", false);
+        else showSyncMessage("", false);
+    }
+
+    private String combinedNote(java.util.List<SourcePart> parts) {
+        if(parts==null||parts.isEmpty())return "";
+        boolean any=false,all=true;
+        StringBuilder detail=new StringBuilder();
+        for(SourcePart part:parts) {
+            any|=part.collected; all&=part.collected;
+            if(detail.length()>0)detail.append(" · ");
+            detail.append(part.sourceLabel).append(" ").append(part.product.amount);
+            if(part.product.note!=null&&!part.product.note.isEmpty())detail.append(" (").append(part.product.note).append(")");
+        }
+        if(any&&!all)return "נאסף חלקית · "+detail;
+        return detail.toString();
+    }
+
+    private void updateCombinedParts(String key, boolean done) {
+        java.util.List<SourcePart> parts=combinedParts.get(key);
+        if(parts==null)return;
+        for(SourcePart part:parts)part.collected=done;
+        final java.util.List<SourcePart> copy=new ArrayList<>(parts);
+        cacheWorker.execute(() -> {
+            for(SourcePart part:copy) {
+                if(sourceRegistry.find(part.sourceId)==null)continue;
+                SharedPreferences prefs=sourceRegistry.prefs(part.sourceId);
+                Set<String> values=new HashSet<>();
+                try {
+                    JSONArray a=new JSONArray(prefs.getString(DataGuard.COLLECTED_PREFIX+part.orderId,"[]"));
+                    for(int i=0;i<a.length();i++)values.add(a.optString(i,""));
+                } catch(Exception ignored) { }
+                String tick=DataGuard.tick(part.product);
+                if(done)values.add(tick);else values.remove(tick);
+                JSONArray saved=new JSONArray();
+                for(String value:values)saved.put(value);
+                prefs.edit().putString(DataGuard.COLLECTED_PREFIX+part.orderId,saved.toString()).commit();
+            }
+        });
+    }
+
+    private double parseQuantity(String value) {
+        try { return Math.max(0,Double.parseDouble(value.replace(',','.'))); }
+        catch(Exception ignored) { return 0; }
+    }
+
+    private String formatQuantity(double value) {
+        if(Math.abs(value-Math.rint(value))<0.000001)return String.valueOf((long)Math.rint(value));
+        String s=String.format(Locale.US,"%.3f",value);
+        while(s.contains(".")&&s.endsWith("0"))s=s.substring(0,s.length()-1);
+        if(s.endsWith("."))s=s.substring(0,s.length()-1);
+        return s;
+    }
+
     private void toggleProduct(String key) {
         ProductCard moving = productCards.get(key);
         if (moving == null) return;
@@ -1646,7 +1792,10 @@ public class MainActivity extends Activity {
         }
         if (neighbor != null) neighbor.requestFocus();
         if (wasCollected) collected.remove(key); else collected.add(key);
-        saveCollectedState();
+        if (combinedView) {
+            updateCombinedParts(key, !wasCollected);
+            moving.views.note.setText(combinedNote(combinedParts.get(key)));
+        } else saveCollectedState();
         LinearLayout target = wasCollected ? pendingList : collectedList;
         ViewGroup parent = (ViewGroup) moving.row.getParent();
         if (parent != null) parent.removeView(moving.row);
@@ -2114,6 +2263,16 @@ public class MainActivity extends Activity {
     private static final class HttpResult {
         final int code; final String body;
         HttpResult(int code, String body) { this.code = code; this.body = body == null ? "" : body; }
+    }
+
+    private static final class SourcePart {
+        final String sourceId, orderId, sourceLabel;
+        final ProductRow product;
+        boolean collected;
+        SourcePart(String sourceId,String orderId,ProductRow product,boolean collected,String sourceLabel) {
+            this.sourceId=sourceId;this.orderId=orderId;this.product=product;
+            this.collected=collected;this.sourceLabel=sourceLabel==null?"חשבון":sourceLabel;
+        }
     }
 
     private static final class ProductCard {
