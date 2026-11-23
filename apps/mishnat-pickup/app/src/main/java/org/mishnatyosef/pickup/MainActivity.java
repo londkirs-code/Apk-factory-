@@ -1323,7 +1323,7 @@ public class MainActivity extends Activity {
 
         // Secondary controls and notices belong to the scrolling content, not the sticky header.
         page.addView(Ui.text(this,
-                "מה חדש: טעינת רשימות מהירה בלי להמתין לתמונות, שמירת תמונות במטמון כדי למנוע הורדות חוזרות, סנכרון אוטומטי של כל החשבונות, שתי תצוגות וייבוא ZIP/JSON/TXT.",
+                "מה חדש: טעינת מוצרים מיידית בלי להמתין לתמונות, מניעת טעינה והורדה חוזרת של תמונות שכבר נשמרו, והצגת שם החשבון לפי פרטי /api/profile.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
