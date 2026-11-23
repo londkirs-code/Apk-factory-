@@ -1,6 +1,0 @@
-version_code=2
-version_name=1.0.0
-workflow_run_id=44047451693
-source_sha=4630a61117b7b62f672b75fe134da293b7d8c513
-sha256=e5d69a6ac4fbcd6630156e396e1e1b3b5c3782d71920b269be7d3e5e05c2234a
-certificate_sha256=5C:53:56:16:2C:02:40:E5:C8:B3:3C:53:D2:49:DE:DE:C3:3C:25:AE:F1:7B:DE:EE:01:1C:2C:3F:83:6E:E8:71

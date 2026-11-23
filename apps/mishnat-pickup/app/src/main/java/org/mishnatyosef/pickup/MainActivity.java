@@ -2543,7 +2543,16 @@ public class MainActivity extends Activity {
         destroyLoginWebView();
         WebStorage.getInstance().deleteAllData();
         clearLoginCookies(() -> mainHandler.post(() -> {
-            if (generation == authGeneration && !isFinishing()) showLoginScreen("");
+            if (generation != authGeneration || isFinishing()) return;
+            // If another token is still connected, continue with it automatically.
+            // No connection is preferred; this is only the internal request context.
+            String nextTokenSource = firstConnectedAccountId();
+            if (!nextTokenSource.isEmpty()) {
+                switchSource(nextTokenSource, () -> {
+                    showHomeScreen(false);
+                    syncAllAccounts();
+                });
+            } else showLoginScreen("");
         }));
     }
 
