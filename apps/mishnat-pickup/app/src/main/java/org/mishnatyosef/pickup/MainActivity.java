@@ -100,6 +100,8 @@ public class MainActivity extends Activity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final ExecutorService imageLoader = Executors.newFixedThreadPool(3);
+    // Profile names are fetched independently so they can never delay product-list rendering.
+    private final ExecutorService profileLoader = Executors.newSingleThreadExecutor();
     // Offline image downloads must never block displaying the order.
     private final ExecutorService cacheWorker = Executors.newSingleThreadExecutor();
     private final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(8 * 1024 * 1024) {
@@ -251,6 +253,7 @@ public class MainActivity extends Activity {
         super.onDestroy();
         network.shutdownNow();
         imageLoader.shutdownNow();
+        profileLoader.shutdown();
         // Let queued collection/cache commits finish instead of dropping the last user action.
         cacheWorker.shutdown();
         if (loginWebView != null) {
@@ -1526,6 +1529,7 @@ public class MainActivity extends Activity {
         if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
         if (loading || accessToken.isEmpty()) return;
         final RequestSession session = new RequestSession(authGeneration, accessToken);
+        final String requestSourceId = activeSourceId;
         loading = true;
         lastSyncAttemptAt = System.currentTimeMillis();
         showSyncMessage("מתחבר לשרת וטוען הזמנה אחרונה…", false);
@@ -1547,6 +1551,9 @@ public class MainActivity extends Activity {
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
                 if (!session.isCurrent(this)) return;
+                // This request is deliberately detached from the order flow: product data
+                // is rendered as soon as it arrives, while the account name loads quietly.
+                fetchAccountProfileName(requestSourceId, session.token);
                 final String resolvedOwner = owner;
                 final String resolvedToken = session.token;
                 mainHandler.post(() -> onFreshOrder(session.generation, resolvedToken,
@@ -2344,6 +2351,21 @@ public class MainActivity extends Activity {
     private void loadLegacyProductImage(ProductRow product, ImageView target) {
         final String imageUrl = product.imageUrl == null ? "" : product.imageUrl;
         final String viewTag = imageUrl.isEmpty() ? "legacy:" + product.imagePath : imageUrl;
+        // A URL-keyed cache entry always wins over the old per-order image file.
+        // Previously the legacy branch decoded that file again on every screen rebuild.
+        if (!imageUrl.isEmpty()) {
+            Bitmap memory = imageCache.get(imageUrl);
+            if (memory != null) {
+                target.setTag(imageUrl);
+                target.setImageBitmap(memory);
+                return;
+            }
+            File persistent = imageCacheFile(imageUrl);
+            if (persistent != null && persistent.isFile() && persistent.length() > 0) {
+                loadProductImage(imageUrl, target);
+                return;
+            }
+        }
         target.setImageResource(android.R.drawable.ic_menu_gallery);
         target.setTag(viewTag);
         imageLoader.execute(() -> {
@@ -2405,60 +2427,67 @@ public class MainActivity extends Activity {
     }
 
     private void loadProductImage(String imageUrl, ImageView target) {
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            target.setImageResource(android.R.drawable.ic_menu_gallery);
+            return;
+        }
+        target.setTag(imageUrl);
         Bitmap cached = imageCache.get(imageUrl);
         if (cached != null) { target.setImageBitmap(cached); return; }
         target.setImageResource(android.R.drawable.ic_menu_gallery);
-        target.setTag(imageUrl);
-        File diskFile = imageCacheFile(imageUrl);
-        if (diskFile != null && diskFile.isFile() && diskFile.length() > 0) {
-            imageLoader.execute(() -> {
-                Bitmap bitmap = decodeProductImage(diskFile);
-                if (bitmap == null) {
-                    diskFile.delete();
-                    mainHandler.post(() -> { if (imageUrl.equals(target.getTag())) loadProductImage(imageUrl, target); });
-                    return;
-                }
-                imageCache.put(imageUrl, bitmap);
-                mainHandler.post(() -> {
-                    if (imageUrl.equals(target.getTag())) target.setImageBitmap(bitmap);
-                });
-            });
-            return;
-        }
+
+        // Deduplicate both disk decoding and network downloads by URL. Repeated
+        // renders attach their ImageView to the same in-flight cache operation.
         synchronized (imageTargetsLock) {
             List<WeakReference<ImageView>> targets = imageTargets.get(imageUrl);
             if (targets == null) { targets = new ArrayList<>(); imageTargets.put(imageUrl, targets); }
-            targets.add(new WeakReference<>(target));
+            boolean alreadyAttached = false;
+            for (WeakReference<ImageView> reference : targets) {
+                if (reference.get() == target) { alreadyAttached = true; break; }
+            }
+            if (!alreadyAttached) targets.add(new WeakReference<>(target));
             if (!imageDownloads.add(imageUrl)) return;
         }
+
         imageLoader.execute(() -> {
             HttpURLConnection connection = null;
             Bitmap bitmap = null;
             File temp = null;
+            File diskFile = imageCacheFile(imageUrl);
             try {
-                File dir = diskFile.getParentFile();
-                if (!dir.exists() && !dir.mkdirs()) throw new Exception("image cache directory unavailable");
-                temp = new File(dir, diskFile.getName() + ".tmp");
-                connection = openConnection(new URL(imageUrl));
-                connection.setConnectTimeout(7000);
-                connection.setReadTimeout(9000);
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-                connection.setInstanceFollowRedirects(true);
-                int code = connection.getResponseCode();
-                if (code < 200 || code >= 300) throw new Exception("image HTTP " + code);
-                try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
-                    byte[] buffer = new byte[8192]; int read; long total = 0;
-                    while ((read = in.read(buffer)) != -1) {
-                        total += read;
-                        if (total > 6L * 1024L * 1024L) throw new Exception("image too large");
-                        out.write(buffer, 0, read);
-                    }
-                    out.getFD().sync();
+                // First try the permanent URL cache. Only a missing or corrupt entry
+                // is allowed to trigger a network request.
+                if (diskFile != null && diskFile.isFile() && diskFile.length() > 0) {
+                    bitmap = decodeProductImage(diskFile);
+                    if (bitmap == null) diskFile.delete();
                 }
-                bitmap = decodeProductImage(temp);
-                if (bitmap == null) throw new Exception("invalid image");
-                if (diskFile.exists()) diskFile.delete();
-                if (!temp.renameTo(diskFile)) throw new Exception("cannot publish image cache");
+                if (bitmap == null) {
+                    File dir = diskFile.getParentFile();
+                    if (!dir.exists() && !dir.mkdirs())
+                        throw new Exception("image cache directory unavailable");
+                    temp = new File(dir, diskFile.getName() + ".tmp");
+                    connection = openConnection(new URL(imageUrl));
+                    connection.setConnectTimeout(7000);
+                    connection.setReadTimeout(9000);
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    connection.setInstanceFollowRedirects(true);
+                    int code = connection.getResponseCode();
+                    if (code < 200 || code >= 300) throw new Exception("image HTTP " + code);
+                    try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
+                        byte[] buffer = new byte[8192]; int read; long total = 0;
+                        while ((read = in.read(buffer)) != -1) {
+                            total += read;
+                            if (total > 6L * 1024L * 1024L) throw new Exception("image too large");
+                            out.write(buffer, 0, read);
+                        }
+                        out.getFD().sync();
+                    }
+                    bitmap = decodeProductImage(temp);
+                    if (bitmap == null) throw new Exception("invalid image");
+                    if (diskFile.exists()) diskFile.delete();
+                    if (!temp.renameTo(diskFile)) throw new Exception("cannot publish image cache");
+                    temp = null;
+                }
                 imageCache.put(imageUrl, bitmap);
             } catch (Exception ignored) {
                 if (bitmap != null && !imageCache.snapshot().containsKey(imageUrl)) bitmap.recycle();
@@ -2520,7 +2549,8 @@ public class MainActivity extends Activity {
         productCards.clear();
         orderData = null;
         currentOrderId = "";
-        imageCache.evictAll();
+        // Keep the URL-keyed bitmap cache across account switches and list rebuilds.
+        // Evicting it here caused every already-loaded product image to be decoded again.
     }
 
     // ---------------------------------------------------------------------
@@ -2556,6 +2586,48 @@ public class MainActivity extends Activity {
         Object parsed = new JSONTokener(response.body).nextValue();
         if (!(parsed instanceof JSONObject)) throw new Exception("פרטי ההזמנה חזרו במבנה לא תקין.");
         return (JSONObject) parsed;
+    }
+
+    private void fetchAccountProfileName(String sourceId, String token) {
+        if (sourceId == null || sourceId.isEmpty() || token == null || token.isEmpty()) return;
+        SharedPreferences sourcePrefs = sourceRegistry.prefs(sourceId);
+        if (sourcePrefs.getBoolean("profile_name_loaded", false)) return;
+        profileLoader.execute(() -> {
+            try {
+                HttpResult response = rawRequest("GET", "/api/profile", token, null);
+                if (response.code < 200 || response.code >= 300) return;
+                JSONObject profileResponse = new JSONObject(response.body);
+                JSONObject profile = profileResponse.optJSONObject("data");
+                if (profile == null) profile = profileResponse.optJSONObject("profile");
+                if (profile == null) profile = profileResponse;
+                JSONObject nested = profile.optJSONObject("profile");
+                if (nested != null) profile = nested;
+                String label = profileDisplayName(profile);
+                if (label.isEmpty() || sourceRegistry.find(sourceId) == null) return;
+                sourceRegistry.rename(sourceId, label);
+                sourcePrefs.edit().putBoolean("profile_name_loaded", true).apply();
+            } catch (Exception ignored) {
+                // Profile is supplementary metadata. Never fail or delay product loading.
+            }
+        });
+    }
+
+    private String profileDisplayName(JSONObject profile) {
+        if (profile == null) return "";
+        String family = first(profile, "lname");
+        String father = first(profile, "fname");
+        String mother = first(profile, "wname");
+        StringBuilder label = new StringBuilder();
+        if (!father.isEmpty()) label.append(father);
+        if (!family.isEmpty()) {
+            if (label.length() > 0) label.append(" ");
+            label.append(family);
+        }
+        if (!mother.isEmpty()) {
+            if (label.length() > 0) label.append(" · ");
+            label.append("אם ").append(mother);
+        }
+        return label.toString().trim();
     }
 
     private HttpResult authorizedRequest(RequestSession session, String method,
