@@ -233,7 +233,7 @@ public class MainActivity extends Activity {
         if (loginWebView != null) installTokenWatcher();
         else if (pendingList != null && !loading && !syncAllRunning
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) {
-            if (combinedView) syncAllAccounts();
+            if (combinedView || sourceRegistry != null && sourceRegistry.all().size() > 1) syncAllAccounts();
             else if (!accessToken.isEmpty()) loadLatestOrder();
         }
     }
@@ -293,7 +293,7 @@ public class MainActivity extends Activity {
         importOffline.setOnClickListener(v -> openImportPicker());
         root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
         if (sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
-            Button accounts = Ui.button(this, "ניהול חשבונות", Ui.Kind.SOFT);
+            Button accounts = Ui.button(this, "ניהול חיבורים", Ui.Kind.SOFT);
             accounts.setOnClickListener(v -> showAccountsScreen());
             root.addView(accounts, Ui.row(this, Ui.S2, Ui.S2));
         }
@@ -483,11 +483,9 @@ public class MainActivity extends Activity {
             accessToken = token;
             activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : target.ownerKey);
             sourceRegistry.updateOwner(target.id, activeOwner);
-            String emailLabel = emailFromToken(token);
-            if (!emailLabel.isEmpty()) {
-                sourceRegistry.rename(target.id, emailLabel);
-                preferences.edit().remove("profile_name_loaded").apply();
-            }
+            sourceRegistry.rename(target.id, "חיבור ללא שם");
+            preferences.edit().remove("profile_name_loaded")
+                    .remove("profile_lname_loaded_v2").apply();
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
             WebStorage.getInstance().deleteAllData();
@@ -763,7 +761,7 @@ public class MainActivity extends Activity {
         combinedView = sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning;
         if (combinedView) loadCombinedSnapshot();
         else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
-        if (combinedView && retryButton != null) { retryButton.setText("סנכרן את כל החשבונות"); retryButton.setVisibility(View.VISIBLE); }
+        if (combinedView && retryButton != null) { retryButton.setText("סנכרן את כל החיבורים"); retryButton.setVisibility(View.VISIBLE); }
         renderProducts(false);
         wireFocusOrder();
         pageScroll.post(this::updateImageModeHint);
@@ -781,7 +779,7 @@ public class MainActivity extends Activity {
             get.addCategory(Intent.CATEGORY_OPENABLE); get.setType("*/*");
             try { startActivityForResult(get, REQUEST_IMPORT_FILE); }
             catch (android.content.ActivityNotFoundException ignored) {
-                showSyncMessage("לא נמצא בורר קבצים. אפשר להעתיק קובץ לתיקייה המוצגת במסך ניהול החשבונות.", false);
+                showSyncMessage("לא נמצא בורר קבצים. אפשר להעתיק קובץ לתיקייה המוצגת במסך ניהול החיבורים.", false);
             }
         }
     }
@@ -1055,23 +1053,23 @@ public class MainActivity extends Activity {
     }
 
     private void showAccountsScreen() {
-        if (sourceMergeInProgress) { showSyncMessage("החשבון מתאחד עם מקור קיים. המתינו רגע.", false); return; }
-        if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו לפני מעבר בין חשבונות.", false); return; }
+        if (sourceMergeInProgress) { showSyncMessage("המקור מתאחד עם מקור קיים. המתינו רגע.", false); return; }
+        if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו.", false); return; }
         accountsScreenVisible = true;
         LinearLayout root = Ui.screen(this);
-        root.addView(Ui.title(this, "ניהול חשבונות"));
-        root.addView(Ui.banner(this, "כל חשבון שומר את הרשימה, התמונות וסימוני הליקוט שלו בנפרד."));
+        root.addView(Ui.title(this, "חיבורים ורשימות"));
+        root.addView(Ui.banner(this, "כל הטוקנים הפעילים נסרקים ומסונכרנים בשווה. אין חיבור מועדף; כל רשימה וסימוני האיסוף נשמרים בנפרד. שמות החיבורים מוצגים לפי lname בלבד."));
         for (SourceRegistry.Source source : sourceRegistry.all()) {
-            String status = SourceRegistry.KIND_IMPORTED.equals(source.kind) ? "רשימה מיובאת"
-                    : ("LOGIN_EXPIRED".equals(source.state) || secretStore.get(source.id) == null
-                        ? "דורש התחברות" : "מחובר");
-            String active = source.id.equals(activeSourceId) ? " · פעיל" : "";
-            Button item = Ui.button(this, source.label + " · " + status + active, Ui.Kind.SOFT);
+            boolean imported = SourceRegistry.KIND_IMPORTED.equals(source.kind);
+            boolean connected = !imported && secretStore.get(source.id) != null;
+            String status = imported ? "רשימה מיובאת" : (connected ? "טוקן פעיל" : "ממתין להתחברות");
+            String label = source.label == null || source.label.trim().isEmpty() ? "חיבור ללא שם" : source.label;
+            Button item = Ui.button(this, label + " · " + status, Ui.Kind.SOFT);
             item.setLayoutParams(Ui.row(this, Ui.S2, Ui.S2));
             item.setOnClickListener(v -> showSourceActions(source));
             root.addView(item);
         }
-        Button add = Ui.button(this, "הוספת חשבון", Ui.Kind.PRIMARY);
+        Button add = Ui.button(this, "הוסף טוקן / התחבר לחשבון נוסף", Ui.Kind.PRIMARY);
         add.setLayoutParams(Ui.row(this, Ui.S3, Ui.S2));
         add.setOnClickListener(v -> beginAddAccount());
         root.addView(add);
@@ -1096,14 +1094,15 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, source.label, Ui.T_NAME, Ui.P900, true));
-        addSourceAction(panel, dialog, "הפוך לחשבון הפעיל", () -> switchSource(source.id));
-        addSourceAction(panel, dialog, "שינוי שם", () -> renameSource(source));
         if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
-            addSourceAction(panel, dialog, "התחבר מחדש", () -> switchSourceThen(source.id, this::logout));
-            addSourceAction(panel, dialog, "התנתק", () -> switchSourceThen(source.id, this::logout));
+            boolean connected = secretStore.get(source.id) != null;
+            addSourceAction(panel, dialog, "התחבר מחדש / עדכן טוקן", () -> beginReconnectSource(source.id));
+            if (connected) addSourceAction(panel, dialog, "התנתק (שמור את הרשימה במכשיר)",
+                    () -> showModernConfirm("ניתוק הטוקן", "הטוקן יימחק מהמכשיר. הרשימה וסימוני האיסוף יישארו זמינים ללא אינטרנט.", "התנתק", () -> disconnectSource(source.id)));
         }
-        addSourceAction(panel, dialog, "הסר חשבון ורשימה מהמכשיר", () ->
-                showModernConfirm("הסרת מקור", "כל הטוקן, הרשימה, התמונות וסימוני הליקוט של המקור יימחקו מהמכשיר. הפעולה אינה דורשת אינטרנט.", "הסר", () -> removeSource(source.id)));
+        addSourceAction(panel, dialog, SourceRegistry.KIND_IMPORTED.equals(source.kind)
+                        ? "הסר רשימה מהמכשיר" : "הסר חיבור ורשימה מהמכשיר",
+                () -> showModernConfirm("הסרת מקור", "הטוקן (אם קיים), הרשימה וסימוני הליקוט של המקור יימחקו מהמכשיר. הפעולה אינה דורשת אינטרנט.", "הסר", () -> removeSource(source.id)));
         Button cancel = Ui.button(this, "סגירה", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
         panel.addView(cancel, Ui.row(this, Ui.S2, 0));
@@ -1120,15 +1119,30 @@ public class MainActivity extends Activity {
 
     private void beginAddAccount() {
         if (!sourceRegistry.canAdd()) {
-            showSyncMessage("אפשר לשמור עד 10 חשבונות או רשימות.", false);
+            showSyncMessage("אפשר לשמור עד 10 חיבורים או רשימות.", false);
             accountsScreenVisible=false; showHomeScreen(false); return;
         }
-        accountsScreenVisible=false;
+        beginReconnectSource("");
+    }
+
+    private void beginReconnectSource(String sourceId) {
+        accountsScreenVisible = false;
         clearLoginCookies(() -> mainHandler.post(() -> {
             if (isFinishing()) return;
             WebStorage.getInstance().deleteAllData();
-            showLoginScreen("התחברו לחשבון הנוסף. הרשימות הקיימות יישארו שמורות.");
+            showLoginScreen(sourceId == null || sourceId.isEmpty()
+                    ? "התחברו לחיבור נוסף. החיבורים הקיימים והרשימות השמורות יישארו ללא שינוי."
+                    : "התחברו מחדש. הטוקן החדש יעודכן בחיבור הקיים לפי מזהה הלקוח; הרשימה וסימוני האיסוף יישמרו.");
         }));
+    }
+
+    private void disconnectSource(String id) {
+        SourceRegistry.Source source = sourceRegistry.find(id);
+        if (source == null || !SourceRegistry.KIND_ACCOUNT.equals(source.kind)) return;
+        if (id.equals(activeSourceId)) { logout(); return; }
+        secretStore.delete(id);
+        sourceRegistry.markNeedsLogin(id);
+        showAccountsScreen();
     }
 
     private void switchSourceThen(String id, Runnable action) {
@@ -1326,7 +1340,7 @@ public class MainActivity extends Activity {
 
         // Secondary controls and notices belong to the scrolling content, not the sticky header.
         page.addView(Ui.text(this,
-                "מה חדש: טעינת מוצרים מיידית בלי להמתין לתמונות, מניעת הורדה ופענוח חוזרים של תמונות שמורות, שמות חשבון לפי /api/profile, סנכרון כל החשבונות ושתי תצוגות בלבד.",
+                "מה חדש: שמות חיבור לפי lname בלבד, כל הטוקנים הפעילים מסונכרנים בשווה, ניהול חיבורים ללא חיבור מועדף, ניתוק והתחברות מחדש נפרדים, ושמירת תמונות משותפת.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
@@ -1362,7 +1376,7 @@ public class MainActivity extends Activity {
         }
         if (retryButton != null) {
             boolean combinedSync = combinedView && !syncAllRunning;
-            if (combinedSync) retryButton.setText("סנכרן את כל החשבונות");
+            if (combinedSync) retryButton.setText("סנכרן את כל החיבורים");
             retryButton.setVisibility(canRetry || combinedSync ? View.VISIBLE : View.GONE);
         }
     }
@@ -1489,14 +1503,14 @@ public class MainActivity extends Activity {
                 syncQueue.add(source.id);
         }
         if (syncQueue.isEmpty()) {
-            showSyncMessage("אין חשבונות מחוברים לסנכרון. אפשר להתחבר מחדש דרך ניהול החשבונות.", false);
+            showSyncMessage("אין חשבונות מחוברים לסנכרון. אפשר להתחבר מחדש דרך ניהול החיבורים.", false);
             return;
         }
         syncReturnSource=activeSourceId;syncReturnMode=sourceRegistry.viewMode();
         syncQueueIndex=0;syncQueueTotal=syncQueue.size();syncAllRunning=true;syncAwaitingResult=false;
         combinedView=false;
         if(viewModeButton!=null)viewModeButton.setEnabled(false);
-        showSyncMessage("מתחיל סנכרון סדרתי של "+syncQueueTotal+" חשבונות…",false);
+        showSyncMessage("מתחיל סנכרון של כל "+syncQueueTotal+" הטוקנים הפעילים…",false);
         syncNextAccount();
     }
 
@@ -1522,7 +1536,7 @@ public class MainActivity extends Activity {
         syncAllRunning=false;syncAwaitingResult=false;syncQueue.clear();
         final String restoreId=syncReturnSource,restoreMode=syncReturnMode;
         Runnable finish=()->{sourceRegistry.setViewMode(restoreMode);showHomeScreen(false);
-            showSyncMessage("הסנכרון הסתיים עבור "+syncQueueTotal+" חשבונות.",false);};
+            showSyncMessage("הסנכרון הסתיים עבור "+syncQueueTotal+" טוקנים.",false);};
         if(!restoreId.isEmpty()&&!restoreId.equals(activeSourceId)&&sourceRegistry.find(restoreId)!=null)
             switchSource(restoreId,finish);
         else finish.run();
@@ -1699,7 +1713,7 @@ public class MainActivity extends Activity {
                         mainHandler.post(() -> {
                             sourceMergeInProgress = false;
                             showHomeScreen(true);
-                            if (!removed) showSyncMessage("החשבון חובר לרשימה הקיימת, אך המקור הזמני לא הוסר. ניתן להסירו מניהול החשבונות.", false);
+                            if (!removed) showSyncMessage("החשבון חובר לרשימה הקיימת, אך המקור הזמני לא הוסר. ניתן להסירו מניהול החיבורים.", false);
                             else showSyncMessage("החשבון חובר לרשימה הקיימת ללא יצירת כפילות.", false);
                         });
                     });
@@ -2606,7 +2620,7 @@ public class MainActivity extends Activity {
     private void fetchAccountProfileName(String sourceId, String token) {
         if (sourceId == null || sourceId.isEmpty() || token == null || token.isEmpty()) return;
         SharedPreferences sourcePrefs = sourceRegistry.prefs(sourceId);
-        if (sourcePrefs.getBoolean("profile_name_loaded", false)) return;
+        if (sourcePrefs.getBoolean("profile_lname_loaded_v2", false)) return;
         profileLoader.execute(() -> {
             try {
                 HttpResult response = rawRequest("GET", "/api/profile", token, null);
@@ -2618,9 +2632,9 @@ public class MainActivity extends Activity {
                 JSONObject nested = profile.optJSONObject("profile");
                 if (nested != null) profile = nested;
                 String label = profileDisplayName(profile);
-                if (label.isEmpty() || sourceRegistry.find(sourceId) == null) return;
-                sourceRegistry.rename(sourceId, label);
-                sourcePrefs.edit().putBoolean("profile_name_loaded", true).apply();
+                if (sourceRegistry.find(sourceId) == null) return;
+                sourceRegistry.rename(sourceId, label.isEmpty() ? "חיבור ללא שם" : label);
+                sourcePrefs.edit().putBoolean("profile_lname_loaded_v2", true).apply();
             } catch (Exception ignored) {
                 // Profile is supplementary metadata. Never fail or delay product loading.
             }
@@ -2629,20 +2643,7 @@ public class MainActivity extends Activity {
 
     private String profileDisplayName(JSONObject profile) {
         if (profile == null) return "";
-        String family = first(profile, "lname");
-        String father = first(profile, "fname");
-        String mother = first(profile, "wname");
-        StringBuilder label = new StringBuilder();
-        if (!father.isEmpty()) label.append(father);
-        if (!family.isEmpty()) {
-            if (label.length() > 0) label.append(" ");
-            label.append(family);
-        }
-        if (!mother.isEmpty()) {
-            if (label.length() > 0) label.append(" · ");
-            label.append("אם ").append(mother);
-        }
-        return label.toString().trim();
+        return first(profile, "lname").trim();
     }
 
     private HttpResult authorizedRequest(RequestSession session, String method,
