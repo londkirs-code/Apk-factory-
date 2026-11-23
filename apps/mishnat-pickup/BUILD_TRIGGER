@@ -1,2 +1,2 @@
-Build request: list-first rendering, persistent URL-keyed image cache, and asynchronous decoding of legacy cached images.
-requested_at=2026-11-23T09:39Z
+Build request: asynchronous account profile names from /api/profile; list-first rendering; retain hot image cache; deduplicate disk decoding and network downloads by image URL.
+requested_at=2026-11-23T11:27:00+02:00
