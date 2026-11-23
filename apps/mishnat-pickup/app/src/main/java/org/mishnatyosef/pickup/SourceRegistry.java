@@ -18,7 +18,7 @@ final class SourceRegistry {
         Source(String i,String k,String l,String o,String s,boolean c,long t,int g){id=i;kind=k;label=l;ownerKey=o;state=s;includeInCombined=c;lastSyncAt=t;generation=g;}
         JSONObject json() throws Exception{return new JSONObject().put("id",id).put("kind",kind).put("label",label).put("ownerKey",ownerKey).put("state",state).put("includeInCombined",includeInCombined).put("lastSyncAt",lastSyncAt).put("generation",generation);}
     }
-    private final Context context; private final SharedPreferences index; private final List<Source> sources=new ArrayList<>(); private String active=""; private String viewMode="SINGLE";
+    private final Context context; private final SharedPreferences index; private final List<Source> sources=new ArrayList<>(); private String active=""; private String viewMode="COMBINED_BY_SOURCE";
     SourceRegistry(Context c){context=c.getApplicationContext();index=context.getSharedPreferences(INDEX,Context.MODE_PRIVATE);load();}
     synchronized List<Source> all(){return new ArrayList<>(sources);}
     synchronized Source active(){return find(active);}
@@ -26,7 +26,12 @@ final class SourceRegistry {
     synchronized Source findByOwner(String owner){if(owner==null||owner.isEmpty())return null;for(Source s:sources)if(owner.equals(s.ownerKey))return s;return null;}
     synchronized boolean canAdd(){return sources.size()<MAX_SOURCES;}
     synchronized String viewMode(){return viewMode;}
-    synchronized void setViewMode(String mode){viewMode=mode==null?"SINGLE":mode;save();}
+    synchronized void setViewMode(String mode){
+        // Only two persistent display modes are supported. Legacy SINGLE and
+        // COMBINED_BY_SOURCE both migrate to the per-account presentation.
+        viewMode="COMBINED_SUM".equals(mode)?"COMBINED_SUM":"COMBINED_BY_SOURCE";
+        save();
+    }
     synchronized void setIncluded(String id,boolean included){Source s=find(id);if(s!=null){s.includeInCombined=included;save();}}
     synchronized Source create(String kind,String label,String owner)throws Exception{
         if(!canAdd())throw new Exception("אפשר לשמור עד 10 מקורות בלבד.");
@@ -69,7 +74,7 @@ final class SourceRegistry {
         for(String name:new String[]{"pickup_order_cache","pickup_order_cache_tmp","pickup_order_cache_backup"}) deleteTree(new File(context.getFilesDir(),name));
         return true;
     }
-    private void load(){try{viewMode=index.getString(VIEW,"SINGLE");JSONArray a=new JSONArray(index.getString(LIST,"[]"));for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null)sources.add(new Source(o.optString("id"),o.optString("kind",KIND_ACCOUNT),o.optString("label","חשבון"),o.optString("ownerKey",""),o.optString("state","NEVER_SYNCED"),o.optBoolean("includeInCombined",true),o.optLong("lastSyncAt"),o.optInt("generation",1)));}active=index.getString(ACTIVE,"");if(find(active)==null)active=sources.isEmpty()?"":sources.get(0).id;}catch(Exception e){sources.clear();active="";}}
+    private void load(){try{String savedMode=index.getString(VIEW,"COMBINED_BY_SOURCE");viewMode="COMBINED_SUM".equals(savedMode)?"COMBINED_SUM":"COMBINED_BY_SOURCE";JSONArray a=new JSONArray(index.getString(LIST,"[]"));for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null)sources.add(new Source(o.optString("id"),o.optString("kind",KIND_ACCOUNT),o.optString("label","חשבון"),o.optString("ownerKey",""),o.optString("state","NEVER_SYNCED"),o.optBoolean("includeInCombined",true),o.optLong("lastSyncAt"),o.optInt("generation",1)));}active=index.getString(ACTIVE,"");if(find(active)==null)active=sources.isEmpty()?"":sources.get(0).id;}catch(Exception e){sources.clear();active="";}}
     private synchronized boolean save(){JSONArray a=new JSONArray();try{for(Source s:sources)a.put(s.json());}catch(Exception ignored){}return index.edit().putString(LIST,a.toString()).putString(ACTIVE,active).putString(VIEW,viewMode).commit();}
     private static String clean(String s){return s==null||s.trim().isEmpty()?"חשבון":s.trim();}
     private static String hash(String s){try{byte[] b=MessageDigest.getInstance("SHA-256").digest(s.getBytes("UTF-8"));StringBuilder o=new StringBuilder();for(byte x:b)o.append(String.format(Locale.US,"%02x",x&255));return o.toString();}catch(Exception e){return Integer.toHexString(s.hashCode());}}
