@@ -1353,7 +1353,7 @@ public class MainActivity extends Activity {
 
         // Secondary controls and notices belong to the scrolling content, not the sticky header.
         page.addView(Ui.text(this,
-                "מה חדש: מסך התחברות מקורי דרך API עם הצגת שגיאות מפורטת, ללא WebView; כל הטוקנים הפעילים מסונכרנים בשווה, ניהול חיבורים ושמירת תמונות משותפת.",
+                "מה חדש: מסך התחברות מקורי דרך API עם הצגת שגיאות מפורטת; כל הטוקנים הפעילים מסונכרנים בשווה, ניהול חיבורים ושמירת תמונות משותפת.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
