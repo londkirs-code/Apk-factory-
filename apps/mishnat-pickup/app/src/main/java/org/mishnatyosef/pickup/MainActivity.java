@@ -68,6 +68,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -102,6 +105,10 @@ public class MainActivity extends Activity {
     private final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(8 * 1024 * 1024) {
         @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
     };
+    // Persistent URL-keyed image cache: rendering never waits for image network requests.
+    private final Object imageTargetsLock = new Object();
+    private final Set<String> imageDownloads = new HashSet<>();
+    private final Map<String, List<WeakReference<ImageView>>> imageTargets = new HashMap<>();
 
     private SharedPreferences preferences;
     private SecretStore secretStore;
@@ -1605,8 +1612,8 @@ public class MainActivity extends Activity {
                 String imagePath = "";
                 if (!imageFile.isEmpty()) {
                     File image = new File(root, imageFile);
-                    if (!image.isFile() || image.length() == 0) throw new Exception("missing image");
-                    imagePath = image.getAbsolutePath();
+                    if (image.isFile() && image.length() > 0) imagePath = image.getAbsolutePath();
+                    // Images are optional. A missing/uncached image must never block list loading.
                 }
                 restored.add(new ProductRow(first(row, "key"), first(row, "name"),
                         first(row, "image_url"), first(row, "amount"), first(row, "note"), imagePath));
@@ -1756,7 +1763,6 @@ public class MainActivity extends Activity {
         cacheWorker.execute(() -> {
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
             if (decision != DataGuard.Verdict.SAME) wipeOrderData();
-            else DataGuard.wipeCacheFiles(activeFilesDir());
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
             writeCollectedState(orderKey, ticks);
             try {
@@ -1821,13 +1827,9 @@ public class MainActivity extends Activity {
             }
             ProductRow row = rows.get(i);
             String imageFile = "";
-            if (!row.imageUrl.isEmpty()) {
-                imageFile = "image_" + i + ".img";
-                if (!downloadImageToFile(row.imageUrl, new File(temp, imageFile))) {
-                    deleteRecursively(temp);
-                    throw new Exception("לא כל תמונות ההזמנה ירדו. ננסה שוב בסנכרון הבא.");
-                }
-            }
+            // Store list data immediately. Image downloads are independent background work.
+            // The URL-keyed image cache persists across orders and account switches.
+            imageFile = "";
             JSONObject item = new JSONObject();
             item.put("key", row.key);
             item.put("name", row.name);
@@ -2338,52 +2340,98 @@ public class MainActivity extends Activity {
         else if (resetButton != null) resetButton.requestFocus();
     }
 
+    private File imageCacheFile(String imageUrl) {
+        if (imageUrl == null || imageUrl.isEmpty()) return null;
+        File dir = new File(getFilesDir(), "product_image_cache");
+        return new File(dir, DataGuard.sha256(imageUrl) + ".img");
+    }
+
+    private Bitmap decodeProductImage(File file) {
+        if (file == null || !file.isFile() || file.length() <= 0) return null;
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
+        int targetPixels = Math.max(120, Ui.imageSize(this));
+        int sample = 1;
+        while (bounds.outWidth / (sample * 2) >= targetPixels
+                && bounds.outHeight / (sample * 2) >= targetPixels) sample *= 2;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = sample;
+        return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+    }
+
     private void loadProductImage(String imageUrl, ImageView target) {
         Bitmap cached = imageCache.get(imageUrl);
         if (cached != null) { target.setImageBitmap(cached); return; }
         target.setImageResource(android.R.drawable.ic_menu_gallery);
         target.setTag(imageUrl);
-        final int imageGeneration = authGeneration;
+        File diskFile = imageCacheFile(imageUrl);
+        if (diskFile != null && diskFile.isFile() && diskFile.length() > 0) {
+            imageLoader.execute(() -> {
+                Bitmap bitmap = decodeProductImage(diskFile);
+                if (bitmap == null) { diskFile.delete(); loadProductImage(imageUrl, target); return; }
+                imageCache.put(imageUrl, bitmap);
+                mainHandler.post(() -> {
+                    if (imageUrl.equals(target.getTag())) target.setImageBitmap(bitmap);
+                });
+            });
+            return;
+        }
+        synchronized (imageTargetsLock) {
+            List<WeakReference<ImageView>> targets = imageTargets.get(imageUrl);
+            if (targets == null) { targets = new ArrayList<>(); imageTargets.put(imageUrl, targets); }
+            targets.add(new WeakReference<>(target));
+            if (!imageDownloads.add(imageUrl)) return;
+        }
         imageLoader.execute(() -> {
             HttpURLConnection connection = null;
+            Bitmap bitmap = null;
+            File temp = null;
             try {
+                File dir = diskFile.getParentFile();
+                if (!dir.exists() && !dir.mkdirs()) throw new Exception("image cache directory unavailable");
+                temp = new File(dir, diskFile.getName() + ".tmp");
                 connection = openConnection(new URL(imageUrl));
-                connection.setConnectTimeout(12000);
-                connection.setReadTimeout(15000);
+                connection.setConnectTimeout(7000);
+                connection.setReadTimeout(9000);
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0");
                 connection.setInstanceFollowRedirects(true);
-                try (InputStream in = connection.getInputStream(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
-                    byte[] buffer = new byte[8192];
-                    int read;
-                    int total = 0;
-                    while ((read = in.read(buffer)) != -1 && total < 6 * 1024 * 1024) {
-                        bytes.write(buffer, 0, read);
+                int code = connection.getResponseCode();
+                if (code < 200 || code >= 300) throw new Exception("image HTTP " + code);
+                try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
+                    byte[] buffer = new byte[8192]; int read; long total = 0;
+                    while ((read = in.read(buffer)) != -1) {
                         total += read;
+                        if (total > 6L * 1024L * 1024L) throw new Exception("image too large");
+                        out.write(buffer, 0, read);
                     }
-                    byte[] imageBytes = bytes.toByteArray();
-                    BitmapFactory.Options bounds = new BitmapFactory.Options();
-                    bounds.inJustDecodeBounds = true;
-                    BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, bounds);
-                    int targetPixels = Math.max(120, Ui.imageSize(this));
-                    int sample = 1;
-                    while (bounds.outWidth / (sample * 2) >= targetPixels && bounds.outHeight / (sample * 2) >= targetPixels) sample *= 2;
-                    BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inSampleSize = sample;
-                    Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, options);
-                    if (bitmap != null) {
-                        if (imageGeneration != authGeneration) {
-                            bitmap.recycle();
-                            return;
-                        }
-                        imageCache.put(imageUrl, bitmap);
-                        mainHandler.post(() -> {
-                            if (imageGeneration == authGeneration && imageUrl.equals(target.getTag()))
-                                target.setImageBitmap(bitmap);
-                        });
-                    }
+                    out.getFD().sync();
                 }
+                bitmap = decodeProductImage(temp);
+                if (bitmap == null) throw new Exception("invalid image");
+                if (diskFile.exists()) diskFile.delete();
+                if (!temp.renameTo(diskFile)) throw new Exception("cannot publish image cache");
+                imageCache.put(imageUrl, bitmap);
             } catch (Exception ignored) {
-            } finally { if (connection != null) connection.disconnect(); }
+                if (bitmap != null && !imageCache.snapshot().containsKey(imageUrl)) bitmap.recycle();
+                if (temp != null) temp.delete();
+                bitmap = null;
+            } finally {
+                if (connection != null) connection.disconnect();
+                List<WeakReference<ImageView>> targets;
+                synchronized (imageTargetsLock) {
+                    imageDownloads.remove(imageUrl);
+                    targets = imageTargets.remove(imageUrl);
+                }
+                final Bitmap result = bitmap;
+                if (result != null && targets != null) mainHandler.post(() -> {
+                    for (WeakReference<ImageView> reference : targets) {
+                        ImageView view = reference.get();
+                        if (view != null && imageUrl.equals(view.getTag())) view.setImageBitmap(result);
+                    }
+                });
+            }
         });
     }
 
