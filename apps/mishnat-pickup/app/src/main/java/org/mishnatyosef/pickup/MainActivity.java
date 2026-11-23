@@ -484,7 +484,10 @@ public class MainActivity extends Activity {
             activeOwner = !newOwner.isEmpty() ? newOwner : (sameAccount ? oldOwner : target.ownerKey);
             sourceRegistry.updateOwner(target.id, activeOwner);
             String emailLabel = emailFromToken(token);
-            if (!emailLabel.isEmpty()) sourceRegistry.rename(target.id, emailLabel);
+            if (!emailLabel.isEmpty()) {
+                sourceRegistry.rename(target.id, emailLabel);
+                preferences.edit().remove("profile_name_loaded").apply();
+            }
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
             destroyLoginWebView();
             WebStorage.getInstance().deleteAllData();
@@ -1683,7 +1686,10 @@ public class MainActivity extends Activity {
                     secretStore.put(existingId, requestToken);
                     sourceRegistry.promoteToAccount(existingId);
                     String email = emailFromToken(requestToken);
-                    if (!email.isEmpty()) sourceRegistry.rename(existingId, email);
+                    if (!email.isEmpty()) {
+                        sourceRegistry.rename(existingId, email);
+                        sourceRegistry.prefs(existingId).edit().remove("profile_name_loaded").apply();
+                    }
                     sourceRegistry.updateOwner(existingId, stableOwner);
                     accessToken = requestToken;
                     activeOwner = stableOwner;
