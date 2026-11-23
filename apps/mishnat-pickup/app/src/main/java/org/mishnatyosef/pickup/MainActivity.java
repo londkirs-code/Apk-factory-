@@ -2370,7 +2370,11 @@ public class MainActivity extends Activity {
         if (diskFile != null && diskFile.isFile() && diskFile.length() > 0) {
             imageLoader.execute(() -> {
                 Bitmap bitmap = decodeProductImage(diskFile);
-                if (bitmap == null) { diskFile.delete(); loadProductImage(imageUrl, target); return; }
+                if (bitmap == null) {
+                    diskFile.delete();
+                    mainHandler.post(() -> { if (imageUrl.equals(target.getTag())) loadProductImage(imageUrl, target); });
+                    return;
+                }
                 imageCache.put(imageUrl, bitmap);
                 mainHandler.post(() -> {
                     if (imageUrl.equals(target.getTag())) target.setImageBitmap(bitmap);
