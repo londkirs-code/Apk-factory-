@@ -79,8 +79,8 @@ import javax.crypto.spec.GCMParameterSpec;
 
 /**
  * A focused pickup checklist for the latest Mishnat Yosef order.
- * Authentication is performed by Mishnat Yosef's own web sign-in page. The app never
- * receives or stores the user's password; only the site's access token is encrypted locally.
+ * Authentication uses the Mishnat Yosef JSON login API. The password is used only for
+ * the login request and is never persisted; only the access token is encrypted locally.
  */
 public class MainActivity extends Activity {
     private static final String API = "https://v2.mishnatyosef.org";
