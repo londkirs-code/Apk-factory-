@@ -1,2 +1,2 @@
-Build request: asynchronous account profile names from /api/profile; list-first rendering; retain hot image cache; deduplicate disk decoding and network downloads by image URL.
-requested_at=2026-11-23T11:27:00+02:00
+Build request: keep URL-keyed image cache intact across order changes, account switches, and source removal; profile labels remain asynchronous and list-first rendering stays nonblocking.
+requested_at=2026-11-23T11:40:00+02:00
