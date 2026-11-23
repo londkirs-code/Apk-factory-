@@ -1991,9 +1991,7 @@ public class MainActivity extends Activity {
         ProductCard card = new ProductCard(views, product);
         views.root.setTag(product.key);
         if (!product.imagePath.isEmpty()) {
-            Bitmap local = BitmapFactory.decodeFile(product.imagePath);
-            if (local != null) views.image.setImageBitmap(local);
-            else views.image.setImageResource(android.R.drawable.ic_menu_gallery);
+            loadLegacyProductImage(product, views.image);
         } else if (!product.imageUrl.isEmpty()) {
             loadProductImage(product.imageUrl, views.image);
         } else {
@@ -2125,6 +2123,9 @@ public class MainActivity extends Activity {
             File direct = new File(product.imagePath);
             if (direct.isFile() && direct.length() > 0) return direct;
         }
+        File persistentImage = imageCacheFile(product.imageUrl);
+        if (persistentImage != null && persistentImage.isFile() && persistentImage.length() > 0)
+            return persistentImage;
         File root = new File(activeFilesDir(), "pickup_order_cache");
         File manifest = new File(root, "order.json");
         try (FileInputStream in = new FileInputStream(manifest);
@@ -2338,6 +2339,48 @@ public class MainActivity extends Activity {
         if (pendingList != null && pendingList.getChildCount() > 0) pendingList.getChildAt(0).requestFocus();
         else if (collectedList != null && collectedList.getChildCount() > 0) collectedList.getChildAt(0).requestFocus();
         else if (resetButton != null) resetButton.requestFocus();
+    }
+
+    private void loadLegacyProductImage(ProductRow product, ImageView target) {
+        final String imageUrl = product.imageUrl == null ? "" : product.imageUrl;
+        final String viewTag = imageUrl.isEmpty() ? "legacy:" + product.imagePath : imageUrl;
+        target.setImageResource(android.R.drawable.ic_menu_gallery);
+        target.setTag(viewTag);
+        imageLoader.execute(() -> {
+            File source = new File(product.imagePath);
+            Bitmap bitmap = decodeProductImage(source);
+            if (bitmap == null) {
+                if (!imageUrl.isEmpty()) mainHandler.post(() -> {
+                    if (viewTag.equals(target.getTag())) loadProductImage(imageUrl, target);
+                });
+                return;
+            }
+            if (!imageUrl.isEmpty()) {
+                File cached = imageCacheFile(imageUrl);
+                if (cached != null && !cached.isFile()) {
+                    File dir = cached.getParentFile();
+                    File temp = new File(dir, cached.getName() + ".tmp");
+                    try {
+                        if (!dir.exists()) dir.mkdirs();
+                        try (FileInputStream in = new FileInputStream(source);
+                             FileOutputStream out = new FileOutputStream(temp)) {
+                            byte[] buffer = new byte[8192]; int count; long total = 0;
+                            while ((count = in.read(buffer)) != -1) {
+                                total += count;
+                                if (total > 8L * 1024L * 1024L) throw new Exception("image too large");
+                                out.write(buffer, 0, count);
+                            }
+                            out.getFD().sync();
+                        }
+                        if (temp.renameTo(cached)) imageCache.put(imageUrl, bitmap);
+                        else temp.delete();
+                    } catch (Exception ignored) { temp.delete(); }
+                } else imageCache.put(imageUrl, bitmap);
+            }
+            mainHandler.post(() -> {
+                if (viewTag.equals(target.getTag())) target.setImageBitmap(bitmap);
+            });
+        });
     }
 
     private File imageCacheFile(String imageUrl) {
