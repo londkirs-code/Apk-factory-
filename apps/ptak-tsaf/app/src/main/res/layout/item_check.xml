@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="44dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:layoutDirection="rtl">
+
+    <CheckBox
+        android:id="@+id/cb"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:buttonTint="#8A7A2E" />
+
+    <EditText
+        android:id="@+id/itemText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="@null"
+        android:hint="פריט"
+        android:inputType="textCapSentences"
+        android:imeOptions="actionNext"
+        android:singleLine="true"
+        android:textColor="#2B2615"
+        android:textColorHint="#A89B6A"
+        android:textSize="17sp" />
+</LinearLayout>

@@ -1,0 +1,129 @@
+name: Save Reverse-Engineered APK as Persistent Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Successful Reverse Engineer Android APK workflow run ID"
+        required: true
+        type: string
+      project_slug:
+        description: "Permanent project folder name (1-40 safe characters)"
+        required: true
+        type: string
+      authorization_confirmed:
+        description: "I own this app or have explicit permission to modify it"
+        required: true
+        default: false
+        type: boolean
+      public_repository_confirmed:
+        description: "I understand this repository is PUBLIC and decompiled source will become publicly visible"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: persist-reverse-engineered-${{ inputs.project_slug }}
+  cancel-in-progress: false
+
+jobs:
+  persist-project:
+    if: inputs.authorization_confirmed == true && inputs.public_repository_confirmed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate request
+        id: request
+        shell: bash
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          PROJECT_SLUG: ${{ inputs.project_slug }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::Run ID must be numeric."; exit 1; }
+          [[ "$PROJECT_SLUG" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$ ]] || { echo "::error::Invalid project slug."; exit 1; }
+          echo "source_run_id=$SOURCE_RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout APK Factory
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Download workspace from the exact analysis run
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-reverse-engineering-${{ steps.request.outputs.project_slug }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.request.outputs.source_run_id }}
+          path: incoming-workspace
+
+      - name: Validate workspace and prepare persistent source
+        shell: bash
+        env:
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
+          SOURCE_RUN_ID: ${{ steps.request.outputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          SRC="incoming-workspace"
+          DEST="apps/reverse-engineered/$PROJECT_SLUG"
+          [[ -s "$SRC/apktool-project/apktool.yml" && -s "$SRC/apktool-project/AndroidManifest.xml" ]] || {
+            echo "::error::The selected artifact does not contain a complete Apktool project."; exit 1;
+          }
+          [[ ! -e "$DEST" ]] || {
+            echo "::error::Project already exists at $DEST. Refusing to overwrite persistent work."; exit 1;
+          }
+          mkdir -p "$DEST"
+          # Keep editable reconstructions and textual diagnostics. Do not persist original APKs,
+          # OBBs, unsigned/signed APK outputs, or extracted native binaries in this public repo.
+          cp -a "$SRC/apktool-project" "$DEST/"
+          if [[ -d "$SRC/jadx-gradle-export" ]]; then cp -a "$SRC/jadx-gradle-export" "$DEST/"; fi
+          if [[ -d "$SRC/analysis" ]]; then
+            mkdir -p "$DEST/analysis"
+            (cd "$SRC" && find analysis -type f ! -name "*.apk" ! -name "*.aab" ! -name "*.zip" -exec cp --parents {} "$GITHUB_WORKSPACE/$DEST" \;)
+          fi
+          if [[ -d "$SRC/logs" ]]; then cp -a "$SRC/logs" "$DEST/"; fi
+          PACKAGE_NAME="$(sed -n 's/.*package: name=\x27\([^\x27]*\)\x27.*/\1/p' "$SRC/analysis/aapt-badging.txt" 2>/dev/null | head -n1 || true)"
+          INPUT_SHA="$(sed -n 's/^input_sha256=//p' "$SRC/analysis/result.txt" 2>/dev/null | head -n1 || true)"
+          python3 - "$DEST/project.json" "$PROJECT_SLUG" "$PACKAGE_NAME" "$INPUT_SHA" "$SOURCE_RUN_ID" <<'PY'
+          import json,sys,datetime
+          from pathlib import Path
+          out,slug,package,digest,run=sys.argv[1:]
+          data={
+            "schema_version":1,
+            "project_slug":slug,
+            "package_name":package or None,
+            "source_workflow_run_id":run,
+            "source_apk_sha256":digest or None,
+            "created_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "editable_source":"apktool-project",
+            "readable_decompile":"jadx-gradle-export",
+            "signing_key_location":"GitHub Actions secrets only; never store keystore files in this project",
+            "privacy_warning":"This repository is public. Decompiled source and logs committed here are public."
+          }
+          Path(out).write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+          python3 tools/reverse-engineering/project-manager.py validate "$PROJECT_SLUG"
+
+      - name: Commit permanent project folder
+        shell: bash
+        env:
+          PROJECT_SLUG: ${{ steps.request.outputs.project_slug }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "apps/reverse-engineered/$PROJECT_SLUG"
+          git commit -m "הוספת פרויקט APK קבוע: $PROJECT_SLUG"
+          git push origin HEAD:main
+
+      - name: Report persistent project
+        run: |
+          echo "Persistent project saved: apps/reverse-engineered/${{ steps.request.outputs.project_slug }}"
+          echo "The editable Apktool project and available JADX export are now version-controlled."
