@@ -137,7 +137,7 @@ public class MainActivity extends Activity {
     private final List<String> syncQueue = new ArrayList<>();
     private int syncQueueIndex = 0;
     private int syncQueueTotal = 0;
-    private String syncReturnSource = "", syncReturnMode = "SINGLE";
+    private String syncReturnSource = "", syncReturnMode = "COMBINED_BY_SOURCE";
     private boolean syncAllRunning = false, syncAwaitingResult = false;
     private boolean sourceMergeInProgress = false;
     private Button viewModeButton;
@@ -1061,7 +1061,7 @@ public class MainActivity extends Activity {
         add.setLayoutParams(Ui.row(this, Ui.S3, Ui.S2));
         add.setOnClickListener(v -> beginAddAccount());
         root.addView(add);
-        Button importFile = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
+        Button importFile = Ui.button(this, "ייבוא קובץ (ZIP / JSON / TXT)", Ui.Kind.SOFT);
         importFile.setOnClickListener(v -> openImportPicker());
         root.addView(importFile, Ui.row(this, Ui.S2, 0));
         Button importFolder = Ui.button(this, "ייבוא מתיקיית import", Ui.Kind.SOFT);
@@ -1313,7 +1313,7 @@ public class MainActivity extends Activity {
 
         // Secondary controls and notices belong to the scrolling content, not the sticky header.
         page.addView(Ui.text(this,
-                "מה חדש: ריבוי חשבונות, תצוגה מאוחדת לפי מוצר, ייבוא JSON/TXT/ZIP והתאמה להתקנה מ־Android 4.4",
+                "מה חדש: סנכרון אוטומטי של כל החשבונות המחוברים, שתי תצוגות בלבד — לפי חשבונות או רשימה מאוחדת, וייבוא ZIP/JSON/TXT ממסך הרשימה.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
