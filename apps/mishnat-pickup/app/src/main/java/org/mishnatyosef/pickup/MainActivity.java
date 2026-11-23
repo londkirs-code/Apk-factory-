@@ -175,9 +175,34 @@ public class MainActivity extends Activity {
         installImageFocusListener();
         accessToken = readEncryptedToken();
         initializeCacheOwnership();
-        if (accessToken.isEmpty()) showLoginScreen("");
-        else showHomeScreen(true);
+        String connectedSource = !accessToken.isEmpty() ? activeSourceId : firstConnectedAccountId();
+        if (!connectedSource.isEmpty()) {
+            if (!connectedSource.equals(activeSourceId)) {
+                switchSource(connectedSource, () -> {
+                    showHomeScreen(false);
+                    syncAllAccounts();
+                });
+            } else {
+                showHomeScreen(false);
+                syncAllAccounts();
+            }
+        } else if (!sourceRegistry.all().isEmpty()) {
+            // Imported and signed-out sources remain available offline.
+            showHomeScreen(false);
+        } else {
+            showLoginScreen("");
+        }
         handleIncomingImport(getIntent());
+    }
+
+    private String firstConnectedAccountId() {
+        for (SourceRegistry.Source source : sourceRegistry.all()) {
+            if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
+                String token = secretStore.get(source.id);
+                if (token != null && !token.isEmpty()) return source.id;
+            }
+        }
+        return "";
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -197,8 +222,11 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (loginWebView != null) installTokenWatcher();
-        else if (!combinedView && !accessToken.isEmpty() && pendingList != null && !loading
-                && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) loadLatestOrder();
+        else if (pendingList != null && !loading && !syncAllRunning
+                && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) {
+            if (combinedView) syncAllAccounts();
+            else if (!accessToken.isEmpty()) loadLatestOrder();
+        }
     }
 
     @Override protected void onPause() {
@@ -718,7 +746,7 @@ public class MainActivity extends Activity {
         root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
         Ui.systemBars(this);
-        combinedView = sourceRegistry != null && !"SINGLE".equals(sourceRegistry.viewMode());
+        combinedView = sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning;
         if (combinedView) loadCombinedSnapshot();
         else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
         if (combinedView && retryButton != null) { retryButton.setText("סנכרן את כל החשבונות"); retryButton.setVisibility(View.VISIBLE); }
@@ -925,7 +953,6 @@ public class MainActivity extends Activity {
                             accessToken=readEncryptedToken();activeOwner=preferences.getString(DataGuard.K_OWNER,"");
                             cacheTrusted=isCacheManifestValid(activeOwner);clearOrderMemory();
                         }
-                        sourceRegistry.setViewMode(bundle.lists.size()>1?"COMBINED_SUM":"SINGLE");
                         showHomeScreen(false);showSyncMessage("הייבוא הושלם בהצלחה.",false);
                     } catch(Exception e){showSyncMessage("הרשימות נשמרו, אך לא ניתן לפתוח אותן כרגע.",false);}
                 });
@@ -1057,9 +1084,6 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this, source.label, Ui.T_NAME, Ui.P900, true));
         addSourceAction(panel, dialog, "הפוך לחשבון הפעיל", () -> switchSource(source.id));
         addSourceAction(panel, dialog, "שינוי שם", () -> renameSource(source));
-        addSourceAction(panel, dialog, source.includeInCombined ? "אל תכלול בתצוגה המאוחדת" : "כלול בתצוגה המאוחדת", () -> {
-            sourceRegistry.setIncluded(source.id, !source.includeInCombined); showAccountsScreen();
-        });
         if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
             addSourceAction(panel, dialog, "התחבר מחדש", () -> switchSourceThen(source.id, this::logout));
             addSourceAction(panel, dialog, "התנתק", () -> switchSourceThen(source.id, this::logout));
@@ -1115,7 +1139,6 @@ public class MainActivity extends Activity {
                 if (loginWebView != null) destroyLoginWebView();
                 activeSourceId = id;
                 sourceRegistry.setActive(id);
-                sourceRegistry.setViewMode("SINGLE");
                 activeSourceDirectory = sourceRegistry.sourceDir(id);
                 preferences = sourceRegistry.prefs(id);
                 accessToken = readEncryptedToken();
@@ -1216,16 +1239,15 @@ public class MainActivity extends Activity {
     }
 
     private Button buildViewModeButton() {
-        String mode = sourceRegistry == null ? "SINGLE" : sourceRegistry.viewMode();
-        String label = "SINGLE".equals(mode) ? "תצוגה: חשבון נוכחי"
-                : ("COMBINED_SUM".equals(mode) ? "תצוגה: כל החשבונות — סיכום" : "תצוגה: לפי חשבון");
+        String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
+        String label = "COMBINED_SUM".equals(mode)
+                ? "תצוגה: רשימה מאוחדת" : "תצוגה: לפי חשבונות";
         Button b = Ui.button(this, label, Ui.Kind.SOFT);
         viewModeButton = b;
         b.setEnabled(!syncAllRunning);
         b.setOnClickListener(v -> {
             String current = sourceRegistry.viewMode();
-            String next = "SINGLE".equals(current) ? "COMBINED_SUM"
-                    : ("COMBINED_SUM".equals(current) ? "COMBINED_BY_SOURCE" : "SINGLE");
+            String next = "COMBINED_SUM".equals(current) ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
             sourceRegistry.setViewMode(next);
             showHomeScreen(false);
         });
@@ -1298,6 +1320,9 @@ public class MainActivity extends Activity {
         page.addView(messageText);
         page.addView(buildRetryButton());
         page.addView(buildViewModeButton());
+        Button importFile = Ui.button(this, "ייבוא קובץ (ZIP / JSON / TXT)", Ui.Kind.SOFT);
+        importFile.setOnClickListener(v -> openImportPicker());
+        page.addView(importFile, Ui.row(this, Ui.S2, Ui.S2));
         page.addView(buildHomeActions());
 
         pendingList = Ui.column(this);
@@ -1456,7 +1481,7 @@ public class MainActivity extends Activity {
         }
         syncReturnSource=activeSourceId;syncReturnMode=sourceRegistry.viewMode();
         syncQueueIndex=0;syncQueueTotal=syncQueue.size();syncAllRunning=true;syncAwaitingResult=false;
-        sourceRegistry.setViewMode("SINGLE"); combinedView=false;
+        combinedView=false;
         if(viewModeButton!=null)viewModeButton.setEnabled(false);
         showSyncMessage("מתחיל סנכרון סדרתי של "+syncQueueTotal+" חשבונות…",false);
         syncNextAccount();
@@ -1491,7 +1516,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadLatestOrder() {
-        if (combinedView) { syncAllAccounts(); return; }
+        if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
         if (loading || accessToken.isEmpty()) return;
         final RequestSession session = new RequestSession(authGeneration, accessToken);
         loading = true;
@@ -2130,7 +2155,6 @@ public class MainActivity extends Activity {
         products.clear(); collected.clear(); combinedParts.clear();
         java.util.LinkedHashMap<String, java.util.List<SourcePart>> grouped = new java.util.LinkedHashMap<>();
         for (SourceRegistry.Source source : sourceRegistry.all()) {
-            if (!source.includeInCombined) continue;
             File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
             File manifest = new File(root, "order.json");
             if (!manifest.isFile()) continue;
