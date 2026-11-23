@@ -1,2 +1,2 @@
-Build request: automatic sync of all connected accounts, two display-only modes, and visible ZIP/JSON/TXT import button.
-requested_at=2026-11-23T05:05Z
+Build request: decouple product-list loading from image downloads and add persistent URL-keyed image cache.
+requested_at=2026-11-23T09:35Z
