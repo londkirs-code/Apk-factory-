@@ -1,2 +1,2 @@
-Build request: decouple product-list loading from image downloads and add persistent URL-keyed image cache.
-requested_at=2026-11-23T09:35Z
+Build request: list-first rendering, persistent URL-keyed image cache, and asynchronous decoding of legacy cached images.
+requested_at=2026-11-23T09:39Z
