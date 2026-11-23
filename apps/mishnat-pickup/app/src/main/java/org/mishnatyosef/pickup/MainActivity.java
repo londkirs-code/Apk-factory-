@@ -2,7 +2,6 @@ package org.mishnatyosef.pickup;
 
 import android.app.Activity;
 import android.app.Dialog;
-import android.webkit.WebStorage;
 import android.graphics.drawable.StateListDrawable;
 import android.view.KeyEvent;
 import android.content.Intent;
@@ -28,14 +27,9 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
-import android.webkit.CookieManager;
-import android.webkit.CookieSyncManager;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.text.InputType;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -90,7 +84,6 @@ import javax.crypto.spec.GCMParameterSpec;
  */
 public class MainActivity extends Activity {
     private static final String API = "https://v2.mishnatyosef.org";
-    private static final String LOGIN_URL = "https://mishnatyosef.org/login";
     private static final String PREFS = "mishnat_pickup_preferences";
     private static final String TOKEN_KEY = "encrypted_access_token";
     private static final String PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY = "allow_offline_cache_after_auth_expiry";
@@ -137,12 +130,14 @@ public class MainActivity extends Activity {
     private Button logoutButton;
     private final java.util.Map<String, ProductCard> productCards = new java.util.LinkedHashMap<>();
     private TextView messageText;
-    private WebView loginWebView;
-    private TextView loginTermsNotice;
+    private EditText loginEmailInput, loginPasswordInput;
+    private Button loginButton;
+    private ProgressBar loginProgress;
+    private TextView loginErrorText;
     private boolean authHandled = false;
+    private boolean loginBusy = false;
     private boolean accountsScreenVisible = false;
     private static final int REQUEST_IMPORT_FILE = 6101;
-    private static boolean cookieSyncManagerReady = false;
     private final List<String> syncQueue = new ArrayList<>();
     private int syncQueueIndex = 0;
     private int syncQueueTotal = 0;
@@ -230,8 +225,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (loginWebView != null) installTokenWatcher();
-        else if (pendingList != null && !loading && !syncAllRunning
+        if (pendingList != null && !loading && !syncAllRunning
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) {
             if (combinedView || sourceRegistry != null && sourceRegistry.all().size() > 1) syncAllAccounts();
             else if (!accessToken.isEmpty()) loadLatestOrder();
@@ -256,12 +250,6 @@ public class MainActivity extends Activity {
         profileLoader.shutdown();
         // Let queued collection/cache commits finish instead of dropping the last user action.
         cacheWorker.shutdown();
-        if (loginWebView != null) {
-            loginWebView.stopLoading();
-            loginWebView.removeJavascriptInterface("PickupNative");
-            loginWebView.destroy();
-            loginWebView = null;
-        }
     }
 
     private File activeFilesDir() {
@@ -273,7 +261,7 @@ public class MainActivity extends Activity {
     }
 
     // ---------------------------------------------------------------------
-    // Login. The official site handles both email/password and SMS-code flows.
+    // Native login using the Mishnat Yosef JSON API.
     // ---------------------------------------------------------------------
 
     private void showLoginScreen(String notice) {
@@ -282,80 +270,90 @@ public class MainActivity extends Activity {
         dismissCelebration();
         wasComplete = false;
         authHandled = false;
-        loginWebView = createLoginWebView();
+        loginBusy = false;
+        loginEmailInput = null;
+        loginPasswordInput = null;
+        loginButton = null;
+        loginProgress = null;
+        loginErrorText = null;
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         LinearLayout root = Ui.screen(this);
-        root.addView(Ui.title(this, "איסוף משנת יוסף"));
-        root.addView(Ui.text(this, "מתחברים לחשבון ובוחרים את ההזמנה האחרונה לאיסוף",
+        scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
+        root.addView(Ui.title(this, "משנת אוסף"));
+        root.addView(Ui.text(this, "התחברות מאובטחת לחשבון משנת יוסף",
                 Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
-        root.addView(buildLoginMethods());
-        if (hasCachedOrder()) root.addView(buildCachedListButton());
+        root.addView(buildNativeLoginForm());
+        if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S2));
         Button importOffline = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
         importOffline.setOnClickListener(v -> openImportPicker());
         root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
         if (sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
-            Button accounts = Ui.button(this, "ניהול חיבורים", Ui.Kind.SOFT);
-            accounts.setOnClickListener(v -> showAccountsScreen());
-            root.addView(accounts, Ui.row(this, Ui.S2, Ui.S2));
+            Button connections = Ui.button(this, "ניהול חיבורים", Ui.Kind.SOFT);
+            connections.setOnClickListener(v -> showAccountsScreen());
+            root.addView(connections, Ui.row(this, Ui.S2, Ui.S2));
         }
         if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
-        loginTermsNotice = Ui.banner(this, "האתר מבקש לאשר את התקנון. אפשר לאשר אותו בחלון האתר למטה; לאחר האישור טעינת המוצרים תמשיך אוטומטית.");
-        loginTermsNotice.setVisibility(View.GONE);
-        root.addView(loginTermsNotice);
-        root.addView(buildLoginBrowser());
-        setContentView(root);
+        setContentView(scroll);
         Ui.systemBars(this);
-        final WebView freshWebView = loginWebView;
-        clearLoginCookies(() -> mainHandler.post(() -> {
-            if (loginWebView != freshWebView || isFinishing()) return;
-            WebStorage.getInstance().deleteAllData();
-            freshWebView.clearCache(true); freshWebView.clearHistory(); freshWebView.clearFormData();
-            freshWebView.loadUrl(LOGIN_URL);
-            freshWebView.post(() -> freshWebView.requestFocus());
-        }));
     }
 
-    private WebView createLoginWebView() {
-        WebView web = new WebView(this);
-        web.setFocusable(true);
-        web.setFocusableInTouchMode(true);
-        WebSettings settings = web.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(false);
-        settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setSupportMultipleWindows(false);
-        if (Build.VERSION.SDK_INT >= 21) settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        CookieManager.getInstance().setAcceptCookie(true);
-        web.setWebChromeClient(new WebChromeClient());
-        web.addJavascriptInterface(new AuthBridge(), "PickupNative");
-        web.setWebViewClient(createLoginWebViewClient());
-        return web;
-    }
+    private LinearLayout buildNativeLoginForm() {
+        LinearLayout card = Ui.column(this);
+        card.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
+        card.setPadding(Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S4),
+                Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S4));
+        card.addView(Ui.text(this, "כניסה לחשבון", Ui.T_SECTION, Ui.P800, true));
+        card.addView(Ui.text(this, "כתובת אימייל", Ui.T_NOTE, Ui.MUTED, true),
+                Ui.row(this, Ui.S3, Ui.S1));
+        loginEmailInput = createLoginInput("name@example.com", InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        loginEmailInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_NEXT);
+        card.addView(loginEmailInput, Ui.row(this, 0, Ui.S2));
 
-    private WebViewClient createLoginWebViewClient() {
-        return new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleLoginNavigation(Uri.parse(url));
-            }
-            @Override public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                installTokenWatcher();
-            }
-        };
-    }
-
-    private LinearLayout buildLoginMethods() {
-        LinearLayout box = Ui.column(this);
-        box.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
-        box.setPadding(Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3),
-                Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
-        box.addView(Ui.text(this, "אפשר להתחבר בשתי דרכים", Ui.T_SECTION, Ui.P800, true));
-        String body = "אימייל וסיסמה, או מספר טלפון וקוד חד־פעמי ב־SMS. פרטי הכניסה מטופלים ישירות באתר משנת יוסף.";
-        box.addView(Ui.text(this, body, Ui.T_NOTE, Ui.MUTED, false),
+        card.addView(Ui.text(this, "סיסמה", Ui.T_NOTE, Ui.MUTED, true),
                 Ui.row(this, Ui.S2, Ui.S1));
-        return box;
+        loginPasswordInput = createLoginInput("הקלידו את הסיסמה", InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        loginPasswordInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        card.addView(loginPasswordInput, Ui.row(this, 0, Ui.S3));
+
+        loginErrorText = Ui.banner(this, "");
+        loginErrorText.setVisibility(View.GONE);
+        card.addView(loginErrorText, Ui.row(this, 0, Ui.S2));
+
+        loginProgress = new ProgressBar(this);
+        loginProgress.setIndeterminate(true);
+        loginProgress.setVisibility(View.GONE);
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
+                Ui.dp(this, 32), Ui.dp(this, 32));
+        progressParams.gravity = Gravity.CENTER_HORIZONTAL;
+        progressParams.bottomMargin = Ui.dp(this, Ui.S2);
+        card.addView(loginProgress, progressParams);
+
+        loginButton = Ui.button(this, "התחברות", Ui.Kind.PRIMARY);
+        loginButton.setOnClickListener(v -> submitLogin());
+        card.addView(loginButton, Ui.row(this, 0, 0));
+        return card;
+    }
+
+    private EditText createLoginInput(String hint, int inputType) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY);
+        input.setTextColor(Ui.INK);
+        input.setHintTextColor(Ui.MUTED);
+        input.setHint(hint);
+        input.setInputType(inputType);
+        input.setPadding(Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3),
+                Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
+        input.setBackground(Ui.shape(this, Ui.P25, Ui.R_BUTTON, 1, Ui.P300));
+        input.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        input.setTextDirection(View.TEXT_DIRECTION_LTR);
+        input.setSelectAllOnFocus(false);
+        input.setMinHeight(Ui.dp(this, 54));
+        return input;
     }
 
     private Button buildCachedListButton() {
@@ -364,81 +362,133 @@ public class MainActivity extends Activity {
         return button;
     }
 
-    private FrameLayout buildLoginBrowser() {
-        FrameLayout frame = new FrameLayout(this);
-        frame.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
-        if (Build.VERSION.SDK_INT >= 21) frame.setClipToOutline(true);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, 0, 1f);
-        params.topMargin = Ui.dp(this, Ui.S3);
-        frame.setLayoutParams(params);
-        frame.addView(loginWebView, new FrameLayout.LayoutParams(-1, -1));
-        return frame;
-    }
-
     private void openCachedListFromLogin() {
         if (!cacheTrusted || !hasCachedOrder()) return;
-        if (loginWebView != null) {
-            loginWebView.stopLoading();
-            loginWebView.removeJavascriptInterface("PickupNative");
-            if (loginWebView.getParent() instanceof ViewGroup) {
-                ((ViewGroup) loginWebView.getParent()).removeView(loginWebView);
-            }
-            loginWebView.destroy();
-            loginWebView = null;
-        }
         showHomeScreen(false);
     }
 
-    private boolean handleLoginNavigation(Uri uri) {
-        String host = uri == null ? "" : uri.getHost();
-        if (isTrustedHost(host)) return false;
-        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
-        return true;
-    }
-
-    private boolean isTrustedHost(String host) {
-        return "new.mishnatyosef.org".equalsIgnoreCase(host)
-                || "mishnatyosef.org".equalsIgnoreCase(host)
-                || "www.mishnatyosef.org".equalsIgnoreCase(host)
-                || "v2.mishnatyosef.org".equalsIgnoreCase(host)
-                || "images.mishnatyosef.org".equalsIgnoreCase(host)
-                || "dev.mishnatyosef.org".equalsIgnoreCase(host);
-    }
-
-    private void installTokenWatcher() {
-        if (loginWebView == null || authHandled) return;
-        String script = "(function(){try{" +
-                "if(window.__pickupTokenWatch)clearInterval(window.__pickupTokenWatch);" +
-                "var stable=0,notice=false;" +
-                "function visible(e){if(!e)return false;var s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "function termsRequired(){" +
-                "var body=(document.body&&document.body.innerText||'').toLowerCase();" +
-                "if(!/(תקנון|תנאי שימוש|terms of service|terms and conditions)/.test(body))return false;" +
-                "var controls=Array.from(document.querySelectorAll('input[type=checkbox],button,[role=button],input[type=submit]'));" +
-                "return controls.some(function(e){var t=((e.innerText||e.value||e.getAttribute('aria-label')||'')+'').toLowerCase();return visible(e)&&/(אישור|מסכים|המשך|accept|agree|confirm)/.test(t);});" +
-                "}" +
-                "window.__pickupTokenWatch=setInterval(function(){try{" +
-                "var t=localStorage.getItem('token'),need=termsRequired();" +
-                "if(need){stable=0;if(!notice&&window.PickupNative){notice=true;window.PickupNative.onTermsRequired(true);}}" +
-                "else{if(notice&&window.PickupNative){notice=false;window.PickupNative.onTermsRequired(false);}if(t&&t.length>12&&window.PickupNative){stable++;if(stable>=4){window.PickupNative.onToken(location.origin,t);clearInterval(window.__pickupTokenWatch);}}else stable=0;}" +
-                "}catch(e){}},800);" +
-                "}catch(e){}})();";
-        loginWebView.evaluateJavascript(script, null);
-    }
-
-    private final class AuthBridge {
-        @JavascriptInterface public void onTermsRequired(boolean required) {
+    private void submitLogin() {
+        if (loginBusy || authHandled || loginEmailInput == null || loginPasswordInput == null) return;
+        final String email = loginEmailInput.getText().toString().trim();
+        final String password = loginPasswordInput.getText().toString();
+        if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            showLoginError("כתובת האימייל חסרה או אינה תקינה. בדקו את הכתובת ונסו שוב.");
+            loginEmailInput.requestFocus();
+            return;
+        }
+        if (password.isEmpty()) {
+            showLoginError("יש להזין סיסמה.");
+            loginPasswordInput.requestFocus();
+            return;
+        }
+        loginBusy = true;
+        if (loginButton != null) loginButton.setEnabled(false);
+        if (loginProgress != null) loginProgress.setVisibility(View.VISIBLE);
+        if (loginErrorText != null) loginErrorText.setVisibility(View.GONE);
+        final int requestGeneration = authGeneration;
+        network.execute(() -> {
+            String token = "";
+            String failure = "";
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("email", email);
+                payload.put("password", password);
+                payload.put("remember", true);
+                HttpResult response = rawRequest("POST", "/api/login", "", payload);
+                if (response.code < 200 || response.code >= 300) {
+                    failure = formatLoginError(response);
+                } else {
+                    token = extractToken(response.body);
+                    if (token.isEmpty()) {
+                        failure = "השרת אישר את הבקשה אך לא החזיר access token מוכר. "
+                                + "לא נשמרה התחברות. נא לבדוק את מבנה תשובת השרת.";
+                    }
+                }
+            } catch (Exception error) {
+                failure = safeError(error);
+            }
+            final String resultToken = token;
+            final String resultError = failure;
             mainHandler.post(() -> {
-                if (loginTermsNotice != null && loginWebView != null && !authHandled)
-                    loginTermsNotice.setVisibility(required ? View.VISIBLE : View.GONE);
+                if (isFinishing() || requestGeneration != authGeneration) return;
+                loginBusy = false;
+                if (loginButton != null) loginButton.setEnabled(true);
+                if (loginProgress != null) loginProgress.setVisibility(View.GONE);
+                if (!resultToken.isEmpty()) {
+                    authHandled = false;
+                    acceptLoginToken(resultToken);
+                } else {
+                    authHandled = false;
+                    showLoginError(resultError.isEmpty() ? "ההתחברות נכשלה. נסו שוב." : resultError);
+                }
             });
+        });
+    }
+
+    private void showLoginError(String message) {
+        if (loginErrorText == null) return;
+        loginErrorText.setText(message);
+        loginErrorText.setVisibility(View.VISIBLE);
+    }
+
+    private String formatLoginError(HttpResult response) {
+        String serverMessage = "";
+        StringBuilder details = new StringBuilder();
+        try {
+            JSONObject body = new JSONObject(response.body);
+            serverMessage = first(body, "message", "error_description", "detail", "title", "error");
+            JSONObject errors = body.optJSONObject("errors");
+            if (errors == null) errors = body.optJSONObject("validation_errors");
+            if (errors != null) {
+                java.util.Iterator<String> keys = errors.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    Object value = errors.opt(key);
+                    String label = "email".equalsIgnoreCase(key) ? "אימייל"
+                            : ("password".equalsIgnoreCase(key) ? "סיסמה" : key);
+                    String detail = value instanceof JSONArray ? joinJsonArray((JSONArray) value)
+                            : String.valueOf(value == null ? "" : value);
+                    if (!detail.isEmpty()) {
+                        if (details.length() > 0) details.append("\n");
+                        details.append(label).append(": ").append(detail);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            if (response.body != null && !response.body.trim().isEmpty()
+                    && response.body.length() < 240 && !response.body.trim().startsWith("<")) {
+                serverMessage = response.body.trim();
+            }
         }
-        @JavascriptInterface public void onToken(String origin, String token) {
-            Uri source = Uri.parse(origin == null ? "" : origin);
-            if (!"https".equalsIgnoreCase(source.getScheme()) || !isTrustedHost(source.getHost())) return;
-            if (token == null || token.trim().length() < 12 || token.contains("\n")) return;
-            mainHandler.post(() -> acceptLoginToken(token.trim()));
+        StringBuilder result = new StringBuilder();
+        if (response.code == 401 || response.code == 403) {
+            result.append("פרטי ההתחברות לא אושרו. בדקו את האימייל והסיסמה.");
+        } else if (response.code == 422) {
+            result.append("הפרטים שנשלחו אינם תקינים. בדקו את השדות ונסו שוב.");
+        } else if (response.code == 429) {
+            result.append("נשלחו יותר מדי ניסיונות התחברות. המתינו מעט ונסו שוב.");
+        } else if (response.code >= 500) {
+            result.append("יש כרגע תקלה בשרת משנת יוסף. נסו שוב בעוד כמה דקות.");
+        } else {
+            result.append("ההתחברות נכשלה (קוד שרת ").append(response.code).append(").");
         }
+        if (!serverMessage.isEmpty() && !serverMessage.equalsIgnoreCase("unauthorized")
+                && !serverMessage.equalsIgnoreCase("validation error")) {
+            result.append("\nהודעת השרת: ").append(serverMessage);
+        }
+        if (details.length() > 0) result.append("\n").append(details);
+        return result.toString();
+    }
+
+    private String joinJsonArray(JSONArray values) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < values.length(); i++) {
+            String value = String.valueOf(values.opt(i));
+            if (value.isEmpty() || "null".equals(value)) continue;
+            if (result.length() > 0) result.append(", ");
+            result.append(value);
+        }
+        return result.toString();
     }
 
     private void acceptLoginToken(String token) {
@@ -449,7 +499,6 @@ public class MainActivity extends Activity {
         final String tokenValue = token;
         final String newOwner = DataGuard.ownerFromToken(tokenValue);
         final String tokenFingerprint = DataGuard.tokenFingerprint(tokenValue);
-        // Drain writes already queued for the previous source before switching preferences/directories.
         cacheWorker.execute(() -> mainHandler.post(() -> completeLoginToken(tokenValue, generation, newOwner, tokenFingerprint)));
     }
 
@@ -466,7 +515,7 @@ public class MainActivity extends Activity {
             if (target == null) {
                 String email = emailFromToken(token);
                 target = sourceRegistry.create(SourceRegistry.KIND_ACCOUNT,
-                        email.isEmpty() ? "חשבון חדש" : email, newOwner);
+                        email.isEmpty() ? "חיבור חדש" : email, newOwner);
             }
             if (SourceRegistry.KIND_IMPORTED.equals(target.kind)) sourceRegistry.promoteToAccount(target.id);
             sourceRegistry.setActive(target.id);
@@ -487,9 +536,6 @@ public class MainActivity extends Activity {
             preferences.edit().remove("profile_name_loaded")
                     .remove("profile_lname_loaded_v2").apply();
             cacheTrusted = sameAccount && isCacheManifestValid(activeOwner);
-            destroyLoginWebView();
-            WebStorage.getInstance().deleteAllData();
-            clearLoginCookies(() -> { });
             if (!sameAccount) {
                 invalidateSavedOrderPreferences(newOwner);
                 queueOrderDataWipe(generation);
@@ -497,7 +543,7 @@ public class MainActivity extends Activity {
             showHomeScreen(true);
         } catch (Exception e) {
             authHandled = false;
-            showLoginScreen("לא ניתן לשמור את ההתחברות בצורה מאובטחת. נסו שוב.");
+            showLoginScreen("לא ניתן לשמור את ההתחברות בצורה מאובטחת: " + safeError(e));
         }
     }
     private String emailFromToken(String token) {
@@ -507,33 +553,6 @@ public class MainActivity extends Activity {
             byte[] payload = android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP);
             return new JSONObject(new String(payload, "UTF-8")).optString("email", "").trim();
         } catch (Exception ignored) { return ""; }
-    }
-
-    private void destroyLoginWebView() {
-        if (loginWebView == null) return;
-        loginWebView.stopLoading();
-        loginWebView.removeJavascriptInterface("PickupNative");
-        loginWebView.destroy();
-        loginWebView = null;
-    }
-
-    /** Removes old-account state immediately; the serialized cache worker removes its files. */
-    private void invalidateSavedOrderPreferences(String owner) {
-        SharedPreferences.Editor edit = preferences.edit();
-        for (String key : preferences.getAll().keySet()) {
-            if (key.startsWith(DataGuard.COLLECTED_PREFIX)) edit.remove(key);
-        }
-        edit.remove(DataGuard.K_ORDER).remove(DataGuard.K_PRINT)
-                .remove(DataGuard.K_TOKEN_FINGERPRINT)
-                .remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY)
-                .putString(DataGuard.K_OWNER, owner == null ? "" : owner).commit();
-        collected.clear();
-        // Product images are public, URL-keyed shared cache entries; account/order
-        // changes must not evict images that are still valid for other lists.
-        orderData = null;
-        currentOrderId = "";
-        products.clear();
-        productCards.clear();
     }
 
     /** Safely adopts a legacy cache only while its original encrypted login is still present. */
@@ -740,8 +759,7 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (loginWebView != null && loginWebView.canGoBack()) loginWebView.goBack();
-        else if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
+        if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
         else super.onBackPressed();
     }
 
@@ -1127,13 +1145,9 @@ public class MainActivity extends Activity {
 
     private void beginReconnectSource(String sourceId) {
         accountsScreenVisible = false;
-        clearLoginCookies(() -> mainHandler.post(() -> {
-            if (isFinishing()) return;
-            WebStorage.getInstance().deleteAllData();
-            showLoginScreen(sourceId == null || sourceId.isEmpty()
-                    ? "התחברו לחיבור נוסף. החיבורים הקיימים והרשימות השמורות יישארו ללא שינוי."
-                    : "התחברו מחדש. הטוקן החדש יעודכן בחיבור הקיים לפי מזהה הלקוח; הרשימה וסימוני האיסוף יישמרו.");
-        }));
+        showLoginScreen(sourceId == null || sourceId.isEmpty()
+                ? "התחברו לחיבור נוסף. החיבורים הקיימים והרשימות השמורות יישארו ללא שינוי."
+                : "התחברו מחדש. הטוקן החדש יעודכן בחיבור הקיים לפי מזהה הלקוח; הרשימה וסימוני האיסוף יישמרו.");
     }
 
     private void disconnectSource(String id) {
@@ -1164,7 +1178,6 @@ public class MainActivity extends Activity {
             try {
                 SourceRegistry.Source next = sourceRegistry.find(id);
                 if (next == null || isFinishing() || generation != authGeneration) return;
-                if (loginWebView != null) destroyLoginWebView();
                 activeSourceId = id;
                 sourceRegistry.setActive(id);
                 activeSourceDirectory = sourceRegistry.sourceDir(id);
@@ -1428,9 +1441,7 @@ public class MainActivity extends Activity {
         cacheTrusted = false;
         preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).commit();
         clearOrderMemory();
-        destroyLoginWebView();
-        WebStorage.getInstance().deleteAllData();
-        clearLoginCookies(() -> cacheWorker.execute(() -> {
+        cacheWorker.execute(() -> {
             if (generation != authGeneration) return;
             wipeOrderData();
             clearToken();
@@ -1438,23 +1449,7 @@ public class MainActivity extends Activity {
                 if (generation == authGeneration && !isFinishing())
                     showLoginScreen("כל הנתונים המקומיים נמחקו, כולל פרטי ההתחברות. אפשר להתחבר מחדש.");
             });
-        }));
-    }
-
-    private void clearLoginCookies(Runnable afterClear) {
-        CookieManager cookies = CookieManager.getInstance();
-        if (Build.VERSION.SDK_INT >= 21) {
-            cookies.removeAllCookies(removed -> { cookies.flush(); afterClear.run(); });
-        } else {
-            if (!cookieSyncManagerReady) {
-                try { CookieSyncManager.getInstance(); }
-                catch (Exception notCreated) { CookieSyncManager.createInstance(this); }
-                cookieSyncManagerReady = true;
-            }
-            cookies.removeAllCookie();
-            CookieSyncManager.getInstance().sync();
-            afterClear.run();
-        }
+        });
     }
 
     private void showModernConfirm(String title, String message, String positive, Runnable action) {
@@ -2554,9 +2549,7 @@ public class MainActivity extends Activity {
         cacheTrusted = preserveOfflineList;
         preferences.edit().remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY).commit();
         clearOrderMemory();
-        destroyLoginWebView();
-        WebStorage.getInstance().deleteAllData();
-        clearLoginCookies(() -> mainHandler.post(() -> {
+        mainHandler.post(() -> {
             if (generation != authGeneration || isFinishing()) return;
             // If another token is still connected, continue with it automatically.
             // No connection is preferred; this is only the internal request context.
@@ -2567,7 +2560,7 @@ public class MainActivity extends Activity {
                     syncAllAccounts();
                 });
             } else showLoginScreen("");
-        }));
+        });
     }
 
     private void clearOrderMemory() {
