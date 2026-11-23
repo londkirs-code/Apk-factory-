@@ -70,6 +70,12 @@ jobs:
           grep -q 'targetSdk 35' "$APP_DIR/app/build.gradle"
           grep -q 'confirmResetCollection' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
           grep -q 'confirmLogout' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
+          grep -q 'rawRequest("POST", "/api/login"' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
+          grep -q 'payload.put("remember", true)' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
+          if grep -Eq 'android\\.webkit|WebView|WebStorage|CookieManager|CookieSyncManager|PickupNative|localStorage' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"; then
+            echo "::error::Native login check failed: browser-based authentication code remains."
+            exit 1
+          fi
           git diff --check
           echo "Permanent source verified. This workflow never extracts an app archive."
 
