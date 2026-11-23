@@ -1320,7 +1320,7 @@ public class MainActivity extends Activity {
 
         // Secondary controls and notices belong to the scrolling content, not the sticky header.
         page.addView(Ui.text(this,
-                "מה חדש: סנכרון אוטומטי של כל החשבונות המחוברים, שתי תצוגות בלבד — לפי חשבונות או רשימה מאוחדת, וייבוא ZIP/JSON/TXT ממסך הרשימה.",
+                "מה חדש: טעינת רשימות מהירה בלי להמתין לתמונות, שמירת תמונות במטמון כדי למנוע הורדות חוזרות, סנכרון אוטומטי של כל החשבונות, שתי תצוגות וייבוא ZIP/JSON/TXT.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
