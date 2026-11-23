@@ -1,2 +1,5 @@
 Build request: validate equal-priority token sync, surname-only profile labels, distinct reconnect/disconnect actions, and preservation of each source's offline list and collection marks.
 requested_at=2026-11-23T12:55:00+02:00
+
+Native login migration: direct POST /api/login, JSON credentials, detailed errors, no browser components.
+requested_at=2026-11-23T17:34:00+02:00
