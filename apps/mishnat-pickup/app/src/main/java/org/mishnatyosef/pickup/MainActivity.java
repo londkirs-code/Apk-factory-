@@ -530,7 +530,8 @@ public class MainActivity extends Activity {
                 .remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY)
                 .putString(DataGuard.K_OWNER, owner == null ? "" : owner).commit();
         collected.clear();
-        imageCache.evictAll();
+        // Product images are public, URL-keyed shared cache entries; account/order
+        // changes must not evict images that are still valid for other lists.
         orderData = null;
         currentOrderId = "";
         products.clear();
@@ -1193,7 +1194,6 @@ public class MainActivity extends Activity {
         final int removeGeneration = ++authGeneration;
         loading = false;
         cacheWorker.execute(() -> {
-            imageCache.evictAll();
             boolean removed = sourceRegistry.remove(id);
             mainHandler.post(() -> {
                 if (!removed) { showSyncMessage("לא ניתן היה לשמור את הסרת המקור. הנתונים נשארו במכשיר.", false); return; }
