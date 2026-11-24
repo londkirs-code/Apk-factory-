@@ -133,14 +133,14 @@ jobs:
           if [[ "$PREVIOUS_CODE" =~ ^[0-9]+$ ]] && (( PREVIOUS_CODE > BASE_CODE )); then
             BASE_CODE="$PREVIOUS_CODE"
           fi
-          # מספור גרסאות: 2.0 = קוד 101, ומכאן 2.1, 2.2... אם הקוד במקור כבר גבוה מהגרסה שפורסמה,
+          # מספור גרסאות: 2.0 = קוד 101, ומכאן בקפיצות של 0.01: 2.01, 2.02... אם הקוד במקור כבר גבוה מהגרסה שפורסמה,
           # בונים בדיוק את הגרסה שבמקור (קוד ושם); אחרת מעלים את הקוד באחד.
           SOURCE_NAME="$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'.*$/\1/p" "$BUILD_FILE" | head -n1)"
           if [[ "$PREVIOUS_CODE" =~ ^[0-9]+$ ]] && (( SOURCE_CODE > PREVIOUS_CODE )); then
             NEXT_CODE="$SOURCE_CODE"; NEXT_NAME="$SOURCE_NAME"
           else
             NEXT_CODE=$((BASE_CODE + 1))
-            if (( NEXT_CODE >= 101 )); then NEXT_NAME="2.$((NEXT_CODE - 101))"; else NEXT_NAME="1.$NEXT_CODE"; fi
+            if (( NEXT_CODE >= 101 )); then NEXT_NAME="$(awk -v c="$NEXT_CODE" 'BEGIN{n=c-101; if(n==0)print "2.0"; else printf "%d.%02d", 2+int(n/100), n%100}')"; else NEXT_NAME="1.$NEXT_CODE"; fi
           fi
           sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT_CODE/" "$BUILD_FILE"
           sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"

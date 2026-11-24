@@ -109,7 +109,7 @@ jobs:
             NEXT=$((PUBLISHED + 1))
             # Only for this build; the source file in the branch is not committed with this change.
             sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT/" "$BUILD_FILE"
-            if (( NEXT >= 101 )); then NEXT_NAME="2.$((NEXT - 101))"; else NEXT_NAME="1.$NEXT"; fi
+            if (( NEXT >= 101 )); then NEXT_NAME="$(awk -v c="$NEXT" 'BEGIN{n=c-101; if(n==0)print "2.0"; else printf "%d.%02d", 2+int(n/100), n%100}')"; else NEXT_NAME="1.$NEXT"; fi
             sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
             echo "Bumped test build to $NEXT (published $PUBLISHED, source $SOURCE_CODE)."
           else
