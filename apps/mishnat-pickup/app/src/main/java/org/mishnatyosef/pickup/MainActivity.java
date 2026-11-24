@@ -160,6 +160,7 @@ public class MainActivity extends Activity {
     private String syncReturnSource = "", syncReturnMode = "COMBINED_BY_SOURCE";
     private boolean syncAllRunning = false, syncAwaitingResult = false;
     private boolean showingSavedList = false;
+    private boolean savedListsScreenVisible = false;
     private boolean sourceMergeInProgress = false;
     private Button viewModeButton;
     private boolean combinedView = false;
@@ -811,7 +812,8 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
+        if (savedListsScreenVisible) { savedListsScreenVisible=false; showHomeScreen(false); }
+        else if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
         else super.onBackPressed();
     }
 
@@ -821,6 +823,7 @@ public class MainActivity extends Activity {
 
     private void showHomeScreen(boolean loadData) {
         accountsScreenVisible = false;
+        savedListsScreenVisible = false;
         logoutButton = null;
         resetButton = null;
         retryButton = null;
@@ -1455,6 +1458,7 @@ public class MainActivity extends Activity {
         updateProgress();wireFocusOrder();checkCelebration();if(wasAll||!isAllCollected())performFeedback(false);
     }
     private void showSavedListsScreen() {
+        savedListsScreenVisible=true;
         LinearLayout content=Ui.screen(this);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=Ui.text(this,"רשימות שמורות",Ui.T_TITLE,Ui.P900,true);header.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
         Button back=Ui.button(this,"חזרה",Ui.Kind.SOFT);back.setOnClickListener(v->showHomeScreen(false));header.addView(back);
@@ -1823,6 +1827,7 @@ public class MainActivity extends Activity {
 
     private void syncAllAccounts() {
         if (syncAllRunning) return;
+        showingSavedList=false;
         syncQueue.clear();
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             if (SourceRegistry.KIND_ACCOUNT.equals(source.kind) && secretStore.get(source.id) != null)
@@ -2387,12 +2392,10 @@ public class MainActivity extends Activity {
         Ui.CardViews views = Ui.productCard(this, displayMode);
         ProductCard card = new ProductCard(views, product);
         views.root.setTag(product.key);
-        if (!product.imagePath.isEmpty()) {
-            loadLegacyProductImage(product, views.image);
-        } else if (!product.imageUrl.isEmpty()) {
-            loadProductImage(product.imageUrl, views.image);
-        } else {
-            views.image.setImageResource(android.R.drawable.ic_menu_gallery);
+        if (displayMode != 0) {
+            if (!product.imagePath.isEmpty()) loadLegacyProductImage(product, views.image);
+            else if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, views.image);
+            else views.image.setImageResource(android.R.drawable.ic_menu_gallery);
         }
         views.image.setOnClickListener(v -> openProductImage(card));
         views.image.setFocusable(false);
