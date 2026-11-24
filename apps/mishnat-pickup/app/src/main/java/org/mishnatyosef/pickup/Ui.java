@@ -39,7 +39,7 @@ final class Ui {
     static final int S1=4, S2=8, S3=12, S4=16, S5=20, S6=24, S8=32;
     static final int R_CARD=20, R_BUTTON=16, R_IMAGE=16, R_DIALOG=24;
     static final float T_TITLE=26, T_SECTION=15, T_BODY=18, T_NAME=20, T_AMOUNT=34,
-            T_NOTE=15, T_BUTTON=20;
+            T_NOTE=15, T_BUTTON=18;
     static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=360,
             DIALOG_SIDE_MARGIN=40, IMAGE_SAMPLE_MIN=78, MAX_NAME_LINES=3, MAX_NOTE_LINES=2;
 
@@ -108,7 +108,7 @@ final class Ui {
 
     static void styleProgress(Context c,ProgressBar p) {
         GradientDrawable track=shape(c,P200,6,0,0);
-        ClipDrawable fill=new ClipDrawable(shape(c,P600,6,0,0),Gravity.START,ClipDrawable.HORIZONTAL);
+        ClipDrawable fill=new ClipDrawable(shape(c,P600,6,0,0),Gravity.RIGHT,ClipDrawable.HORIZONTAL);
         LayerDrawable layers=new LayerDrawable(new Drawable[]{track,fill});
         layers.setId(0,android.R.id.background); layers.setId(1,android.R.id.progress);
         p.setProgressDrawable(layers);
@@ -131,7 +131,10 @@ final class Ui {
         b.setFocusable(true); b.setFocusableInTouchMode(false);
         b.setBackground(interactive(c,fill,border,focusFill,focusBorder,R_BUTTON));
         // Compact control dimensions while preserving the original 20sp label size.
-        b.setMinHeight(dp(c,48)); b.setMinimumHeight(dp(c,48));
+        b.setMinHeight(dp(c,44)); b.setMinimumHeight(dp(c,44));
+        // Default breathing room for every vertically stacked action button.
+        // Call sites in horizontal button groups provide their own side margins.
+        b.setLayoutParams(row(c,S2,S2));
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
         return b;
