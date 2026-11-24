@@ -13,3 +13,6 @@ requested_at=2026-11-24T02:49:00+02:00
 
 Settings screen consolidation, home view-mode icons, and RTL progress text alignment.
 requested_at=2026-11-24T03:00:00+02:00
+
+Final UI sync action wiring verified; rebuild latest commit.
+requested_at=2026-11-24T03:03:00+02:00
