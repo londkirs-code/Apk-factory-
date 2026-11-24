@@ -1457,14 +1457,14 @@ public class MainActivity extends Activity {
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);amount.requestFocus();
     }
     private void applyPartialCollection(String key,double quantity) {
-        ProductRow product=findProduct(key);if(product==null)return;boolean wasAll=isAllCollected();double total=parseQuantity(product.amount);
+        ProductRow product=findProduct(key);if(product==null)return;double total=parseQuantity(product.amount);
         if(combinedView)updateCombinedPartial(key,Math.min(total,quantity));
         else{collected.remove(key);if(quantity>=total-0.000001){collected.add(key);partialCollected.remove(key);}
             else if(quantity>0)partialCollected.put(key,quantity);else partialCollected.remove(key);saveCollectedState();}
         ProductCard card=productCards.get(key);if(card!=null){boolean done=collected.contains(key);bindProductCard(card,product,done);
             ViewGroup target=done?collectedList:pendingList;ViewGroup parent=(ViewGroup)card.row.getParent();
             if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,insertionIndex(target,product,done),productLayoutParams(target));}}
-        updateProgress();wireFocusOrder();checkCelebration();if(wasAll||!isAllCollected())performFeedback(false);
+        updateProgress();wireFocusOrder();performFeedback(false);checkCelebration();
     }
     private void showSavedListsScreen() { showSavedListsScreen(false); }
 
@@ -2803,7 +2803,6 @@ public class MainActivity extends Activity {
         if (sourceMergeInProgress) return;
         ProductCard moving = productCards.get(key);
         if (moving == null) return;
-        boolean wasAll = isAllCollected();
         boolean wasCollected = collected.contains(key);
         ViewGroup source = wasCollected ? collectedList : pendingList;
         ProductRow product = findProduct(key);
@@ -2830,8 +2829,8 @@ public class MainActivity extends Activity {
         updateProgress();
         wireFocusOrder();
         if (neighbor == null) moving.row.requestFocus();
+        performFeedback(false);
         checkCelebration();
-        if (wasAll || !isAllCollected()) performFeedback(false);
     }
 
     private boolean sameProduct(ProductRow a, ProductRow b) {
