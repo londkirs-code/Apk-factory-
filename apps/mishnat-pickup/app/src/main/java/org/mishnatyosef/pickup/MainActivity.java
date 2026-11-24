@@ -1107,9 +1107,8 @@ public class MainActivity extends Activity {
         content.addView(Ui.section(this, "סנכרון"));
         Button sync = Ui.button(this, "סנכרן את כל החשבונות", Ui.Kind.PRIMARY);
         sync.setOnClickListener(v -> syncAllAccounts());
+        retryButton = sync;
         content.addView(sync);
-        retryButton = buildRetryButton();
-        content.addView(retryButton);
 
         content.addView(Ui.section(this, "פעולות ברשימה"));
         content.addView(buildHomeActions());
