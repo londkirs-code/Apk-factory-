@@ -92,3 +92,6 @@ final_build_requested_at=2026-11-24T17:06:00+02:00
 Release 1.68 request: repair actual vibration delivery with waveform feedback and diagnostics; embed a local CC0 victory jingle; make Toast messages explain icon actions; implement numeric-key navigation, display cycling, search, immediate top/bottom jumps, reset, image view and list-mode toggle; set Hebrew RTL search input and refine home icons.
 requested_at=2026-11-24T17:12:00+02:00
 final_build_requested_at=2026-11-24T17:13:00+02:00
+
+Build kick via Contents API: rebuild exact committed source and publish signed standalone APK.
+api_triggered_at=2026-11-24T17:16:00+02:00
