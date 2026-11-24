@@ -165,6 +165,8 @@ public class MainActivity extends Activity {
     private boolean loginBusy = false;
     private boolean accountsScreenVisible = false;
     private static final int REQUEST_IMPORT_FILE = 6101;
+    private static final int REQUEST_EXPORT_FILE = 6102;
+    private String pendingExportListId = "";
     private final List<String> syncQueue = new ArrayList<>();
     private int syncQueueIndex = 0;
     private int syncQueueTotal = 0;
@@ -305,6 +307,9 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_IMPORT_FILE && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) importFromUri(uri);
+        } else if (requestCode == REQUEST_EXPORT_FILE && resultCode == RESULT_OK && data != null) {
+            Uri uri=data.getData();String id=pendingExportListId;pendingExportListId="";
+            if(uri!=null&&!id.isEmpty())exportSavedListToUri(id,uri);
         }
     }
 
@@ -2054,9 +2059,11 @@ public class MainActivity extends Activity {
             Button open=Ui.button(this,"פתיחת הרשימה",Ui.Kind.PRIMARY);open.setOnClickListener(v->openSavedList(entry));
             Button merge=Ui.button(this,"מיזוג לתוך רשימה אחרת",Ui.Kind.SOFT);
             merge.setOnClickListener(v->showMergeTargetDialog(entry));
+            Button export=Ui.button(this,"ייצוא לקובץ TXT",Ui.Kind.SOFT);
+            export.setOnClickListener(v->exportSavedList(entry));
             Button delete=Ui.button(this,"מחיקה מהרשימות השמורות",Ui.Kind.SOFT);
             delete.setOnClickListener(v->showModernConfirm("מחיקת רשימה שמורה","הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.","מחק רשימה",()->deleteSavedListEntry(entry)));
-            card.addView(open);card.addView(merge);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
+            card.addView(open);card.addView(merge);card.addView(export);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content,new ScrollView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -2138,6 +2145,36 @@ public class MainActivity extends Activity {
             showSavedListsScreen(false);Toast.makeText(this,"נוצרה רשימה חדשה.",Toast.LENGTH_LONG).show();
         } catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();}
     }
+    private void exportSavedList(SavedListStore.Entry entry) {
+        try {
+            Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/plain");
+            String name=(entry.title==null||entry.title.trim().isEmpty()?"רשימת איסוף":entry.title).replaceAll("[\\\\/:*?\\"<>|]","_");
+            intent.putExtra(Intent.EXTRA_TITLE,name+".txt");pendingExportListId=entry.id;
+            startActivityForResult(intent,REQUEST_EXPORT_FILE);
+        } catch(Exception e) {pendingExportListId="";Toast.makeText(this,"לא ניתן לפתוח שמירת קובץ.",Toast.LENGTH_LONG).show();}
+    }
+    private void exportSavedListToUri(String id,Uri uri) {
+        cacheWorker.execute(()->{
+            try {
+                JSONObject data=savedListStore.readEntry(id);JSONArray rows=data.optJSONArray("products");
+                StringBuilder text=new StringBuilder("# משנת אוסף — ").append(data.optString("order_name","רשימה")).append("\n");
+                if(rows!=null)for(int i=0;i<rows.length();i++){
+                    JSONObject row=rows.optJSONObject(i);if(row==null)continue;
+                    String name=row.optString("name","").replace("|","/");
+                    String amount=row.optString("amount","1").replace("|","/");
+                    String note=row.optString("note","").replace("|","/");
+                    text.append(name).append(" | ").append(amount).append(" | | ").append(note).append("\n");
+                }
+                try(OutputStream out=getContentResolver().openOutputStream(uri,"w")){
+                    if(out==null)throw new Exception("לא ניתן לפתוח את קובץ היעד.");
+                    out.write(text.toString().getBytes(StandardCharsets.UTF_8));out.flush();
+                }
+                mainHandler.post(()->Toast.makeText(this,"הרשימה יוצאה לקובץ TXT.",Toast.LENGTH_LONG).show());
+            }catch(Exception e){String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"ייצוא הרשימה נכשל: "+error,Toast.LENGTH_LONG).show());}
+        });
+    }
+
     private void showMergeTargetDialog(SavedListStore.Entry source) {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);LinearLayout panel=Ui.dialogPanel(this);
         panel.addView(Ui.text(this,"בחר רשימת יעד למיזוג",Ui.T_NAME,Ui.P900,true));int choices=0;
