@@ -86,9 +86,9 @@ final class DataGuard {
     }
 
     /** טביעת תוכן שאינה תלויה בסדר הפריטים. */
-    static String fingerprint(List<MainActivity.ProductRow> rows) {
+    static String fingerprint(List<ProductRow> rows) {
         List<String> parts = new ArrayList<>();
-        for (MainActivity.ProductRow row : rows) {
+        for (ProductRow row : rows) {
             parts.add(row.key.length() + ":" + row.key
                     + row.amount.length() + ":" + row.amount
                     + row.name.length() + ":" + row.name
@@ -102,9 +102,9 @@ final class DataGuard {
     }
 
     /** Version-1 digest retained only to validate already-saved offline snapshots. */
-    static String legacyFingerprint(List<MainActivity.ProductRow> rows) {
+    static String legacyFingerprint(List<ProductRow> rows) {
         List<String> parts = new ArrayList<>();
-        for (MainActivity.ProductRow row : rows) {
+        for (ProductRow row : rows) {
             parts.add(row.key.length() + ":" + row.key
                     + row.amount.length() + ":" + row.amount
                     + row.name.length() + ":" + row.name
@@ -117,7 +117,7 @@ final class DataGuard {
     }
 
     /** סימון תקף רק לצירוף מזהה מוצר וכמות. */
-    static String tick(MainActivity.ProductRow row) {
+    static String tick(ProductRow row) {
         return row.key + "|" + row.amount;
     }
 

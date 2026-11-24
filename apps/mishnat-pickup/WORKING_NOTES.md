@@ -6,7 +6,7 @@
 - מאגר: `londkirs-code/Apk-factory-` (ענף ברירת המחדל: `main`).
 - קוד המקור הקבוע: `apps/mishnat-pickup/` בלבד. אין לערוך קבצים בתיקיות אחרות לצורך האפליקציה הזו.
 - חבילת Android: `org.mishnatyosef.pickup`. יש לשמור על השם.
-- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 99`, `versionName 1.99`, `minSdk 19`, `targetSdk 35`).
+- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 100`, `versionName 1.100`, `minSdk 19`, `targetSdk 35`).
 - קוד Java: `app/src/main/java/org/mishnatyosef/pickup/` (13 קבצים, כ־5,900 שורות).
 - ממשק המשתמש, עיצוב ואייקונים: `Ui.java` (אייקונים וקטוריים ב-`Ui.IconDrawable`, כפתורי אייקון ב-`Ui.iconButton`). מחרוזות "מה חדש" (`showSettingsScreen`) מתעדכנות יחד עם כל שינוי שנראה למשתמש.
 - ניווט: `MainActivity.screen` (enum `Screen`) הוא מקור האמת למסך הנוכחי. כל מסך מוצג דרך `presentScreen`. מקש חזרה מטופל ב-`onBackPressed` לפי המסך.
@@ -47,11 +47,14 @@
 - מחלקת מוצר (נבדק מול GET /api/orders/{id}): `order.items[].item_sale.product.category` = `{name, order, main_category.name}`. המיון לפי `category.order`.
 - `PickupInfo.extract` שומר רשימה לבנה בלבד של שדות. לעולם לא לשמור `card`, `tokef`, `tranzila_token` או שדות תשלום.
 
+## מבנה הקוד
+- `MainActivity` - המסכים, הניווט והמצב. חלקים עצמאיים פוצלו: `OrderParser` (פענוח הזמנות, מוצרים, מחלקות ומיון), `ApiClient` + `HttpResult` (בקשות HTTP), `ProductImages` (מטמון תמונות גלובלי, הורדה מראש, מחיקה), `Quantities` (כמויות), `ProductRow` (שורת מוצר), `PickupInfo` (מידע איסוף), `OrderHistoryPage` (עמודי היסטוריה ושם מכירה), `Ui` (עיצוב, אייקונים, רכיבים).
+
 ## פתוח / לבדוק
 - עד גרסה 1.94 חסר `android:supportsRtl="true"` במניפסט, ולכן כל `setLayoutDirection(RTL)` לא פעל והמסכים הוצגו הפוך (שמאל-לימין). תוקן ב-1.95. לבדוק כל מסך אחרי ההיפוך.
 - בדיקה על מכשיר אמיתי לא בוצעה. כל שינוי ממשקי צריך אישור על מכשיר.
 - בדיקת חשבון אמיתי לא בוצעה בסביבת העבודה.
-- אין בדיקות אוטומטיות (unit tests). יש רק lint עם `abortOnError true`.
+- בדיקות יחידה ב-`app/src/test` (JUnit + org.json): פענוח הזמנות ושם מכירה, מחלקות ומיון, מידע איסוף (כולל שאין שמירת פרטי תשלום), ייבוא TXT/JSON, כמויות וטביעת תוכן. רצות ב-PR לפני הבנייה (`:app:testDebugUnitTest`); כישלון עוצר את הבנייה. דוגמאות תשובת שרת ב-`app/src/test/resources`.
 - `BUILD_TRIGGER` מציין גרסה 1.81. הוא מפעיל בנייה ל-`main` רק כשהוא משתנה.
 - כותרת ההזמנה, אחרי פענוח `sale.week` ו־`parent.week`: לאמת מול חשבון אמיתי.
 - ממשק בחירת יעד למיזוג רשימות: מופיע ב־1.82 כיצירת רשימה ומיזוג עם אישור. לוודא שהזרימה מלאה ונבדקה.

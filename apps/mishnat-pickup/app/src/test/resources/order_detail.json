@@ -1,0 +1,25 @@
+{
+  "order": {
+    "id": 26394765, "status": "", "card": "SECRET",
+    "items": [
+      { "id": 459217752, "item_salesID": 40704089, "amount": 2,
+        "item_sale": { "id": 40704089, "itemID": 421,
+          "product": { "id": 421, "name": "קווקר הכנה מהירה", "full_name": "קווקר הכנה מהירה", "note": "",
+            "featured_image": "421_a.jpeg",
+            "category": { "id": 5, "name": "קטניות ושימורים", "order": 25, "main_category": { "name": "מוצרי מזון" } } } } },
+      { "id": 459218373, "item_salesID": 40722054, "amount": 1,
+        "item_sale": { "id": 40722054, "itemID": 6385,
+          "product": { "id": 6385, "name": "נייר סופג", "full_name": "שישיית נייר סופג", "note": null,
+            "featured_image": "6385_b.jpg",
+            "category": { "id": 14, "name": "טיפוח ונקיון", "order": 31 } } } },
+      { "id": 458520728, "item_salesID": 40728682, "amount": 1,
+        "item_sale": { "id": 40728682, "itemID": 11,
+          "product": { "id": 11, "name": "בטטות", "full_name": "בטטות", "featured_image": "11_c.jpg",
+            "category": { "id": 1, "name": "ירקות", "order": 14 } } } },
+      { "id": 458522157, "item_salesID": 40729170, "amount": 1,
+        "item_sale": { "id": 40729170, "itemID": 160,
+          "product": { "id": 160, "name": "ביצים גודל M", "full_name": "ביצים גודל M", "featured_image": "https://images.example/160.jpg",
+            "category": { "id": 39, "name": "ביצים", "order": 200 } } } }
+    ]
+  }
+}

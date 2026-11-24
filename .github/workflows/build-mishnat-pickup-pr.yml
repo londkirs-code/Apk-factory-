@@ -80,6 +80,21 @@ jobs:
           } >> "$GITHUB_ENV"
           keytool -list -keystore "$HOME/.android/apk-factory-release.jks" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
 
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/mishnat-pickup
+          gradle --no-daemon --console=plain :app:testDebugUnitTest
+
+      - name: Upload unit test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mishnat-Pickup-unit-tests
+          path: apps/mishnat-pickup/app/build/reports/tests/
+          if-no-files-found: ignore
+
       - name: Ensure versionCode installs over the published APK
         shell: bash
         run: |

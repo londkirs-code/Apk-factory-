@@ -93,7 +93,6 @@ import javax.crypto.spec.GCMParameterSpec;
  * the login request and is never persisted; only the access token is encrypted locally.
  */
 public class MainActivity extends Activity {
-    private static final String API = "https://v2.mishnatyosef.org";
     private static final String PREFS = "mishnat_pickup_preferences";
     private static final String TOKEN_KEY = "encrypted_access_token";
     private static final String PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY = "allow_offline_cache_after_auth_expiry";
@@ -107,15 +106,6 @@ public class MainActivity extends Activity {
     private final ExecutorService profileLoader = Executors.newSingleThreadExecutor();
     // Offline image downloads must never block displaying the order.
     private final ExecutorService cacheWorker = Executors.newSingleThreadExecutor();
-    // זיכרון לתמונות: שמינית מהזיכרון הזמין לאפליקציה (לפחות 8MB).
-    private final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(
-            (int) Math.max(8L * 1024 * 1024, Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8))) {
-        @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
-    };
-    // Persistent URL-keyed image cache: rendering never waits for image network requests.
-    private final Object imageTargetsLock = new Object();
-    private final Set<String> imageDownloads = new HashSet<>();
-    private final Map<String, List<WeakReference<ImageView>>> imageTargets = new HashMap<>();
 
     private SharedPreferences preferences;
     private SharedPreferences uiPreferences;
@@ -202,6 +192,27 @@ public class MainActivity extends Activity {
     private ViewTreeObserver.OnGlobalFocusChangeListener imageFocusListener;
     private final Runnable dismissCelebrationTask = this::dismissCelebration;
 
+    // ---------------------------------------------------------------------
+    // חלקים שפוצלו לקבצים נפרדים. המתודות כאן הן קיצורי דרך שמפנים אליהם.
+    //   OrderParser - פענוח הזמנות, מוצרים ומחלקות;  ApiClient - בקשות HTTP;
+    //   ProductImages - מטמון התמונות;  Quantities - כמויות;  ProductRow - שורת מוצר.
+    // ---------------------------------------------------------------------
+    private ProductImages images;
+    private double parseQuantity(String value) { return Quantities.parse(value); }
+    private String formatQuantity(double value) { return Quantities.format(value); }
+    private static String first(JSONObject object, String... keys) { return OrderParser.first(object, keys); }
+    private List<ProductRow> parseProducts(JSONObject order) { return OrderParser.parseProducts(order); }
+    private long extractOrderId(JSONObject order) { return OrderParser.extractOrderId(order); }
+    private JSONObject unwrapOrder(JSONObject response) { return OrderParser.unwrapOrder(response); }
+    private JSONObject chooseLatestPickupOrder(JSONArray orders) { return OrderParser.chooseLatestPickupOrder(orders); }
+    private long orderSortValue(JSONObject order) { return OrderParser.orderSortValue(order); }
+    private static void sortByCategory(List<ProductRow> rows, JSONObject info) { OrderParser.sortByCategory(rows, info); }
+    private HttpResult rawRequest(String method, String path, String token, JSONObject body) throws Exception {
+        return ApiClient.rawRequest(method, path, token, body);
+    }
+    private void ensureSuccess(HttpResult response) throws Exception { ApiClient.ensureSuccess(response); }
+    private static String extractToken(String body) { return ApiClient.extractToken(body); }
+
     /** המסך המוצג כרגע. מקור אמת יחיד לניווט, לקיצורי המקשים ולמקש חזרה. */
     private enum Screen { NONE, LOGIN, HOME, SETTINGS, SAVED_LISTS, HISTORY }
     private Screen screen = Screen.NONE;
@@ -281,6 +292,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        images = new ProductImages(this, mainHandler, imageLoader, cacheWorker);
         imageViewer = new ImageViewerOverlay(this, imageLoader);
         SharedPreferences legacyPreferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         sourceRegistry = new SourceRegistry(this);
@@ -1771,7 +1783,8 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• עיצוב חדש לכל האפליקציה: גווני סגול נקיים, טקסט גדול וברור שלא נחתך, ושוליים מסודרים גם במסכים קטנים.\n"
+            "• בהגדרות: מחיקת מטמון התמונות (עם הגודל שלו), ואפשרות להסתיר את הכמות לפי משפחה בתצוגה המאוחדת.\n"
+            + "• עיצוב חדש לכל האפליקציה: גווני סגול נקיים, טקסט גדול וברור שלא נחתך, ושוליים מסודרים גם במסכים קטנים.\n"
             + "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
             + "• לחיצה על שם הרשימה בכותרת מציגה מיד את כל הרשימות לבחירה, עם כפתור לפעולות לרשימה ולהגדרות.\n"
             + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
@@ -1863,6 +1876,9 @@ public class MainActivity extends Activity {
         LinearLayout display = settingsCard(content, "תצוגה ומשוב");
         addDisplaySettings(display);
         addFeedbackSettings(display);
+        display.addView(Ui.text(this, "תצוגה מאוחדת", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
+        addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "הצגת כמות לפי משפחה (שם וכמות של כל חשבון)",
+                true, Ui.S1, Ui.S1);
 
         // 4. ייבוא ונתונים.
         LinearLayout data = settingsCard(content, "ייבוא ונתונים");
@@ -1871,6 +1887,15 @@ public class MainActivity extends Activity {
         Button importFolder = Ui.button(this, "מתיקיית import", Ui.Kind.SOFT);
         importFolder.setOnClickListener(v -> showImportFolder());
         data.addView(buttonPair(importFile, importFolder), Ui.row(this, Ui.S1, Ui.S1));
+        Button clearImages = Ui.button(this, "מחיקת מטמון התמונות", Ui.Kind.SOFT);
+        clearImages.setOnClickListener(v -> confirmClearImageCache());
+        data.addView(clearImages, Ui.row(this, Ui.S1, 0));
+        TextView imagesSize = Ui.text(this, "גודל מטמון התמונות: מחשב…", Ui.T_NOTE, Ui.MUTED, false);
+        data.addView(imagesSize, Ui.row(this, 2, Ui.S1));
+        cacheWorker.execute(() -> {
+            long bytes = images.diskCacheBytes();
+            mainHandler.post(() -> imagesSize.setText("גודל מטמון התמונות: " + formatBytes(bytes)));
+        });
         Button clear = Ui.button(this, "מחיקת כל הנתונים", Ui.Kind.STRONG);
         clear.setOnClickListener(v -> confirmClearSavedData());
         data.addView(clear, Ui.row(this, Ui.S1, Ui.S1));
@@ -1885,6 +1910,26 @@ public class MainActivity extends Activity {
         presentScreen(scroll, Screen.SETTINGS);
         // מקלדת: הפוקוס מתחיל בפעולה הראשונה, ולמעלה ממנה נמצא כפתור הסגירה.
         savedLists.requestFocus();
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " בתים";
+        if (bytes < 1024L * 1024) return Math.round(bytes / 1024.0) + " KB";
+        return String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    /** מחיקת התמונות השמורות. הרשימות והסימונים לא נפגעים; התמונות יורדו מחדש כשיש אינטרנט. */
+    private void confirmClearImageCache() {
+        showModernConfirm("מחיקת מטמון התמונות",
+                "כל תמונות המוצרים השמורות במכשיר יימחקו כדי לפנות מקום. הרשימות וסימוני האיסוף לא יושפעו. התמונות יורדו מחדש כשיהיה אינטרנט. תמונות מקבצי ZIP מיובאים נשמרות.",
+                "מחק תמונות", () -> cacheWorker.execute(() -> {
+                    long before = images.diskCacheBytes();
+                    images.clear();
+                    mainHandler.post(() -> {
+                        Toast.makeText(this, "נמחקו " + formatBytes(before) + " של תמונות.", Toast.LENGTH_LONG).show();
+                        if (screen == Screen.SETTINGS) showSettingsScreen();
+                    });
+                }));
     }
 
     /** חלון טקסט פשוט עם כפתור סגירה. */
@@ -3714,7 +3759,7 @@ public class MainActivity extends Activity {
             sortByCategory(restored, currentPickupInfo);
             products.clear();
             products.addAll(restored);
-            prefetchImages(restored);
+            images.prefetch(restored);
             loadCollectedState();
             syncCompletionState();
         } catch (Exception error) {
@@ -3846,7 +3891,7 @@ public class MainActivity extends Activity {
         renderProducts(false);
         wireFocusOrder();
         showSyncMessage("", false);
-        prefetchImages(rows);
+        images.prefetch(rows);
 
         boolean rewrite = verdict != DataGuard.Verdict.SAME || !isCacheManifestValid(stableOwner);
         if (!rewrite) {
@@ -4194,29 +4239,6 @@ public class MainActivity extends Activity {
         deleteRecursively(backup);
     }
 
-    private boolean downloadImageToFile(String url, File destination) {
-        HttpURLConnection connection = null;
-        try {
-            connection = openConnection(new URL(url));
-            connection.setConnectTimeout(12000); connection.setReadTimeout(18000);
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-            int code = connection.getResponseCode();
-            if (code < 200 || code >= 300) return false;
-            try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(destination)) {
-                byte[] buffer = new byte[8192]; int n; long total = 0;
-                while ((n = in.read(buffer)) != -1) {
-                    total += n;
-                    if (total > 8L * 1024L * 1024L) return false;
-                    out.write(buffer, 0, n);
-                }
-                out.getFD().sync();
-            }
-            Bitmap bitmap = BitmapFactory.decodeFile(destination.getAbsolutePath());
-            if (bitmap == null) return false;            bitmap.recycle();
-            return destination.length() > 0;
-        } catch (Exception e) { return false; }
-        finally { if (connection != null) connection.disconnect(); }
-    }
 
     private void deleteRecursively(File file) {
         if (file == null || !file.exists()) return;
@@ -4521,8 +4543,8 @@ public class MainActivity extends Activity {
         views.root.setTag(product.key);
         views.root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         if (displayMode != 0) {
-            if (!product.imagePath.isEmpty()) loadLegacyProductImage(product, views.image);
-            else if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, views.image);
+            if (!product.imagePath.isEmpty()) images.loadLegacy(product, views.image);
+            else if (!product.imageUrl.isEmpty()) images.load(product.imageUrl, views.image);
             else views.image.setImageDrawable(Ui.photoPlaceholder(this));
         }
         // Every text/amount touch target explicitly routes taps to collection and long presses
@@ -4673,7 +4695,7 @@ public class MainActivity extends Activity {
             File direct = new File(product.imagePath);
             if (direct.isFile() && direct.length() > 0) return direct;
         }
-        File persistentImage = imageCacheFile(product.imageUrl);
+        File persistentImage = images.cacheFile(product.imageUrl);
         if (persistentImage != null && persistentImage.isFile() && persistentImage.length() > 0)
             return persistentImage;
         File root = new File(activeFilesDir(), "pickup_order_cache");
@@ -4711,8 +4733,8 @@ public class MainActivity extends Activity {
         Ui.CardViews views=Ui.productCard(this,displayMode);ProductCard card=new ProductCard(views,product);
         views.root.setFocusable(true);views.root.setFocusableInTouchMode(false);views.root.setTag("partial:"+product.key);
         views.root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        if(displayMode!=0){if(!product.imagePath.isEmpty())loadLegacyProductImage(product,views.image);
-            else if(!product.imageUrl.isEmpty())loadProductImage(product.imageUrl,views.image);else views.image.setImageDrawable(Ui.photoPlaceholder(this));}
+        if(displayMode!=0){if(!product.imagePath.isEmpty())images.loadLegacy(product,views.image);
+            else if(!product.imageUrl.isEmpty())images.load(product.imageUrl,views.image);else views.image.setImageDrawable(Ui.photoPlaceholder(this));}
         View.OnClickListener undo=v->applyPartialCollection(product.key,0);
         views.root.setOnClickListener(undo);views.name.setOnClickListener(undo);views.note.setOnClickListener(undo);views.amount.setOnClickListener(undo);
         View.OnLongClickListener edit=v->{showPartialCollectionDialog(product.key);return true;};
@@ -4821,15 +4843,26 @@ public class MainActivity extends Activity {
         else showSyncMessage("", false);
     }
 
+    private static final String PREF_FAMILY_BREAKDOWN = "show_family_breakdown";
+
     private String combinedNote(java.util.List<SourcePart> parts) {
         if(parts==null||parts.isEmpty())return "";
         boolean any=false,all=true;
         StringBuilder detail=new StringBuilder();
+        // בהגדרות אפשר להסתיר את הפירוט לפי משפחה (שם החשבון וכמה כל אחד הזמין).
+        boolean breakdown=uiPreferences==null||uiPreferences.getBoolean(PREF_FAMILY_BREAKDOWN,true);
+        Set<String> notes=new java.util.LinkedHashSet<>();
         for(SourcePart part:parts) {
             any|=part.collected || part.partialQuantity>0; all&=part.collected;
-            if(detail.length()>0)detail.append(" · ");
-            detail.append(part.sourceLabel).append(" ").append(part.product.amount);
-            if(part.product.note!=null&&!part.product.note.isEmpty())detail.append(" (").append(part.product.note).append(")");
+            String note=part.product.note==null?"":part.product.note.trim();
+            if(breakdown){
+                if(detail.length()>0)detail.append(" · ");
+                detail.append(part.sourceLabel).append(" ").append(part.product.amount);
+                if(!note.isEmpty())detail.append(" (").append(note).append(")");
+            } else if(!note.isEmpty()&&notes.add(note)){
+                if(detail.length()>0)detail.append(" · ");
+                detail.append(note);
+            }
         }
         if(any&&!all)return "נאסף חלקית · "+detail;
         return detail.toString();
@@ -4890,18 +4923,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    private double parseQuantity(String value) {
-        try { return Math.max(0,Double.parseDouble(value.replace(',','.'))); }
-        catch(Exception ignored) { return 0; }
-    }
 
-    private String formatQuantity(double value) {
-        if(Math.abs(value-Math.rint(value))<0.000001)return String.valueOf((long)Math.rint(value));
-        String s=String.format(Locale.US,"%.3f",value);
-        while(s.contains(".")&&s.endsWith("0"))s=s.substring(0,s.length()-1);
-        if(s.endsWith("."))s=s.substring(0,s.length()-1);
-        return s;
-    }
 
     private void toggleProduct(String key) {
         if (sourceMergeInProgress) return;
@@ -5011,225 +5033,12 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void loadLegacyProductImage(ProductRow product, ImageView target) {
-        final String imageUrl = product.imageUrl == null ? "" : product.imageUrl;
-        final String viewTag = imageUrl.isEmpty() ? "legacy:" + product.imagePath : imageUrl;
-        // A URL-keyed cache entry always wins over the old per-order image file.
-        // Previously the legacy branch decoded that file again on every screen rebuild.
-        if (!imageUrl.isEmpty()) {
-            Bitmap memory = imageCache.get(imageUrl);
-            if (memory != null) {
-                target.setTag(imageUrl);
-                target.setImageBitmap(memory);
-                return;
-            }
-            File persistent = imageCacheFile(imageUrl);
-            if (persistent != null && persistent.isFile() && persistent.length() > 0) {
-                loadProductImage(imageUrl, target);
-                return;
-            }
-        }
-        target.setImageDrawable(Ui.photoPlaceholder(this));
-        target.setTag(viewTag);
-        imageLoader.execute(() -> {
-            File source = new File(product.imagePath);
-            Bitmap bitmap = decodeProductImage(source);
-            if (bitmap == null) {
-                if (!imageUrl.isEmpty()) mainHandler.post(() -> {
-                    if (viewTag.equals(target.getTag())) loadProductImage(imageUrl, target);
-                });
-                return;
-            }
-            if (!imageUrl.isEmpty()) {
-                File cached = imageCacheFile(imageUrl);
-                if (cached != null && !cached.isFile()) {
-                    File dir = cached.getParentFile();
-                    File temp = new File(dir, cached.getName() + ".tmp");
-                    try {
-                        if (!dir.exists()) dir.mkdirs();
-                        try (FileInputStream in = new FileInputStream(source);
-                             FileOutputStream out = new FileOutputStream(temp)) {
-                            byte[] buffer = new byte[8192]; int count; long total = 0;
-                            while ((count = in.read(buffer)) != -1) {
-                                total += count;
-                                if (total > 8L * 1024L * 1024L) throw new Exception("image too large");
-                                out.write(buffer, 0, count);
-                            }
-                            out.getFD().sync();
-                        }
-                        if (temp.renameTo(cached)) imageCache.put(imageUrl, bitmap);
-                        else temp.delete();
-                    } catch (Exception ignored) { temp.delete(); }
-                } else imageCache.put(imageUrl, bitmap);
-            }
-            mainHandler.post(() -> {
-                if (viewTag.equals(target.getTag())) target.setImageBitmap(bitmap);
-            });
-        });
-    }
 
-    /**
-     * מטמון התמונות גלובלי לכל האפליקציה: תיקייה אחת, לפי כתובת התמונה, בלי קשר לחשבון, למקור
-     * או לרשימה. תמונה שהורדה פעם אחת נטענת מהדיסק בכל רשימה ובכל חשבון, ולא מורדת שוב.
-     * המטמון אינו נמחק בהחלפת חשבון, בהתנתקות או בסנכרון.
-     */
-    private File imageCacheFile(String imageUrl) {
-        if (imageUrl == null || imageUrl.isEmpty()) return null;
-        File dir = new File(getApplicationContext().getFilesDir(), "product_image_cache");
-        return new File(dir, DataGuard.sha256(imageUrl.trim()) + ".img");
-    }
 
-    /** כתובות שההורדה שלהן נכשלה לאחרונה, כדי לא לנסות שוב בכל ציור מחדש של הרשימה. */
-    private final Map<String, Long> failedImages = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final long IMAGE_RETRY_MS = 10 * 60 * 1000L;
 
-    private boolean recentlyFailed(String imageUrl) {
-        Long at = failedImages.get(imageUrl);
-        if (at == null) return false;
-        if (System.currentTimeMillis() - at > IMAGE_RETRY_MS) { failedImages.remove(imageUrl); return false; }
-        return true;
-    }
 
-    /** מוריד מראש לדיסק את כל תמונות הרשימה שעוד אינן שמורות (גם בתצוגה ללא תמונות), כדי שיהיו זמינות גם בלי אינטרנט. */
-    private void prefetchImages(List<ProductRow> rows) {
-        if (rows == null) return;
-        final List<String> urls = new ArrayList<>();
-        for (ProductRow row : rows) {
-            if (row.imageUrl == null || row.imageUrl.isEmpty() || urls.contains(row.imageUrl)) continue;
-            File file = imageCacheFile(row.imageUrl);
-            if (file != null && file.isFile() && file.length() > 0) continue;
-            urls.add(row.imageUrl);
-        }
-        if (urls.isEmpty()) return;
-        cacheWorker.execute(() -> {
-            for (String url : urls) {
-                if (recentlyFailed(url)) continue;
-                synchronized (imageTargetsLock) { if (!imageDownloads.add(url)) continue; }
-                try {
-                    File target = imageCacheFile(url);
-                    if (target == null || (target.isFile() && target.length() > 0)) continue;
-                    File dir = target.getParentFile();
-                    if (dir != null && !dir.exists()) dir.mkdirs();
-                    File temp = new File(dir, target.getName() + ".pre");
-                    if (downloadImageToFile(url, temp) && temp.renameTo(target)) failedImages.remove(url);
-                    else { temp.delete(); failedImages.put(url, System.currentTimeMillis()); }
-                } finally {
-                    // כרטיסים שחיכו לתמונה הזו בזמן ההורדה המוקדמת מקבלים אותה עכשיו מהדיסק.
-                    List<WeakReference<ImageView>> waiting;
-                    synchronized (imageTargetsLock) { imageDownloads.remove(url); waiting = imageTargets.remove(url); }
-                    if (waiting != null && !waiting.isEmpty()) mainHandler.post(() -> {
-                        for (WeakReference<ImageView> reference : waiting) {
-                            ImageView view = reference.get();
-                            if (view != null && url.equals(view.getTag())) loadProductImage(url, view);
-                        }
-                    });
-                }
-            }
-        });
-    }
 
-    private Bitmap decodeProductImage(File file) {
-        if (file == null || !file.isFile() || file.length() <= 0) return null;
-        BitmapFactory.Options bounds = new BitmapFactory.Options();
-        bounds.inJustDecodeBounds = true;
-        BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
-        int targetPixels = Math.max(120, Ui.imageSize(this));
-        int sample = 1;
-        while (bounds.outWidth / (sample * 2) >= targetPixels
-                && bounds.outHeight / (sample * 2) >= targetPixels) sample *= 2;
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = sample;
-        return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-    }
 
-    private void loadProductImage(String imageUrl, ImageView target) {
-        if (imageUrl == null || imageUrl.isEmpty()) {
-            target.setImageDrawable(Ui.photoPlaceholder(this));
-            return;
-        }
-        target.setTag(imageUrl);
-        Bitmap cached = imageCache.get(imageUrl);
-        if (cached != null) { target.setImageBitmap(cached); return; }
-        target.setImageDrawable(Ui.photoPlaceholder(this));
-        File onDisk = imageCacheFile(imageUrl);
-        if (recentlyFailed(imageUrl) && (onDisk == null || !onDisk.isFile())) return;
-
-        // Deduplicate both disk decoding and network downloads by URL. Repeated
-        // renders attach their ImageView to the same in-flight cache operation.
-        synchronized (imageTargetsLock) {
-            List<WeakReference<ImageView>> targets = imageTargets.get(imageUrl);
-            if (targets == null) { targets = new ArrayList<>(); imageTargets.put(imageUrl, targets); }
-            boolean alreadyAttached = false;
-            for (WeakReference<ImageView> reference : targets) {
-                if (reference.get() == target) { alreadyAttached = true; break; }
-            }
-            if (!alreadyAttached) targets.add(new WeakReference<>(target));
-            if (!imageDownloads.add(imageUrl)) return;
-        }
-
-        imageLoader.execute(() -> {
-            HttpURLConnection connection = null;
-            Bitmap bitmap = null;
-            File temp = null;
-            File diskFile = imageCacheFile(imageUrl);
-            try {
-                // First try the permanent URL cache. Only a missing or corrupt entry
-                // is allowed to trigger a network request.
-                if (diskFile != null && diskFile.isFile() && diskFile.length() > 0) {
-                    bitmap = decodeProductImage(diskFile);
-                    if (bitmap == null) diskFile.delete();
-                }
-                if (bitmap == null) {
-                    File dir = diskFile.getParentFile();
-                    if (!dir.exists() && !dir.mkdirs())
-                        throw new Exception("image cache directory unavailable");
-                    temp = new File(dir, diskFile.getName() + ".tmp");
-                    connection = openConnection(new URL(imageUrl));
-                    connection.setConnectTimeout(7000);
-                    connection.setReadTimeout(9000);
-                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-                    connection.setInstanceFollowRedirects(true);
-                    int code = connection.getResponseCode();
-                    if (code < 200 || code >= 300) throw new Exception("image HTTP " + code);
-                    try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
-                        byte[] buffer = new byte[8192]; int read; long total = 0;
-                        while ((read = in.read(buffer)) != -1) {
-                            total += read;
-                            if (total > 6L * 1024L * 1024L) throw new Exception("image too large");
-                            out.write(buffer, 0, read);
-                        }
-                        out.getFD().sync();
-                    }
-                    bitmap = decodeProductImage(temp);
-                    if (bitmap == null) throw new Exception("invalid image");
-                    if (diskFile.exists()) diskFile.delete();
-                    if (!temp.renameTo(diskFile)) throw new Exception("cannot publish image cache");
-                    temp = null;
-                }
-                imageCache.put(imageUrl, bitmap);
-            } catch (Exception ignored) {
-                if (bitmap != null && !imageCache.snapshot().containsKey(imageUrl)) bitmap.recycle();
-                if (temp != null) temp.delete();
-                bitmap = null;
-                failedImages.put(imageUrl, System.currentTimeMillis());
-            } finally {
-                if (connection != null) connection.disconnect();
-                List<WeakReference<ImageView>> targets;
-                synchronized (imageTargetsLock) {
-                    imageDownloads.remove(imageUrl);
-                    targets = imageTargets.remove(imageUrl);
-                }
-                final Bitmap result = bitmap;
-                if (result != null && targets != null) mainHandler.post(() -> {
-                    for (WeakReference<ImageView> reference : targets) {
-                        ImageView view = reference.get();
-                        if (view != null && imageUrl.equals(view.getTag())) view.setImageBitmap(result);
-                    }
-                });
-            }
-        });
-    }
     private void logout() {
         if (sourceMergeInProgress) { showSyncMessage("החשבון מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("המתינו לסיום הסנכרון לפני התנתקות.", false); return; }
@@ -5370,209 +5179,22 @@ public class MainActivity extends Activity {
         return response;
     }
 
-    private HttpURLConnection openConnection(URL url) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        if (Build.VERSION.SDK_INT < 21 && connection instanceof javax.net.ssl.HttpsURLConnection) {
-            javax.net.ssl.SSLContext context = javax.net.ssl.SSLContext.getInstance("TLSv1.2");
-            context.init(null, null, null);
-            ((javax.net.ssl.HttpsURLConnection) connection).setSSLSocketFactory(
-                    new Tls12SocketFactory(context.getSocketFactory()));
-        }
-        return connection;
-    }
 
-    private HttpResult rawRequest(String method, String path, String token, JSONObject body) throws Exception {
-        HttpURLConnection connection = openConnection(new URL(API + path));
-        connection.setRequestMethod(method);
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(22000);
-        connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("Accept", "application/json");
-        connection.setRequestProperty("Origin", "https://mishnatyosef.org");
-        connection.setRequestProperty("Referer", "https://mishnatyosef.org/");
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
-        if (token != null && !token.isEmpty()) connection.setRequestProperty("Authorization", "Bearer " + token);
-        if ("POST".equals(method)) {
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-            byte[] bytes = (body == null ? new JSONObject() : body).toString().getBytes(StandardCharsets.UTF_8);
-            try (OutputStream out = connection.getOutputStream()) { out.write(bytes); }
-        }
-        int code = connection.getResponseCode();
-        InputStream stream = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
-        StringBuilder text = new StringBuilder();
-        if (stream != null) {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) text.append(line);
-            }
-        }
-        connection.disconnect();
-        return new HttpResult(code, text.toString());
-    }
 
-    private void ensureSuccess(HttpResult response) throws Exception {
-        if (response.code == 401) throw new Exception("AUTH_REQUIRED: ההתחברות פגה או אינה תקפה.");
-        if (response.code < 200 || response.code >= 300) {
-            String message = "השרת החזיר שגיאה (" + response.code + ").";
-            try {
-                JSONObject error = new JSONObject(response.body);
-                String detail = first(error, "message", "error", "title");
-                if (!detail.isEmpty() && detail.length() < 180) message = detail;
-            } catch (Exception ignored) { }
-            throw new Exception(message);
-        }
-    }
 
-    private static String extractToken(String body) {
-        try {
-            JSONObject root = new JSONObject(body);
-            String token = first(root, "access_token", "token");
-            JSONObject data = root.optJSONObject("data");
-            if (token.isEmpty() && data != null) token = first(data, "access_token", "token");
-            return token;
-        } catch (Exception e) { return ""; }
-    }
 
     // ---------------------------------------------------------------------
     // Order selection and product parsing
     // ---------------------------------------------------------------------
 
-    private JSONObject chooseLatestPickupOrder(JSONArray orders) {
-        List<JSONObject> valid = new ArrayList<>();
-        for (int i = 0; i < orders.length(); i++) {
-            JSONObject order = orders.optJSONObject(i);
-            if (order == null || extractOrderId(order) <= 0) continue;
-            if (OrderHistoryPage.isCancelled(order)) continue;
-            valid.add(order);
-        }
-        if (valid.isEmpty()) return null;
-        Collections.sort(valid, (a, b) -> {
-            long ta = orderSortValue(a), tb = orderSortValue(b);
-            if (ta != tb) return Long.compare(tb, ta);
-            return Long.compare(extractOrderId(b), extractOrderId(a));
-        });
-        return valid.get(0);
-    }
 
-    private long orderSortValue(JSONObject order) {
-        String[] dateKeys = {"created_at", "createdAt", "order_date", "orderDate", "date", "updated_at", "updatedAt"};
-        for (String key : dateKeys) {
-            String value = first(order, key);
-            if (value.isEmpty()) continue;
-            long parsed = parseDate(value);
-            if (parsed > 0) return parsed;
-            try { return Long.parseLong(value); } catch (Exception ignored) { }
-        }
-        return extractOrderId(order);
-    }
 
-    private long parseDate(String value) {
-        String[] formats = {"yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"};
-        for (String format : formats) {
-            try {
-                SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.US);
-                sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-                Date date = sdf.parse(value);
-                if (date != null) return date.getTime();
-            } catch (ParseException ignored) { }
-        }
-        return 0;
-    }
 
-    private JSONObject unwrapOrder(JSONObject response) {
-        JSONObject order = response.optJSONObject("order");
-        if (order != null) return order;
-        JSONObject data = response.optJSONObject("data");
-        if (data != null) {
-            order = data.optJSONObject("order");
-            return order != null ? order : data;
-        }
-        return response;
-    }
 
-    private List<ProductRow> parseProducts(JSONObject order) {
-        List<ProductRow> result = new ArrayList<>();
-        JSONArray orderProducts = order.optJSONArray("products");
-        JSONArray orderItems = order.optJSONArray("items");
-        if (orderProducts == null) orderProducts = orderItems;
-        if (orderProducts == null) return result;
-        for (int i = 0; i < orderProducts.length(); i++) {
-            JSONObject row = orderProducts.optJSONObject(i);
-            if (row == null) continue;
-            JSONObject data = row.optJSONObject("data");
-            JSONObject item = findMatchingItem(orderItems, row);
-            JSONObject saleProduct = nestedProduct(item);
-            // The catalog product ID is stable across orders and accounts. Line IDs
-            // (item_salesID / order-item id) are not suitable for cross-account aggregation.
-            String catalogProductId = first(saleProduct, "id", "product_id", "productID");
-            if (catalogProductId.isEmpty()) {
-                JSONObject itemSale = item == null ? null : item.optJSONObject("item_sale");
-                catalogProductId = first(itemSale, "product_id", "productID");
-            }
-            String lineId = first(row, "item_salesID", "item_sales_id", "itemID", "id");
-            if (lineId.isEmpty() && data != null) lineId = first(data, "item_salesID", "item_sales_id", "itemID", "id");
-            String key = !catalogProductId.isEmpty() ? catalogProductId
-                    : (lineId.isEmpty() ? "line" : lineId) + "_" + i;
-            String name = first(data, "full_name", "name", "product_name");
-            if (name.isEmpty()) name = first(row, "full_name", "name", "product_name");
-            if (name.isEmpty()) name = first(saleProduct, "full_name", "name", "title");
-            if (name.isEmpty()) name = "מוצר ללא שם";
-            String image = first(data, "featured_image", "image", "image_url");
-            if (image.isEmpty()) image = first(row, "featured_image", "image", "image_url");
-            if (image.isEmpty()) image = first(saleProduct, "featured_image", "image", "image_url");
-            if (!image.isEmpty() && !image.startsWith("http://") && !image.startsWith("https://")) {
-                image = "https://images.mishnatyosef.org/images/items/" + image;
-            }
-            String amount = first(row, "amount", "quantity", "qty");
-            if (amount.isEmpty() && data != null) amount = first(data, "amount", "quantity", "qty");
-            if (amount.isEmpty()) amount = "1";
-            String note = first(saleProduct, "note");
-            // מבנה השרת: items[].item_sale.product.category = {name, order, main_category}.
-            String category = findCategory(saleProduct, data, row,
-                    item == null ? null : item.optJSONObject("item_sale"), item);
-            JSONObject categoryObject = saleProduct == null ? null : saleProduct.optJSONObject("category");
-            int categoryOrder = categoryObject == null ? 0 : categoryObject.optInt("order", 0);
-            result.add(new ProductRow(key, name, image, amount, note, "", category, categoryOrder));
-        }
-        return result;
-    }
 
-    private JSONObject findMatchingItem(JSONArray items, JSONObject product) {
-        if (items == null) return null;
-        String id = first(product, "item_salesID", "item_sales_id", "itemID", "id");
-        if (id.isEmpty()) id = first(product.optJSONObject("data"), "item_salesID", "item_sales_id", "itemID", "id");
-        for (int i = 0; i < items.length(); i++) {
-            JSONObject item = items.optJSONObject(i);
-            if (item != null && id.equals(first(item, "item_salesID", "item_sales_id", "itemID", "id"))) return item;
-        }
-        return null;
-    }
 
-    private JSONObject nestedProduct(JSONObject item) {
-        if (item == null) return null;
-        JSONObject itemSale = item.optJSONObject("item_sale");
-        return itemSale == null ? null : itemSale.optJSONObject("product");
-    }
 
-    private long extractOrderId(JSONObject order) {
-        if (order == null) return -1;
-        long id = order.optLong("id", order.optLong("order_id", order.optLong("orderID", -1)));
-        if (id <= 0 && order.optJSONObject("order") != null) id = extractOrderId(order.optJSONObject("order"));
-        if (id <= 0 && order.optJSONObject("data") != null) id = extractOrderId(order.optJSONObject("data"));
-        return id;
-    }
 
-    private static String first(JSONObject object, String... keys) {
-        if (object == null) return "";
-        for (String key : keys) {
-            Object value = object.opt(key);
-            if (value == null || value == JSONObject.NULL) continue;
-            String text = String.valueOf(value).trim();
-            if (!text.isEmpty() && !"null".equalsIgnoreCase(text)) return text;
-        }
-        return "";
-    }
 
     // ---------------------------------------------------------------------
     // Encrypted token storage
@@ -5652,10 +5274,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private static final class HttpResult {
-        final int code; final String body;
-        HttpResult(int code, String body) { this.code = code; this.body = body == null ? "" : body; }
-    }
 
     private static final class SourcePart {
         final String sourceId, orderId, sourceLabel;
@@ -5682,94 +5300,12 @@ public class MainActivity extends Activity {
         }
     }
 
-    static final class ProductRow {
-        final String key, name, imageUrl, amount, note, imagePath;
-        /** מחלקת המוצר (למשל "ירקות"), לצורך מיון הרשימה. אינה חלק מטביעת התוכן. */
-        final String category;
-        /** סדר המחלקה באתר (category.order); 0 כשאינו ידוע. */
-        final int categoryOrder;
-        ProductRow(String key, String name, String imageUrl, String amount, String note) {
-            this(key, name, imageUrl, amount, note, "", "");
-        }
-        ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath) {
-            this(key, name, imageUrl, amount, note, imagePath, "");
-        }
-        ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath,
-                   String category) {
-            this(key, name, imageUrl, amount, note, imagePath, category, 0);
-        }
-        ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath,
-                   String category, int categoryOrder) {
-            this.key = key; this.name = name; this.imageUrl = imageUrl; this.amount = amount;
-            this.note = note; this.imagePath = imagePath == null ? "" : imagePath;
-            this.category = category == null ? "" : category.trim();
-            this.categoryOrder = Math.max(0, categoryOrder);
-        }
-    }
 
     // ---------------------------------------------------------------------
     // מיון לפי מחלקות
     // ---------------------------------------------------------------------
 
-    private static final String[] CATEGORY_KEYS = {"category", "category_name", "categoryName", "cat_name",
-            "catName", "category_title", "department", "department_name", "dept", "group_name"};
 
-    /** מחלקת מוצר מתוך נתוני השורה, הפריט והמוצר. בודק גם שדות מקוננים (למשל category.name). */
-    private static String findCategory(JSONObject... sources) {
-        for (JSONObject source : sources) {
-            String found = findCategory(source, 0);
-            if (!found.isEmpty()) return found;
-        }
-        return "";
-    }
 
-    private static String findCategory(JSONObject source, int depth) {
-        if (source == null || depth > 2) return "";
-        for (String key : CATEGORY_KEYS) {
-            Object value = source.opt(key);
-            if (value instanceof JSONObject) {
-                String nested = first((JSONObject) value, "name", "title", "category_name", "week");
-                if (!nested.isEmpty()) return nested;
-            } else if (value instanceof String) {
-                String text = ((String) value).trim();
-                // מזהה מספרי אינו שם מחלקה.
-                if (!text.isEmpty() && !"null".equalsIgnoreCase(text) && !text.matches("\\d+")) return text;
-            }
-        }
-        java.util.Iterator<String> keys = source.keys();
-        while (keys.hasNext()) {
-            Object value = source.opt(keys.next());
-            if (value instanceof JSONObject) {
-                String nested = findCategory((JSONObject) value, depth + 1);
-                if (!nested.isEmpty()) return nested;
-            }
-        }
-        return "";
-    }
 
-    /**
-     * ממיין לפי מחלקות. סדר המחלקות לפי category.order שמגיע מהשרת; כשאין, לפי רשימת המחלקות
-     * של המכירה (sale.categories), ואחרת לפי א״ב. מוצרים בלי מחלקה בסוף. בתוך מחלקה נשמר הסדר המקורי.
-     */
-    private static void sortByCategory(List<ProductRow> rows, JSONObject pickupInfo) {
-        if (rows == null || rows.size() < 2) return;
-        final List<String> order = new ArrayList<>();
-        JSONObject sale = pickupInfo == null ? null : pickupInfo.optJSONObject("sale");
-        JSONArray listed = sale == null ? null : sale.optJSONArray("categories");
-        if (listed != null) for (int i = 0; i < listed.length(); i++) order.add(listed.optString(i, "").trim());
-        final java.text.Collator collator = java.text.Collator.getInstance(new Locale("he"));
-        Collections.sort(rows, (a, b) -> {
-            boolean aEmpty = a.category.isEmpty(), bEmpty = b.category.isEmpty();
-            if (aEmpty || bEmpty) return aEmpty == bEmpty ? 0 : (aEmpty ? 1 : -1);
-            // סדר המחלקות כפי שהוא באתר משנת יוסף (category.order).
-            if (a.categoryOrder > 0 && b.categoryOrder > 0 && a.categoryOrder != b.categoryOrder)
-                return a.categoryOrder < b.categoryOrder ? -1 : 1;
-            if (a.category.equals(b.category)) return 0;
-            int ra = order.indexOf(a.category), rb = order.indexOf(b.category);
-            if (ra < 0) ra = Integer.MAX_VALUE;
-            if (rb < 0) rb = Integer.MAX_VALUE;
-            if (ra != rb) return ra < rb ? -1 : 1;
-            return ra == Integer.MAX_VALUE ? collator.compare(a.category, b.category) : 0;
-        });
-    }
 }
