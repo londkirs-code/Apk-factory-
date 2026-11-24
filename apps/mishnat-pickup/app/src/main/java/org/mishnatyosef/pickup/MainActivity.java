@@ -15,6 +15,9 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Vibrator;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,7 +31,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.text.InputType;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.GridLayout;
+import android.widget.Toast;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -106,6 +114,8 @@ public class MainActivity extends Activity {
     private final Map<String, List<WeakReference<ImageView>>> imageTargets = new HashMap<>();
 
     private SharedPreferences preferences;
+    private SharedPreferences uiPreferences;
+    private SavedListStore savedListStore;
     private SecretStore secretStore;
     private SourceRegistry sourceRegistry;
     private String activeSourceId = "";
@@ -118,10 +128,16 @@ public class MainActivity extends Activity {
     private String currentOrderId = "";
     private final List<ProductRow> products = new ArrayList<>();
     private final Set<String> collected = new HashSet<>();
+    private final Map<String, Double> partialCollected = new HashMap<>();
+    private EditText searchInput;
+    private TextView searchEmptyText;
+    private String searchQuery = "";
+    private int displayMode = 3, lastRenderedDisplayMode = -1;
+    private boolean keyFiveLongHandled = false;
     private ScrollView pageScroll;
     private LinearLayout page;
-    private LinearLayout pendingList;
-    private LinearLayout collectedList;
+    private ViewGroup pendingList;
+    private ViewGroup collectedList;
     private LinearLayout collectedSection;
     private TextView progressText;
     private TextView progressPercent;
@@ -165,7 +181,11 @@ public class MainActivity extends Activity {
         SharedPreferences legacyPreferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         sourceRegistry = new SourceRegistry(this);
         secretStore = new SecretStore(this);
+        savedListStore = new SavedListStore(this);
+        uiPreferences = getSharedPreferences("mishnat_pickup_ui", MODE_PRIVATE);
+        displayMode = Math.max(0, Math.min(5, uiPreferences.getInt("display_mode", 3)));
         sourceRegistry.migrateLegacy(legacyPreferences);
+        archiveExistingSnapshots();
         SourceRegistry.Source initialSource = sourceRegistry.active();
         if (initialSource != null) {
             activeSourceId = initialSource.id;
@@ -679,10 +699,15 @@ public class MainActivity extends Activity {
     /** True only when a non-empty order has every product marked as collected. */
     private boolean isAllCollected() {
         if (products.isEmpty()) return false;
-        for (ProductRow row : products) {
-            if (!collected.contains(row.key)) return false;
-        }
+        for (ProductRow row : products) if (collectedQuantity(row) + 0.000001 < parseQuantity(row.amount)) return false;
         return true;
+    }
+
+    private double collectedQuantity(ProductRow row) {
+        if (row == null) return 0;
+        if (collected.contains(row.key)) return parseQuantity(row.amount);
+        Double value = partialCollected.get(row.key);
+        return value == null ? 0 : Math.max(0, value);
     }
 
     /** Synchronize loaded/reset data without treating it as a user completion. */
@@ -699,6 +724,7 @@ public class MainActivity extends Activity {
     }
 
     private void showCelebration() {
+        performFeedback(true);
         dismissCelebration();
 
         FrameLayout layer = new FrameLayout(this);
@@ -769,6 +795,13 @@ public class MainActivity extends Activity {
         if (imageViewer != null && imageViewer.onKey(event)) return true;
         if (handleImageModeKey(event)) return true;
         if (celebration != null && event.getAction() == KeyEvent.ACTION_DOWN) dismissCelebration();
+        if (!imageMode && !accountsScreenVisible && event.getKeyCode() == KeyEvent.KEYCODE_5) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0 && !keyFiveLongHandled) {
+                ProductCard focused = findProductCard(getCurrentFocus());
+                if (focused != null) { keyFiveLongHandled = true; showPartialCollectionDialog(focused.product.key); return true; }
+            }
+            if (event.getAction() == KeyEvent.ACTION_UP && keyFiveLongHandled) { keyFiveLongHandled = false; return true; }
+        }
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0
                 && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
                 || event.getKeyCode() == KeyEvent.KEYCODE_ENTER
@@ -1313,6 +1346,7 @@ public class MainActivity extends Activity {
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
                 Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2));
         header.addView(buildHomeTitleRow());
+        header.addView(buildSearchRow(), Ui.row(this, Ui.S2, 0));
         imageModeHint = null;
         header.addView(buildProgressCard(), Ui.row(this, Ui.S2, 0));
         return header;
@@ -1500,9 +1534,12 @@ public class MainActivity extends Activity {
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
         page.addView(messageText);
+        searchEmptyText = Ui.banner(this, "לא נמצאו פריטים שמתאימים לחיפוש.");
+        searchEmptyText.setVisibility(View.GONE);
+        page.addView(searchEmptyText);
 
-        pendingList = Ui.column(this);
-        collectedList = Ui.column(this);
+        pendingList = createProductContainer();
+        collectedList = createProductContainer();
         page.addView(Ui.section(this, "ממתינים לליקוט"));
         page.addView(pendingList);
         collectedSection = buildCollectedSection();
@@ -2095,7 +2132,7 @@ public class MainActivity extends Activity {
         if (pendingList == null || collectedList == null) return;
         View focused = getCurrentFocus();
         String focusedKey = focused == null ? null : (String) focused.getTag();
-        boolean sameKeys = productCards.size() == products.size();
+        boolean sameKeys = productCards.size() == products.size() && lastRenderedDisplayMode == displayMode;
         if (sameKeys) for (ProductRow product : products) {
             ProductCard existing = productCards.get(product.key);
             if (existing == null || !sameProduct(existing.product, product)) { sameKeys = false; break; }
@@ -2109,22 +2146,26 @@ public class MainActivity extends Activity {
         for (ProductRow product : products) {
             ProductCard card = productCards.get(product.key);
             if (card == null) continue;
+            if (!matchesSearch(product)) { ViewGroup oldParent=(ViewGroup)card.row.getParent(); if(oldParent!=null)oldParent.removeView(card.row); continue; }
             boolean done = collected.contains(product.key);
             bindProductCard(card, product, done);
-            LinearLayout target = done ? collectedList : pendingList;
+            ViewGroup target = done ? collectedList : pendingList;
             ViewGroup parent = (ViewGroup) card.row.getParent();
             if (parent != target) {
                 if (parent != null) parent.removeView(card.row);
-                target.addView(card.row, insertionIndex(target, product, done));
+                target.addView(card.row, productLayoutParams(target), insertionIndex(target, product, done));
             } else {
                 int wanted = insertionIndex(target, product, done);
                 int current = target.indexOfChild(card.row);
                 if (current != wanted) {
                     target.removeView(card.row);
-                    target.addView(card.row, Math.min(wanted, target.getChildCount()));
+                    target.addView(card.row, productLayoutParams(target), Math.min(wanted, target.getChildCount()));
                 }
             }
         }
+        lastRenderedDisplayMode = displayMode;
+        int visibleCount = 0; for(ProductRow p:products) if(matchesSearch(p)) visibleCount++;
+        if (searchEmptyText != null) searchEmptyText.setVisibility(!searchQuery.trim().isEmpty() && visibleCount==0 ? View.VISIBLE : View.GONE);
         updateProgress();
         wireFocusOrder();
         if (!sameKeys) {
@@ -2139,13 +2180,13 @@ public class MainActivity extends Activity {
         int index = 0;
         for (ProductRow candidate : products) {
             if (candidate.key.equals(product.key)) break;
-            if (collected.contains(candidate.key) == done) index++;
+            if (matchesSearch(candidate) && collected.contains(candidate.key) == done) index++;
         }
         return Math.min(index, target.getChildCount());
     }
 
     private ProductCard createProductCard(ProductRow product) {
-        Ui.CardViews views = Ui.productCard(this);
+        Ui.CardViews views = Ui.productCard(this, displayMode);
         ProductCard card = new ProductCard(views, product);
         views.root.setTag(product.key);
         if (!product.imagePath.isEmpty()) {
@@ -2159,6 +2200,8 @@ public class MainActivity extends Activity {
         views.image.setFocusable(false);
         views.image.setFocusableInTouchMode(false);
         views.root.setOnClickListener(v -> toggleProduct(product.key));
+        views.root.setOnLongClickListener(v -> { showPartialCollectionDialog(product.key); return true; });
+        if (displayMode == 0) views.note.setVisibility(View.GONE);
         return card;
     }
 
@@ -2307,13 +2350,17 @@ public class MainActivity extends Activity {
 
     private void bindProductCard(ProductCard card, ProductRow product, boolean done) {
         card.product = product;
-        Ui.bindProduct(card.views, product.name, product.note, product.amount, done);
+        double partial = collectedQuantity(product);
+        String detail = product.note == null ? "" : product.note;
+        if (!done && partial > 0) detail = (detail.isEmpty() ? "" : detail + " · ") + "נאספו " + formatQuantity(partial) + " מתוך " + product.amount;
+        Ui.bindProduct(card.views, product.name, detail, product.amount, done);
+        if (displayMode == 0) card.views.note.setVisibility(View.GONE);
         if (imageMode && card.row == (getCurrentFocus() == null ? null : findProductCard(getCurrentFocus()) == null ? null : findProductCard(getCurrentFocus()).row))
             Ui.setImageFocus(this, card.views, true);
     }
 
     private void loadCombinedSnapshot() {
-        products.clear(); collected.clear(); combinedParts.clear();
+        products.clear(); collected.clear(); partialCollected.clear(); combinedParts.clear();
         java.util.LinkedHashMap<String, java.util.List<SourcePart>> grouped = new java.util.LinkedHashMap<>();
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
@@ -2433,8 +2480,9 @@ public class MainActivity extends Activity {
         if (sourceMergeInProgress) return;
         ProductCard moving = productCards.get(key);
         if (moving == null) return;
+        boolean wasAll = isAllCollected();
         boolean wasCollected = collected.contains(key);
-        LinearLayout source = wasCollected ? collectedList : pendingList;
+        ViewGroup source = wasCollected ? collectedList : pendingList;
         ProductRow product = findProduct(key);
         if (product == null) return;
         int oldIndex = source.indexOfChild(moving.row);
@@ -2444,21 +2492,23 @@ public class MainActivity extends Activity {
             else if (oldIndex > 0) neighbor = source.getChildAt(oldIndex - 1);
         }
         if (neighbor != null) neighbor.requestFocus();
-        if (wasCollected) collected.remove(key); else collected.add(key);
+        if (wasCollected) { collected.remove(key); partialCollected.remove(key); }
+        else { collected.add(key); partialCollected.remove(key); }
         if (combinedView) {
             updateCombinedParts(key, !wasCollected);
             moving.views.note.setText(combinedNote(combinedParts.get(key)));
             moving.views.note.setVisibility(moving.views.note.getText().length() == 0 ? View.GONE : View.VISIBLE);
         } else saveCollectedState();
-        LinearLayout target = wasCollected ? pendingList : collectedList;
+        ViewGroup target = wasCollected ? pendingList : collectedList;
         ViewGroup parent = (ViewGroup) moving.row.getParent();
         if (parent != null) parent.removeView(moving.row);
         bindProductCard(moving, product, !wasCollected);
-        target.addView(moving.row, insertionIndex(target, product, !wasCollected));
+        target.addView(moving.row, productLayoutParams(target), insertionIndex(target, product, !wasCollected));
         updateProgress();
         wireFocusOrder();
         if (neighbor == null) moving.row.requestFocus();
         checkCelebration();
+        if (wasAll || !isAllCollected()) performFeedback(false);
     }
 
     private boolean sameProduct(ProductRow a, ProductRow b) {
@@ -2473,10 +2523,10 @@ public class MainActivity extends Activity {
     }
 
     private void updateProgress() {
-        int done = 0;
-        for (ProductRow product : products) if (collected.contains(product.key)) done++;
-        int percent = products.isEmpty() ? 0 : (int) Math.round(done * 100.0 / products.size());
-        if (progressText != null) progressText.setText("נאספו " + done + " מתוך " + products.size());
+        double total = 0, done = 0;
+        for (ProductRow product : products) { double q=parseQuantity(product.amount); total += q; done += Math.min(q,collectedQuantity(product)); }
+        int percent = total <= 0 ? 0 : (int) Math.round(done * 100.0 / total);
+        if (progressText != null) progressText.setText("נאספו " + formatQuantity(done) + " מתוך " + formatQuantity(total) + " יחידות");
         if (progressPercent != null) progressPercent.setText(percent + "%");
         if (progressBar != null) progressBar.setProgress(percent);
     }
@@ -2704,6 +2754,7 @@ public class MainActivity extends Activity {
         wasComplete = false;
         products.clear();
         collected.clear();
+        partialCollected.clear();
         productCards.clear();
         orderData = null;
         currentOrderId = "";
