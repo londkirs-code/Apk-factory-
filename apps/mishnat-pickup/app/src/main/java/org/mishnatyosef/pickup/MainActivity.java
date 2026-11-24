@@ -1077,9 +1077,8 @@ public class MainActivity extends Activity {
             ImportParser.Item item=list.items.get(i);String imageFile="";
             File image=bundle.imageFile(item.image);
             if(image!=null&&image.isFile()&&image.length()>0) {
-                String ext=item.image.substring(item.image.lastIndexOf('.')+1).toLowerCase(Locale.ROOT);
-                imageFile="image_"+i+"."+ext;
-                if(!copyImportFile(image,new File(ready,imageFile)))throw new Exception("לא ניתן להעתיק תמונת מוצר.");
+                imageFile=savedListStore.cacheImage(image);
+                if(imageFile.isEmpty())throw new Exception("לא ניתן לשמור תמונת מוצר במטמון העצמאי.");
             }
             String note=item.note;
             if(!item.unit.isEmpty())note=(note.isEmpty()?"":note+" · ")+"יחידה: "+item.unit;
@@ -2043,7 +2042,8 @@ public class MainActivity extends Activity {
                 String imageFile = first(row, "image_file");
                 String imagePath = "";
                 if (!imageFile.isEmpty()) {
-                    File image = new File(root, imageFile);
+                    File image = new File(imageFile);
+                    if (!image.isAbsolute()) image = new File(root, imageFile);
                     if (image.isFile() && image.length() > 0) imagePath = image.getAbsolutePath();
                     // Images are optional. A missing/uncached image must never block list loading.
                 }
