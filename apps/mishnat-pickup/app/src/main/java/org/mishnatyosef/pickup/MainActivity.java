@@ -1541,13 +1541,28 @@ public class MainActivity extends Activity {
             JSONObject snapshot=null;try{snapshot=savedListStore.readEntry(savedArchiveId);}catch(Exception ignored){}
             final JSONObject saved=snapshot;
             mainHandler.post(()->{if(!installed||!restored||saved==null){showSyncMessage("לא ניתן לפתוח את הרשימה השמורה.",false);return;}
-                activeOwner=saved.optString("owner",entry.owner);String print=saved.optString("fingerprint","");long orderId=saved.optLong("order_id",-1);
+                activeOwner=saved.optString("owner",entry.owner);String print=savedListFingerprint(saved);long orderId=saved.optLong("order_id",-1);
                 DataGuard.saveMeta(preferences,activeOwner,orderId,print,preferences.getString(DataGuard.K_TOKEN_FINGERPRINT,""));
                 cacheTrusted=isCacheManifestValid(activeOwner);showingSavedList=true;clearOrderMemory();showHomeScreen(false);
                 showSyncMessage("הרשימה השמורה נפתחה. היא תישאר במכשיר עד למחיקה ידנית.",false);});
         });
         if(!sourceId.equals(activeSourceId))switchSource(sourceId,activate);else activate.run();
     }
+    private String savedListFingerprint(JSONObject saved) {
+        String fingerprint=saved.optString("fingerprint","");
+        if(!fingerprint.isEmpty())return fingerprint;
+        JSONArray rows=saved.optJSONArray("products");
+        if(rows==null)return "";
+        List<ProductRow> restored=new ArrayList<>();
+        for(int i=0;i<rows.length();i++){
+            JSONObject row=rows.optJSONObject(i);if(row==null)return "";
+            restored.add(new ProductRow(first(row,"key"),first(row,"name"),first(row,"image_url"),
+                    first(row,"amount"),first(row,"note")));
+        }
+        return saved.optInt("fingerprint_version",1)>=2
+                ?DataGuard.fingerprint(restored):DataGuard.legacyFingerprint(restored);
+    }
+
     private void archiveExistingSnapshots() {if(savedListStore!=null&&sourceRegistry!=null)for(SourceRegistry.Source s:sourceRegistry.all())archiveCurrentSnapshot(s.id);}
     private void archiveCurrentSnapshot(String sourceId) {
         if(savedListStore==null||sourceRegistry==null||sourceId==null||sourceId.isEmpty())return;
