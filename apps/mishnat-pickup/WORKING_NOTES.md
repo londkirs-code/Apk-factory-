@@ -16,7 +16,7 @@
 
 ## כללים לעבודה
 - מספור גרסאות: מגרסה 2.0 (versionCode 101), כל שינוי מעלה ב-0.01: 2.01 = 102, 2.02 = 103 ... 2.99 = 200 (שם = 2 ועוד (קוד-101)/100, תמיד שתי ספרות אחרי הנקודה). לא קפיצות של 0.1, ולא שמות כמו 1.100.
-- אייקון: מקור ב-`app/src/main/icon-source/app_icon_source.png`. אייקון מסתגל (Android 8+) ב-`mipmap-anydpi-v26`: רקע מטושטש מהאייקון + האייקון המלא ב-56dp מתוך 108dp, כך שכולו (כולל תג ה-2) נראה גם במסכה עגולה. לגרסאות ישנות: `mipmap-*/ic_launcher.png` ו-`ic_launcher_round.png`.
+- אייקון (משקל כולל עד 50KB): מקור ב-`app/src/main/icon-source/app_icon_source.png` (לא נארז ב-APK). אייקון מסתגל (Android 8+) ב-`mipmap-anydpi-v26`: רקע `drawable/ic_launcher_background.xml` (מעבר צבע) + `mipmap-xxxhdpi/ic_launcher_foreground.webp` (432px, האייקון ב-224px באמצע, כך שכולו נראה גם במסכה עגולה). לגרסאות ישנות: `mipmap/ic_launcher.xml` ו-`ic_launcher_round.xml` מפנים ל-`drawable-nodpi/app_logo.webp` (192px), שמשמש גם בלוגו של מסך ההתחברות. לא להוסיף PNG בכל הגדלים.
 - לקבל קוד מלא לקובץ שמשתנה, ולא רק diff או קטע, כפי שהוגדר בהעדפות.
 - כל שינוי שנראה למשתמש: רשומה חדשה בראש `CHANGELOG.md` בעברית, עם מספר גרסה מעודכן, ועדכון "מה חדש" באפליקציה.
 - לא ליצור ולא להחליף keystore. לא לחשוף סודות חתימה.

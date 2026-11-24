@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- לפני Android 8: אותו קובץ לוגו קטן משמש גם כאייקון האפליקציה. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/app_logo"
+    android:filter="true" />
