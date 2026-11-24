@@ -1486,7 +1486,8 @@ public class MainActivity extends Activity {
             File manifest=new File(new File(sourceRegistry.sourceDir(entry.sourceId),"pickup_order_cache"),"order.json");
             boolean same=false;
             try{if(manifest.isFile()){JSONObject current=new JSONObject(readImportText(manifest));
-                same=String.valueOf(current.optLong("order_id",-1)).equals(entry.orderId);}}catch(Exception ignored){}
+                same=String.valueOf(current.optLong("order_id",-1)).equals(entry.orderId)
+                        && current.optString("owner","").equals(entry.owner);}}catch(Exception ignored){}
             if(same){
                 Runnable clear=()->cacheWorker.execute(()->{
                     DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
