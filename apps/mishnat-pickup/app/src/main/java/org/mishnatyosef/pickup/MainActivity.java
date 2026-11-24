@@ -860,7 +860,7 @@ public class MainActivity extends Activity {
                 ProductCard focused = findProductCard(getCurrentFocus());
                 if (focused != null) {
                     keyFiveLongHandled = true;
-                    if (parseQuantity(focused.product.amount) > 1.000001)
+                    if (remainingQuantity(focused.product) > 0.000001)
                         showPartialCollectionDialog(focused.product.key);
                     return true;
                 }
@@ -1413,17 +1413,17 @@ public class MainActivity extends Activity {
         if (displayMode == 5) {
             GridLayout grid = new GridLayout(this); grid.setColumnCount(3);
             grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS); grid.setUseDefaultMargins(false);
-            grid.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); return grid;
+            // Physical LTR columns are mapped explicitly to RTL card order.
+            grid.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); return grid;
         }
         return Ui.column(this);
     }
-    private ViewGroup.LayoutParams productLayoutParams(ViewGroup parent) {
+    private ViewGroup.LayoutParams productLayoutParams(ViewGroup parent, int index) {
         if (parent instanceof GridLayout) {
+            // Explicit physical columns: first card right, second middle, third left.
             GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
-                    GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f));
-            lp.width=0;
-            // Fixed cell height keeps every card in the three-column grid visually identical.
-            lp.height=Ui.dp(this,176);
+                    GridLayout.spec(index / 3), GridLayout.spec(2 - (index % 3), 1f));
+            lp.width=0; lp.height=Ui.dp(this,176);
             lp.setMargins(Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2));return lp;
         }
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
@@ -1512,23 +1512,23 @@ public class MainActivity extends Activity {
             mainHandler.postDelayed(tone::release,completed?300L:120L);
         }catch(Exception ignored){}
     }
+    private double remainingQuantity(ProductRow product) {
+        if(product==null||collected.contains(product.key))return 0;
+        return Math.max(0,parseQuantity(product.amount)-collectedQuantity(product));
+    }
+
     private void showPartialCollectionDialog(String key) {
-        ProductRow product=findProduct(key);
-        if(product==null||parseQuantity(product.amount)<=1.000001)return;
-        final double total=parseQuantity(product.amount);
-        // The picker represents item units, never fractional quantities.
-        final int totalUnits=Math.max(1,(int)Math.floor(total+0.000001));
+        ProductRow product=findProduct(key);if(product==null)return;
+        final int remainingUnits=(int)Math.floor(remainingQuantity(product)+0.000001);
+        if(remainingUnits<=0)return;
+        if(remainingUnits==1){applyPartialCollection(key,1);return;}
         final TextView selected=Ui.text(this,"",Ui.T_TITLE,Ui.P800,true);
         selected.setGravity(Gravity.CENTER);
-        SeekBar slider=new SeekBar(this);slider.setMax(Math.max(0,totalUnits-1));
+        SeekBar slider=new SeekBar(this);slider.setMax(remainingUnits-1);
         if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
-        int initialUnits=Math.max(1,Math.min(totalUnits,(int)Math.round(collectedQuantity(product))));
-        slider.setProgress(initialUnits-1);
-        selected.setText((slider.getProgress()+1)+" מתוך "+totalUnits);
+        slider.setProgress(0);selected.setText("1 מתוך "+remainingUnits);
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){
-                selected.setText((progress+1)+" מתוך "+totalUnits);
-            }
+            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){selected.setText((progress+1)+" מתוך "+remainingUnits);}
             @Override public void onStartTrackingTouch(SeekBar bar){}
             @Override public void onStopTrackingTouch(SeekBar bar){}
         });
@@ -1536,31 +1536,29 @@ public class MainActivity extends Activity {
         LinearLayout panel=Ui.dialogPanel(this);
         panel.addView(Ui.text(this,"איסוף כמות חלקית",Ui.T_NAME,Ui.P900,true));
         panel.addView(Ui.text(this,product.name,Ui.T_BODY,Ui.INK,true),Ui.row(this,Ui.S2,Ui.S1));
-        panel.addView(Ui.text(this,"הזיזו את הסרגל לבחירת הכמות שנאספה",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
+        panel.addView(Ui.text(this,"בחרו כמה יחידות נוספות לאסוף (נותרו "+remainingUnits+")",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
         panel.addView(selected,Ui.row(this,Ui.S1,Ui.S1));panel.addView(slider,Ui.row(this,0,Ui.S4));
         Button save=Ui.button(this,"אישור הכמות",Ui.Kind.PRIMARY),cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
         save.setOnClickListener(v->{dialog.dismiss();applyPartialCollection(key,slider.getProgress()+1);});
-        // Enter / OK confirms directly from the quantity slider; no focus hop to the button.
         slider.setOnKeyListener((v,keyCode,event)->{
-            if(event.getAction()==KeyEvent.ACTION_DOWN&&(keyCode==KeyEvent.KEYCODE_ENTER
-                    ||keyCode==KeyEvent.KEYCODE_NUMPAD_ENTER||keyCode==KeyEvent.KEYCODE_DPAD_CENTER)){
-                save.performClick();
-                return true;
-            }
+            if(event.getAction()==KeyEvent.ACTION_DOWN&&(keyCode==KeyEvent.KEYCODE_ENTER||keyCode==KeyEvent.KEYCODE_NUMPAD_ENTER||keyCode==KeyEvent.KEYCODE_DPAD_CENTER)){save.performClick();return true;}
             return false;
         });
         cancel.setOnClickListener(v->dialog.dismiss());panel.addView(save);panel.addView(cancel,Ui.row(this,Ui.S2,0));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
         slider.setFocusable(true);slider.setFocusableInTouchMode(true);slider.requestFocus();
     }
+
     private void applyPartialCollection(String key,double quantity) {
         ProductRow product=findProduct(key);if(product==null)return;double total=parseQuantity(product.amount);
         ProductCard partialCardBefore=partialCards.get(key);
         boolean hadPartialFocus=partialCardBefore!=null&&partialCardBefore.row.hasFocus();
-        double safe=Math.max(0,Math.min(total,quantity));
-        if(combinedView)updateCombinedPartial(key,safe);
-        else{collected.remove(key);if(safe>=total-0.000001){collected.add(key);partialCollected.remove(key);}
-            else if(safe>0)partialCollected.put(key,safe);else partialCollected.remove(key);saveCollectedState();}
+        double alreadyCollected=collected.contains(key)?total:Math.min(total,collectedQuantity(product));
+        // Zero keeps the existing undo behavior; positive values add units in this collection action.
+        double updated=quantity<=0?0:alreadyCollected+Math.min(Math.max(0,quantity),Math.max(0,total-alreadyCollected));
+        if(combinedView)updateCombinedPartial(key,updated);
+        else{collected.remove(key);if(updated>=total-0.000001){collected.add(key);partialCollected.remove(key);}
+            else if(updated>0)partialCollected.put(key,updated);else partialCollected.remove(key);saveCollectedState();}
         renderProducts(false);
         if(hadPartialFocus){ProductCard mainCard=productCards.get(key);if(mainCard!=null)mainCard.row.requestFocus();}
         performFeedback(false);checkCelebration();
@@ -2544,17 +2542,17 @@ public class MainActivity extends Activity {
             if(done)bindProductCard(card,product,true);else bindProductCard(card,product,false,formatQuantity(remaining),partial>0);
             ViewGroup target=done?collectedList:pendingList;
             ViewGroup parent=(ViewGroup)card.row.getParent();
-            if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,insertionIndex(target,product,done),productLayoutParams(target));}
+            if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,insertionIndex(target,product,done),productLayoutParams(target,insertionIndex(target,product,done)));}
             else{int wanted=insertionIndex(target,product,done),current=target.indexOfChild(card.row);
-                if(current!=wanted){target.removeView(card.row);target.addView(card.row,Math.min(wanted,target.getChildCount()),productLayoutParams(target));}}
+                if(current!=wanted){target.removeView(card.row);target.addView(card.row,Math.min(wanted,target.getChildCount()),productLayoutParams(target,Math.min(wanted,target.getChildCount())));}}
             ProductCard partialCard=partialCards.get(product.key);
             if(!done&&partial>0&&partialCard==null){partialCard=createPartialProductCard(product);partialCards.put(product.key,partialCard);}
             if(partialCard!=null){
                 if(!done&&partial>0){bindPartialProductCard(partialCard,product,partial);
                     ViewGroup pp=(ViewGroup)partialCard.row.getParent();
-                    if(pp!=collectedList){if(pp!=null)pp.removeView(partialCard.row);collectedList.addView(partialCard.row,partialInsertionIndex(product),productLayoutParams(collectedList));}
+                    if(pp!=collectedList){if(pp!=null)pp.removeView(partialCard.row);collectedList.addView(partialCard.row,partialInsertionIndex(product),productLayoutParams(collectedList,partialInsertionIndex(product)));}
                     else{int wanted=partialInsertionIndex(product),current=collectedList.indexOfChild(partialCard.row);
-                        if(current!=wanted){collectedList.removeView(partialCard.row);collectedList.addView(partialCard.row,Math.min(wanted,collectedList.getChildCount()),productLayoutParams(collectedList));}}
+                        if(current!=wanted){collectedList.removeView(partialCard.row);collectedList.addView(partialCard.row,Math.min(wanted,collectedList.getChildCount()),productLayoutParams(collectedList,Math.min(wanted,collectedList.getChildCount())));}}
                 }else if(partialCard.row.getParent() instanceof ViewGroup)((ViewGroup)partialCard.row.getParent()).removeView(partialCard.row);
             }
         }
@@ -2589,6 +2587,7 @@ public class MainActivity extends Activity {
         Ui.CardViews views = Ui.productCard(this, displayMode);
         ProductCard card = new ProductCard(views, product);
         views.root.setTag(product.key);
+        views.root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         if (displayMode != 0) {
             if (!product.imagePath.isEmpty()) loadLegacyProductImage(product, views.image);
             else if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, views.image);
@@ -2600,7 +2599,7 @@ public class MainActivity extends Activity {
         View.OnClickListener collectClick=v -> toggleProduct(product.key);
         View.OnLongClickListener partialLongPress=v -> {
             ProductRow current=findProduct(product.key);
-            if(current!=null&&parseQuantity(current.amount)>1.000001)
+            if(current!=null&&remainingQuantity(current)>0.000001)
                 showPartialCollectionDialog(product.key);
             return true;
         };
@@ -2778,6 +2777,7 @@ public class MainActivity extends Activity {
     private ProductCard createPartialProductCard(ProductRow product){
         Ui.CardViews views=Ui.productCard(this,displayMode);ProductCard card=new ProductCard(views,product);
         views.root.setFocusable(true);views.root.setFocusableInTouchMode(false);views.root.setTag("partial:"+product.key);
+        views.root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         if(displayMode!=0){if(!product.imagePath.isEmpty())loadLegacyProductImage(product,views.image);
             else if(!product.imageUrl.isEmpty())loadProductImage(product.imageUrl,views.image);else views.image.setImageResource(android.R.drawable.ic_menu_gallery);}
         View.OnClickListener undo=v->applyPartialCollection(product.key,0);
@@ -2982,7 +2982,8 @@ public class MainActivity extends Activity {
         ViewGroup parent = (ViewGroup) moving.row.getParent();
         if (parent != null) parent.removeView(moving.row);
         bindProductCard(moving, product, !wasCollected);
-        target.addView(moving.row, insertionIndex(target, product, !wasCollected), productLayoutParams(target));
+        target.addView(moving.row, insertionIndex(target, product, !wasCollected),
+                productLayoutParams(target, insertionIndex(target, product, !wasCollected)));
         updateProgress();
         wireFocusOrder();
         if (hadKeyboardFocus && neighbor == null) moving.row.requestFocus();
