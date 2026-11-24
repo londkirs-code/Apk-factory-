@@ -108,3 +108,7 @@ api_triggered_at=2026-11-24T18:04:00+02:00
 Release 1.73: use persisted displayMode as the sole source of truth for keypad 1 and Settings; deterministically reflow both grid sections in source product order after every collection change, with right-aligned incomplete rows and empty cells on the left. Update in-app What's New, preserve collection/archive data, compile and publish signed APK.
 requested_at=2026-11-24T18:20:00+02:00
 final_build_requested_at=2026-11-24T18:20:00+02:00
+
+
+Retry signed 1.73 release after compile-compatibility correction in MainActivity.java (no ViewParent import required). Build latest main and publish exact current source.
+retry_requested_at=2026-11-24T18:23:00+02:00
