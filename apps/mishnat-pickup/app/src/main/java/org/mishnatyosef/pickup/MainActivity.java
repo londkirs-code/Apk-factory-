@@ -1470,12 +1470,39 @@ public class MainActivity extends Activity {
             card.addView(Ui.text(this,entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt),Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
             Button open=Ui.button(this,"פתיחת הרשימה",Ui.Kind.PRIMARY);open.setOnClickListener(v->openSavedList(entry));
             Button delete=Ui.button(this,"מחיקה מהרשימות השמורות",Ui.Kind.SOFT);
-            delete.setOnClickListener(v->showModernConfirm("מחיקת רשימה שמורה","הרשימה תימחק מהמכשיר בלבד. חשבון מחובר או רשימות אחרות לא יושפעו.","מחק רשימה",()->{savedListStore.delete(entry.id);showSavedListsScreen();}));
+            delete.setOnClickListener(v->showModernConfirm("מחיקת רשימה שמורה","הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.","מחק רשימה",()->deleteSavedListEntry(entry)));
             card.addView(open);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
         setContentView(scroll);Ui.systemBars(this);back.requestFocus();
     }
+    private void deleteSavedListEntry(SavedListStore.Entry entry) {
+        savedListStore.delete(entry.id);
+        SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
+        if(source!=null){
+            File manifest=new File(new File(sourceRegistry.sourceDir(entry.sourceId),"pickup_order_cache"),"order.json");
+            boolean same=false;
+            try{if(manifest.isFile()){JSONObject current=new JSONObject(readImportText(manifest));
+                same=String.valueOf(current.optLong("order_id",-1)).equals(entry.orderId);}}catch(Exception ignored){}
+            if(same){
+                Runnable clear=()->cacheWorker.execute(()->{
+                    DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
+                    mainHandler.post(()->{
+                        if(entry.sourceId.equals(activeSourceId)){cacheTrusted=false;activeOwner="";clearOrderMemory();showHomeScreen(false);}
+                        showSavedListsScreen();
+                    });
+                });
+                if(entry.sourceId.equals(activeSourceId))clear.run();
+                else cacheWorker.execute(()->{
+                    DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
+                    mainHandler.post(this::showSavedListsScreen);
+                });
+                return;
+            }
+        }
+        showSavedListsScreen();
+    }
+
     private void openSavedList(SavedListStore.Entry entry) {
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
         try{if(source==null)source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,entry.sourceLabel,entry.owner);}
