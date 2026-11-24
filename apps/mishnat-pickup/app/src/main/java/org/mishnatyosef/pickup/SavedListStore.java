@@ -43,6 +43,11 @@ final class SavedListStore {
             JSONObject data = read(orderFile);
             String orderId = String.valueOf(data.optLong("order_id", -1));
             if ("-1".equals(orderId)) return false;
+            JSONArray products=data.optJSONArray("products");
+            if(products!=null)for(int i=0;i<products.length();i++){
+                JSONObject product=products.optJSONObject(i);
+                if(product!=null)product.put("image_file","");
+            }
             String id = sourceId + "_" + orderId;
             data.put("_saved_list_id", id);
             data.put("_source_id", sourceId);
