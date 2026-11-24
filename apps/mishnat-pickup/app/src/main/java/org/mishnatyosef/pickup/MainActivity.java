@@ -892,6 +892,20 @@ public class MainActivity extends Activity {
             }
             if (event.getAction() == KeyEvent.ACTION_UP && keyFiveLongHandled) { keyFiveLongHandled = false; return true; }
         }
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
+                && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
+                || event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                || event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            View focused = getCurrentFocus();
+            if (focused instanceof Button && !(focused instanceof CheckBox)) {
+                Button button = (Button) focused;
+                String label = button.getText() == null ? "" : button.getText().toString().trim();
+                String message = "איפוס ליקוט".equals(button.getContentDescription())
+                        ? "נפתחה בקשת אישור לאיפוס הליקוט"
+                        : (label.isEmpty() ? "הפעולה נבחרה" : "נבחר: " + label);
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            }
+        }
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0
                 && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
                 || event.getKeyCode() == KeyEvent.KEYCODE_ENTER
