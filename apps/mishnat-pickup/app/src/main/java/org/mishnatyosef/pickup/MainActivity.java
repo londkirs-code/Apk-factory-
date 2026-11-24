@@ -9,6 +9,9 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -889,8 +892,25 @@ public class MainActivity extends Activity {
             }
         }
         if (target >= 0) return focusGridCard(container, target);
+        if (key == KeyEvent.KEYCODE_DPAD_UP && index == 0 && container == pendingList)
+            return moveFocusToHomeTop();
         // Do not let focus escape from the card grid to images, labels or other controls.
         return true;
+    }
+
+    private boolean moveFocusToHomeTop() {
+        if (pageScroll != null) pageScroll.smoothScrollTo(0, 0);
+        View topButton = getWindow().getDecorView().findViewWithTag("home_settings_button");
+        if (topButton != null) topButton.requestFocus();
+        return true;
+    }
+
+    private boolean handleFirstListItemUp(KeyEvent event) {
+        if (event.getAction() != KeyEvent.ACTION_DOWN || event.getKeyCode() != KeyEvent.KEYCODE_DPAD_UP) return false;
+        ProductCard focused = findProductCard(getCurrentFocus());
+        if (focused == null || focused.row == null || focused.row.getParent() != pendingList) return false;
+        if (pendingList.indexOfChild(focused.row) != 0) return false;
+        return moveFocusToHomeTop();
     }
 
     private boolean focusGridCard(ViewGroup container, int index) {
@@ -1100,6 +1120,7 @@ public class MainActivity extends Activity {
             showActionToast("פתיחת מסך ההגדרות");
             return true;
         }
+        if (handleFirstListItemUp(event)) return true;
         if (handleGridNavigationKey(event)) return true;
         if (handleImageModeKey(event)) return true;
         if (celebration != null && event.getAction() == KeyEvent.ACTION_DOWN) dismissCelebration();
@@ -1446,20 +1467,21 @@ public class MainActivity extends Activity {
         LinearLayout content = Ui.screen(this);
         LinearLayout settingsHeader = new LinearLayout(this);
         settingsHeader.setGravity(Gravity.CENTER_VERTICAL);
-        settingsHeader.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        settingsHeader.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         TextView settingsTitle = Ui.text(this, "הגדרות", Ui.T_TITLE, Ui.P900, true);
-        settingsHeader.addView(settingsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
+        settingsTitle.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         Button closeSettings = Ui.button(this, "×", Ui.Kind.SOFT);
         closeSettings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 27);
         closeSettings.setContentDescription("סגירת ההגדרות");
         closeSettings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
         closeSettings.setOnClickListener(v -> { accountsScreenVisible = false; showHomeScreen(false); });
         settingsHeader.addView(closeSettings);
+        settingsHeader.addView(settingsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
         content.addView(settingsHeader, Ui.row(this, 0, Ui.S2));
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · בסיום איסוף כל המוצרים מושמעת מנגינת הניצחון שהועלתה לפרויקט. הצליל מופעל בדיוק במעבר להשלמת הרשימה, בהתאם למתג צליל ההצלחה שבהגדרות; צלילי איסוף הפריטים והרטט נשארו ללא שינוי."),
+                "בעדכון החדש · אייקוני ההגדרות והאיפוס מודגשים יותר, סמלי המשתמשים בסגול, כפתור הסגירה עבר לצד הנגדי, הרטט בסיום ארוך ואמין יותר, והניווט למעלה עובד גם מהפריט הראשון באמצעות החץ או מקש 2."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -1739,7 +1761,7 @@ public class MainActivity extends Activity {
                 legacySound, Ui.S1, Ui.S3);
         content.addView(Ui.section(this, "משוב בסיום האיסוף"));
         addFeedbackCheckbox(content, "feedback_completion_vibration", "רטט ארוך בסיום הרשימה",
-                legacyVibration, Ui.S2, Ui.S1);
+                true, Ui.S2, Ui.S1);
         addFeedbackCheckbox(content, "feedback_completion_sound", "צליל הצלחה ממושך בסיום הרשימה",
                 legacySound, Ui.S1, Ui.S2);
     }
@@ -1765,8 +1787,9 @@ public class MainActivity extends Activity {
         String soundKey = completed ? "feedback_completion_sound" : "feedback_item_sound";
         boolean legacyVibration = uiPreferences.getBoolean("feedback_vibration", false);
         boolean legacySound = uiPreferences.getBoolean("feedback_sound", false);
+        boolean vibrationEnabled = uiPreferences.getBoolean(vibrationKey, completed || legacyVibration);
 
-        if (uiPreferences.getBoolean(vibrationKey, legacyVibration)) {
+        if (vibrationEnabled) {
             try {
                 Vibrator vibrator = null;
                 if (Build.VERSION.SDK_INT >= 31) {
@@ -1777,18 +1800,19 @@ public class MainActivity extends Activity {
                 if (vibrator == null)
                     vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
                 if (vibrator != null && vibrator.hasVibrator()) {
-                    if (Build.VERSION.SDK_INT >= 26) {
-                        long[] pattern = completed
-                                ? new long[]{0, 160, 90, 220, 90, 520}
-                                : new long[]{0, 125};
-                        int[] amplitudes = completed
-                                ? new int[]{0, 190, 0, 220, 0, 255}
-                                : new int[]{0, 210};
-                        vibrator.vibrate(android.os.VibrationEffect.createWaveform(
-                                pattern, amplitudes, -1));
+                    if (completed) {
+                        // One continuous pulse is more reliable than a multi-segment waveform.
+                        if (Build.VERSION.SDK_INT >= 26) {
+                            vibrator.vibrate(android.os.VibrationEffect.createOneShot(
+                                    1000, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                        } else {
+                            vibrator.vibrate(1000);
+                        }
+                    } else if (Build.VERSION.SDK_INT >= 26) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(
+                                125, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
                     } else {
-                        vibrator.vibrate(completed
-                                ? new long[]{0, 160, 90, 220, 90, 520} : new long[]{0, 125}, -1);
+                        vibrator.vibrate(125);
                     }
                 } else {
                     getWindow().getDecorView().performHapticFeedback(
@@ -2058,6 +2082,10 @@ public class MainActivity extends Activity {
         Button settings = Ui.button(this, "⚙", Ui.Kind.SOFT);
         settings.setContentDescription("הגדרות");
         settings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
+        settings.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        settings.getPaint().setStyle(Paint.Style.FILL_AND_STROKE);
+        settings.getPaint().setStrokeWidth(Ui.dp(this, 1));
+        settings.setTag("home_settings_button");
         settings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
         settings.setOnClickListener(v -> showSettingsScreen());
         row.addView(settings);
@@ -2066,7 +2094,9 @@ public class MainActivity extends Activity {
         resetButton.setContentDescription("איפוס ליקוט");
         resetButton.setText("⟳");
         resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 26);
-        resetButton.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        resetButton.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        resetButton.getPaint().setStyle(Paint.Style.FILL_AND_STROKE);
+        resetButton.getPaint().setStrokeWidth(Ui.dp(this, 1));
         resetButton.setIncludeFontPadding(false);
         resetButton.setGravity(Gravity.CENTER);
         resetButton.setPadding(0, 0, 0, 0);
@@ -2155,10 +2185,43 @@ public class MainActivity extends Activity {
         parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
     }
 
+    private static final class UserIconDrawable extends Drawable {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final boolean group;
+        private final int size;
+        UserIconDrawable(android.content.Context context, boolean group, boolean active) {
+            this.group = group; this.size = Ui.dp(context, 26);
+            paint.setColor(active ? Ui.P800 : Ui.P600);
+            paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(Ui.dp(context, 2));
+            paint.setStrokeCap(Paint.Cap.ROUND); paint.setStrokeJoin(Paint.Join.ROUND);
+        }
+        @Override public void draw(Canvas canvas) {
+            android.graphics.Rect b = getBounds(); if (b.isEmpty()) return;
+            int save = canvas.save(); canvas.translate(b.left, b.top);
+            canvas.scale(b.width()/24f, b.height()/24f);
+            if (group) {
+                canvas.drawCircle(8, 7, 2.8f, paint); canvas.drawCircle(16, 7, 2.8f, paint);
+                path.reset(); path.moveTo(1.5f,20.5f); path.cubicTo(2,15.5f,9.5f,14.8f,11.2f,20.5f); canvas.drawPath(path,paint);
+                path.reset(); path.moveTo(12.8f,20.5f); path.cubicTo(14.5f,14.8f,22,15.5f,22.5f,20.5f); canvas.drawPath(path,paint);
+            } else {
+                canvas.drawCircle(12,7,3.2f,paint);
+                path.reset(); path.moveTo(4,21); path.cubicTo(4.5f,14.5f,19.5f,14.5f,20,21); canvas.drawPath(path,paint);
+            }
+            canvas.restoreToCount(save);
+        }
+        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) { paint.setColorFilter(filter); invalidateSelf(); }
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        @Override public int getIntrinsicWidth() { return size; }
+        @Override public int getIntrinsicHeight() { return size; }
+    }
+
     private Button buildViewModeIcon(String mode, String symbol, String description, boolean active) {
-        Button button = Ui.button(this, symbol, Ui.Kind.SOFT);
+        Button button = Ui.button(this, "", Ui.Kind.SOFT);
         button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22);
         button.setGravity(Gravity.CENTER);
+        button.setCompoundDrawables(null, new UserIconDrawable(this, "👥".equals(symbol), active), null, null);
         button.setContentDescription(description);
         button.setEnabled(!syncAllRunning);
         // Use the same focus/pressed treatment as every other action button.
