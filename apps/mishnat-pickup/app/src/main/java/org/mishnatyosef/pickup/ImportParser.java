@@ -29,7 +29,7 @@ final class ImportParser {
                     : readLimited(in,MAX_JSON,"קובץ גדול מ־10MB.");
             int first=0;
             if(raw.length>=3&&(raw[0]&0xff)==0xef&&(raw[1]&0xff)==0xbb&&(raw[2]&0xff)==0xbf)first=3;
-            while(first<raw.length&&(raw[first]==' '||raw[first]=='\\n'||raw[first]=='\\r'||raw[first]=='\\t'))first++;
+            while(first<raw.length&&(raw[first]==' '||raw[first]==10||raw[first]==13||raw[first]==9))first++;
             if(first<raw.length&&raw[first]=='{')return parseJson(raw,workDir);
             return parseText(raw,workDir);
         } catch(Exception e){delete(workDir);throw e;}
@@ -42,7 +42,7 @@ final class ImportParser {
      */
     private static Bundle parseText(byte[] raw,File dir)throws Exception {
         String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8);
-        if(text.length()>0&&text.charAt(0)=='\\uFEFF')text=text.substring(1);
+        if(text.length()>0&&text.charAt(0)==0xFEFF)text=text.substring(1);
         String[] lines=text.split("\\r?\\n");
         ImportedList list=new ImportedList();
         list.accountId="text-"+java.util.UUID.randomUUID().toString();
@@ -111,7 +111,7 @@ final class ImportParser {
     }
     private static byte[] readLimited(InputStream in,long max,String error)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(o.size()+n>max)throw new Exception(error);o.write(b,0,n);}return o.toByteArray();}
     private static Bundle parseJson(byte[] raw,File dir)throws Exception{
-        String text=new String(raw,"UTF-8");if(text.length()>0&&text.charAt(0)=='\uFEFF')text=text.substring(1);text=text.trim();
+        if(text.length()>0&&text.charAt(0)==0xFEFF)text=text.substring(1);
         Object parsed;try{JSONTokener t=new JSONTokener(text);parsed=t.nextValue();if(t.nextClean()!=0)throw new Exception("יש תווים מיותרים אחרי ה־JSON.");}catch(Exception e){throw new Exception("קובץ JSON לא תקין: "+e.getMessage());}
         if(!(parsed instanceof JSONObject))throw new Exception("מבנה הקובץ אינו אובייקט JSON.");
         JSONObject root=(JSONObject)parsed;if(!FORMAT.equals(clean(root.optString("format",""))))throw new Exception("סוג הקובץ אינו mishnat-pickup-list.");
