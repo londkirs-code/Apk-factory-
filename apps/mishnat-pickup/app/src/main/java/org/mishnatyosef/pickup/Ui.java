@@ -222,7 +222,8 @@ final class Ui {
 
     static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
             IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
-            IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13, IC_MORE=14;
+            IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13, IC_MORE=14,
+            IC_PLUS=15, IC_MERGE=16;
 
     static final class IconDrawable extends Drawable {
         private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -279,6 +280,15 @@ final class Ui {
                     path.cubicTo(15.9f,2.8f,19f,5.6f,19f,9.5f);
                     path.cubicTo(19f,12.5f,17f,15.5f,12f,21f);
                     canvas.drawPath(path,stroke); canvas.drawCircle(12f,9.5f,2.4f,stroke); break;
+                case IC_PLUS:
+                    canvas.drawLine(12f,5f,12f,19f,stroke); canvas.drawLine(5f,12f,19f,12f,stroke); break;
+                case IC_MERGE:
+                    path.reset();
+                    path.moveTo(6f,3.5f); path.lineTo(6f,9f); path.lineTo(12f,15f); path.lineTo(12f,20.5f);
+                    path.moveTo(18f,3.5f); path.lineTo(18f,9f); path.lineTo(12f,15f);
+                    canvas.drawPath(path,stroke);
+                    path.reset(); path.moveTo(9f,18f); path.lineTo(12f,21f); path.lineTo(15f,18f);
+                    canvas.drawPath(path,stroke); break;
                 case IC_MORE:
                     canvas.drawCircle(12f,5.5f,1.9f,fill); canvas.drawCircle(12f,12f,1.9f,fill);
                     canvas.drawCircle(12f,18.5f,1.9f,fill); break;
@@ -405,6 +415,43 @@ final class Ui {
         b.setBackground(interactive(c,active?P200:SURFACE,active?P600:P200,
                 active?P300:P100,active?P900:P700,R_BUTTON));
         b.setLayoutParams(new LinearLayout.LayoutParams(dp(c,iconButtonDp(c)),dp(c,iconButtonDp(c))));
+        return b;
+    }
+
+    /** אריח פעולה: אייקון ומתחתיו תווית קצרה. כמה אריחים בשורה אחת מקבצים פעולות קבועות בראש מסך. */
+    static Button tile(Context c,int icon,String label) {
+        Button b=button(c,label,Kind.SOFT);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,14*textScale(c));
+        IconDrawable glyph=new IconDrawable(c,icon,P700,22,1f);
+        glyph.setBounds(0,0,dp(c,22),dp(c,22));
+        b.setCompoundDrawables(null,glyph,null,null);
+        b.setCompoundDrawablePadding(dp(c,2));
+        b.setPadding(dp(c,S1),dp(c,S2),dp(c,S1),dp(c,S2));
+        b.setMinHeight(dp(c,64)); b.setMinimumHeight(dp(c,64));
+        b.setContentDescription(label);
+        return b;
+    }
+
+    /** שורת רשימה: שם בולט ומתחתיו פרטים בגופן קטן יותר, על כרטיס לבן. */
+    static Button listRow(Context c,String name,String details,boolean highlighted) {
+        Button b=button(c,"",Kind.SOFT);
+        android.text.SpannableStringBuilder text=new android.text.SpannableStringBuilder(name);
+        text.setSpan(new android.text.style.StyleSpan(Typeface.BOLD),0,name.length(),0);
+        text.setSpan(new android.text.style.ForegroundColorSpan(P900),0,name.length(),0);
+        if(details!=null&&!details.isEmpty()){
+            int start=text.length()+1;
+            text.append("\n").append(details);
+            text.setSpan(new android.text.style.RelativeSizeSpan(0.82f),start,text.length(),0);
+            text.setSpan(new android.text.style.ForegroundColorSpan(MUTED),start,text.length(),0);
+        }
+        b.setText(text);
+        b.setTypeface(FONT_REGULAR);
+        b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+        b.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+        b.setBackground(interactive(c,highlighted?P100:SURFACE,highlighted?P400:LINE,P100,FOCUS,R_CARD));
+        b.setPadding(dp(c,S4),dp(c,S3),dp(c,S4),dp(c,S3));
+        b.setMinHeight(dp(c,60)); b.setMinimumHeight(dp(c,60));
+        b.setContentDescription(name);
         return b;
     }
 

@@ -1726,7 +1726,8 @@ public class MainActivity extends Activity {
             + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
             + "• ייבוא הזמנה מהעבר לתוך רשימה קיימת, מתוך הפעולות של הרשימה.\n"
             + "• בכל חלון קופץ יש X בפינה השמאלית העליונה במקום כפתורי סגירה וביטול.\n"
-            + "• לחיצה על שם הרשימה בכותרת: הרשימה המוצגת עם כל הפעולות שלה, כל הרשימות השמורות עם כפתור ⋮ לפעולות, ופעולות כלליות.\n"
+            + "• חלון הרשימות (לחיצה על השם בכותרת) ומסך הרשימות השמורות: פעולות קבועות למעלה כאריחים, והרשימות נגללות מתחת, עם ⋮ לפעולות.\n"
+            + "• בחלון הפעולות של רשימה יש חץ חזרה (וגם מקש חזרה) לחלון הקודם.\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
             + "• איחוד כמה רשימות לרשימה חדשה.\n"
             + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
@@ -2310,51 +2311,56 @@ public class MainActivity extends Activity {
         savedListsScreenVisible=true;
         savedListsReturn=returnTo==null?Screen.HOME:returnTo;
         savedListsReturnToLogin=savedListsReturn==Screen.LOGIN;
-        LinearLayout content=Ui.screen(this);content.setGravity(Gravity.TOP);
-        content.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S2));
-        Button history=Ui.button(this,"הזמנות קודמות מהאתר",Ui.Kind.PRIMARY);
+        // למעלה, קבוע: כותרת ואריחי הפעולות. למטה, נגלל: הרשימות. כך הפעולות תמיד בהישג יד.
+        LinearLayout root=Ui.column(this);root.setBackgroundColor(Ui.BG);
+        LinearLayout top=Ui.column(this);
+        int pad=Ui.dp(this,Ui.screenPad(this));
+        top.setPadding(pad,Ui.dp(this,Ui.S3),pad,Ui.dp(this,Ui.S2));
+        top.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S2));
+        List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
+        Button history=Ui.tile(this,Ui.IC_HISTORY,"הזמנות קודמות");
         history.setEnabled(!connectedAccounts().isEmpty());
         history.setOnClickListener(v->showOrderHistoryScreen(Screen.SAVED_LISTS));
-        content.addView(history,Ui.row(this,0,Ui.S2));
-        Button create=Ui.button(this,"יצירת רשימה חדשה",Ui.Kind.SOFT);
+        Button create=Ui.tile(this,Ui.IC_PLUS,"רשימה חדשה");
         create.setOnClickListener(v->createNewSavedList());
-        Button mergeLists=Ui.button(this,"איחוד רשימות",Ui.Kind.SOFT);
-        mergeLists.setEnabled(savedListStore.list().size()>=2);
+        Button mergeLists=Ui.tile(this,Ui.IC_MERGE,"איחוד");
+        mergeLists.setEnabled(entries.size()>=2);
         mergeLists.setOnClickListener(v->showMergeListsDialog());
-        content.addView(buttonPair(create,mergeLists),Ui.row(this,0,Ui.S2));
-        List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
-        if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."));
+        top.addView(tileRow(history,create,mergeLists),Ui.row(this,0,0));
+        root.addView(top,new LinearLayout.LayoutParams(-1,-2));
+
+        LinearLayout content=Ui.column(this);
+        content.setPadding(pad,0,pad,Ui.dp(this,Ui.S8));
+        if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."),Ui.row(this,Ui.S2,0));
         else content.addView(Ui.section(this,entries.size()+" רשימות במכשיר"));
-        Button firstOpen=null;
-        for(SavedListStore.Entry entry:entries){LinearLayout card=Ui.column(this);
-            card.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_CARD,1,Ui.P200));card.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3));
-            card.addView(Ui.text(this,displayTitle(entry),Ui.T_NAME,Ui.P900,true));
-            card.addView(Ui.text(this,entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt),Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
-            // שני כפתורים בשורה במקום ארבעה כפתורים זה מתחת לזה: פחות גלילה ופחות לחיצות מקלדת.
-            LinearLayout actions=new LinearLayout(this);actions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-            Button open=Ui.button(this,"פתיחה",Ui.Kind.PRIMARY);open.setOnClickListener(v->openSavedList(entry));
-            Button more=Ui.button(this,"פעולות נוספות",Ui.Kind.SOFT);more.setOnClickListener(v->showSavedListActions(entry));
-            LinearLayout.LayoutParams openLp=new LinearLayout.LayoutParams(0,-2,1f);openLp.setMarginEnd(Ui.dp(this,Ui.S1));
-            LinearLayout.LayoutParams moreLp=new LinearLayout.LayoutParams(0,-2,1f);moreLp.setMarginStart(Ui.dp(this,Ui.S1));
-            actions.addView(open,openLp);actions.addView(more,moreLp);
-            card.addView(actions,Ui.row(this,0,0));
-            content.addView(card,Ui.row(this,0,Ui.S2));
-            if(firstOpen==null)firstOpen=open;
+        View firstOpen=null;
+        for(SavedListStore.Entry entry:entries){
+            String details=entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt);
+            LinearLayout line=buildListLine(displayTitle(entry),details,isDisplayedList(entry),
+                    ()->openSavedList(entry),()->showSavedListActions(entry));
+            content.addView(line,Ui.row(this,0,Ui.S2));
+            if(firstOpen==null)firstOpen=line.getChildAt(0);
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content,new ScrollView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT));
-        presentScreen(scroll,Screen.SAVED_LISTS);
+        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        presentScreen(root,Screen.SAVED_LISTS);
         // מקלדת: הפוקוס מתחיל ברשימה הראשונה, ואם אין רשימות - בכפתור יצירת רשימה.
         if(firstOpen!=null)firstOpen.requestFocus();else if(history.isEnabled())history.requestFocus();else create.requestFocus();
     }
 
-    private void showSavedListActions(SavedListStore.Entry entry) {
+    private void showSavedListActions(SavedListStore.Entry entry) { showSavedListActions(entry, null); }
+
+    /** פעולות לרשימה. back - לאן חוזרים בכפתור החזרה ובמקש חזרה (למשל לחלון בחירת הרשימות). */
+    private void showSavedListActions(SavedListStore.Entry entry, Runnable back) {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel=Ui.dialogPanel(this);
         panel.addView(Ui.text(this,displayTitle(entry),Ui.T_NAME,Ui.P900,true));
         panel.addView(Ui.text(this,entry.itemCount+" פריטים",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
-        addListEntryActions(panel,dialog,entry,this::refreshSavedListsScreen,true);
+        addListEntryActions(panel,dialog,entry,back==null?this::refreshSavedListsScreen:this::refreshHomeTitle,true);
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+        if(back!=null)addDialogBackButton(dialog,back);
+        for(int i=0;i<panel.getChildCount();i++)if(panel.getChildAt(i) instanceof Button&&panel.getChildAt(i).requestFocus())break;
     }
 
     /**
@@ -2651,10 +2657,10 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * לחיצה על שם הרשימה בכותרת. בחלון אחד:
-     * 1. הרשימה המוצגת, עם הפעולות שלה (שינוי שם, מיזוג, ייצוא, מחיקה).
-     * 2. כל הרשימות השמורות לגלילה: לחיצה פותחת, וכפתור ⋮ לידה פותח את כל הפעולות שלה.
-     * 3. פעולות כלליות: ההזמנה העדכנית, הזמנות קודמות, רשימה חדשה, איחוד והגדרות.
+     * לחיצה על שם הרשימה בכותרת. פריסה נקייה:
+     * למעלה (קבוע, לא נגלל): אריחי פעולות - הזמנות קודמות, רשימה חדשה, איחוד, הגדרות;
+     * מתחתיו הרשימה המוצגת עם כפתור ⋮ לכל הפעולות שלה.
+     * למטה (נגלל): שאר הרשימות השמורות - לחיצה פותחת, ⋮ לפעולות.
      */
     private void showListSwitcher() {
         List<SavedListStore.Entry> entries = savedListStore.list();
@@ -2662,77 +2668,55 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "רשימות", Ui.T_NAME, Ui.P900, true));
-        LinearLayout body = Ui.column(this);
-        View focus = null;
+        Runnable reopen = this::showListSwitcher;
 
-        // 1. הרשימה המוצגת
+        // פעולות קבועות למעלה
+        Button history = Ui.tile(this, Ui.IC_HISTORY, "הזמנות קודמות");
+        history.setEnabled(!connectedAccounts().isEmpty());
+        history.setOnClickListener(v -> { dialog.dismiss(); showOrderHistoryScreen(Screen.SAVED_LISTS); });
+        Button create = Ui.tile(this, Ui.IC_PLUS, "רשימה חדשה");
+        create.setOnClickListener(v -> { dialog.dismiss(); createNewSavedList(); });
+        Button merge = Ui.tile(this, Ui.IC_MERGE, "איחוד");
+        merge.setEnabled(entries.size() >= 2);
+        merge.setOnClickListener(v -> { dialog.dismiss(); showMergeListsDialog(); });
+        Button settings = Ui.tile(this, Ui.IC_SETTINGS, "הגדרות");
+        settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
+        panel.addView(tileRow(history, create, merge, settings), Ui.row(this, Ui.S3, 0));
+
+        if (showingSavedList && !connectedAccounts().isEmpty()) {
+            Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
+            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
+            panel.addView(latest, Ui.row(this, Ui.S2, 0));
+        }
+
         SavedListStore.Entry current = null;
         if (!combinedView && !currentOrderId.isEmpty()) {
             archiveCurrentSnapshot(activeSourceId);
             current = findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
         }
+        View focus = null;
         if (current != null) {
             final SavedListStore.Entry shown = current;
-            LinearLayout card = Ui.column(this);
-            card.setBackground(Ui.shape(this, Ui.P100, Ui.R_CARD, 1, Ui.P300));
-            card.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2));
-            card.addView(Ui.text(this, "מוצגת עכשיו", Ui.T_NOTE, Ui.P600, true));
-            card.addView(Ui.text(this, homeDisplayTitle(), Ui.T_NAME, Ui.P900, true), Ui.row(this, 2, 0));
-            card.addView(Ui.text(this, shown.itemCount + " פריטים", Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, 2, Ui.S2));
-            Button rename = smallAction(dialog, "שינוי שם", () -> showRenameDialog(shown.owner, shown.orderId,
-                    displayTitle(shown), shown.title, this::refreshHomeTitle));
-            Button export = smallAction(dialog, "ייצוא TXT", () -> exportSavedList(shown));
-            Button merge = smallAction(dialog, "מיזוג לרשימה אחרת", () -> showMergeTargetDialog(shown));
-            Button delete = smallAction(dialog, "מחיקה", () -> showModernConfirm("מחיקת רשימה שמורה",
-                    "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
-                    () -> deleteSavedListEntry(shown)));
-            Button importPast = smallAction(dialog, "ייבוא הזמנה מהעבר לרשימה", () -> importHistoryInto(shown));
-            card.addView(importPast, Ui.row(this, Ui.S1, 0));
-            card.addView(buttonPair(rename, export), Ui.row(this, Ui.S1, 0));
-            card.addView(buttonPair(merge, delete), Ui.row(this, Ui.S1, Ui.S1));
-            body.addView(card, Ui.row(this, Ui.S2, Ui.S1));
-            focus = importPast;
+            panel.addView(Ui.section(this, "מוצגת עכשיו"));
+            LinearLayout line = buildListLine(homeDisplayTitle(), shown.itemCount + " פריטים", true,
+                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); },
+                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); });
+            panel.addView(line, Ui.row(this, 0, 0));
         }
 
-        // 2. כל הרשימות השמורות
-        body.addView(Ui.section(this, "רשימות שמורות" + (entries.isEmpty() ? "" : " · " + entries.size())));
-        if (showingSavedList && !connectedAccounts().isEmpty()) {
-            Button latest = Ui.button(this, "ההזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
-            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
-            body.addView(latest, Ui.row(this, Ui.S1, Ui.S1));
-        }
+        // שאר הרשימות - נגללות
+        int others = 0;
+        LinearLayout body = Ui.column(this);
         for (SavedListStore.Entry entry : entries) {
             if (isDisplayedList(entry)) continue;
-            Button open = Ui.button(this, displayTitle(entry) + "\n" + entry.itemCount + " פריטים", Ui.Kind.SOFT);
-            open.setContentDescription("פתיחת " + displayTitle(entry));
-            open.setOnClickListener(v -> { dialog.dismiss(); openSavedList(entry); });
-            Button more = Ui.iconButton(this, Ui.IC_MORE, "פעולות ל" + displayTitle(entry), false);
-            more.setOnClickListener(v -> { dialog.dismiss(); showSavedListActions(entry); });
-            LinearLayout line = new LinearLayout(this);
-            line.setGravity(Gravity.CENTER_VERTICAL);
-            line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-            line.addView(open, new LinearLayout.LayoutParams(0, -2, 1f));
-            int size = Ui.dp(this, Ui.iconButtonDp(this));
-            LinearLayout.LayoutParams moreLp = new LinearLayout.LayoutParams(size, size);
-            moreLp.setMarginStart(Ui.dp(this, Ui.S2));
-            line.addView(more, moreLp);
-            body.addView(line, Ui.row(this, Ui.S1, Ui.S1));
-            if (focus == null) focus = open;
+            others++;
+            LinearLayout line = buildListLine(displayTitle(entry), entry.itemCount + " פריטים", false,
+                    () -> { dialog.dismiss(); openSavedList(entry); },
+                    () -> { dialog.dismiss(); showSavedListActions(entry, reopen); });
+            body.addView(line, Ui.row(this, 0, Ui.S2));
+            if (focus == null) focus = line.getChildAt(0);
         }
-        if (entries.isEmpty() || (entries.size() == 1 && current != null))
-            body.addView(Ui.text(this, "אין רשימות שמורות נוספות.", Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S1));
-
-        // 3. פעולות כלליות
-        body.addView(Ui.section(this, "עוד"));
-        Button history = smallAction(dialog, "הזמנות קודמות", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
-        history.setEnabled(!connectedAccounts().isEmpty());
-        Button create = smallAction(dialog, "רשימה חדשה", this::createNewSavedList);
-        Button mergeLists = smallAction(dialog, "איחוד רשימות", this::showMergeListsDialog);
-        mergeLists.setEnabled(entries.size() >= 2);
-        Button settings = smallAction(dialog, "הגדרות", this::showSettingsScreen);
-        body.addView(buttonPair(history, create), Ui.row(this, Ui.S1, 0));
-        body.addView(buttonPair(mergeLists, settings), Ui.row(this, Ui.S1, Ui.S1));
-
+        panel.addView(Ui.section(this, others == 0 ? "אין רשימות שמורות נוספות" : "רשימות שמורות · " + others));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -2742,6 +2726,41 @@ public class MainActivity extends Activity {
         if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
                 (int) (getResources().getDisplayMetrics().heightPixels * 0.9f));
         if (focus != null) focus.requestFocus(); else history.requestFocus();
+    }
+
+    /** שורה של אריחים ברוחב שווה; במסך צר מאוד - שתי שורות של שניים. */
+    private LinearLayout tileRow(Button... tiles) {
+        boolean narrow = getResources().getConfiguration().screenWidthDp < 300 && tiles.length > 3;
+        LinearLayout column = Ui.column(this);
+        LinearLayout row = null;
+        for (int i = 0; i < tiles.length; i++) {
+            if (row == null || (narrow && i == 2)) {
+                row = new LinearLayout(this);
+                row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                column.addView(row, Ui.row(this, i == 0 ? 0 : Ui.S1, 0));
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
+            if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(this, Ui.S1));
+            row.addView(tiles[i], lp);
+        }
+        return column;
+    }
+
+    /** שורת רשימה: הכרטיס (פתיחה) וכפתור ⋮ לפעולות. */
+    private LinearLayout buildListLine(String name, String details, boolean highlighted, Runnable open, Runnable more) {
+        Button row = Ui.listRow(this, name, details, highlighted);
+        row.setOnClickListener(v -> open.run());
+        Button actions = Ui.iconButton(this, Ui.IC_MORE, "פעולות ל" + name, false);
+        actions.setOnClickListener(v -> more.run());
+        LinearLayout line = new LinearLayout(this);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        line.addView(row, new LinearLayout.LayoutParams(0, -2, 1f));
+        int size = Ui.dp(this, Ui.iconButtonDp(this));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+        lp.setMarginStart(Ui.dp(this, Ui.S2));
+        line.addView(actions, lp);
+        return line;
     }
 
     /** כפתור פעולה קטן בחלון: סוגר את החלון ומבצע. */
@@ -3397,7 +3416,7 @@ public class MainActivity extends Activity {
         if (hasOwnClose) return;
         Button close = Ui.iconButton(this, Ui.IC_CLOSE, "סגירה", false);
         close.setTag("dialog_close_x");
-        close.setOnClickListener(v -> { if (cancelAction != null) cancelAction.performClick(); else dialog.cancel(); });
+        close.setOnClickListener(v -> { if (cancelAction != null) cancelAction.performClick(); else dialog.dismiss(); });
         int size = Ui.dp(this, Ui.iconButtonDp(this) - 4);
         LinearLayout row = new LinearLayout(this);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
@@ -3416,6 +3435,24 @@ public class MainActivity extends Activity {
             row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         }
         panel.addView(row, 0, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    /** כפתור חזרה (חץ, בצד ימין של שורת הכותרת) לחלון הקודם. גם מקש חזרה במכשיר חוזר אליו. */
+    private void addDialogBackButton(Dialog dialog, Runnable back) {
+        View content = dialog.findViewById(android.R.id.content);
+        if (!(content instanceof ViewGroup) || ((ViewGroup) content).getChildCount() == 0) return;
+        View root = ((ViewGroup) content).getChildAt(0);
+        if (!(root instanceof LinearLayout) || ((LinearLayout) root).getChildCount() == 0) return;
+        View first = ((LinearLayout) root).getChildAt(0);
+        if (!(first instanceof LinearLayout)) return;
+        LinearLayout row = (LinearLayout) first; // שורת ה-X והכותרת (משמאל לימין)
+        Button backButton = Ui.iconButton(this, Ui.IC_BACK, "חזרה", false);
+        backButton.setOnClickListener(v -> { dialog.dismiss(); back.run(); });
+        int size = Ui.dp(this, Ui.iconButtonDp(this) - 4);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+        lp.leftMargin = Ui.dp(this, Ui.S2);
+        row.addView(backButton, lp);
+        dialog.setOnCancelListener(d -> back.run());
     }
 
     /** אוסף כפתורי "סגירה"/"ביטול". מחזיר true אם בחלון כבר יש כפתור X משלו. */
