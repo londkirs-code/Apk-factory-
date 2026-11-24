@@ -1,1 +1,3 @@
-Use the current committed source to build Mishnat Pickup APK.
+requested_at=2026-11-24T19:10:00+02:00
+
+Release 1.77: bolder settings/reset icons; purple vector user/account icons; move settings close X to opposite side; enable long completion haptic by default unless explicitly disabled and use a one-second pulse; make DPAD_UP and keypad 2 return to the top from the first pending item.
