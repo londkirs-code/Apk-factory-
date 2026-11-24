@@ -9,6 +9,11 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Paint;
+import android.graphics.Canvas;
+import android.graphics.RectF;
+import android.graphics.Path;
+import android.graphics.ColorFilter;
+import android.graphics.PixelFormat;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -18,6 +23,8 @@ import android.os.Build;
 import android.os.Vibrator;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
+import android.media.MediaPlayer;
+import android.media.AudioAttributes;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -30,6 +37,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.InputMethodManager;
+import android.view.HapticFeedbackConstants;
 import android.text.InputType;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -135,6 +144,7 @@ public class MainActivity extends Activity {
     private String searchQuery = "";
     private int displayMode = 3, lastRenderedDisplayMode = -1;
     private boolean keyFiveLongHandled = false;
+    private boolean keyFivePending = false;
     private ScrollView pageScroll;
     private LinearLayout page;
     private ViewGroup pendingList;
@@ -190,11 +200,7 @@ public class MainActivity extends Activity {
             Button button = (Button) view;
             button.setOnTouchListener((v, event) -> {
                 if (event.getAction() == android.view.MotionEvent.ACTION_UP && button.isEnabled()) {
-                    String label = button.getText() == null ? "" : button.getText().toString().trim();
-                    String message = "איפוס ליקוט".equals(button.getContentDescription())
-                            ? "נפתחה בקשת אישור לאיפוס הליקוט"
-                            : (label.isEmpty() ? "הפעולה נבחרה" : "נבחר: " + label);
-                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                    showButtonActionToast(button);
                 }
                 return false;
             });
@@ -203,6 +209,29 @@ public class MainActivity extends Activity {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) installActionToasts(group.getChildAt(i));
         }
+    }
+
+    private void showButtonActionToast(Button button) {
+        if (button == null) return;
+        CharSequence description = button.getContentDescription();
+        String label = button.getText() == null ? "" : button.getText().toString().trim();
+        String message;
+        String action = description == null ? "" : description.toString().trim();
+        if ("הגדרות".equals(action)) message = "פתיחת מסך ההגדרות";
+        else if ("איפוס ליקוט".equals(action)) message = "פתיחת אישור לאיפוס סימוני האיסוף";
+        else if ("רשימה מאוחדת".equals(action)) message = "מעבר לתצוגה המאוחדת של כל החשבונות";
+        else if ("רשימה לפי חשבון".equals(action)) message = "הצגת הרשימות בנפרד לפי חשבון";
+        else if ("חזרה".equals(action)) message = "חזרה למסך הקודם";
+        else if ("סגירת ההגדרות".equals(action)) message = "סגירת מסך ההגדרות";
+        else if (!action.isEmpty()) message = action;
+        else if (!label.isEmpty()) message = "פעולה: " + label;
+        else message = "הפעולה הופעלה";
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private void showActionToast(String message) {
+        if (message != null && !message.trim().isEmpty())
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     @Override protected void onCreate(Bundle state) {
@@ -875,36 +904,181 @@ public class MainActivity extends Activity {
         return true;
     }
 
+        private boolean isHomeShortcutScreen() {
+        return pageScroll != null && !accountsScreenVisible && !savedListsScreenVisible;
+    }
+
+    private boolean isTextEntryFocused() {
+        return getCurrentFocus() instanceof EditText;
+    }
+
+    private int navigationKeyForShortcut(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_2: case KeyEvent.KEYCODE_NUMPAD_2: return KeyEvent.KEYCODE_DPAD_UP;
+            case KeyEvent.KEYCODE_4: case KeyEvent.KEYCODE_NUMPAD_4: return KeyEvent.KEYCODE_DPAD_LEFT;
+            case KeyEvent.KEYCODE_6: case KeyEvent.KEYCODE_NUMPAD_6: return KeyEvent.KEYCODE_DPAD_RIGHT;
+            case KeyEvent.KEYCODE_8: case KeyEvent.KEYCODE_NUMPAD_8: return KeyEvent.KEYCODE_DPAD_DOWN;
+            default: return KeyEvent.KEYCODE_UNKNOWN;
+        }
+    }
+
+    private boolean handleHomeShortcut(KeyEvent event) {
+        int key = event.getKeyCode();
+        boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        if (key == KeyEvent.KEYCODE_MENU) {
+            if (down && event.getRepeatCount() == 0) {
+                showSettingsScreen();
+                showActionToast("פתיחת מסך ההגדרות");
+            }
+            return true;
+        }
+        if (isTextEntryFocused()) return false;
+        if (key == KeyEvent.KEYCODE_5 || key == KeyEvent.KEYCODE_NUMPAD_5) {
+            if (down) {
+                if (event.getRepeatCount() == 0) {
+                    keyFivePending = true;
+                    keyFiveLongHandled = false;
+                } else if (keyFivePending && !keyFiveLongHandled) {
+                    ProductCard focused = findProductCard(getCurrentFocus());
+                    if (focused != null) {
+                        keyFiveLongHandled = true;
+                        if (remainingQuantity(focused.product) > 0.000001)
+                            showPartialCollectionDialog(focused.product.key);
+                    }
+                }
+            } else if (keyFivePending) {
+                keyFivePending = false;
+                if (keyFiveLongHandled) {
+                    keyFiveLongHandled = false;
+                } else {
+                    performFocusedSelection();
+                }
+            }
+            return true;
+        }
+        if (event.getRepeatCount() > 0 && down) return isShortcutKey(key);
+        if (!down) return isShortcutKey(key);
+        switch (key) {
+            case KeyEvent.KEYCODE_1: case KeyEvent.KEYCODE_NUMPAD_1:
+                cycleDisplayMode(); return true;
+            case KeyEvent.KEYCODE_3: case KeyEvent.KEYCODE_NUMPAD_3:
+                focusSearch(); return true;
+            case KeyEvent.KEYCODE_0: case KeyEvent.KEYCODE_NUMPAD_0:
+                confirmResetCollection();
+                showActionToast("נפתחה בקשת אישור לאיפוס הליקוט");
+                return true;
+            case KeyEvent.KEYCODE_7: case KeyEvent.KEYCODE_NUMPAD_7:
+                if (pageScroll != null) pageScroll.scrollTo(0, 0);
+                showActionToast("הועברת לראש רשימת האיסוף");
+                return true;
+            case KeyEvent.KEYCODE_9: case KeyEvent.KEYCODE_NUMPAD_9:
+                if (pageScroll != null && page != null)
+                    pageScroll.scrollTo(0, Math.max(0, page.getHeight() - pageScroll.getHeight()));
+                showActionToast("הועברת לסוף רשימת האיסוף");
+                return true;
+            case KeyEvent.KEYCODE_STAR: case KeyEvent.KEYCODE_NUMPAD_MULTIPLY:
+                ProductCard focused = findProductCard(getCurrentFocus());
+                if (focused != null) {
+                    openProductImage(focused);
+                    showActionToast("הצגת תמונת הפריט: " + focused.product.name);
+                } else showActionToast("יש לבחור פריט כדי להציג את תמונתו");
+                return true;
+            case KeyEvent.KEYCODE_POUND:
+                toggleListViewMode();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean isShortcutKey(int key) {
+        return key == KeyEvent.KEYCODE_MENU
+                || key == KeyEvent.KEYCODE_1 || key == KeyEvent.KEYCODE_3
+                || key == KeyEvent.KEYCODE_5 || key == KeyEvent.KEYCODE_7
+                || key == KeyEvent.KEYCODE_9 || key == KeyEvent.KEYCODE_0
+                || key == KeyEvent.KEYCODE_STAR || key == KeyEvent.KEYCODE_POUND
+                || key == KeyEvent.KEYCODE_NUMPAD_0 || key == KeyEvent.KEYCODE_NUMPAD_1
+                || key == KeyEvent.KEYCODE_NUMPAD_3 || key == KeyEvent.KEYCODE_NUMPAD_5
+                || key == KeyEvent.KEYCODE_NUMPAD_7 || key == KeyEvent.KEYCODE_NUMPAD_9
+                || key == KeyEvent.KEYCODE_NUMPAD_MULTIPLY;
+    }
+
+    private void performFocusedSelection() {
+        View focused = getCurrentFocus();
+        ProductCard card = findProductCard(focused);
+        if (card != null) {
+            card.row.performClick();
+            return;
+        }
+        if (focused instanceof Button && !(focused instanceof CheckBox)) {
+            Button button = (Button) focused;
+            if (button.isEnabled()) {
+                showButtonActionToast(button);
+                button.performClick();
+            }
+        } else if (focused != null) focused.performClick();
+    }
+
+    private void cycleDisplayMode() {
+        final String[] labels = {"צ׳ק ליסט צפוף", "70%", "85%", "100%", "115%", "רשת · 3 כרטיסים בשורה"};
+        displayMode = (displayMode + 1) % labels.length;
+        uiPreferences.edit().putInt("display_mode", displayMode).apply();
+        renderProducts(false);
+        wireFocusOrder();
+        showActionToast("גודל התצוגה הוגדר ל־" + labels[displayMode]);
+    }
+
+    private void focusSearch() {
+        if (searchInput == null) {
+            showActionToast("שדה החיפוש אינו זמין במסך הנוכחי");
+            return;
+        }
+        searchInput.requestFocus();
+        searchInput.setSelection(searchInput.getText().length());
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT);
+        showActionToast("שדה חיפוש הפריטים נפתח");
+    }
+
+    private void toggleListViewMode() {
+        if (sourceRegistry == null) return;
+        String next = "COMBINED_SUM".equals(sourceRegistry.viewMode())
+                ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
+        sourceRegistry.setViewMode(next);
+        showingSavedList = false;
+        showHomeScreen(false);
+        showActionToast("מצב הרשימה שונה ל־" +
+                ("COMBINED_SUM".equals(next) ? "רשימה מאוחדת מכל החשבונות" : "רשימות נפרדות לפי חשבון"));
+    }
+
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (imageViewer != null && imageViewer.onKey(event)) return true;
+        if (isHomeShortcutScreen() && event.getKeyCode() != KeyEvent.KEYCODE_MENU) {
+            int navigationKey = isTextEntryFocused() ? KeyEvent.KEYCODE_UNKNOWN
+                    : navigationKeyForShortcut(event.getKeyCode());
+            if (navigationKey != KeyEvent.KEYCODE_UNKNOWN) {
+                KeyEvent mapped = new KeyEvent(event.getDownTime(), event.getEventTime(),
+                        event.getAction(), navigationKey, event.getRepeatCount(), event.getMetaState());
+                return dispatchKeyEvent(mapped);
+            }
+            if (handleHomeShortcut(event)) return true;
+        } else if (event.getKeyCode() == KeyEvent.KEYCODE_MENU
+                && event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
+                && !accountsScreenVisible && !savedListsScreenVisible) {
+            showSettingsScreen();
+            showActionToast("פתיחת מסך ההגדרות");
+            return true;
+        }
         if (handleGridNavigationKey(event)) return true;
         if (handleImageModeKey(event)) return true;
         if (celebration != null && event.getAction() == KeyEvent.ACTION_DOWN) dismissCelebration();
-        if (!imageMode && !accountsScreenVisible && event.getKeyCode() == KeyEvent.KEYCODE_5) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0 && !keyFiveLongHandled) {
-                ProductCard focused = findProductCard(getCurrentFocus());
-                if (focused != null) {
-                    keyFiveLongHandled = true;
-                    if (remainingQuantity(focused.product) > 0.000001)
-                        showPartialCollectionDialog(focused.product.key);
-                    return true;
-                }
-            }
-            if (event.getAction() == KeyEvent.ACTION_UP && keyFiveLongHandled) { keyFiveLongHandled = false; return true; }
-        }
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
                 && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
                 || event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                 || event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
             View focused = getCurrentFocus();
-            if (focused instanceof Button && !(focused instanceof CheckBox)) {
-                Button button = (Button) focused;
-                String label = button.getText() == null ? "" : button.getText().toString().trim();
-                String message = "איפוס ליקוט".equals(button.getContentDescription())
-                        ? "נפתחה בקשת אישור לאיפוס הליקוט"
-                        : (label.isEmpty() ? "הפעולה נבחרה" : "נבחר: " + label);
-                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-            }
+            if (focused instanceof Button && !(focused instanceof CheckBox))
+                showButtonActionToast((Button) focused);
         }
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0
                 && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
@@ -913,7 +1087,7 @@ public class MainActivity extends Activity {
         return super.dispatchKeyEvent(event);
     }
 
-    @Override public void onBackPressed() {
+        @Override public void onBackPressed() {
         if (savedListsScreenVisible) { leaveSavedListsScreen(); }
         else if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
         else super.onBackPressed();
@@ -1254,7 +1428,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · כפתור איפוס מהיר במסך הראשי, מסגרות פוקוס ברורות יותר, והגדרות נפרדות לצליל ולרטט בכל פריט ובסיום האיסוף."),
+                "בעדכון החדש · רטט משופר עם דפוסי משוב ברורים, מנגינת ניצחון בסיום האיסוף, קיצורי מקשים מלאים, חיפוש בעברית ואייקונים מחודשים למצבי הרשימה."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -1483,8 +1657,14 @@ public class MainActivity extends Activity {
         input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY);input.setTextColor(Ui.INK);input.setHintTextColor(Ui.MUTED);
         input.setHint("חיפוש פריט ברשימה…");input.setInputType(InputType.TYPE_CLASS_TEXT);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        input.setTextDirection(View.TEXT_DIRECTION_RTL);
+        input.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        if (Build.VERSION.SDK_INT >= 24)
+            input.setImeHintLocales(new android.os.LocaleList(new Locale("he")));
         input.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2));
         input.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_BUTTON,1,Ui.P200));input.setText(searchQuery);
+        input.setSelection(input.getText().length());
         row.addView(input,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1f));
         input.addTextChangedListener(new TextWatcher(){
             @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
@@ -1509,7 +1689,7 @@ public class MainActivity extends Activity {
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){current.setText(labels[progress]);}
             @Override public void onStartTrackingTouch(SeekBar bar){}
-            @Override public void onStopTrackingTouch(SeekBar bar){apply.run();Toast.makeText(MainActivity.this, "הגדרת התצוגה נשמרה", Toast.LENGTH_SHORT).show();}
+            @Override public void onStopTrackingTouch(SeekBar bar){apply.run();Toast.makeText(MainActivity.this, "גודל התצוגה: "+labels[displayMode], Toast.LENGTH_SHORT).show();}
         });
         slider.setOnKeyListener((v,keyCode,event)->{
             if(event.getAction()==KeyEvent.ACTION_DOWN&&(keyCode==KeyEvent.KEYCODE_DPAD_LEFT||keyCode==KeyEvent.KEYCODE_DPAD_RIGHT
@@ -1567,43 +1747,82 @@ public class MainActivity extends Activity {
                             (android.os.VibratorManager) getSystemService(VIBRATOR_MANAGER_SERVICE);
                     if (manager != null) vibrator = manager.getDefaultVibrator();
                 }
-                if (vibrator == null) vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-                if (vibrator != null) {
-                    long duration = completed ? 650L : 120L;
+                if (vibrator == null)
+                    vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                if (vibrator != null && vibrator.hasVibrator()) {
                     if (Build.VERSION.SDK_INT >= 26) {
-                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(
-                                duration, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                        long[] pattern = completed
+                                ? new long[]{0, 160, 90, 220, 90, 520}
+                                : new long[]{0, 125};
+                        int[] amplitudes = completed
+                                ? new int[]{0, 190, 0, 220, 0, 255}
+                                : new int[]{0, 210};
+                        vibrator.vibrate(android.os.VibrationEffect.createWaveform(
+                                pattern, amplitudes, -1));
                     } else {
-                        vibrator.vibrate(duration);
+                        vibrator.vibrate(completed
+                                ? new long[]{0, 160, 90, 220, 90, 520} : new long[]{0, 125}, -1);
                     }
+                } else {
+                    getWindow().getDecorView().performHapticFeedback(
+                            HapticFeedbackConstants.LONG_PRESS,
+                            HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 }
             } catch (Exception error) {
-                android.util.Log.w("MishnatPickup", "Vibration feedback failed", error);
+                android.util.Log.e("MishnatPickup", "Vibration feedback failed", error);
+                getWindow().getDecorView().performHapticFeedback(
+                        HapticFeedbackConstants.LONG_PRESS,
+                        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
             }
         }
 
-        if (uiPreferences.getBoolean(soundKey, legacySound)) {
+        if (!uiPreferences.getBoolean(soundKey, legacySound)) return;
+        if (completed) {
             try {
-                final int duration = completed ? 650 : (added ? 180 : 230);
-                final int toneType = completed ? ToneGenerator.TONE_PROP_ACK
-                        : (added ? ToneGenerator.TONE_PROP_BEEP2 : ToneGenerator.TONE_PROP_NACK);
-                // Use the media stream: notification volume may be muted independently
-                // even when the device's audible media volume is available.
-                ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 100);
-                boolean started = tone.startTone(toneType, duration);
-                if (!started) {
-                    tone.release();
-                    ToneGenerator fallback = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100);
-                    fallback.startTone(toneType, duration);
-                    mainHandler.postDelayed(fallback::release, duration + 120L);
+                MediaPlayer player = MediaPlayer.create(this, R.raw.victory_fanfare);
+                if (player != null) {
+                    if (Build.VERSION.SDK_INT >= 21) {
+                        player.setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build());
+                    } else {
+                        player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                    }
+                    player.setVolume(1f, 1f);
+                    player.setOnCompletionListener(MediaPlayer::release);
+                    player.setOnErrorListener((mp, what, extra) -> { mp.release(); return true; });
+                    player.start();
                 } else {
-                    mainHandler.postDelayed(tone::release, duration + 120L);
+                    playTone(ToneGenerator.TONE_PROP_ACK, 700);
                 }
             } catch (Exception error) {
-                android.util.Log.w("MishnatPickup", "Sound feedback failed", error);
+                android.util.Log.e("MishnatPickup", "Victory sound failed", error);
+                playTone(ToneGenerator.TONE_PROP_ACK, 700);
             }
+        } else {
+            playTone(added ? ToneGenerator.TONE_PROP_BEEP2 : ToneGenerator.TONE_PROP_NACK,
+                    added ? 180 : 230);
         }
     }
+
+    private void playTone(int toneType, int duration) {
+        ToneGenerator tone = null;
+        try {
+            tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 100);
+            if (!tone.startTone(toneType, duration)) {
+                tone.release();
+                tone = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100);
+                tone.startTone(toneType, duration);
+            }
+            final ToneGenerator active = tone;
+            mainHandler.postDelayed(active::release, duration + 180L);
+        } catch (Exception error) {
+            if (tone != null) try { tone.release(); } catch (Exception ignored) { }
+            android.util.Log.e("MishnatPickup", "Tone feedback failed", error);
+        }
+    }
+
     private double remainingQuantity(ProductRow product) {
         if(product==null||collected.contains(product.key))return 0;
         return Math.max(0,parseQuantity(product.amount)-collectedQuantity(product));
@@ -1799,8 +2018,9 @@ public class MainActivity extends Activity {
 
         resetButton = Ui.button(this, "↻", Ui.Kind.SOFT);
         resetButton.setContentDescription("איפוס ליקוט");
-        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
-        resetButton.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        resetButton.setText("⟳");
+        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 26);
+        resetButton.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         resetButton.setIncludeFontPadding(false);
         resetButton.setGravity(Gravity.CENTER);
         resetButton.setPadding(0, 0, 0, 0);
@@ -1819,9 +2039,9 @@ public class MainActivity extends Activity {
         row.addView(title, titleParams);
 
         String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
-        Button unified = buildViewModeIcon("COMBINED_SUM", "▦", "רשימה מאוחדת",
+        Button unified = buildViewModeIcon("COMBINED_SUM", "▤", "רשימה מאוחדת",
                 "COMBINED_SUM".equals(mode));
-        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "☷", "רשימה לפי חשבון",
+        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "▥", "רשימה לפי חשבון",
                 "COMBINED_BY_SOURCE".equals(mode));
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
                 Ui.dp(this, 48), Ui.dp(this, 44));
@@ -2108,6 +2328,8 @@ public class MainActivity extends Activity {
         int width = Math.min(getResources().getDisplayMetrics().widthPixels
                 - Ui.dp(this, Ui.DIALOG_SIDE_MARGIN), Ui.dp(this, Ui.DIALOG_MAX_WIDTH));
         dialog.getWindow().setLayout(width, -2);
+        dialog.getWindow().getDecorView().post(() ->
+                installActionToasts(dialog.getWindow().getDecorView()));
     }
 
     private void syncAllAccounts() {
