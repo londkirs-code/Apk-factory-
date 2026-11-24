@@ -578,15 +578,18 @@ public class MainActivity extends Activity {
     }
 
     private void invalidateSavedOrderPreferences(String owner) {
+        // Archive the previous order and its progress before invalidating account-scoped metadata.
+        archiveCurrentSnapshot(activeSourceId);
         SharedPreferences.Editor edit = preferences.edit();
         for (String key : preferences.getAll().keySet()) {
-            if (key.startsWith(DataGuard.COLLECTED_PREFIX)) edit.remove(key);
+            if (key.startsWith(DataGuard.COLLECTED_PREFIX) || key.startsWith("partial_")) edit.remove(key);
         }
         edit.remove(DataGuard.K_ORDER).remove(DataGuard.K_PRINT)
                 .remove(DataGuard.K_TOKEN_FINGERPRINT)
                 .remove(PREF_OFFLINE_CACHE_AFTER_AUTH_EXPIRY)
                 .putString(DataGuard.K_OWNER, owner == null ? "" : owner).commit();
         collected.clear();
+        partialCollected.clear();
         // Product images are public, URL-keyed shared cache entries; account/order
         // changes must not evict images that are still valid for other lists.
         orderData = null;
