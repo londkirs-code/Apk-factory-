@@ -2467,7 +2467,7 @@ public class MainActivity extends Activity {
             pendingList.removeAllViews();
             collectedList.removeAllViews();
             productCards.clear();partialCards.clear();
-            for(ProductRow product:products){productCards.put(product.key,createProductCard(product));partialCards.put(product.key,createPartialProductCard(product));}
+            for(ProductRow product:products)productCards.put(product.key,createProductCard(product));
         }
         for (ProductRow product : products) {
             ProductCard card = productCards.get(product.key);
@@ -2484,6 +2484,7 @@ public class MainActivity extends Activity {
             else{int wanted=insertionIndex(target,product,done),current=target.indexOfChild(card.row);
                 if(current!=wanted){target.removeView(card.row);target.addView(card.row,Math.min(wanted,target.getChildCount()),productLayoutParams(target));}}
             ProductCard partialCard=partialCards.get(product.key);
+            if(!done&&partial>0&&partialCard==null){partialCard=createPartialProductCard(product);partialCards.put(product.key,partialCard);}
             if(partialCard!=null){
                 if(!done&&partial>0){bindPartialProductCard(partialCard,product,partial);
                     ViewGroup pp=(ViewGroup)partialCard.row.getParent();
