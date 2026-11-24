@@ -2625,7 +2625,8 @@ public class MainActivity extends Activity {
                 if (row == null || !product.key.equals(first(row, "key"))) continue;
                 String imageFile = first(row, "image_file");
                 if (imageFile.isEmpty()) return null;
-                File image = new File(root, imageFile);
+                File image = new File(imageFile);
+                if (!image.isAbsolute()) image = new File(root, imageFile);
                 return image.isFile() && image.length() > 0 ? image : null;
             }
         } catch (Exception ignored) { }
@@ -2673,7 +2674,7 @@ public class MainActivity extends Activity {
                     String imageFile=first(o,"image_file");
                     String imagePath="";
                     if(!imageFile.isEmpty()) {
-                        File image=new File(root,imageFile);
+                        File image=new File(imageFile);if(!image.isAbsolute())image=new File(root,imageFile);
                         if(image.isFile()&&image.length()>0) imagePath=image.getAbsolutePath();
                     }
                     ProductRow original=new ProductRow(first(o,"key"),first(o,"name"),
