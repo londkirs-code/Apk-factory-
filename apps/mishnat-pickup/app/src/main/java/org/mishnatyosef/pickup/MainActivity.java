@@ -174,6 +174,11 @@ public class MainActivity extends Activity {
     private boolean savedListsScreenVisible = false;
     private boolean savedListsReturnToLogin = false;
     private boolean sourceMergeInProgress = false;
+    private int historyPage=0, historyLastPage=1;
+    private boolean historyLoading=false;
+    private final List<JSONObject> historyOrders=new ArrayList<>();
+    private LinearLayout historyContent;
+    private Button historyMoreButton;
     private Button viewModeButton;
     private SeekBar displaySizeSlider;
     private String focusRestoreKey;
@@ -1496,6 +1501,9 @@ public class MainActivity extends Activity {
         content.addView(sync);
 
         content.addView(Ui.section(this, "רשימות ופעולות"));
+        Button history = Ui.button(this, "הזמנות קודמות מהאתר", Ui.Kind.SOFT);
+        history.setOnClickListener(v -> showOrderHistoryScreen());
+        content.addView(history);
         Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.SOFT);
         savedLists.setOnClickListener(v -> showSavedListsScreen());
         content.addView(savedLists);
@@ -1958,6 +1966,13 @@ public class MainActivity extends Activity {
         TextView title=Ui.text(this,"רשימות שמורות",Ui.T_TITLE,Ui.P900,true);
         LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(0,-2,1f);titleLp.setMargins(Ui.dp(this,Ui.S2),0,0,0);
         header.addView(title,titleLp);content.addView(header,Ui.row(this,0,Ui.S2));
+        Button history=Ui.button(this,"הזמנות קודמות מהאתר",Ui.Kind.PRIMARY);
+        history.setEnabled(!accessToken.isEmpty());
+        history.setOnClickListener(v->showOrderHistoryScreen());
+        content.addView(history,Ui.row(this,0,Ui.S2));
+        Button create=Ui.button(this,"יצירת רשימה חדשה",Ui.Kind.SOFT);
+        create.setOnClickListener(v->createNewSavedList());
+        content.addView(create,Ui.row(this,0,Ui.S2));
         List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
         if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."));
         for(SavedListStore.Entry entry:entries){LinearLayout card=Ui.column(this);
@@ -1965,14 +1980,106 @@ public class MainActivity extends Activity {
             card.addView(Ui.text(this,entry.title,Ui.T_NAME,Ui.P900,true));
             card.addView(Ui.text(this,entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt),Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
             Button open=Ui.button(this,"פתיחת הרשימה",Ui.Kind.PRIMARY);open.setOnClickListener(v->openSavedList(entry));
+            Button merge=Ui.button(this,"מיזוג לתוך רשימה אחרת",Ui.Kind.SOFT);
+            merge.setOnClickListener(v->showMergeTargetDialog(entry));
             Button delete=Ui.button(this,"מחיקה מהרשימות השמורות",Ui.Kind.SOFT);
             delete.setOnClickListener(v->showModernConfirm("מחיקת רשימה שמורה","הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.","מחק רשימה",()->deleteSavedListEntry(entry)));
-            card.addView(open);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
+            card.addView(open);card.addView(merge);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content,new ScrollView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT));
         setContentView(scroll);Ui.systemBars(this);
     }
+    private void showOrderHistoryScreen() {
+        if(accessToken.isEmpty()){Toast.makeText(this,"יש להתחבר כדי לטעון הזמנות קודמות.",Toast.LENGTH_LONG).show();return;}
+        savedListsScreenVisible=false;historyPage=0;historyLastPage=1;historyOrders.clear();historyLoading=false;
+        LinearLayout content=Ui.screen(this);
+        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        Button back=Ui.button(this,"→",Ui.Kind.SOFT);back.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,26);
+        back.setContentDescription("חזרה");back.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
+        back.setOnClickListener(v->showSavedListsScreen(false));header.addView(back);
+        header.addView(Ui.text(this,"הזמנות קודמות",Ui.T_TITLE,Ui.P900,true),new LinearLayout.LayoutParams(0,-2,1f));
+        content.addView(header,Ui.row(this,0,Ui.S2));
+        content.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה עצמאית במכשיר. ההזמנה הפעילה לא תוחלף.",Ui.T_BODY,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
+        historyContent=content;historyMoreButton=null;
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+        setContentView(scroll);Ui.systemBars(this);loadOrderHistoryPage(1);
+    }
+    private void loadOrderHistoryPage(int requestedPage) {
+        if(historyLoading||accessToken.isEmpty())return;
+        historyLoading=true;final RequestSession session=new RequestSession(authGeneration,accessToken);
+        if(historyMoreButton!=null){historyMoreButton.setEnabled(false);historyMoreButton.setText("טוען…");}
+        network.execute(()->{
+            try {
+                HttpResult response=authorizedRequest(session,"GET","/api/orders?page="+requestedPage,null);ensureSuccess(response);
+                OrderHistoryPage parsed=OrderHistoryPage.parse(response.body,requestedPage);
+                List<JSONObject> rows=new ArrayList<>();
+                for(int i=0;i<parsed.orders.length();i++){JSONObject row=parsed.orders.optJSONObject(i);if(row!=null&&!OrderHistoryPage.isCancelled(row))rows.add(row);}
+                if(!session.isCurrent(this))return;
+                mainHandler.post(()->{
+                    historyLoading=false;Set<String> seen=new HashSet<>();for(JSONObject old:historyOrders)seen.add(String.valueOf(extractOrderId(old)));
+                    for(JSONObject row:rows)if(seen.add(String.valueOf(extractOrderId(row))))historyOrders.add(row);
+                    historyPage=parsed.currentPage;historyLastPage=parsed.lastPage;renderOrderHistory();
+                });
+            } catch(Exception e) {
+                String error=safeError(e);mainHandler.post(()->{historyLoading=false;if(historyContent!=null)historyContent.addView(Ui.banner(this,"טעינת ההיסטוריה נכשלה: "+error),Ui.row(this,0,Ui.S2));if(historyMoreButton!=null){historyMoreButton.setEnabled(true);historyMoreButton.setText("לנסות שוב");}});
+            }
+        });
+    }
+    private void renderOrderHistory() {
+        if(historyContent==null)return;while(historyContent.getChildCount()>2)historyContent.removeViewAt(2);
+        if(historyOrders.isEmpty())historyContent.addView(Ui.banner(this,"לא נמצאו הזמנות קודמות פעילות."));
+        for(JSONObject row:historyOrders) {
+            long id=extractOrderId(row);if(id<=0)continue;String title=OrderHistoryPage.title(row);
+            String date=first(row,"created_at","updated_at","date","order_date");
+            Button item=Ui.button(this,title+(date.isEmpty()?"":" · "+date),Ui.Kind.SOFT);
+            item.setOnClickListener(v->saveHistoricalOrder(id,title));historyContent.addView(item,Ui.row(this,0,Ui.S2));
+        }
+        if(historyPage<historyLastPage){historyMoreButton=Ui.button(this,"טען הזמנות ישנות יותר",Ui.Kind.PRIMARY);historyMoreButton.setOnClickListener(v->loadOrderHistoryPage(historyPage+1));historyContent.addView(historyMoreButton,Ui.row(this,0,Ui.S3));}else historyMoreButton=null;
+    }
+    private void saveHistoricalOrder(long id,String title) {
+        if(accessToken.isEmpty()||activeSourceId.isEmpty()){Toast.makeText(this,"אין חיבור פעיל לשמירת ההזמנה.",Toast.LENGTH_LONG).show();return;}
+        final RequestSession session=new RequestSession(authGeneration,accessToken);
+        Toast.makeText(this,"טוען את פרטי ההזמנה…",Toast.LENGTH_SHORT).show();
+        network.execute(()->{
+            try {
+                JSONObject order=unwrapOrder(apiGetObject("/api/orders/"+id,session));List<ProductRow> rows=parseProducts(order);
+                if(rows.isEmpty())throw new Exception("בהזמנה שנבחרה לא נמצאו פריטים.");
+                String owner=DataGuard.ownerFromOrder(order);if(owner.isEmpty())owner=activeOwner;if(owner.isEmpty())throw new Exception("לא ניתן לאמת את בעלות ההזמנה.");
+                JSONArray items=new JSONArray();
+                for(ProductRow p:rows)items.put(new JSONObject().put("key",p.key).put("name",p.name).put("image_url",p.imageUrl).put("amount",p.amount).put("note",p.note).put("image_file",""));
+                JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name",title).put("updated_at",first(order,"created_at","updated_at","date")).put("imported",true).put("products",items);
+                SourceRegistry.Source source=sourceRegistry.find(activeSourceId);if(source==null)throw new Exception("החיבור הפעיל אינו קיים.");
+                if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
+                if(!session.isCurrent(this))return;
+                mainHandler.post(()->{showSavedListsScreen(false);Toast.makeText(this,"ההזמנה נשמרה כרשימה עצמאית.",Toast.LENGTH_LONG).show();});
+            } catch(Exception e) {String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"שמירת ההזמנה נכשלה: "+error,Toast.LENGTH_LONG).show());}
+        });
+    }
+    private void createNewSavedList() {
+        if(activeSourceId.isEmpty()||activeOwner.isEmpty()){Toast.makeText(this,"כדי ליצור רשימה עצמאית צריך להתחבר לחשבון.",Toast.LENGTH_LONG).show();return;}
+        SourceRegistry.Source source=sourceRegistry.find(activeSourceId);if(source==null)return;
+        try {
+            long id=System.currentTimeMillis();
+            JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",activeOwner).put("order_name","רשימה חדשה").put("imported",true).put("products",new JSONArray());
+            if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת הרשימה נכשלה.");
+            showSavedListsScreen(false);Toast.makeText(this,"נוצרה רשימה חדשה.",Toast.LENGTH_LONG).show();
+        } catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();}
+    }
+    private void showMergeTargetDialog(SavedListStore.Entry source) {
+        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);LinearLayout panel=Ui.dialogPanel(this);
+        panel.addView(Ui.text(this,"בחר רשימת יעד למיזוג",Ui.T_NAME,Ui.P900,true));int choices=0;
+        for(SavedListStore.Entry target:savedListStore.list()) {
+            if(target.id.equals(source.id))continue;choices++;
+            Button choose=Ui.button(this,target.title+" · "+target.itemCount+" פריטים",Ui.Kind.SOFT);
+            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+source.title+"' יצורפו ל '"+target.title+"'. כמויות של פריטים זהים יסוכמו; רשימת המקור תישאר שמורה.","מזג רשימות",()->{boolean ok=savedListStore.mergeEntries(target.id,source.id);showSavedListsScreen(false);Toast.makeText(this,ok?"הרשימות מוזגו בהצלחה.":"המיזוג נכשל; הרשימות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
+            panel.addView(choose,Ui.row(this,Ui.S2,0));
+        }
+        if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי רשימות שמורות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
+        Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);cancel.setOnClickListener(v->dialog.dismiss());panel.addView(cancel,Ui.row(this,Ui.S2,0));
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+    }
+
     private void leaveSavedListsScreen() {
         boolean toLogin=savedListsReturnToLogin;        savedListsScreenVisible=false;savedListsReturnToLogin=false;
         if(toLogin)showLoginScreen("");else showHomeScreen(false);
