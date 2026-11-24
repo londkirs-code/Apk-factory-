@@ -25,10 +25,10 @@ final class RoundedImageView extends ImageView {
         int save=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(save);
         if(ring){
             float d=getResources().getDisplayMetrics().density;
-            ringPaint.setStrokeWidth(7*d);ringPaint.setColor(Ui.P25);
-            canvas.drawRoundRect(inset(3.5f*d),radius,radius,ringPaint);
-            ringPaint.setStrokeWidth(4*d);ringPaint.setColor(Ui.P800);
-            canvas.drawRoundRect(inset(2*d),radius,radius,ringPaint);
+            ringPaint.setStrokeWidth(14*d);ringPaint.setColor(Ui.P25);
+            canvas.drawRoundRect(inset(7f*d),radius,radius,ringPaint);
+            ringPaint.setStrokeWidth(8*d);ringPaint.setColor(Ui.P800);
+            canvas.drawRoundRect(inset(4*d),radius,radius,ringPaint);
         }
     }
     private RectF inset(float by){ringBounds.set(by,by,getWidth()-by,getHeight()-by);return ringBounds;}
