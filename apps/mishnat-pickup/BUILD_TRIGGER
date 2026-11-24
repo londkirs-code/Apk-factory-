@@ -77,3 +77,6 @@ requested_at=2026-11-24T13:50:00+02:00
 
 Partial collection now adds newly selected units to the already-collected quantity; picker maximum is current remaining units, and a final single remaining unit is collected immediately. Grid cells now use explicit physical columns so incomplete rows align to the right with empty space on the left.
 requested_at=2026-11-24T14:20:00+02:00
+
+Release 1.64: move collection reset to a circular-arrow icon beside home settings; double keyboard-focus border thickness across controls and image focus rings; add independent per-item and completion sound/vibration preferences with positive add beep, negative removal beep, short item vibration, and long completion feedback. Preserve legacy feedback preferences as migration defaults; preserve reset confirmation and all collection/archive behavior.
+requested_at=2026-11-24T15:25:00+02:00
