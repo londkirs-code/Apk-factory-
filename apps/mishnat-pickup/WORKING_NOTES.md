@@ -6,7 +6,7 @@
 - מאגר: `londkirs-code/Apk-factory-` (ענף ברירת המחדל: `main`).
 - קוד המקור הקבוע: `apps/mishnat-pickup/` בלבד. אין לערוך קבצים בתיקיות אחרות לצורך האפליקציה הזו.
 - חבילת Android: `org.mishnatyosef.pickup`. יש לשמור על השם.
-- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 88`, `versionName 1.88`, `minSdk 19`, `targetSdk 35`).
+- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 89`, `versionName 1.89`, `minSdk 19`, `targetSdk 35`).
 - קוד Java: `app/src/main/java/org/mishnatyosef/pickup/` (13 קבצים, כ־5,900 שורות).
 - ממשק המשתמש, עיצוב ואייקונים: `Ui.java` (אייקונים וקטוריים ב-`Ui.IconDrawable`, כפתורי אייקון ב-`Ui.iconButton`). מחרוזות "מה חדש" (`showSettingsScreen`) מתעדכנות יחד עם כל שינוי שנראה למשתמש.
 - ניווט: `MainActivity.screen` (enum `Screen`) הוא מקור האמת למסך הנוכחי. כל מסך מוצג דרך `presentScreen`. מקש חזרה מטופל ב-`onBackPressed` לפי המסך.
@@ -44,6 +44,7 @@
 ## מבנה הזמנה מהשרת (נבדק מול תשובה אמיתית של GET /api/orders)
 - שם המכירה נמצא ב-`sale.parent.week` (למשל "וישלח תשפ״ז"). `OrderHistoryPage.saleName` בודק אותו ראשון.
 - פרטי האיסוף: `sale` (שעות `startHour`/`endHour`, `supply_begin` = תאריך האיסוף, `msg`, `special_msg_txt`, `prep_note`), `sale.site` (שם נקודה, `street`, `city`, `lat`/`lng`, `admin_name`, `admin_phone`, `note`, `distribution_day`), `sale.parent` (ימי השבוע של המכירה).
+- מחלקת מוצר (נבדק מול GET /api/orders/{id}): `order.items[].item_sale.product.category` = `{name, order, main_category.name}`. המיון לפי `category.order`.
 - `PickupInfo.extract` שומר רשימה לבנה בלבד של שדות. לעולם לא לשמור `card`, `tokef`, `tranzila_token` או שדות תשלום.
 
 ## פתוח / לבדוק

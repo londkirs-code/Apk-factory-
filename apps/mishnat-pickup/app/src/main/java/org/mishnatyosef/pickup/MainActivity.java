@@ -1702,7 +1702,8 @@ public class MainActivity extends Activity {
             + "• מידע איסוף (מקום, שעות, הערות, מפה וחיוג) ליד כל הזמנה במסך ההזמנות הקודמות.\n"
             + "• מסך הגדרות מסודר בקבוצות, בלי כפתורים מיותרים.\n"
             + "• אפשר להגיע לחיפוש במקשים: למעלה מהפריט הראשון.\n"
-            + "• כפתור תצוגה אחד שמחליף בין רשימה מאוחדת לרשימה לפי חשבון.";
+            + "• בחירת החשבון הפעיל (בהגדרות ובמסך ההזמנות הקודמות), ולכל חשבון היסטוריית הזמנות משלו.\n"
+            + "• כפתורי התצוגה (מאוחדת / לפי חשבון) חזרו לכותרת.";
 
     /** כרטיס קבוצה במסך ההגדרות: כותרת קטנה ותוכן על רקע בהיר. */
     private LinearLayout settingsCard(LinearLayout content, String title) {
@@ -1749,7 +1750,7 @@ public class MainActivity extends Activity {
         Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.SOFT);
         savedLists.setOnClickListener(v -> showSavedListsScreen(Screen.SETTINGS));
         Button history = Ui.button(this, "הזמנות קודמות", Ui.Kind.SOFT);
-        history.setEnabled(!accessToken.isEmpty());
+        history.setEnabled(!connectedAccounts().isEmpty());
         history.setOnClickListener(v -> showOrderHistoryScreen(Screen.SETTINGS));
         lists.addView(buttonPair(savedLists, history), Ui.row(this, Ui.S1, Ui.S1));
         Button sync = Ui.button(this, "סנכרון עם האתר", Ui.Kind.PRIMARY);
@@ -1762,7 +1763,7 @@ public class MainActivity extends Activity {
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             boolean imported = SourceRegistry.KIND_IMPORTED.equals(source.kind);
             boolean connected = !imported && secretStore.get(source.id) != null;
-            String status = imported ? "מיובאת" : (connected ? "מחובר" : "מנותק");
+            String status = imported ? "מיובאת" : (connected ? (source.id.equals(activeSourceId) ? "פעיל" : "מחובר") : "מנותק");
             String label = source.label == null || source.label.trim().isEmpty()
                     ? "חיבור ללא שם" : source.label;
             Button item = Ui.button(this, label + "  ·  " + status, Ui.Kind.SOFT);
@@ -1825,6 +1826,8 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this, source.label, Ui.T_NAME, Ui.P900, true));
         if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
             boolean connected = secretStore.get(source.id) != null;
+            if (connected && !source.id.equals(activeSourceId))
+                addSourceAction(panel, dialog, "הפוך לחשבון הפעיל", () -> makeActiveAccount(source.id, this::showSettingsScreen));
             addSourceAction(panel, dialog, "התחבר מחדש / עדכן טוקן", () -> beginReconnectSource(source.id));
             if (connected) addSourceAction(panel, dialog, "התנתק (שמור את הרשימה במכשיר)",
                     () -> showModernConfirm("ניתוק הטוקן", "הטוקן יימחק מהמכשיר. הרשימה וסימוני האיסוף יישארו זמינים ללא אינטרנט.", "התנתק", () -> disconnectSource(source.id)));
@@ -2260,7 +2263,7 @@ public class MainActivity extends Activity {
         LinearLayout content=Ui.screen(this);content.setGravity(Gravity.TOP);
         content.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S2));
         Button history=Ui.button(this,"הזמנות קודמות מהאתר",Ui.Kind.PRIMARY);
-        history.setEnabled(!accessToken.isEmpty());
+        history.setEnabled(!connectedAccounts().isEmpty());
         history.setOnClickListener(v->showOrderHistoryScreen(Screen.SAVED_LISTS));
         content.addView(history,Ui.row(this,0,Ui.S2));
         Button create=Ui.button(this,"יצירת רשימה חדשה",Ui.Kind.SOFT);
@@ -2307,14 +2310,92 @@ public class MainActivity extends Activity {
 
     private void showOrderHistoryScreen() { showOrderHistoryScreen(Screen.SAVED_LISTS); }
 
+    /** כל החשבונות שיש להם התחברות פעילה (טוקן שמור). */
+    private List<SourceRegistry.Source> connectedAccounts() {
+        List<SourceRegistry.Source> result = new ArrayList<>();
+        if (sourceRegistry == null) return result;
+        for (SourceRegistry.Source source : sourceRegistry.all()) {
+            if (!SourceRegistry.KIND_ACCOUNT.equals(source.kind)) continue;
+            String token = secretStore.get(source.id);
+            if (token != null && !token.isEmpty()) result.add(source);
+        }
+        return result;
+    }
+
+    private String accountLabel(SourceRegistry.Source source) {
+        return source == null || source.label == null || source.label.trim().isEmpty()
+                ? "חשבון ללא שם" : source.label.trim();
+    }
+
+    /** הופך חשבון לחשבון הפעיל: ההזמנה העדכנית, ההיסטוריה והשמירה מתבצעות מולו. */
+    private void makeActiveAccount(String sourceId, Runnable after) {
+        SourceRegistry.Source source = sourceRegistry.find(sourceId);
+        if (source == null) return;
+        switchSource(sourceId, () -> {
+            showActionToast("החשבון הפעיל: " + accountLabel(source));
+            if (after != null) after.run(); else showHomeScreen(false);
+        });
+    }
+
+    /** בחירת החשבון הפעיל מתוך החשבונות המחוברים. */
+    private void showAccountPicker(Runnable after) {
+        List<SourceRegistry.Source> accounts = connectedAccounts();
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "בחירת חשבון", Ui.T_NAME, Ui.P900, true));
+        Button focus = null;
+        for (SourceRegistry.Source account : accounts) {
+            boolean active = account.id.equals(activeSourceId);
+            Button choose = Ui.button(this, accountLabel(account) + (active ? "  ·  פעיל" : ""),
+                    active ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+            choose.setOnClickListener(v -> {
+                dialog.dismiss();
+                if (account.id.equals(activeSourceId)) return;
+                makeActiveAccount(account.id, after);
+            });
+            panel.addView(choose, Ui.row(this, Ui.S2, 0));
+            if (active) focus = choose;
+        }
+        if (accounts.isEmpty())
+            panel.addView(Ui.text(this, "אין חשבונות מחוברים.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(cancel, Ui.row(this, Ui.S3, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (focus != null) focus.requestFocus();
+    }
+
     private void showOrderHistoryScreen(Screen returnTo) {
-        if(accessToken.isEmpty()){Toast.makeText(this,"יש להתחבר כדי לטעון הזמנות קודמות.",Toast.LENGTH_LONG).show();return;}
+        if(accessToken.isEmpty()){
+            // החשבון הפעיל מנותק: עוברים לחשבון מחובר אחר במקום להיתקע.
+            String other=firstConnectedAccountId();
+            if(!other.isEmpty()&&!other.equals(activeSourceId)){makeActiveAccount(other,()->showOrderHistoryScreen(returnTo));return;}
+            Toast.makeText(this,"יש להתחבר כדי לטעון הזמנות קודמות.",Toast.LENGTH_LONG).show();return;}
         historyReturn=returnTo==Screen.SETTINGS?Screen.SETTINGS:Screen.SAVED_LISTS;
         savedListsScreenVisible=false;accountsScreenVisible=false;
         historyPage=0;historyLastPage=1;historyOrders.clear();historyLoading=false;
         LinearLayout content=Ui.screen(this);
         content.addView(buildSubScreenHeader("הזמנות קודמות",this::leaveHistoryScreen),Ui.row(this,0,Ui.S2));
-        content.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה עצמאית במכשיר. ההזמנה הפעילה לא תוחלף.",Ui.T_BODY,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
+        // לכל חשבון היסטוריה משלו. השורה מציגה איזה חשבון מוצג, ומאפשרת להחליף.
+        LinearLayout intro=Ui.column(this);
+        SourceRegistry.Source current=sourceRegistry.find(activeSourceId);
+        LinearLayout accountRow=new LinearLayout(this);accountRow.setGravity(Gravity.CENTER_VERTICAL);accountRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        accountRow.setBackground(Ui.shape(this,Ui.P100,Ui.R_BUTTON,1,Ui.P300));
+        accountRow.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S1),Ui.dp(this,Ui.S1),Ui.dp(this,Ui.S1));
+        accountRow.addView(Ui.text(this,"חשבון: "+accountLabel(current),Ui.T_BODY,Ui.P800,true),new LinearLayout.LayoutParams(0,-2,1f));
+        if(connectedAccounts().size()>1){
+            Button change=Ui.button(this,"החלפה",Ui.Kind.PRIMARY);
+            change.setContentDescription("החלפת החשבון המוצג");
+            change.setOnClickListener(v->showAccountPicker(()->showOrderHistoryScreen(historyReturn)));
+            LinearLayout.LayoutParams changeLp=new LinearLayout.LayoutParams(-2,-2);
+            accountRow.addView(change,changeLp);
+        }
+        intro.addView(accountRow,Ui.row(this,0,Ui.S2));
+        intro.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה עצמאית של החשבון הזה. ההזמנה הפעילה לא תוחלף.",Ui.T_NOTE,Ui.MUTED,false));
+        content.addView(intro,Ui.row(this,0,Ui.S2));
         historyContent=content;historyMoreButton=null;
         content.addView(Ui.banner(this,"טוען הזמנות קודמות…"));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
@@ -2409,7 +2490,7 @@ public class MainActivity extends Activity {
                 String owner=DataGuard.ownerFromOrder(order);if(owner.isEmpty())owner=activeOwner;if(owner.isEmpty())throw new Exception("לא ניתן לאמת את בעלות ההזמנה.");
                 JSONArray items=new JSONArray();
                 JSONObject pickupForSort=PickupInfo.extract(historyRow,order);sortByCategory(rows,pickupForSort);
-                for(ProductRow p:rows)items.put(new JSONObject().put("key",p.key).put("name",p.name).put("image_url",p.imageUrl).put("amount",p.amount).put("note",p.note).put("category",p.category).put("image_file",""));
+                for(ProductRow p:rows)items.put(new JSONObject().put("key",p.key).put("name",p.name).put("image_url",p.imageUrl).put("amount",p.amount).put("note",p.note).put("category",p.category).put("category_order",p.categoryOrder).put("image_file",""));
                 JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name",title).put("updated_at",first(order,"created_at","updated_at","date")).put("imported",true).put("products",items);
                 JSONObject pickup=PickupInfo.extract(historyRow,order);if(pickup!=null)snapshot.put("pickup_info",pickup);
                 SourceRegistry.Source source=sourceRegistry.find(activeSourceId);if(source==null)throw new Exception("החיבור הפעיל אינו קיים.");
@@ -2579,7 +2660,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeTitleRow() {
-        // שם המכירה במרכז, והכפתורים בשני הצדדים: מימין הגדרות ואיפוס, משמאל החלפת תצוגה.
+        // שם המכירה במרכז, והכפתורים בשני הצדדים: מימין הגדרות ואיפוס, משמאל שתי התצוגות.
         // לשני הצדדים אותו רוחב, כדי שהשם יהיה באמצע המסך בדיוק.
         // במסך צר השם יורד לשורה משלו (במרכז), מתחת לכפתורים.
         boolean wide = Ui.wideHeader(this);
@@ -2594,15 +2675,10 @@ public class MainActivity extends Activity {
         resetButton.setOnClickListener(v -> {
             if (!confirmResetCollection()) showActionToast("אין סימוני איסוף לאיפוס");
         });
-        // כפתור אחד במקום שניים: מחליף בין רשימה מאוחדת לרשימה לפי חשבון.
+        // שני כפתורי התצוגה: רשימה מאוחדת ורשימה לפי חשבון. הכפתור של התצוגה הפעילה מודגש.
         boolean unifiedMode = sourceRegistry != null && "COMBINED_SUM".equals(sourceRegistry.viewMode());
-        Button viewToggle = Ui.iconButton(this, unifiedMode ? Ui.IC_LIST_SINGLE : Ui.IC_LIST_STACK,
-                unifiedMode ? "רשימה מאוחדת" : "רשימה לפי חשבון", false);
-        viewToggle.setEnabled(!syncAllRunning);
-        viewToggle.setOnClickListener(v -> toggleListViewMode());
-        // עם מקור אחד בלבד שתי התצוגות זהות, ולכן הכפתור מוסתר (המקום נשמר לאיזון).
-        boolean multipleSources = sourceRegistry != null && sourceRegistry.all().size() > 1;
-        viewToggle.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
+        Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת", unifiedMode);
+        Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון", !unifiedMode);
 
         LinearLayout rightSide = new LinearLayout(this);
         rightSide.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -2612,8 +2688,11 @@ public class MainActivity extends Activity {
         rightSide.addView(resetButton, resetLp);
 
         LinearLayout leftSide = new LinearLayout(this);
-        leftSide.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        leftSide.addView(viewToggle, new LinearLayout.LayoutParams(size, size));
+        leftSide.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        leftSide.addView(unified, new LinearLayout.LayoutParams(size, size));
+        LinearLayout.LayoutParams byAccountLp = new LinearLayout.LayoutParams(size, size);
+        byAccountLp.setMarginStart(gap);
+        leftSide.addView(byAccount, byAccountLp);
 
         TextView title = Ui.text(this, currentOrderTitle.isEmpty() ? "רשימת איסוף" : currentOrderTitle,
                 wide ? Ui.T_TITLE : Ui.T_NAME + 2, Ui.P900, true);
@@ -2623,7 +2702,7 @@ public class MainActivity extends Activity {
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
         headerButtons.add(settings); headerButtons.add(resetButton);
-        if (multipleSources) headerButtons.add(viewToggle);
+        headerButtons.add(unified); headerButtons.add(byAccount);
 
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -2644,6 +2723,19 @@ public class MainActivity extends Activity {
         stacked.addView(row, new LinearLayout.LayoutParams(-1, -2));
         stacked.addView(title, Ui.row(this, Ui.S2, 0));
         return stacked;
+    }
+
+    private Button buildViewModeButton(String mode, int icon, String description, boolean active) {
+        Button button = Ui.iconButton(this, icon, description, active);
+        button.setEnabled(!syncAllRunning);
+        button.setOnClickListener(v -> {
+            if (syncAllRunning || active) return;
+            sourceRegistry.setViewMode(mode);
+            showingSavedList = false;
+            showHomeScreen(false);
+            showActionToast("COMBINED_SUM".equals(mode) ? "רשימה מאוחדת מכל החשבונות" : "רשימות נפרדות לפי חשבון");
+        });
+        return button;
     }
 
     private String appVersionName() {
@@ -3005,7 +3097,7 @@ public class MainActivity extends Activity {
                 }
                 restored.add(new ProductRow(first(row, "key"), first(row, "name"),
                         first(row, "image_url"), first(row, "amount"), first(row, "note"), imagePath,
-                        first(row, "category")));
+                        first(row, "category"), row.optInt("category_order", 0)));
             }
             // Version 1 caches predate image URLs being included in the content digest.
             // Keep them readable offline; the next online sync upgrades their fingerprint to v2.
@@ -3374,6 +3466,7 @@ public class MainActivity extends Activity {
             item.put("amount", row.amount);
             item.put("note", row.note);
             item.put("category", row.category);
+            item.put("category_order", row.categoryOrder);
             item.put("image_file", imageFile);
             savedRows.put(item);
         }
@@ -3858,7 +3951,7 @@ public class MainActivity extends Activity {
                         if(image.isFile()&&image.length()>0) imagePath=image.getAbsolutePath();
                     }
                     ProductRow original=new ProductRow(first(o,"key"),first(o,"name"),
-                            first(o,"image_url"),first(o,"amount"),first(o,"note"),imagePath,first(o,"category"));
+                            first(o,"image_url"),first(o,"amount"),first(o,"note"),imagePath,first(o,"category"),o.optInt("category_order",0));
                     if(original.key.isEmpty()||original.name.isEmpty())continue;
                     boolean done=ticks.contains(DataGuard.tick(original));
                     double partial=done?parseQuantity(original.amount):Math.max(0,partials.optDouble(original.key,0));
@@ -3883,7 +3976,7 @@ public class MainActivity extends Activity {
                 amount=formatQuantity(total);
             } else amount=first.product.amount;
             ProductRow base=first.product;
-            products.add(new ProductRow(entry.getKey(),base.name,base.imageUrl,amount,note,base.imagePath,base.category));
+            products.add(new ProductRow(entry.getKey(),base.name,base.imageUrl,amount,note,base.imagePath,base.category,base.categoryOrder));
             combinedParts.put(entry.getKey(),parts);
             boolean all=true;double collectedAmount=0;
             for(SourcePart part:parts){double q=parseQuantity(part.product.amount);
@@ -4540,9 +4633,12 @@ public class MainActivity extends Activity {
             if (amount.isEmpty() && data != null) amount = first(data, "amount", "quantity", "qty");
             if (amount.isEmpty()) amount = "1";
             String note = first(saleProduct, "note");
-            String category = findCategory(data, row, saleProduct,
+            // מבנה השרת: items[].item_sale.product.category = {name, order, main_category}.
+            String category = findCategory(saleProduct, data, row,
                     item == null ? null : item.optJSONObject("item_sale"), item);
-            result.add(new ProductRow(key, name, image, amount, note, "", category));
+            JSONObject categoryObject = saleProduct == null ? null : saleProduct.optJSONObject("category");
+            int categoryOrder = categoryObject == null ? 0 : categoryObject.optInt("order", 0);
+            result.add(new ProductRow(key, name, image, amount, note, "", category, categoryOrder));
         }
         return result;
     }
@@ -4695,6 +4791,8 @@ public class MainActivity extends Activity {
         final String key, name, imageUrl, amount, note, imagePath;
         /** מחלקת המוצר (למשל "ירקות"), לצורך מיון הרשימה. אינה חלק מטביעת התוכן. */
         final String category;
+        /** סדר המחלקה באתר (category.order); 0 כשאינו ידוע. */
+        final int categoryOrder;
         ProductRow(String key, String name, String imageUrl, String amount, String note) {
             this(key, name, imageUrl, amount, note, "", "");
         }
@@ -4703,9 +4801,14 @@ public class MainActivity extends Activity {
         }
         ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath,
                    String category) {
+            this(key, name, imageUrl, amount, note, imagePath, category, 0);
+        }
+        ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath,
+                   String category, int categoryOrder) {
             this.key = key; this.name = name; this.imageUrl = imageUrl; this.amount = amount;
             this.note = note; this.imagePath = imagePath == null ? "" : imagePath;
             this.category = category == null ? "" : category.trim();
+            this.categoryOrder = Math.max(0, categoryOrder);
         }
     }
 
@@ -4750,8 +4853,8 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * ממיין לפי מחלקות. סדר המחלקות לקוח מרשימת המחלקות של המכירה (sale.categories) כשהיא קיימת,
-     * ואחרת לפי א״ב. מוצרים בלי מחלקה בסוף. בתוך מחלקה נשמר הסדר המקורי.
+     * ממיין לפי מחלקות. סדר המחלקות לפי category.order שמגיע מהשרת; כשאין, לפי רשימת המחלקות
+     * של המכירה (sale.categories), ואחרת לפי א״ב. מוצרים בלי מחלקה בסוף. בתוך מחלקה נשמר הסדר המקורי.
      */
     private static void sortByCategory(List<ProductRow> rows, JSONObject pickupInfo) {
         if (rows == null || rows.size() < 2) return;
@@ -4763,6 +4866,10 @@ public class MainActivity extends Activity {
         Collections.sort(rows, (a, b) -> {
             boolean aEmpty = a.category.isEmpty(), bEmpty = b.category.isEmpty();
             if (aEmpty || bEmpty) return aEmpty == bEmpty ? 0 : (aEmpty ? 1 : -1);
+            // סדר המחלקות כפי שהוא באתר משנת יוסף (category.order).
+            if (a.categoryOrder > 0 && b.categoryOrder > 0 && a.categoryOrder != b.categoryOrder)
+                return a.categoryOrder < b.categoryOrder ? -1 : 1;
+            if (a.category.equals(b.category)) return 0;
             int ra = order.indexOf(a.category), rb = order.indexOf(b.category);
             if (ra < 0) ra = Integer.MAX_VALUE;
             if (rb < 0) rb = Integer.MAX_VALUE;
