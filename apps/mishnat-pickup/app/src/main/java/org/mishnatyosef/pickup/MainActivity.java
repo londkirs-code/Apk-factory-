@@ -127,6 +127,9 @@ public class MainActivity extends Activity {
     private Button retryButton;
     private JSONObject orderData;
     private String currentOrderId = "";
+    /** שם המכירה של ההזמנה המוצגת (למשל שם הפרשה), או ריק כשאין. */
+    private String currentOrderTitle = "";
+    private TextView homeTitleText;
     private final List<ProductRow> products = new ArrayList<>();
     private final Set<String> collected = new HashSet<>();
     private final Map<String, Double> partialCollected = new HashMap<>();
@@ -1703,7 +1706,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · אייקונים חדשים וחדים בכל המסכים, ניווט מקלדת מתוקן (Menu פותח וסוגר הגדרות, חזרה מחזירה למסך הקודם ולא סוגרת את האפליקציה, 7/9 מעבירים את הבחירה לראש ולסוף הרשימה), חזרה לאותו פריט אחרי יציאה מההגדרות, מעבר רך בין מסכים, Enter בסיסמה מתחבר, ומסך רשימות שמורות מסודר יותר."),
+                "בעדכון החדש · שם ההזמנה הוא שם המכירה (הפרשה), גם בכותרת וגם בהיסטוריה. בעדכון הקודם: אייקונים חדשים וחדים בכל המסכים, ניווט מקלדת מתוקן (Menu פותח וסוגר הגדרות, חזרה מחזירה למסך הקודם ולא סוגרת את האפליקציה, 7/9 מעבירים את הבחירה לראש ולסוף הרשימה), חזרה לאותו פריט אחרי יציאה מההגדרות, מעבר רך בין מסכים, Enter בסיסמה מתחבר, ומסך רשימות שמורות מסודר יותר."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -2329,9 +2332,8 @@ public class MainActivity extends Activity {
         if(historyOrders.isEmpty())historyContent.addView(Ui.banner(this,"לא נמצאו הזמנות קודמות פעילות."));
         for(JSONObject row:historyOrders) {
             long id=extractOrderId(row);if(id<=0)continue;String title=OrderHistoryPage.title(row);
-            String date=first(row,"created_at","updated_at","date","order_date");
-            if(date.length()>10&&date.charAt(4)=='-')date=date.substring(0,10);
-            Button item=Ui.button(this,title+(date.isEmpty()?"":" · "+date),Ui.Kind.SOFT);
+            // בהיסטוריה מוצג שם המכירה בלבד.
+            Button item=Ui.button(this,title,Ui.Kind.SOFT);
             item.setOnClickListener(v->saveHistoricalOrder(id,title));historyContent.addView(item,Ui.row(this,0,Ui.S2));
         }
         if(historyPage<historyLastPage){historyMoreButton=Ui.button(this,"טען הזמנות ישנות יותר",Ui.Kind.PRIMARY);historyMoreButton.setOnClickListener(v->loadOrderHistoryPage(historyPage+1));historyContent.addView(historyMoreButton,Ui.row(this,0,Ui.S3));}else historyMoreButton=null;
@@ -2526,7 +2528,9 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
-        TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
+        TextView title = Ui.text(this, currentOrderTitle.isEmpty() ? "רשימת איסוף" : currentOrderTitle,
+                Ui.T_TITLE, Ui.P900, true);
+        homeTitleText = title;
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
@@ -2913,6 +2917,10 @@ public class MainActivity extends Activity {
                     owner = preferences.getString(DataGuard.K_OWNER, "");
                 List<ProductRow> parsed = parseProducts(order);
                 if (parsed.isEmpty()) throw new Exception("ההזמנה נמצאה, אבל לא נמצאו בה פריטים להצגה.");
+                // שם המכירה נלקח מרשומת ההזמנה ברשימת ההזמנות (נתוני ההיסטוריה), ורק אם חסר שם - מפרטי ההזמנה.
+                String sale = OrderHistoryPage.saleName(latest);
+                if (sale.isEmpty()) sale = OrderHistoryPage.saleName(order);
+                final String orderTitle = sale.isEmpty() ? "הזמנה " + id : sale;
                 if (!session.isCurrent(this)) return;
                 // This request is deliberately detached from the order flow: product data
                 // is rendered as soon as it arrives, while the account name loads quietly.
@@ -2920,7 +2928,7 @@ public class MainActivity extends Activity {
                 final String resolvedOwner = owner;
                 final String resolvedToken = session.token;
                 mainHandler.post(() -> onFreshOrder(session.generation, resolvedToken,
-                        resolvedOwner, id, order, parsed));
+                        resolvedOwner, id, order, parsed, orderTitle));
             } catch (Exception error) {
                 String message = safeError(error);
                 mainHandler.post(() -> onOrderLoadError(session, message));
@@ -2996,6 +3004,7 @@ public class MainActivity extends Activity {
                     && !DataGuard.fingerprint(restored).equals(preferences.getString(DataGuard.K_PRINT, "")))
                 throw new Exception("cache fingerprint mismatch");
             currentOrderId = String.valueOf(id);
+            setCurrentOrderTitle(saved.optString("order_name", ""));
             products.clear();
             products.addAll(restored);
             loadCollectedState();
@@ -3011,7 +3020,7 @@ public class MainActivity extends Activity {
     }
 
     private void onFreshOrder(int generation, String requestToken, String owner,
-                              long orderId, JSONObject order, List<ProductRow> rows) {
+                              long orderId, JSONObject order, List<ProductRow> rows, String orderTitle) {
         if (generation != authGeneration || !requestToken.equals(accessToken) || isFinishing()) return;
         loading = false;
         String stableOwner = owner == null ? "" : owner;
@@ -3020,6 +3029,7 @@ public class MainActivity extends Activity {
             activeOwner = "";
             clearOrderMemory();
             currentOrderId = String.valueOf(orderId);
+            setCurrentOrderTitle(orderTitle);
             products.addAll(rows);
             syncCompletionState();
             renderProducts(false);
@@ -3109,6 +3119,7 @@ public class MainActivity extends Activity {
         cacheTrusted = true;
         orderData = order;
         currentOrderId = String.valueOf(orderId);
+        setCurrentOrderTitle(orderTitle);
         products.clear();
         products.addAll(rows);
         collected.clear(); partialCollected.clear();
@@ -3133,6 +3144,8 @@ public class MainActivity extends Activity {
                 if (generation == authGeneration && requestToken.equals(accessToken)) {
                     DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint,
                             DataGuard.tokenFingerprint(requestToken));
+                    // רשימות שנשמרו לפני שהתווסף שם המכירה מקבלות אותו בסנכרון הבא.
+                    updateCachedOrderName(orderTitle);
                     archiveCurrentSnapshot(sourceForArchive);
                 }
                 mainHandler.post(this::advanceSyncQueue);
@@ -3157,7 +3170,7 @@ public class MainActivity extends Activity {
             preferences.edit().putString("partial_" + orderKey, partialState).commit();
             try {
                 cacheOrderIfComplete(generation, requestToken, stableOwner, orderId,
-                        order, rows, fingerprint);
+                        order, rows, fingerprint, orderTitle);
                 if (generation != authGeneration || !requestToken.equals(accessToken)) return;
                 DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint, tokenFingerprint);
                 archiveCurrentSnapshot(sourceForArchive);
@@ -3201,9 +3214,34 @@ public class MainActivity extends Activity {
             preferences.edit().putString(DataGuard.COLLECTED_PREFIX + orderId, ticks.toString()).commit();
     }
 
+    /** מעדכן את שם המכירה בעותק המקומי של ההזמנה הפעילה, בלי לגעת במוצרים ובסימונים. */
+    private void updateCachedOrderName(String orderTitle) {
+        if (orderTitle == null || orderTitle.isEmpty()) return;
+        File manifest = new File(new File(activeFilesDir(), "pickup_order_cache"), "order.json");
+        if (!manifest.isFile()) return;
+        try {
+            JSONObject saved = new JSONObject(readImportText(manifest));
+            if (orderTitle.equals(saved.optString("order_name", ""))) return;
+            saved.put("order_name", orderTitle);
+            File temp = new File(manifest.getParentFile(), "order.json.tmp");
+            try (FileOutputStream out = new FileOutputStream(temp)) {
+                out.write(saved.toString().getBytes(StandardCharsets.UTF_8));
+                out.getFD().sync();
+            }
+            if (!temp.renameTo(manifest)) temp.delete();
+        } catch (Exception ignored) { }
+    }
+
+    /** שם ההזמנה המוצג בכותרת המסך: שם המכירה בלבד. */
+    private void setCurrentOrderTitle(String title) {
+        currentOrderTitle = title == null ? "" : title.trim();
+        if (homeTitleText != null)
+            homeTitleText.setText(currentOrderTitle.isEmpty() ? "רשימת איסוף" : currentOrderTitle);
+    }
+
     private void cacheOrderIfComplete(int generation, String requestToken, String owner,
                                       long orderId, JSONObject order, List<ProductRow> rows,
-                                      String fingerprint) throws Exception {
+                                      String fingerprint, String orderTitle) throws Exception {
         if (generation != authGeneration || !requestToken.equals(accessToken)) return;
         File root = new File(activeFilesDir(), "pickup_order_cache");
         File temp = new File(activeFilesDir(), "pickup_order_cache_tmp");
@@ -3232,6 +3270,7 @@ public class MainActivity extends Activity {
         JSONObject snapshot = new JSONObject();
         snapshot.put("order_id", orderId);
         snapshot.put("owner", owner);
+        snapshot.put("order_name", orderTitle == null ? "" : orderTitle);
         snapshot.put("fingerprint", fingerprint);
         snapshot.put("fingerprint_version", 2);
         snapshot.put("sort_value", orderSortValue(order));
@@ -3665,6 +3704,7 @@ public class MainActivity extends Activity {
     private void loadCombinedSnapshot() {
         products.clear(); collected.clear(); partialCollected.clear(); combinedParts.clear();
         java.util.LinkedHashMap<String, java.util.List<SourcePart>> grouped = new java.util.LinkedHashMap<>();
+        Set<String> orderNames = new java.util.LinkedHashSet<>();
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
             File manifest = new File(root, "order.json");
@@ -3679,6 +3719,8 @@ public class MainActivity extends Activity {
                 String orderId = String.valueOf(snapshot.optLong("order_id", -1));
                 JSONArray rows = snapshot.optJSONArray("products");
                 if (rows == null || "-1".equals(orderId)) continue;
+                String savedName = snapshot.optString("order_name", "").trim();
+                if (!savedName.isEmpty()) orderNames.add(savedName);
                 Set<String> ticks = new HashSet<>();
                 JSONObject partials = new JSONObject();
                 try {
@@ -3729,6 +3771,8 @@ public class MainActivity extends Activity {
                 collectedAmount+=part.collected?q:Math.min(q,part.partialQuantity);}
             if(all)collected.add(entry.getKey());
             else if(collectedAmount>0)partialCollected.put(entry.getKey(),collectedAmount);        }
+        // כשכל החשבונות מציגים את אותה מכירה, שמה מוצג בכותרת; אחרת כל השמות יחד.
+        setCurrentOrderTitle(orderNames.size() <= 2 ? android.text.TextUtils.join(" · ", orderNames) : "");
         syncCompletionState();
         if(products.isEmpty()) showSyncMessage("אין רשימות שמורות להצגה בתצוגה המאוחדת.", false);
         else showSyncMessage("", false);
@@ -4121,6 +4165,7 @@ public class MainActivity extends Activity {
         productCards.clear();partialCards.clear();
         orderData = null;
         currentOrderId = "";
+        setCurrentOrderTitle("");
         // Keep the URL-keyed bitmap cache across account switches and list rebuilds.
         // Evicting it here caused every already-loaded product image to be decoded again.
     }
@@ -4285,8 +4330,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < orders.length(); i++) {
             JSONObject order = orders.optJSONObject(i);
             if (order == null || extractOrderId(order) <= 0) continue;
-            String status = first(order, "status", "order_status", "state").toLowerCase(Locale.ROOT);
-            if (status.contains("cancel") || status.contains("בוטל") || status.contains("rejected") || status.contains("deleted")) continue;
+            if (OrderHistoryPage.isCancelled(order)) continue;
             valid.add(order);
         }
         if (valid.isEmpty()) return null;
