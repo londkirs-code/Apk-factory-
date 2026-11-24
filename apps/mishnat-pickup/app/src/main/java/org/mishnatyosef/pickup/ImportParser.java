@@ -111,6 +111,7 @@ final class ImportParser {
     }
     private static byte[] readLimited(InputStream in,long max,String error)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(o.size()+n>max)throw new Exception(error);o.write(b,0,n);}return o.toByteArray();}
     private static Bundle parseJson(byte[] raw,File dir)throws Exception{
+        String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8);
         if(text.length()>0&&text.charAt(0)==0xFEFF)text=text.substring(1);
         Object parsed;try{JSONTokener t=new JSONTokener(text);parsed=t.nextValue();if(t.nextClean()!=0)throw new Exception("יש תווים מיותרים אחרי ה־JSON.");}catch(Exception e){throw new Exception("קובץ JSON לא תקין: "+e.getMessage());}
         if(!(parsed instanceof JSONObject))throw new Exception("מבנה הקובץ אינו אובייקט JSON.");
