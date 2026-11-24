@@ -1724,6 +1724,7 @@ public class MainActivity extends Activity {
             + "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
             + "• לחיצה על שם הרשימה בכותרת מציגה מיד את כל הרשימות לבחירה, עם כפתור לפעולות לרשימה ולהגדרות.\n"
             + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
+            + "• ייבוא הזמנה מהעבר לתוך רשימה קיימת, מתוך הפעולות של הרשימה.\n"
             + "• בכל חלון קופץ יש X בפינה השמאלית העליונה במקום כפתורי סגירה וביטול.\n"
             + "• לחיצה על שם הרשימה בכותרת: הרשימה המוצגת עם כל הפעולות שלה, כל הרשימות השמורות עם כפתור ⋮ לפעולות, ופעולות כלליות.\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
@@ -2364,6 +2365,7 @@ public class MainActivity extends Activity {
                                      Runnable afterRename, boolean includeOpen) {
         if (includeOpen && !isDisplayedList(entry))
             addSourceAction(panel, dialog, "פתיחת הרשימה", () -> openSavedList(entry));
+        addSourceAction(panel, dialog, "ייבוא הזמנה מהעבר לרשימה", () -> importHistoryInto(entry));
         addSourceAction(panel, dialog, "שינוי שם", () -> showRenameDialog(entry.owner, entry.orderId,
                 displayTitle(entry), entry.title, afterRename));
         addSourceAction(panel, dialog, "מיזוג לתוך רשימה אחרת", () -> showMergeTargetDialog(entry));
@@ -2446,11 +2448,26 @@ public class MainActivity extends Activity {
         if (focus != null) focus.requestFocus();
     }
 
-    private void showOrderHistoryScreen(Screen returnTo) {
+    /** רשימת היעד כשנכנסים להיסטוריה מתוך פעולות של רשימה; null - בחירה חופשית ליד כל הזמנה. */
+    private SavedListStore.Entry historyTarget = null;
+
+    private void showOrderHistoryScreen(Screen returnTo) { showOrderHistoryScreen(returnTo, null); }
+
+    /** ייבוא הזמנות מהעבר ישירות לתוך רשימה קיימת (מתוך הפעולות של הרשימה). */
+    private void importHistoryInto(SavedListStore.Entry target) {
+        if (connectedAccounts().isEmpty()) {
+            Toast.makeText(this, "יש להתחבר לחשבון כדי לייבא הזמנות מהעבר.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        showOrderHistoryScreen(Screen.SAVED_LISTS, target);
+    }
+
+    private void showOrderHistoryScreen(Screen returnTo, SavedListStore.Entry target) {
+        historyTarget = target;
         if(accessToken.isEmpty()){
             // החשבון הפעיל מנותק: עוברים לחשבון מחובר אחר במקום להיתקע.
             String other=firstConnectedAccountId();
-            if(!other.isEmpty()&&!other.equals(activeSourceId)){makeActiveAccount(other,()->showOrderHistoryScreen(returnTo));return;}
+            if(!other.isEmpty()&&!other.equals(activeSourceId)){makeActiveAccount(other,()->showOrderHistoryScreen(returnTo,target));return;}
             Toast.makeText(this,"יש להתחבר כדי לטעון הזמנות קודמות.",Toast.LENGTH_LONG).show();return;}
         historyReturn=returnTo==Screen.SETTINGS?Screen.SETTINGS:Screen.SAVED_LISTS;
         savedListsScreenVisible=false;accountsScreenVisible=false;
@@ -2467,12 +2484,16 @@ public class MainActivity extends Activity {
         if(connectedAccounts().size()>1){
             Button change=Ui.button(this,"החלפה",Ui.Kind.PRIMARY);
             change.setContentDescription("החלפת החשבון המוצג");
-            change.setOnClickListener(v->showAccountPicker(()->showOrderHistoryScreen(historyReturn)));
+            change.setOnClickListener(v->showAccountPicker(()->showOrderHistoryScreen(historyReturn,historyTarget)));
             LinearLayout.LayoutParams changeLp=new LinearLayout.LayoutParams(-2,-2);
             accountRow.addView(change,changeLp);
         }
         intro.addView(accountRow,Ui.row(this,0,Ui.S2));
-        intro.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה עצמאית של החשבון הזה. ההזמנה הפעילה לא תוחלף.",Ui.T_NOTE,Ui.MUTED,false));
+        if(target!=null){
+            // מצב ייבוא לרשימה: בחירת הזמנה מוסיפה אותה ישירות לרשימה הזו.
+            TextView into=Ui.banner(this,"בחירת הזמנה תוסיף את המוצרים שלה לרשימה: "+displayTitle(target));
+            intro.addView(into,Ui.row(this,0,Ui.S1));
+        } else intro.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה חדשה או להוסיף אותה לרשימה קיימת.",Ui.T_NOTE,Ui.MUTED,false));
         content.addView(intro,Ui.row(this,0,Ui.S2));
         historyContent=content;historyMoreButton=null;
         content.addView(Ui.banner(this,"טוען הזמנות קודמות…"));
@@ -2548,7 +2569,10 @@ public class MainActivity extends Activity {
             // בהיסטוריה מוצג שם המכירה בלבד, ולידו כפתור מידע איסוף להזמנה.
             Button item=Ui.button(this,title,Ui.Kind.SOFT);
             item.setContentDescription("הוספת ההזמנה "+title);
-            item.setOnClickListener(v->chooseHistoryDestination(id,title,row));
+            item.setOnClickListener(v->{
+                if(historyTarget!=null)saveHistoricalOrder(id,title,row,historyTarget);
+                else chooseHistoryDestination(id,title,row);
+            });
             Button info=Ui.iconButton(this,Ui.IC_INFO,"מידע איסוף",false);
             info.setOnClickListener(v->{
                 JSONObject pickup=PickupInfo.extract(row,null);
@@ -2662,10 +2686,12 @@ public class MainActivity extends Activity {
             Button delete = smallAction(dialog, "מחיקה", () -> showModernConfirm("מחיקת רשימה שמורה",
                     "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
                     () -> deleteSavedListEntry(shown)));
+            Button importPast = smallAction(dialog, "ייבוא הזמנה מהעבר לרשימה", () -> importHistoryInto(shown));
+            card.addView(importPast, Ui.row(this, Ui.S1, 0));
             card.addView(buttonPair(rename, export), Ui.row(this, Ui.S1, 0));
             card.addView(buttonPair(merge, delete), Ui.row(this, Ui.S1, Ui.S1));
             body.addView(card, Ui.row(this, Ui.S2, Ui.S1));
-            focus = rename;
+            focus = importPast;
         }
 
         // 2. כל הרשימות השמורות
