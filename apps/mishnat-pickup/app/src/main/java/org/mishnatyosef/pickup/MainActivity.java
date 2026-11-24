@@ -2149,7 +2149,7 @@ public class MainActivity extends Activity {
         try {
             Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/plain");
-            String name=(entry.title==null||entry.title.trim().isEmpty()?"רשימת איסוף":entry.title).replaceAll("[\\\\/:*?\\"<>|]","_");
+            String name=(entry.title==null||entry.title.trim().isEmpty()?"רשימת איסוף":entry.title).replaceAll("[/:*?<>|]","_").replace("\\\\","_").replace("\"","_");
             intent.putExtra(Intent.EXTRA_TITLE,name+".txt");pendingExportListId=entry.id;
             startActivityForResult(intent,REQUEST_EXPORT_FILE);
         } catch(Exception e) {pendingExportListId="";Toast.makeText(this,"לא ניתן לפתוח שמירת קובץ.",Toast.LENGTH_LONG).show();}
