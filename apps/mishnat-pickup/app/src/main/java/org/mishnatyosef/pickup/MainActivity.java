@@ -733,7 +733,7 @@ public class MainActivity extends Activity {
     }
 
     private void showCelebration() {
-        performFeedback(true);
+        performFeedback(true, true);
         dismissCelebration();
 
         FrameLayout layer = new FrameLayout(this);
@@ -1215,7 +1215,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · איסוף חלקי מחושב לפי הכמות שנותרה, ואם נשארה יחידה אחת היא נאספת מיד; שורה חלקית ברשת מוצמדת לימין ומשאירה מקום פנוי משמאל."),
+                "בעדכון החדש · כפתור איפוס מהיר במסך הראשי, מסגרות פוקוס ברורות יותר, והגדרות נפרדות לצליל ולרטט בכל פריט ובסיום האיסוף."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -1484,33 +1484,57 @@ public class MainActivity extends Activity {
         ends.addView(large,new LinearLayout.LayoutParams(0,-2,1f));content.addView(ends);
     }
     private void addFeedbackSettings(LinearLayout content) {
-        content.addView(Ui.section(this,"צליל ורטט"));
-        CheckBox sound=new CheckBox(this);sound.setText("צליל בכל איסוף או הסרה ובהשלמת הרשימה");
-        sound.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY);sound.setTextColor(Ui.INK);
-        sound.setChecked(uiPreferences.getBoolean("feedback_sound",false));
-        if(Build.VERSION.SDK_INT>=21)sound.setButtonTintList(Ui.tint(Ui.P600));
-        sound.setOnCheckedChangeListener((button,checked)->uiPreferences.edit().putBoolean("feedback_sound",checked).apply());
-        content.addView(sound,Ui.row(this,Ui.S2,Ui.S1));
-        CheckBox vibration=new CheckBox(this);vibration.setText("רטט בכל איסוף או הסרה ובהשלמת הרשימה");
-        vibration.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY);vibration.setTextColor(Ui.INK);
-        vibration.setChecked(uiPreferences.getBoolean("feedback_vibration",false));
-        if(Build.VERSION.SDK_INT>=21)vibration.setButtonTintList(Ui.tint(Ui.P600));
-        vibration.setOnCheckedChangeListener((button,checked)->uiPreferences.edit().putBoolean("feedback_vibration",checked).apply());
-        content.addView(vibration,Ui.row(this,Ui.S1,Ui.S2));
+        content.addView(Ui.section(this, "משוב בכל פריט"));
+        boolean legacySound = uiPreferences.getBoolean("feedback_sound", false);
+        boolean legacyVibration = uiPreferences.getBoolean("feedback_vibration", false);
+        addFeedbackCheckbox(content, "feedback_item_vibration", "רטט קצר באיסוף או בהסרה",
+                legacyVibration, Ui.S2, Ui.S1);
+        addFeedbackCheckbox(content, "feedback_item_sound", "צליל חיובי באיסוף ושלילי בהסרה",
+                legacySound, Ui.S1, Ui.S3);
+        content.addView(Ui.section(this, "משוב בסיום האיסוף"));
+        addFeedbackCheckbox(content, "feedback_completion_vibration", "רטט ארוך בסיום הרשימה",
+                legacyVibration, Ui.S2, Ui.S1);
+        addFeedbackCheckbox(content, "feedback_completion_sound", "צליל הצלחה ממושך בסיום הרשימה",
+                legacySound, Ui.S1, Ui.S2);
     }
-    private void performFeedback(boolean completed) {
-        if(uiPreferences==null)return;
-        if(uiPreferences.getBoolean("feedback_vibration",false))try{
-            Vibrator v=(Vibrator)getSystemService(VIBRATOR_SERVICE);
-            if(v!=null&&v.hasVibrator()){long d=completed?260L:45L;
-                if(Build.VERSION.SDK_INT>=26)v.vibrate(android.os.VibrationEffect.createOneShot(d,completed?android.os.VibrationEffect.DEFAULT_AMPLITUDE:90));
-                else v.vibrate(d);}
-        }catch(Exception ignored){}
-        if(uiPreferences.getBoolean("feedback_sound",false))try{
-            ToneGenerator tone=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,75);
-            tone.startTone(completed?ToneGenerator.TONE_PROP_ACK:ToneGenerator.TONE_PROP_BEEP,completed?240:75);
-            mainHandler.postDelayed(tone::release,completed?300L:120L);
-        }catch(Exception ignored){}
+
+    private void addFeedbackCheckbox(LinearLayout content, String key, String label,
+                                     boolean legacyDefault, int top, int bottom) {
+        CheckBox option = new CheckBox(this);
+        option.setText(label);
+        option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY);
+        option.setTextColor(Ui.INK);
+        option.setChecked(uiPreferences.getBoolean(key, legacyDefault));
+        if (Build.VERSION.SDK_INT >= 21) option.setButtonTintList(Ui.tint(Ui.P600));
+        option.setOnCheckedChangeListener((button, checked) ->
+                uiPreferences.edit().putBoolean(key, checked).apply());
+        content.addView(option, Ui.row(this, top, bottom));
+    }
+
+    private void performFeedback(boolean completed, boolean added) {
+        if (uiPreferences == null) return;
+        String vibrationKey = completed ? "feedback_completion_vibration" : "feedback_item_vibration";
+        String soundKey = completed ? "feedback_completion_sound" : "feedback_item_sound";
+        boolean legacyVibration = uiPreferences.getBoolean("feedback_vibration", false);
+        boolean legacySound = uiPreferences.getBoolean("feedback_sound", false);
+        if (uiPreferences.getBoolean(vibrationKey, legacyVibration)) try {
+            Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                long duration = completed ? 520L : 65L;
+                if (Build.VERSION.SDK_INT >= 26) {
+                    int amplitude = completed ? android.os.VibrationEffect.DEFAULT_AMPLITUDE : 110;
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(duration, amplitude));
+                } else vibrator.vibrate(duration);
+            }
+        } catch (Exception ignored) { }
+        if (uiPreferences.getBoolean(soundKey, legacySound)) try {
+            ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, completed ? 90 : 85);
+            int toneType = completed ? ToneGenerator.TONE_PROP_ACK
+                    : (added ? ToneGenerator.TONE_PROP_ACK : ToneGenerator.TONE_PROP_NACK);
+            int duration = completed ? 520 : (added ? 115 : 155);
+            tone.startTone(toneType, duration);
+            mainHandler.postDelayed(tone::release, duration + 80L);
+        } catch (Exception ignored) { }
     }
     private double remainingQuantity(ProductRow product) {
         if(product==null||collected.contains(product.key))return 0;
@@ -1561,7 +1585,7 @@ public class MainActivity extends Activity {
             else if(updated>0)partialCollected.put(key,updated);else partialCollected.remove(key);saveCollectedState();}
         renderProducts(false);
         if(hadPartialFocus){ProductCard mainCard=productCards.get(key);if(mainCard!=null)mainCard.row.requestFocus();}
-        performFeedback(false);checkCelebration();
+        performFeedback(false, quantity > 0);checkCelebration();
     }
     private void showSavedListsScreen() { showSavedListsScreen(false); }
 
@@ -1706,6 +1730,16 @@ public class MainActivity extends Activity {
         settings.setOnClickListener(v -> showSettingsScreen());
         row.addView(settings);
 
+        resetButton = Ui.button(this, "↻", Ui.Kind.SOFT);
+        resetButton.setContentDescription("איפוס ליקוט");
+        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 28);
+        resetButton.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
+        resetButton.setOnClickListener(v -> confirmResetCollection());
+        LinearLayout.LayoutParams resetParams = (LinearLayout.LayoutParams) resetButton.getLayoutParams();
+        resetParams.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
+        resetButton.setLayoutParams(resetParams);
+        row.addView(resetButton);
+
         TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
         titleParams.setMargins(Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2), 0);
@@ -1820,17 +1854,9 @@ public class MainActivity extends Activity {
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER_VERTICAL);
         actions.setPadding(0, 0, 0, Ui.dp(this, Ui.S3));
-        resetButton = Ui.button(this, "איפוס ליקוט", Ui.Kind.SOFT);
-        resetButton.setOnClickListener(v -> confirmResetCollection());
         Button clear = Ui.button(this, "מחיקת כל הנתונים", Ui.Kind.STRONG);
         clear.setOnClickListener(v -> confirmClearSavedData());
-        // Explicit height and bottom breathing room prevent the compact buttons being clipped.
-        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1f);
-        first.setMargins(0, Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2));
-        LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1f);
-        second.setMargins(Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2));
-        actions.addView(resetButton, first);
-        actions.addView(clear, second);
+        actions.addView(clear, new LinearLayout.LayoutParams(-1, Ui.dp(this, 48)));
         return actions;
     }
 
@@ -2987,7 +3013,7 @@ public class MainActivity extends Activity {
         updateProgress();
         wireFocusOrder();
         if (hadKeyboardFocus && neighbor == null) moving.row.requestFocus();
-        performFeedback(false);
+        performFeedback(false, !wasCollected);
         checkCelebration();
     }
 
