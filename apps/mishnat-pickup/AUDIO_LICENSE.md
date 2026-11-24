@@ -1,11 +1,7 @@
-# צליל השלמת ליקוט — רישוי ומקור
+# מנגינת השלמת ליקוט — מקור הקובץ
 
-קובץ משולב: `app/src/main/res/raw/victory_fanfare.ogg`
+קובץ משולב: `app/src/main/res/raw/victory_fanfare.mp3`
 
-- נכס: Kenney Interface Sounds — `win.ogg` (המקור בחבילה נקרא `confirmation_004.ogg`).
-- מקור החבילה: https://kenney.nl/assets/interface-sounds
-- עותק המקור ששימש: https://github.com/S3M1TR4SH/asset-library/blob/main/audio/sfx/kenney-interface-sounds/win.ogg
-- רישיון: CC0 1.0 Universal.
-- מותר להעתיק, לשנות, להפיץ ולשלב באפליקציה, גם לשימוש מסחרי.
-
-הקובץ משולב מקומית באפליקציה. אין הורדה בזמן הריצה.
+- מקור: קובץ הצליל שהועלה לפרויקט השיחה עבור אפליקציית „משנת אוסף”.
+- הקובץ הומר ל־MP3 מונו בתדר 22.05 kHz ובקצב 32 kbps לצורך שילוב יעיל במשאב Android מקומי.
+- אין שימוש בנכס Kenney או במקור צליל חיצוני אחר.
