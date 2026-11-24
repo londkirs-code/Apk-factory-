@@ -22,3 +22,6 @@ requested_at=2026-11-24T03:20:00+02:00
 
 Keyboard focus styling for both home view-mode buttons now matches the app's standard focused action buttons.
 requested_at=2026-11-24T06:50:00+02:00
+
+Saved-list archive, search, partial collection (touch long-press / key 5), optional sound and vibration, six display modes.
+requested_at=2026-11-24T07:42:00+02:00
