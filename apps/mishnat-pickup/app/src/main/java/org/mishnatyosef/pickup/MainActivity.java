@@ -1777,10 +1777,10 @@ public class MainActivity extends Activity {
     }
 
     private void confirmResetCollection() {
-        boolean hasTicks = !collected.isEmpty();
+        boolean hasTicks = !collected.isEmpty() || !partialCollected.isEmpty();
         if (combinedView) {
             for (java.util.List<SourcePart> parts : combinedParts.values())
-                for (SourcePart part : parts) if (part.collected) hasTicks = true;
+                for (SourcePart part : parts) if (part.collected || part.partialQuantity > 0) hasTicks = true;
         }
         if (!hasTicks) return;
         showModernConfirm("איפוס האיסוף", "להחזיר את כל המוצרים לרשימת הממתינים?", "איפוס", () -> {
@@ -1793,8 +1793,13 @@ public class MainActivity extends Activity {
                         card.views.note.setVisibility(card.views.note.getText().length() == 0 ? View.GONE : View.VISIBLE);
                     }
                 }
-            } else saveCollectedState();
+            } else {
+                collected.clear();
+                partialCollected.clear();
+                saveCollectedState();
+            }
             collected.clear();
+            partialCollected.clear();
             syncCompletionState();
             renderProducts(false);
             pageScroll.post(this::focusFirstPending);
