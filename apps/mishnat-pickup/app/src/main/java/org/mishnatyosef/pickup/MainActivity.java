@@ -1800,7 +1800,8 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• שיתוף בענן: כל רשימה מקבלת מספר (1 עד 1000) לשבוע, ומכל מכשיר אפשר להביא אותה לפי המספר. רק המוצרים משותפים, בלי שמות חשבונות.\n"
+            "• מדריך המקשים בהגדרות: תמונה במסך מלא. אישור מגדיל, 2/4/6/8 מזיזים ו-0 חוזר לגודל המסך.\n"
+            + "• שיתוף בענן: כל רשימה מקבלת מספר (1 עד 1000) לשבוע, ומכל מכשיר אפשר להביא אותה לפי המספר. רק המוצרים משותפים, בלי שמות חשבונות.\n"
             + "• פס התקדמות האיסוף מתמלא מימין לשמאל.\n"
             + "• רשימת \"נאספו\" פשוטה: לפי א-ב, בלי כותרות מחלקה.\n"
             + "• בהגדרות אפשר לבטל את כותרות המחלקה. המוצרים נשארים מסודרים לפי מחלקות ועם הצבעים, ברצף אחד.\n"
@@ -1898,6 +1899,9 @@ public class MainActivity extends Activity {
         LinearLayout display = settingsCard(content, "תצוגה ומשוב");
         addDisplaySettings(display);
         addFeedbackSettings(display);
+        Button keysHelp = Ui.button(this, "מדריך המקשים (תמונה)", Ui.Kind.SOFT);
+        keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
+        display.addView(keysHelp, Ui.row(this, Ui.S1, Ui.S1));
         addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות מחלקה (כבוי: רצף אחד לפי מחלקות, עם הצבעים בלבד)",
                 true, Ui.S1, Ui.S1);
         display.addView(Ui.text(this, "תצוגה מאוחדת", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
