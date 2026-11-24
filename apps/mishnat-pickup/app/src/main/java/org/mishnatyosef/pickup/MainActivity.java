@@ -1489,11 +1489,15 @@ public class MainActivity extends Activity {
     }
     private void applyPartialCollection(String key,double quantity) {
         ProductRow product=findProduct(key);if(product==null)return;double total=parseQuantity(product.amount);
+        ProductCard partialCardBefore=partialCards.get(key);
+        boolean hadPartialFocus=partialCardBefore!=null&&partialCardBefore.row.hasFocus();
         double safe=Math.max(0,Math.min(total,quantity));
         if(combinedView)updateCombinedPartial(key,safe);
         else{collected.remove(key);if(safe>=total-0.000001){collected.add(key);partialCollected.remove(key);}
             else if(safe>0)partialCollected.put(key,safe);else partialCollected.remove(key);saveCollectedState();}
-        renderProducts(false);performFeedback(false);checkCelebration();
+        renderProducts(false);
+        if(hadPartialFocus){ProductCard mainCard=productCards.get(key);if(mainCard!=null)mainCard.row.requestFocus();}
+        performFeedback(false);checkCelebration();
     }
     private void showSavedListsScreen() { showSavedListsScreen(false); }
 
