@@ -1,3 +1,3 @@
-requested_at=2026-11-24T20:48:00+02:00
+requested_at=2026-11-24T20:55:00+02:00
 
-Release 1.80 final retry: the previous queued run checked out the earlier ImportParser revision and failed on escaped character literals. The current main revision now uses numeric whitespace/BOM checks and integer dp widths. Build latest main, increment version, validate package/version/signature continuity, publish standalone APK and metadata.
+Release 1.80 retry: restored the original UTF-8 text initialization in parseJson after the BOM adjustment. Plain-text parser uses numeric whitespace/BOM checks; reset/document icons use integer dp widths. Build latest main, verify package/version/signature continuity and publish standalone APK.
