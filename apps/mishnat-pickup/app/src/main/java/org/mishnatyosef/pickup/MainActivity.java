@@ -1154,7 +1154,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "גרסה 1.47 · מסך הבית נקי וממוקד יותר, מעבר מהיר בין שתי צורות התצוגה, וסיכום קצר של החשבונות וההזמנה כאן בהגדרות."),
+                "גרסה 1.50 · חיפוש מהיר, איסוף חלקי, שש רמות תצוגה, צליל ורטט לבחירה ורשימות שנשמרות במכשיר עד למחיקה ידנית."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
