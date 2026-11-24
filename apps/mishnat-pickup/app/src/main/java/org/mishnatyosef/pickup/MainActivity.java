@@ -42,6 +42,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -145,6 +146,7 @@ public class MainActivity extends Activity {
     private Button resetButton;
     private Button logoutButton;
     private final java.util.Map<String, ProductCard> productCards = new java.util.LinkedHashMap<>();
+    private final java.util.Map<String, ProductCard> partialCards = new java.util.LinkedHashMap<>();
     private TextView messageText;
     private EditText loginEmailInput, loginPasswordInput;
     private Button loginButton;
@@ -1165,7 +1167,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "גרסה 1.57 · תוקנו לחיצות על אזורי המוצר; איסוף חלקי זמין רק בכמות מעל 1."),
+                "גרסה 1.58 · איסוף חלקי מוצג גם ב׳נאספו׳; בחירת כמות ומעבר תצוגה באמצעות סרגלים; תוקנה רשת הכרטיסים."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -1370,7 +1372,8 @@ public class MainActivity extends Activity {
     }
     private ViewGroup.LayoutParams productLayoutParams(ViewGroup parent) {
         if (parent instanceof GridLayout) {
-            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1f),GridLayout.spec(GridLayout.UNDEFINED));
+            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
+                    GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f));
             lp.width=0;lp.height=ViewGroup.LayoutParams.WRAP_CONTENT;
             lp.setMargins(Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2));return lp;
         }
@@ -1402,15 +1405,29 @@ public class MainActivity extends Activity {
         });return row;
     }
     private void addDisplaySettings(LinearLayout content) {
-        content.addView(Ui.section(this,"תצוגת רשימת המוצרים"));
-        String[] labels={"צ׳ק ליסט צפוף · ללא תמונות","קטן · 70%","קומפקטי · 85%","רגיל · 100%","גדול · 115%","רשת · 3 פריטים בשורה"};
-        LinearLayout choices=Ui.column(this);
-        for(int i=0;i<labels.length;i++){final int mode=i;
-            Button choice=Ui.button(this,(displayMode==i?"✓  ":"")+labels[i],displayMode==i?Ui.Kind.PRIMARY:Ui.Kind.SOFT);
-            choice.setOnClickListener(v->{displayMode=mode;uiPreferences.edit().putInt("display_mode",mode).apply();
-                if(searchInput!=null)searchQuery=searchInput.getText().toString();showHomeScreen(false);showSettingsScreen();});
-            choices.addView(choice);
-        }content.addView(choices);
+        content.addView(Ui.section(this,"גודל ותצוגת רשימת המוצרים"));
+        final String[] labels={"צ׳ק ליסט צפוף","70%","85%","100%","115%","רשת · 3 כרטיסים בשורה"};
+        final TextView current=Ui.text(this,labels[displayMode],Ui.T_BODY,Ui.P800,true);current.setGravity(Gravity.CENTER);
+        SeekBar slider=new SeekBar(this);slider.setMax(5);slider.setProgress(displayMode);
+        if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
+        Runnable apply=()->{int mode=slider.getProgress();if(mode==displayMode)return;
+            displayMode=mode;uiPreferences.edit().putInt("display_mode",mode).apply();
+            if(searchInput!=null)searchQuery=searchInput.getText().toString();showHomeScreen(false);showSettingsScreen();};
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){current.setText(labels[progress]);}
+            @Override public void onStartTrackingTouch(SeekBar bar){}
+            @Override public void onStopTrackingTouch(SeekBar bar){apply.run();}
+        });
+        slider.setOnKeyListener((v,keyCode,event)->{
+            if(event.getAction()==KeyEvent.ACTION_DOWN&&(keyCode==KeyEvent.KEYCODE_DPAD_LEFT||keyCode==KeyEvent.KEYCODE_DPAD_RIGHT
+                    ||keyCode==KeyEvent.KEYCODE_DPAD_UP||keyCode==KeyEvent.KEYCODE_DPAD_DOWN))slider.post(apply);
+            return false;
+        });
+        content.addView(current,Ui.row(this,Ui.S1,Ui.S1));content.addView(slider,Ui.row(this,0,Ui.S2));
+        LinearLayout ends=new LinearLayout(this);ends.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        ends.addView(Ui.text(this,"קטן",Ui.T_NOTE,Ui.MUTED,false),new LinearLayout.LayoutParams(0,-2,1f));
+        TextView large=Ui.text(this,"גדול",Ui.T_NOTE,Ui.MUTED,false);large.setGravity(Gravity.RIGHT);
+        ends.addView(large,new LinearLayout.LayoutParams(0,-2,1f));content.addView(ends);
     }
     private void addFeedbackSettings(LinearLayout content) {
         content.addView(Ui.section(this,"צליל ורטט"));
@@ -1444,41 +1461,55 @@ public class MainActivity extends Activity {
     private void showPartialCollectionDialog(String key) {
         ProductRow product=findProduct(key);
         if(product==null||parseQuantity(product.amount)<=1.000001)return;
-        EditText amount=new EditText(this);amount.setSingleLine(true);
-        amount.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        amount.setText(formatQuantity(collectedQuantity(product)));amount.setSelectAllOnFocus(true);
+        final double total=parseQuantity(product.amount);
+        final int steps=1000;
+        final TextView selected=Ui.text(this,"",Ui.T_TITLE,Ui.P800,true);
+        selected.setGravity(Gravity.CENTER);
+        SeekBar slider=new SeekBar(this);slider.setMax(steps);
+        if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
+        double initial=Math.max(1,Math.min(total,collectedQuantity(product)));
+        slider.setProgress((int)Math.round((initial-1.0)/(total-1.0)*steps));
+        java.util.function.IntToDoubleFunction quantityAt=progress->1.0+(total-1.0)*progress/steps;
+        selected.setText(formatQuantity(quantityAt.applyAsDouble(slider.getProgress()))+" מתוך "+formatQuantity(total));
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){selected.setText(formatQuantity(quantityAt.applyAsDouble(progress))+" מתוך "+formatQuantity(total));}
+            @Override public void onStartTrackingTouch(SeekBar bar){}
+            @Override public void onStopTrackingTouch(SeekBar bar){}
+        });
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel=Ui.dialogPanel(this);panel.addView(Ui.text(this,"איסוף כמות חלקית",Ui.T_NAME,Ui.P900,true));
+        LinearLayout panel=Ui.dialogPanel(this);
+        panel.addView(Ui.text(this,"איסוף כמות חלקית",Ui.T_NAME,Ui.P900,true));
         panel.addView(Ui.text(this,product.name,Ui.T_BODY,Ui.INK,true),Ui.row(this,Ui.S2,Ui.S1));
-        panel.addView(Ui.text(this,"כמה יחידות נאספו מתוך "+product.amount+"?",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,0,Ui.S1));
-        panel.addView(amount,Ui.row(this,Ui.S1,Ui.S3));
-        Button save=Ui.button(this,"שמירת הכמות",Ui.Kind.PRIMARY),cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
-        save.setOnClickListener(v->{double value;try{value=Double.parseDouble(amount.getText().toString().trim().replace(',','.'));}
-            catch(Exception e){Toast.makeText(this,"יש להזין כמות מספרית.",Toast.LENGTH_SHORT).show();return;}
-            double total=parseQuantity(product.amount);if(value<0||value>total){Toast.makeText(this,"הכמות חייבת להיות בין 0 ל-"+product.amount+".",Toast.LENGTH_SHORT).show();return;}
-            dialog.dismiss();applyPartialCollection(key,value);});
+        panel.addView(Ui.text(this,"הזיזו את הסרגל לבחירת הכמות שנאספה",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
+        panel.addView(selected,Ui.row(this,Ui.S1,Ui.S1));panel.addView(slider,Ui.row(this,0,Ui.S4));
+        Button save=Ui.button(this,"אישור הכמות",Ui.Kind.PRIMARY),cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
+        save.setOnClickListener(v->{dialog.dismiss();applyPartialCollection(key,quantityAt.applyAsDouble(slider.getProgress()));});
         cancel.setOnClickListener(v->dialog.dismiss());panel.addView(save);panel.addView(cancel,Ui.row(this,Ui.S2,0));
-        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);amount.requestFocus();
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+        slider.setFocusable(true);slider.setFocusableInTouchMode(true);slider.requestFocus();
     }
     private void applyPartialCollection(String key,double quantity) {
         ProductRow product=findProduct(key);if(product==null)return;double total=parseQuantity(product.amount);
-        if(combinedView)updateCombinedPartial(key,Math.min(total,quantity));
-        else{collected.remove(key);if(quantity>=total-0.000001){collected.add(key);partialCollected.remove(key);}
-            else if(quantity>0)partialCollected.put(key,quantity);else partialCollected.remove(key);saveCollectedState();}
-        ProductCard card=productCards.get(key);if(card!=null){boolean done=collected.contains(key);bindProductCard(card,product,done);
-            ViewGroup target=done?collectedList:pendingList;ViewGroup parent=(ViewGroup)card.row.getParent();
-            if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,insertionIndex(target,product,done),productLayoutParams(target));}}
-        updateProgress();wireFocusOrder();performFeedback(false);checkCelebration();
+        double safe=Math.max(0,Math.min(total,quantity));
+        if(combinedView)updateCombinedPartial(key,safe);
+        else{collected.remove(key);if(safe>=total-0.000001){collected.add(key);partialCollected.remove(key);}
+            else if(safe>0)partialCollected.put(key,safe);else partialCollected.remove(key);saveCollectedState();}
+        renderProducts(false);performFeedback(false);checkCelebration();
     }
     private void showSavedListsScreen() { showSavedListsScreen(false); }
 
     private void showSavedListsScreen(boolean fromLogin) {
         savedListsScreenVisible=true;
         savedListsReturnToLogin=fromLogin;
-        LinearLayout content=Ui.screen(this);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title=Ui.text(this,"רשימות שמורות",Ui.T_TITLE,Ui.P900,true);header.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
-        Button back=Ui.button(this,"חזרה",Ui.Kind.SOFT);back.setOnClickListener(v->leaveSavedListsScreen());header.addView(back);
-        content.addView(header,Ui.row(this,0,Ui.S2));List<SavedListStore.Entry> entries=savedListStore.list();
+        LinearLayout content=Ui.screen(this);content.setGravity(Gravity.TOP);
+        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        Button back=Ui.button(this,"→",Ui.Kind.SOFT);back.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,26);
+        back.setContentDescription("חזרה");back.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
+        back.setOnClickListener(v->leaveSavedListsScreen());header.addView(back);
+        TextView title=Ui.text(this,"רשימות שמורות",Ui.T_TITLE,Ui.P900,true);
+        LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(0,-2,1f);titleLp.setMargins(Ui.dp(this,Ui.S2),0,0,0);
+        header.addView(title,titleLp);content.addView(header,Ui.row(this,0,Ui.S2));
+        List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
         if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."));
         for(SavedListStore.Entry entry:entries){LinearLayout card=Ui.column(this);
             card.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_CARD,1,Ui.P200));card.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3));
@@ -1489,8 +1520,9 @@ public class MainActivity extends Activity {
             delete.setOnClickListener(v->showModernConfirm("מחיקת רשימה שמורה","הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.","מחק רשימה",()->deleteSavedListEntry(entry)));
             card.addView(open);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
         }
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
-        setContentView(scroll);Ui.systemBars(this);back.requestFocus();
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
+        scroll.addView(content,new ScrollView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT));
+        setContentView(scroll);Ui.systemBars(this);
     }
     private void leaveSavedListsScreen() {
         boolean toLogin=savedListsReturnToLogin;
@@ -2435,27 +2467,31 @@ public class MainActivity extends Activity {
         if (!sameKeys) {
             pendingList.removeAllViews();
             collectedList.removeAllViews();
-            productCards.clear();
-            for (ProductRow product : products) productCards.put(product.key, createProductCard(product));
+            productCards.clear();partialCards.clear();
+            for(ProductRow product:products){productCards.put(product.key,createProductCard(product));partialCards.put(product.key,createPartialProductCard(product));}
         }
         for (ProductRow product : products) {
             ProductCard card = productCards.get(product.key);
             if (card == null) continue;
-            if (!matchesSearch(product)) { ViewGroup oldParent=(ViewGroup)card.row.getParent(); if(oldParent!=null)oldParent.removeView(card.row); continue; }
-            boolean done = collected.contains(product.key);
-            bindProductCard(card, product, done);
-            ViewGroup target = done ? collectedList : pendingList;
-            ViewGroup parent = (ViewGroup) card.row.getParent();
-            if (parent != target) {
-                if (parent != null) parent.removeView(card.row);
-                target.addView(card.row, insertionIndex(target, product, done), productLayoutParams(target));
-            } else {
-                int wanted = insertionIndex(target, product, done);
-                int current = target.indexOfChild(card.row);
-                if (current != wanted) {
-                    target.removeView(card.row);
-                    target.addView(card.row, Math.min(wanted, target.getChildCount()), productLayoutParams(target));
-                }
+            if (!matchesSearch(product)) { ViewGroup oldParent=(ViewGroup)card.row.getParent(); if(oldParent!=null)oldParent.removeView(card.row);
+                ProductCard hiddenPartial=partialCards.get(product.key);if(hiddenPartial!=null&&hiddenPartial.row.getParent() instanceof ViewGroup)((ViewGroup)hiddenPartial.row.getParent()).removeView(hiddenPartial.row);continue; }
+            boolean done=collected.contains(product.key);
+            double partial=done?0:collectedQuantity(product),total=parseQuantity(product.amount);
+            double remaining=Math.max(0,total-partial);
+            if(done)bindProductCard(card,product,true);else bindProductCard(card,product,false,formatQuantity(remaining),partial>0);
+            ViewGroup target=done?collectedList:pendingList;
+            ViewGroup parent=(ViewGroup)card.row.getParent();
+            if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,insertionIndex(target,product,done),productLayoutParams(target));}
+            else{int wanted=insertionIndex(target,product,done),current=target.indexOfChild(card.row);
+                if(current!=wanted){target.removeView(card.row);target.addView(card.row,Math.min(wanted,target.getChildCount()),productLayoutParams(target));}}
+            ProductCard partialCard=partialCards.get(product.key);
+            if(partialCard!=null){
+                if(!done&&partial>0){bindPartialProductCard(partialCard,product,partial);
+                    ViewGroup pp=(ViewGroup)partialCard.row.getParent();
+                    if(pp!=collectedList){if(pp!=null)pp.removeView(partialCard.row);collectedList.addView(partialCard.row,partialInsertionIndex(product),productLayoutParams(collectedList));}
+                    else{int wanted=partialInsertionIndex(product),current=collectedList.indexOfChild(partialCard.row);
+                        if(current!=wanted){collectedList.removeView(partialCard.row);collectedList.addView(partialCard.row,Math.min(wanted,collectedList.getChildCount()),productLayoutParams(collectedList));}}
+                }else if(partialCard.row.getParent() instanceof ViewGroup)((ViewGroup)partialCard.row.getParent()).removeView(partialCard.row);
             }
         }
         lastRenderedDisplayMode = displayMode;
@@ -2658,15 +2694,36 @@ public class MainActivity extends Activity {
         return null;
     }
 
-    private void bindProductCard(ProductCard card, ProductRow product, boolean done) {
-        card.product = product;
-        double partial = collectedQuantity(product);
-        String detail = product.note == null ? "" : product.note;
-        if (!done && partial > 0) detail = (detail.isEmpty() ? "" : detail + " · ") + "נאספו " + formatQuantity(partial) + " מתוך " + product.amount;
-        Ui.bindProduct(card.views, product.name, detail, product.amount, done);
-        if (displayMode == 0) card.views.note.setVisibility(View.GONE);
-        if (imageMode && card.row == (getCurrentFocus() == null ? null : findProductCard(getCurrentFocus()) == null ? null : findProductCard(getCurrentFocus()).row))
-            Ui.setImageFocus(this, card.views, true);
+    private void bindProductCard(ProductCard card,ProductRow product,boolean done){bindProductCard(card,product,done,product.amount,false);}
+    private void bindProductCard(ProductCard card,ProductRow product,boolean done,String shownAmount,boolean partial){
+        card.product=product;String detail=product.note==null?"":product.note;
+        if(partial)detail=(detail.isEmpty()?"":detail+" · ")+"נותרו "+shownAmount+" מתוך "+product.amount;
+        Ui.bindProduct(card.views,product.name,detail,shownAmount,done);
+        if(displayMode==0)card.views.note.setVisibility(View.GONE);
+        if(imageMode&&findProductCard(getCurrentFocus())==card)Ui.setImageFocus(this,card.views,true);
+    }
+    private ProductCard createPartialProductCard(ProductRow product){
+        Ui.CardViews views=Ui.productCard(this,displayMode);ProductCard card=new ProductCard(views,product);
+        views.root.setFocusable(false);views.root.setFocusableInTouchMode(false);views.root.setTag("partial:"+product.key);
+        if(displayMode!=0){if(!product.imagePath.isEmpty())loadLegacyProductImage(product,views.image);
+            else if(!product.imageUrl.isEmpty())loadProductImage(product.imageUrl,views.image);else views.image.setImageResource(android.R.drawable.ic_menu_gallery);}
+        View.OnClickListener undo=v->applyPartialCollection(product.key,0);
+        views.root.setOnClickListener(undo);views.name.setOnClickListener(undo);views.note.setOnClickListener(undo);views.amount.setOnClickListener(undo);
+        View.OnLongClickListener edit=v->{showPartialCollectionDialog(product.key);return true;};
+        views.root.setOnLongClickListener(edit);views.name.setOnLongClickListener(edit);views.note.setOnLongClickListener(edit);views.amount.setOnLongClickListener(edit);
+        views.image.setOnClickListener(v->openProductImage(card));views.image.setOnLongClickListener(edit);views.image.setFocusable(false);
+        return card;
+    }
+    private void bindPartialProductCard(ProductCard card,ProductRow product,double quantity){
+        card.product=product;String detail=(product.note==null||product.note.isEmpty()?"":product.note+" · ")+"נאספו חלקית · הקשה להחזרה";
+        Ui.bindProduct(card.views,product.name,detail,formatQuantity(quantity),true);
+        card.views.name.setPaintFlags(card.views.name.getPaintFlags()&~Paint.STRIKE_THRU_TEXT_FLAG);
+        card.views.name.setTextColor(Ui.INK);card.views.amount.setTextColor(Ui.P800);card.views.image.setAlpha(1f);
+    }
+    private int partialInsertionIndex(ProductRow product){
+        int index=0;for(ProductRow candidate:products){if(candidate.key.equals(product.key))break;
+            if(matchesSearch(candidate)&&(collected.contains(candidate.key)||collectedQuantity(candidate)>0))index++;}
+        return Math.min(index,collectedList.getChildCount());
     }
 
     private void loadCombinedSnapshot() {
@@ -3103,7 +3160,7 @@ public class MainActivity extends Activity {
         products.clear();
         collected.clear();
         partialCollected.clear();
-        productCards.clear();
+        productCards.clear();partialCards.clear();
         orderData = null;
         currentOrderId = "";
         // Keep the URL-keyed bitmap cache across account switches and list rebuilds.
