@@ -11,6 +11,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -31,9 +32,37 @@ final class SavedListStore {
     }
 
     private final File root;
+    private final File imageRoot;
     SavedListStore(Context context) {
-        root = new File(context.getApplicationContext().getFilesDir(), "saved_lists");
+        File files=context.getApplicationContext().getFilesDir();
+        root = new File(files, "saved_lists");
+        imageRoot = new File(files, "saved_list_images");
         if (!root.exists()) root.mkdirs();
+        if (!imageRoot.exists()) imageRoot.mkdirs();
+    }
+
+    synchronized String cacheImage(File source) {
+        if(source==null||!source.isFile()||source.length()<=0)return "";
+        try{
+            String name=source.getName();int dot=name.lastIndexOf('.');
+            String ext=dot>=0?name.substring(dot+1).toLowerCase(java.util.Locale.ROOT):"jpg";
+            if(!ext.matches("jpg|jpeg|png|webp"))ext="jpg";
+            MessageDigest digest=MessageDigest.getInstance("SHA-256");
+            try(FileInputStream in=new FileInputStream(source)){
+                byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)digest.update(buffer,0,n);
+            }
+            StringBuilder hex=new StringBuilder();
+            for(byte b:digest.digest())hex.append(String.format(java.util.Locale.ROOT,"%02x",b&0xff));
+            File target=new File(imageRoot,"local_"+hex+"."+ext);
+            if(target.isFile()&&target.length()>0)return target.getAbsolutePath();
+            File temp=new File(imageRoot,target.getName()+".tmp");
+            try(FileInputStream in=new FileInputStream(source);FileOutputStream out=new FileOutputStream(temp)){
+                byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);out.getFD().sync();
+            }
+            if(target.exists()&&!target.delete()){temp.delete();return "";}
+            if(!temp.renameTo(target)){temp.delete();return "";}
+            return target.getAbsolutePath();
+        }catch(Exception e){return "";}
     }
 
     synchronized boolean archive(String sourceId, String sourceLabel, File orderFile,
@@ -46,7 +75,14 @@ final class SavedListStore {
             JSONArray products=data.optJSONArray("products");
             if(products!=null)for(int i=0;i<products.length();i++){
                 JSONObject product=products.optJSONObject(i);
-                if(product!=null)product.put("image_file","");
+                if(product!=null){
+                    String imagePath=product.optString("image_file","");
+                    if(!imagePath.isEmpty()){
+                        File image=new File(imagePath);
+                        if(!image.isAbsolute())image=new File(orderFile.getParentFile(),imagePath);
+                        product.put("image_file",cacheImage(image));
+                    }
+                }
             }
             String owner=data.optString("owner","");
             String ownerKey=owner.isEmpty()?"noowner":owner.substring(0,Math.min(12,owner.length()));
@@ -106,11 +142,6 @@ final class SavedListStore {
             data.remove("_archived_at");
             data.remove("_collected_ticks");
             data.remove("_partial_quantities");
-            JSONArray items=data.optJSONArray("products");
-            if(items!=null)for(int i=0;i<items.length();i++){
-                JSONObject item=items.optJSONObject(i);
-                if(item!=null)item.put("image_file","");
-            }
             if (!cacheRoot.exists() && !cacheRoot.mkdirs()) return false;
             File temp = new File(cacheRoot, "order.json.tmp");
             File target = new File(cacheRoot, "order.json");
