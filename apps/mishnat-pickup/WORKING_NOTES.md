@@ -67,3 +67,8 @@
 - `CHANGELOG.md` — היסטוריית גרסאות בעברית, החדש ראשון.
 - `LIST_WORKSPACE_ARCHITECTURE.md` — תכנון מערכת הרשימות והיסטוריית ההזמנות.
 - `AUDIO_LICENSE.md` — רישיון צליל הניצחון.
+
+## שיתוף בענן
+- שרת: `cloud/Code.gs` (Apps Script שמחובר לגיליון). מספרים 1..1000, תוקף 7 ימים, שורה קבועה לכל מספר בלשונית `lists`, LockService בהקצאה, ועד 15 העלאות למכשיר בכל 6 שעות.
+- אפליקציה: `CloudShare.java`. POST text/plain, וההפניה 302 של גוגל מטופלת ידנית ב-GET. הבאה עוברת דרך `importInput` (פורמט mishnat-pickup-list).
+- כתובת ברירת המחדל: `CloudShare.DEFAULT_URL` (ריקה עד הפריסה). עקיפה בהגדרות נשמרת במפתח `cloud_url`.

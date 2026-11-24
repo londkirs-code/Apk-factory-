@@ -190,6 +190,7 @@ final class Ui {
      * "סגירה" ו"ביטול" נשארים בלי אימוג׳י, כי הם מוחלפים אוטומטית בכפתור X.
      */
     private static final String[][] BUTTON_EMOJI = {
+            {"בענן", "☁️"}, {"מהענן", "☁️"}, {"שרת הענן", "☁️"}, {"שליחת המספר", "📨"},
             {"חזרה להזמנה העדכנית", "🛒"}, {"ההזמנה העדכנית", "🛒"}, {"חזרה להגדרות", "⚙️"},
             {"ייבוא הזמנה", "🕘"}, {"הזמנות קודמות", "🕘"}, {"הוספת ההזמנה", "🧾"},
             {"התחבר מחדש", "🔑"}, {"התנתק", "🚪"}, {"התחבר", "🔐"}, {"ניהול חיבורים", "👥"},
@@ -256,7 +257,7 @@ final class Ui {
     static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
             IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
             IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13, IC_MORE=14,
-            IC_PLUS=15, IC_MERGE=16;
+            IC_PLUS=15, IC_MERGE=16, IC_CLOUD=17;
 
     static final class IconDrawable extends Drawable {
         private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -322,6 +323,14 @@ final class Ui {
                     canvas.drawPath(path,stroke);
                     path.reset(); path.moveTo(9f,18f); path.lineTo(12f,21f); path.lineTo(15f,18f);
                     canvas.drawPath(path,stroke); break;
+                case IC_CLOUD:
+                    path.reset();
+                    path.moveTo(7f,18.5f); path.lineTo(17.5f,18.5f);
+                    path.cubicTo(20.8f,18.5f,21.6f,14f,18.6f,12.8f);
+                    path.cubicTo(18.4f,8.6f,13.6f,7f,11.4f,9.8f);
+                    path.cubicTo(9.2f,7.4f,5.2f,8.8f,5.6f,12.4f);
+                    path.cubicTo(2.6f,13.2f,3.2f,18.5f,7f,18.5f);
+                    path.close(); canvas.drawPath(path,stroke); break;
                 case IC_MORE:
                     canvas.drawCircle(12f,5.5f,1.9f,fill); canvas.drawCircle(12f,12f,1.9f,fill);
                     canvas.drawCircle(12f,18.5f,1.9f,fill); break;

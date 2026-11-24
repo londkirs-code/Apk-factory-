@@ -447,6 +447,10 @@ public class MainActivity extends Activity {
         Button importOffline = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
         importOffline.setOnClickListener(v -> openImportPicker());
         root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
+        // גם בלי חשבון אפשר להביא רשימה שמישהו שיתף בענן.
+        Button cloudFetch = Ui.button(this, "הבאה מהענן לפי מספר", Ui.Kind.SOFT);
+        cloudFetch.setOnClickListener(v -> showCloudFetchDialog());
+        root.addView(cloudFetch, Ui.row(this, Ui.S2, Ui.S2));
         if (sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
             Button connections = Ui.button(this, returnToSettings ? "חזרה להגדרות" : "ניהול חיבורים", Ui.Kind.SOFT);
             connections.setOnClickListener(v -> { loginReturnToSettings = false; showAccountsScreen(); });
@@ -1796,7 +1800,8 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• פס התקדמות האיסוף מתמלא מימין לשמאל.\n"
+            "• שיתוף בענן: כל רשימה מקבלת מספר (1 עד 1000) לשבוע, ומכל מכשיר אפשר להביא אותה לפי המספר. רק המוצרים משותפים, בלי שמות חשבונות.\n"
+            + "• פס התקדמות האיסוף מתמלא מימין לשמאל.\n"
             + "• רשימת \"נאספו\" פשוטה: לפי א-ב, בלי כותרות מחלקה.\n"
             + "• בהגדרות אפשר לבטל את כותרות המחלקה. המוצרים נשארים מסודרים לפי מחלקות ועם הצבעים, ברצף אחד.\n"
             + "• אפליקציה קלה יותר: האייקון החדש שוקל כ-19KB בלבד.\n"
@@ -1906,6 +1911,11 @@ public class MainActivity extends Activity {
         Button importFolder = Ui.button(this, "מתיקיית import", Ui.Kind.SOFT);
         importFolder.setOnClickListener(v -> showImportFolder());
         data.addView(buttonPair(importFile, importFolder), Ui.row(this, Ui.S1, Ui.S1));
+        Button cloudServer = Ui.button(this, "כתובת שרת הענן", Ui.Kind.SOFT);
+        cloudServer.setOnClickListener(v -> showCloudServerDialog());
+        data.addView(cloudServer, Ui.row(this, Ui.S1, 0));
+        data.addView(Ui.text(this, cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר",
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, 2, Ui.S1));
         Button clearImages = Ui.button(this, "מחיקת מטמון התמונות", Ui.Kind.SOFT);
         clearImages.setOnClickListener(v -> confirmClearImageCache());
         data.addView(clearImages, Ui.row(this, Ui.S1, 0));
@@ -2444,7 +2454,9 @@ public class MainActivity extends Activity {
         Button mergeLists=Ui.tile(this,Ui.IC_MERGE,"איחוד");
         mergeLists.setEnabled(entries.size()>=2);
         mergeLists.setOnClickListener(v->showMergeListsDialog());
-        top.addView(tileRow(history,create,mergeLists),Ui.row(this,0,0));
+        Button cloudTile=Ui.tile(this,Ui.IC_CLOUD,"מהענן");
+        cloudTile.setOnClickListener(v->showCloudFetchDialog());
+        top.addView(tileRow(history,create,mergeLists,cloudTile),Ui.row(this,0,0));
         root.addView(top,new LinearLayout.LayoutParams(-1,-2));
 
         LinearLayout content=Ui.column(this);
@@ -2493,6 +2505,7 @@ public class MainActivity extends Activity {
         addSourceAction(panel, dialog, "שינוי שם", () -> showRenameDialog(entry.owner, entry.orderId,
                 displayTitle(entry), entry.title, afterRename));
         addSourceAction(panel, dialog, "מיזוג לתוך רשימה אחרת", () -> showMergeTargetDialog(entry));
+        addSourceAction(panel, dialog, "שיתוף בענן (מספר לשבוע)", () -> shareListToCloud(entry));
         addSourceAction(panel, dialog, "ייצוא לקובץ TXT", () -> exportSavedList(entry));
         addSourceAction(panel, dialog, "מחיקה מהרשימות השמורות", () -> showModernConfirm("מחיקת רשימה שמורה",
                 "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
@@ -2506,6 +2519,7 @@ public class MainActivity extends Activity {
         if (!connectedAccounts().isEmpty())
             addSourceAction(panel, dialog, "הזמנות קודמות מהאתר", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
         addSourceAction(panel, dialog, "יצירת רשימה חדשה", this::createNewSavedList);
+        addSourceAction(panel, dialog, "הבאה מהענן לפי מספר", this::showCloudFetchDialog);
         if (savedListStore.list().size() >= 2)
             addSourceAction(panel, dialog, "איחוד רשימות", this::showMergeListsDialog);
         addSourceAction(panel, dialog, "כל הרשימות השמורות", () -> showSavedListsScreen(Screen.HOME));
@@ -2797,9 +2811,11 @@ public class MainActivity extends Activity {
         Button merge = Ui.tile(this, Ui.IC_MERGE, "איחוד");
         merge.setEnabled(entries.size() >= 2);
         merge.setOnClickListener(v -> { dialog.dismiss(); showMergeListsDialog(); });
+        Button cloud = Ui.tile(this, Ui.IC_CLOUD, "מהענן");
+        cloud.setOnClickListener(v -> { dialog.dismiss(); showCloudFetchDialog(); });
         Button settings = Ui.tile(this, Ui.IC_SETTINGS, "הגדרות");
         settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
-        panel.addView(tileRow(history, create, merge, settings), Ui.row(this, Ui.S2, 0));
+        panel.addView(tileRow(history, create, merge, cloud, settings), Ui.row(this, Ui.S2, 0));
 
         if (showingSavedList && !connectedAccounts().isEmpty()) {
             Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
@@ -3060,6 +3076,162 @@ public class MainActivity extends Activity {
             refreshSavedListsScreen();Toast.makeText(this,"נוצרה רשימה חדשה.",Toast.LENGTH_LONG).show();
         } catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();}
     }
+    // ---- שיתוף בענן: מספר אקראי 1-1000 לכל רשימה, בתוקף 7 ימים (השרת: cloud/Code.gs) ----
+
+    private static final String PREF_CLOUD_URL = "cloud_url", PREF_CLOUD_DEVICE = "cloud_device";
+
+    private String cloudUrl() {
+        String custom = uiPreferences == null ? "" : uiPreferences.getString(PREF_CLOUD_URL, "");
+        return custom != null && !custom.trim().isEmpty() ? custom.trim() : CloudShare.DEFAULT_URL;
+    }
+
+    /** מזהה אקראי של המכשיר, רק כדי שהשרת יגביל הצפה. השרת שומר רק גיבוב שלו. */
+    private String cloudDeviceId() {
+        String id = uiPreferences.getString(PREF_CLOUD_DEVICE, "");
+        if (id == null || id.isEmpty()) {
+            id = java.util.UUID.randomUUID().toString();
+            uiPreferences.edit().putString(PREF_CLOUD_DEVICE, id).apply();
+        }
+        return id;
+    }
+
+    private void shareListToCloud(SavedListStore.Entry entry) {
+        final String title = displayTitle(entry), server = cloudUrl(), device = cloudDeviceId();
+        Toast.makeText(this, "מעלה את הרשימה לענן…", Toast.LENGTH_SHORT).show();
+        network.execute(() -> {
+            try {
+                JSONObject data = savedListStore.readEntry(entry.id);
+                JSONObject payload = CloudShare.buildPayload(title, data.optJSONArray("products"));
+                CloudShare.Uploaded uploaded = CloudShare.upload(server, payload, device);
+                mainHandler.post(() -> showCloudUploaded(uploaded, title));
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
+            }
+        });
+    }
+
+    private void showCloudUploaded(CloudShare.Uploaded uploaded, String title) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "הרשימה שותפה בענן", Ui.T_NAME, Ui.P900, true));
+        TextView number = Ui.text(this, String.valueOf(uploaded.number), Ui.T_TITLE * 2, Ui.P700, true);
+        number.setGravity(Gravity.CENTER);
+        panel.addView(number, Ui.row(this, Ui.S3, 0));
+        String until = uploaded.expiresAt > 0
+                ? new SimpleDateFormat("dd/MM בשעה HH:mm", Locale.getDefault()).format(new Date(uploaded.expiresAt))
+                : "שבוע מהיום";
+        TextView details = Ui.text(this, "מספר הרשימה \"" + title + "\". בתוקף עד " + until
+                + ".\nכל מי שמקליד את המספר ב\"הבאה מהענן\" יקבל עותק של הרשימה. שמות החשבונות והמשפחות לא שותפו.",
+                Ui.T_BODY, Ui.INK, false);
+        details.setGravity(Gravity.CENTER);
+        panel.addView(details, Ui.row(this, Ui.S2, Ui.S3));
+        Button share = Ui.button(this, "שליחת המספר", Ui.Kind.PRIMARY);
+        share.setOnClickListener(v -> {
+            dialog.dismiss();
+            try {
+                Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(Intent.EXTRA_TEXT, "רשימת האיסוף \"" + title + "\" במשנת אוסף: מספר "
+                                + uploaded.number + " (הבאה מהענן, בתוקף עד " + until + ")");
+                startActivity(Intent.createChooser(send, "שליחת מספר הרשימה"));
+            } catch (Exception e) { Toast.makeText(this, "לא נמצאה אפליקציה לשליחה.", Toast.LENGTH_LONG).show(); }
+        });
+        panel.addView(share);
+        Button close = Ui.button(this, "סגירה", Ui.Kind.SOFT);
+        close.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(close, Ui.row(this, Ui.S1, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        share.requestFocus();
+    }
+
+    private void showCloudFetchDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "הבאה מהענן", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "הקלידו את מספר הרשימה ששותפה (1 עד 1000).", Ui.T_NOTE, Ui.MUTED, false),
+                Ui.row(this, Ui.S1, 0));
+        EditText input = createLoginInput("מספר הרשימה", InputType.TYPE_CLASS_NUMBER);
+        input.setGravity(Gravity.CENTER);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4)});
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        panel.addView(input, Ui.row(this, Ui.S3, Ui.S3));
+        Button fetch = Ui.button(this, "הבאת הרשימה", Ui.Kind.PRIMARY);
+        Runnable run = () -> {
+            int number;
+            try { number = Integer.parseInt(input.getText().toString().trim()); } catch (Exception e) { number = 0; }
+            if (number < CloudShare.MIN_NUMBER || number > CloudShare.MAX_NUMBER) {
+                input.setError("מספר בין 1 ל-1000");
+                return;
+            }
+            hideKeyboard(input);
+            dialog.dismiss();
+            fetchCloudList(number);
+        };
+        fetch.setOnClickListener(v -> run.run());
+        input.setOnEditorActionListener((v, actionId, event) -> { run.run(); return true; });
+        panel.addView(fetch);
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        cancel.setOnClickListener(v -> { hideKeyboard(input); dialog.dismiss(); });
+        panel.addView(cancel, Ui.row(this, Ui.S1, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        input.requestFocus();
+    }
+
+    /** הרשימה מהשרת עוברת במסלול הייבוא הרגיל: חלון סיכום ואז שמירה כרשימה או כמקור. */
+    private void fetchCloudList(int number) {
+        final String server = cloudUrl();
+        Toast.makeText(this, "מביא את רשימה " + number + "…", Toast.LENGTH_SHORT).show();
+        network.execute(() -> {
+            try {
+                CloudShare.Fetched fetched = CloudShare.fetch(server, number);
+                byte[] bytes = CloudShare.prepareForImport(fetched).toString().getBytes(StandardCharsets.UTF_8);
+                mainHandler.post(() -> importInput(new java.io.ByteArrayInputStream(bytes)));
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("ההבאה לא הצליחה", error));
+            }
+        });
+    }
+
+    private void showCloudServerDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "כתובת שרת הענן", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "כתובת Apps Script שמסתיימת ב-/exec. השאירו ריק לשרת ברירת המחדל.",
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, 0));
+        EditText input = createLoginInput("https://script.google.com/macros/s/…/exec",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        input.setTextDirection(View.TEXT_DIRECTION_LTR);
+        input.setText(uiPreferences.getString(PREF_CLOUD_URL, ""));
+        panel.addView(input, Ui.row(this, Ui.S3, Ui.S3));
+        Button save = Ui.button(this, "שמירה", Ui.Kind.PRIMARY);
+        save.setOnClickListener(v -> {
+            String value = input.getText().toString().trim();
+            if (!value.isEmpty() && !value.startsWith("https://")) { input.setError("הכתובת צריכה להתחיל ב-https://"); return; }
+            uiPreferences.edit().putString(PREF_CLOUD_URL, value).apply();
+            hideKeyboard(input);
+            dialog.dismiss();
+            showActionToast(value.isEmpty() ? "חזרה לשרת ברירת המחדל" : "כתובת השרת נשמרה");
+            showSettingsScreen();
+        });
+        panel.addView(save);
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        cancel.setOnClickListener(v -> { hideKeyboard(input); dialog.dismiss(); });
+        panel.addView(cancel, Ui.row(this, Ui.S1, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        input.requestFocus();
+    }
+
     private void exportSavedList(SavedListStore.Entry entry) {
         try {
             Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
