@@ -188,6 +188,110 @@ final class SavedListStore {
         }catch(Exception e){return "";}
     }
 
+    /**
+     * Merge the contents of one archived order into another saved list.
+     * The target identity is retained; source archive is intentionally preserved.
+     * Existing collection ticks remain valid only for rows whose quantity did not change.
+     */
+    synchronized boolean mergeEntries(String targetId,String sourceId) {
+        if(targetId==null||sourceId==null||targetId.equals(sourceId))return false;
+        try {
+            JSONObject target=readEntry(targetId);
+            JSONObject source=readEntry(sourceId);
+            JSONArray targetRows=target.optJSONArray("products");
+            JSONArray sourceRows=source.optJSONArray("products");
+            if(targetRows==null)targetRows=new JSONArray();
+            if(sourceRows==null||sourceRows.length()==0)return false;
+            JSONArray merged=new JSONArray();
+            java.util.Map<String,Integer> positions=new java.util.LinkedHashMap<>();
+            java.util.Set<String> changed=new java.util.HashSet<>();
+            for(int i=0;i<targetRows.length();i++) {
+                JSONObject row=targetRows.optJSONObject(i);
+                if(row==null)continue;
+                JSONObject copy=new JSONObject(row.toString());
+                String key=mergeKey(copy);
+                if(!key.isEmpty()&&!positions.containsKey(key))positions.put(key,merged.length());
+                merged.put(copy);
+            }
+            for(int i=0;i<sourceRows.length();i++) {
+                JSONObject incoming=sourceRows.optJSONObject(i);
+                if(incoming==null)continue;
+                JSONObject copy=new JSONObject(incoming.toString());
+                String key=mergeKey(copy);
+                Integer at=key.isEmpty()?null:positions.get(key);
+                if(at==null) {
+                    if(!key.isEmpty())positions.put(key,merged.length());
+                    merged.put(copy);
+                    continue;
+                }
+                JSONObject existing=merged.optJSONObject(at);
+                if(existing==null){merged.put(at,copy);continue;}
+                double before=parseAmount(existing.optString("amount","1"));
+                double add=parseAmount(copy.optString("amount","1"));
+                double total=before+add;
+                if(Double.isNaN(total)||Double.isInfinite(total)||total<=0)
+                    throw new Exception("כמות לא תקינה במהלך מיזוג הרשימות.");
+                if(Math.abs(total-before)>0.000001) {
+                    existing.put("amount",formatAmount(total));
+                    changed.add(existing.optString("key",key));
+                }
+                String note=existing.optString("note","");
+                String incomingNote=copy.optString("note","");
+                if(!incomingNote.isEmpty()&&!note.contains(incomingNote))
+                    existing.put("note",note.isEmpty()?incomingNote:note+" · "+incomingNote);
+            }
+            target.put("products",merged);
+            target.remove("fingerprint");
+            target.put("fingerprint_version",2);
+            target.put("_archived_at",System.currentTimeMillis());
+            String targetName=target.optString("order_name","רשימה");
+            String sourceName=source.optString("order_name","רשימה נוספת");
+            if(!sourceName.isEmpty()&&!targetName.contains(sourceName))
+                target.put("order_name",(targetName+" + "+sourceName).substring(0,Math.min(240,(targetName+" + "+sourceName).length())));
+            JSONArray origins=target.optJSONArray("_merged_sources");
+            if(origins==null)origins=new JSONArray();
+            JSONObject origin=new JSONObject().put("order_id",source.optString("order_id",""))
+                    .put("order_name",sourceName).put("merged_at",System.currentTimeMillis());
+            origins.put(origin);target.put("_merged_sources",origins);
+
+            if(!changed.isEmpty()) {
+                JSONObject partial;
+                try{partial=new JSONObject(target.optString("_partial_quantities","{}"));}
+                catch(Exception ignored){partial=new JSONObject();}
+                for(String key:changed)partial.remove(key);
+                target.put("_partial_quantities",partial.toString());
+            }
+            File file=fileFor(targetId);
+            return writeAtomic(file,target);
+        } catch(Exception e) { return false; }
+    }
+
+    private static String mergeKey(JSONObject row) {
+        String key=row.optString("key","").trim();
+        if(!key.isEmpty())return key;
+        return row.optString("name","").trim().toLowerCase(java.util.Locale.ROOT);
+    }
+    private static double parseAmount(String value) throws Exception {
+        try {
+            double amount=Double.parseDouble(value==null?"1":value.replace(',','.'));
+            if(Double.isNaN(amount)||Double.isInfinite(amount)||amount<=0)throw new Exception();
+            return amount;
+        } catch(Exception e) { throw new Exception("כמות מוצר אינה תקינה."); }
+    }
+    private static String formatAmount(double value) {
+        if(Math.abs(value-Math.rint(value))<0.000001)return String.valueOf((long)Math.rint(value));
+        return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+    private static boolean writeAtomic(File target,JSONObject data) {
+        File temp=new File(target.getParentFile(),target.getName()+".tmp");
+        try(FileOutputStream out=new FileOutputStream(temp)) {
+            out.write(data.toString().getBytes(StandardCharsets.UTF_8));out.getFD().sync();
+        } catch(Exception e) { temp.delete();return false; }
+        if(target.exists()&&!target.delete()){temp.delete();return false;}
+        if(!temp.renameTo(target)){temp.delete();return false;}
+        return true;
+    }
+
     synchronized boolean delete(String id) {
         File file = fileFor(id);
         return !file.exists() || file.delete();
