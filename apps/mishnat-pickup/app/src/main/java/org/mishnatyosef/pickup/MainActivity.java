@@ -1411,8 +1411,14 @@ public class MainActivity extends Activity {
         button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22);
         button.setContentDescription(description);
         button.setEnabled(!syncAllRunning);
-        button.setBackground(Ui.shape(this, active ? Ui.P200 : Ui.SURFACE,
-                Ui.R_BUTTON, active ? 2 : 1, active ? Ui.P600 : Ui.P200));
+        // Use the same focus/pressed treatment as every other action button.
+        // This prevents the platform's default dark focus rectangle during keyboard navigation.
+        button.setBackground(Ui.interactive(this,
+                active ? Ui.P200 : Ui.SURFACE,
+                active ? Ui.P600 : Ui.P200,
+                active ? Ui.P200 : Ui.P100,
+                active ? Ui.P900 : Ui.P700,
+                Ui.R_BUTTON));
         button.setTextColor(active ? Ui.P800 : Ui.MUTED);
         button.setOnClickListener(v -> {
             if (syncAllRunning) return;
