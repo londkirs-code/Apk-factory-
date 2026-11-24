@@ -52,3 +52,7 @@ requested_at=2026-11-24T09:26:00+02:00
 
 Fix intermittent product taps: explicitly route clicks from name/note/amount, keep image zoom tap, prevent touch from shifting keyboard focus, and allow long-press partial collection only when product quantity exceeds 1.
 requested_at=2026-11-24T09:45:00+02:00
+
+
+Release 1.58: partial quantities displayed as separate collected cards; SeekBar quantity selection; display scale slider; saved-list top alignment and compact arrow back; weighted three-column card grid.
+requested_at=2026-11-24T12:00:00+02:00
