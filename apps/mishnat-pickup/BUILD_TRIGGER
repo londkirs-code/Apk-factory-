@@ -25,3 +25,6 @@ requested_at=2026-11-24T06:50:00+02:00
 
 Saved-list archive, search, partial collection (touch long-press / key 5), optional sound and vibration, six display modes.
 requested_at=2026-11-24T07:42:00+02:00
+
+Fix GridLayout/ViewGroup child insertion and rerun signed release build.
+requested_at=2026-11-24T08:15:00+02:00
