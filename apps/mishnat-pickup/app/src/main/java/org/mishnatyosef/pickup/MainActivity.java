@@ -180,6 +180,31 @@ public class MainActivity extends Activity {
     private ViewTreeObserver.OnGlobalFocusChangeListener imageFocusListener;
     private final Runnable dismissCelebrationTask = this::dismissCelebration;
 
+    @Override public void onContentChanged() {
+        super.onContentChanged();
+        getWindow().getDecorView().post(() -> installActionToasts(getWindow().getDecorView()));
+    }
+
+    private void installActionToasts(View view) {
+        if (view instanceof Button && !(view instanceof CheckBox)) {
+            Button button = (Button) view;
+            button.setOnTouchListener((v, event) -> {
+                if (event.getAction() == android.view.MotionEvent.ACTION_UP && button.isEnabled()) {
+                    String label = button.getText() == null ? "" : button.getText().toString().trim();
+                    String message = "איפוס ליקוט".equals(button.getContentDescription())
+                            ? "נפתחה בקשת אישור לאיפוס הליקוט"
+                            : (label.isEmpty() ? "הפעולה נבחרה" : "נבחר: " + label);
+                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                }
+                return false;
+            });
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) installActionToasts(group.getChildAt(i));
+        }
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         imageViewer = new ImageViewerOverlay(this, imageLoader);
@@ -1228,7 +1253,10 @@ public class MainActivity extends Activity {
         retryButton = sync;
         content.addView(sync);
 
-        content.addView(Ui.section(this, "פעולות ברשימה"));
+        content.addView(Ui.section(this, "רשימות ופעולות"));
+        Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.SOFT);
+        savedLists.setOnClickListener(v -> showSavedListsScreen());
+        content.addView(savedLists);
         content.addView(buildHomeActions());
         Button importFile = Ui.button(this, "ייבוא קובץ (ZIP / JSON / TXT)", Ui.Kind.SOFT);
         importFile.setOnClickListener(v -> openImportPicker());
@@ -1444,9 +1472,6 @@ public class MainActivity extends Activity {
         input.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2));
         input.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_BUTTON,1,Ui.P200));input.setText(searchQuery);
         row.addView(input,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1f));
-        Button saved=Ui.button(this,"רשימות שמורות",Ui.Kind.SOFT);saved.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,14);
-        LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(-2,Ui.dp(this,48));savedLp.setMargins(Ui.dp(this,Ui.S2),0,0,0);
-        row.addView(saved,savedLp);saved.setOnClickListener(v->showSavedListsScreen());
         input.addTextChangedListener(new TextWatcher(){
             @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
             @Override public void onTextChanged(CharSequence s,int start,int before,int count){searchQuery=s==null?"":s.toString();renderProducts(false);}
@@ -1470,7 +1495,7 @@ public class MainActivity extends Activity {
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){current.setText(labels[progress]);}
             @Override public void onStartTrackingTouch(SeekBar bar){}
-            @Override public void onStopTrackingTouch(SeekBar bar){apply.run();}
+            @Override public void onStopTrackingTouch(SeekBar bar){apply.run();Toast.makeText(MainActivity.this, "הגדרת התצוגה נשמרה", Toast.LENGTH_SHORT).show();}
         });
         slider.setOnKeyListener((v,keyCode,event)->{
             if(event.getAction()==KeyEvent.ACTION_DOWN&&(keyCode==KeyEvent.KEYCODE_DPAD_LEFT||keyCode==KeyEvent.KEYCODE_DPAD_RIGHT
@@ -1506,8 +1531,10 @@ public class MainActivity extends Activity {
         option.setTextColor(Ui.INK);
         option.setChecked(uiPreferences.getBoolean(key, legacyDefault));
         if (Build.VERSION.SDK_INT >= 21) option.setButtonTintList(Ui.tint(Ui.P600));
-        option.setOnCheckedChangeListener((button, checked) ->
-                uiPreferences.edit().putBoolean(key, checked).apply());
+        option.setOnCheckedChangeListener((button, checked) -> {
+            uiPreferences.edit().putBoolean(key, checked).apply();
+            Toast.makeText(this, label + (checked ? " הופעל" : " כובה"), Toast.LENGTH_SHORT).show();
+        });
         content.addView(option, Ui.row(this, top, bottom));
     }
 
@@ -1517,24 +1544,51 @@ public class MainActivity extends Activity {
         String soundKey = completed ? "feedback_completion_sound" : "feedback_item_sound";
         boolean legacyVibration = uiPreferences.getBoolean("feedback_vibration", false);
         boolean legacySound = uiPreferences.getBoolean("feedback_sound", false);
-        if (uiPreferences.getBoolean(vibrationKey, legacyVibration)) try {
-            Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-            if (vibrator != null && vibrator.hasVibrator()) {
-                long duration = completed ? 520L : 65L;
-                if (Build.VERSION.SDK_INT >= 26) {
-                    int amplitude = completed ? android.os.VibrationEffect.DEFAULT_AMPLITUDE : 110;
-                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(duration, amplitude));
-                } else vibrator.vibrate(duration);
+
+        if (uiPreferences.getBoolean(vibrationKey, legacyVibration)) {
+            try {
+                Vibrator vibrator = null;
+                if (Build.VERSION.SDK_INT >= 31) {
+                    android.os.VibratorManager manager =
+                            (android.os.VibratorManager) getSystemService(VIBRATOR_MANAGER_SERVICE);
+                    if (manager != null) vibrator = manager.getDefaultVibrator();
+                }
+                if (vibrator == null) vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                if (vibrator != null) {
+                    long duration = completed ? 650L : 120L;
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(
+                                duration, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        vibrator.vibrate(duration);
+                    }
+                }
+            } catch (Exception error) {
+                android.util.Log.w("MishnatPickup", "Vibration feedback failed", error);
             }
-        } catch (Exception ignored) { }
-        if (uiPreferences.getBoolean(soundKey, legacySound)) try {
-            ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, completed ? 90 : 85);
-            int toneType = completed ? ToneGenerator.TONE_PROP_ACK
-                    : (added ? ToneGenerator.TONE_PROP_ACK : ToneGenerator.TONE_PROP_NACK);
-            int duration = completed ? 520 : (added ? 115 : 155);
-            tone.startTone(toneType, duration);
-            mainHandler.postDelayed(tone::release, duration + 80L);
-        } catch (Exception ignored) { }
+        }
+
+        if (uiPreferences.getBoolean(soundKey, legacySound)) {
+            try {
+                final int duration = completed ? 650 : (added ? 180 : 230);
+                final int toneType = completed ? ToneGenerator.TONE_PROP_ACK
+                        : (added ? ToneGenerator.TONE_PROP_BEEP2 : ToneGenerator.TONE_PROP_NACK);
+                // Use the media stream: notification volume may be muted independently
+                // even when the device's audible media volume is available.
+                ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 100);
+                boolean started = tone.startTone(toneType, duration);
+                if (!started) {
+                    tone.release();
+                    ToneGenerator fallback = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100);
+                    fallback.startTone(toneType, duration);
+                    mainHandler.postDelayed(fallback::release, duration + 120L);
+                } else {
+                    mainHandler.postDelayed(tone::release, duration + 120L);
+                }
+            } catch (Exception error) {
+                android.util.Log.w("MishnatPickup", "Sound feedback failed", error);
+            }
+        }
     }
     private double remainingQuantity(ProductRow product) {
         if(product==null||collected.contains(product.key))return 0;
@@ -1712,7 +1766,6 @@ public class MainActivity extends Activity {
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
                 Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2));
         header.addView(buildHomeTitleRow());
-        header.addView(buildSearchRow(), Ui.row(this, Ui.S2, 0));
         imageModeHint = null;
         header.addView(buildProgressCard(), Ui.row(this, Ui.S2, 0));
         return header;
@@ -1732,7 +1785,13 @@ public class MainActivity extends Activity {
 
         resetButton = Ui.button(this, "↻", Ui.Kind.SOFT);
         resetButton.setContentDescription("איפוס ליקוט");
-        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 28);
+        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
+        resetButton.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        resetButton.setIncludeFontPadding(false);
+        resetButton.setGravity(Gravity.CENTER);
+        resetButton.setPadding(0, 0, 0, 0);
+        resetButton.setMinWidth(0);
+        resetButton.setMinimumWidth(0);
         resetButton.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
         resetButton.setOnClickListener(v -> confirmResetCollection());
         LinearLayout.LayoutParams resetParams = (LinearLayout.LayoutParams) resetButton.getLayoutParams();
@@ -1899,7 +1958,8 @@ public class MainActivity extends Activity {
                 Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
         page.setFocusable(false);
 
-        // מסך הבית נשאר ממוקד ברשימת האיסוף; פרטי העדכון מוצגים בהגדרות.
+        // החיפוש נע בתוך אזור הגלילה יחד עם הרשימה; הכותרת וההתקדמות נשארות נגישות.
+        page.addView(buildSearchRow(), Ui.row(this, 0, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
         page.addView(messageText);
