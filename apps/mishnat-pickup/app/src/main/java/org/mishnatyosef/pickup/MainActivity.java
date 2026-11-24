@@ -1100,9 +1100,25 @@ public class MainActivity extends Activity {
         if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו.", false); return; }
         accountsScreenVisible = true;
         LinearLayout content = Ui.screen(this);
-        content.addView(Ui.title(this, "הגדרות"));
-        content.addView(Ui.text(this, "כל הפעולות והניהול במקום אחד", Ui.T_NOTE, Ui.MUTED, false),
-                Ui.row(this, 0, Ui.S3));
+        LinearLayout settingsHeader = new LinearLayout(this);
+        settingsHeader.setGravity(Gravity.CENTER_VERTICAL);
+        settingsHeader.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView settingsTitle = Ui.text(this, "הגדרות", Ui.T_TITLE, Ui.P900, true);
+        settingsHeader.addView(settingsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
+        Button closeSettings = Ui.button(this, "×", Ui.Kind.SOFT);
+        closeSettings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 27);
+        closeSettings.setContentDescription("סגירת ההגדרות");
+        closeSettings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+        closeSettings.setOnClickListener(v -> { accountsScreenVisible = false; showHomeScreen(false); });
+        settingsHeader.addView(closeSettings);
+        content.addView(settingsHeader, Ui.row(this, 0, Ui.S2));
+
+        content.addView(Ui.section(this, "מה חדש"));
+        content.addView(Ui.banner(this,
+                "גרסה 1.47 · מסך הבית נקי וממוקד יותר, מעבר מהיר בין שתי צורות התצוגה, וסיכום קצר של החשבונות וההזמנה כאן בהגדרות."),
+                Ui.row(this, 0, Ui.S2));
+        content.addView(Ui.section(this, "סיכום מהיר"));
+        content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
 
         content.addView(Ui.section(this, "סנכרון"));
         Button sync = Ui.button(this, "סנכרן את כל החשבונות", Ui.Kind.PRIMARY);
@@ -1147,9 +1163,10 @@ public class MainActivity extends Activity {
         });
         content.addView(logoutButton);
 
-        Button back = Ui.button(this, "חזרה לרשימת האיסוף", Ui.Kind.SOFT);
-        back.setOnClickListener(v -> { accountsScreenVisible = false; showHomeScreen(false); });
-        content.addView(back, Ui.row(this, Ui.S3, 0));
+        TextView version = Ui.text(this, "משנת אוסף · גרסה " + appVersionName(),
+                Ui.T_NOTE, Ui.MUTED, false);
+        version.setGravity(Gravity.CENTER);
+        content.addView(version, Ui.row(this, Ui.S3, 0));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -1305,8 +1322,18 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        Button settings = Ui.button(this, "⚙", Ui.Kind.SOFT);
+        settings.setContentDescription("הגדרות");
+        settings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
+        settings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
+        settings.setOnClickListener(v -> showSettingsScreen());
+        row.addView(settings);
+
         TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
-        row.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
+        titleParams.setMargins(Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2), 0);
+        row.addView(title, titleParams);
 
         String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
         Button unified = buildViewModeIcon("COMBINED_SUM", "▦", "רשימה מאוחדת",
@@ -1322,13 +1349,61 @@ public class MainActivity extends Activity {
         secondIconParams.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
         row.addView(byAccount, secondIconParams);
 
-        Button settings = Ui.button(this, "⚙", Ui.Kind.SOFT);
-        settings.setContentDescription("הגדרות");
-        settings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
-        settings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
-        settings.setOnClickListener(v -> showSettingsScreen());
-        row.addView(settings);
         return row;
+    }
+
+    private String appVersionName() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.versionName == null ? "לא ידועה" : info.versionName;
+        } catch (Exception ignored) { return "לא ידועה"; }
+    }
+
+    private LinearLayout buildSettingsStats() {
+        int connected = 0;
+        if (sourceRegistry != null) {
+            for (SourceRegistry.Source source : sourceRegistry.all()) {
+                if (SourceRegistry.KIND_ACCOUNT.equals(source.kind)) {
+                    String token = secretStore.get(source.id);
+                    if (token != null && !token.isEmpty()) connected++;
+                }
+            }
+        }
+        double quantity = 0;
+        if (combinedParts != null && !combinedParts.isEmpty()) {
+            for (java.util.List<SourcePart> parts : combinedParts.values()) {
+                if (parts == null) continue;
+                for (SourcePart part : parts) {
+                    if (part != null && part.product != null) quantity += parseQuantity(part.product.amount);
+                }
+            }
+        } else {
+            for (ProductRow product : products) if (product != null) quantity += parseQuantity(product.amount);
+        }
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        card.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
+        card.setPadding(Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S3),
+                Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S3));
+        addSettingsStat(card, String.valueOf(connected), "חשבונות מחוברים");
+        addSettingsStat(card, String.valueOf(products.size()), "מוצרים");
+        addSettingsStat(card, formatQuantity(quantity), "יחידות בהזמנה");
+        return card;
+    }
+
+    private void addSettingsStat(LinearLayout parent, String value, String label) {
+        LinearLayout cell = Ui.column(this);
+        cell.setGravity(Gravity.CENTER);
+        TextView number = Ui.text(this, value, Ui.T_SECTION, Ui.P800, true);
+        number.setGravity(Gravity.CENTER);
+        TextView caption = Ui.text(this, label, Ui.T_NOTE, Ui.MUTED, false);
+        caption.setGravity(Gravity.CENTER);
+        cell.addView(number);
+        cell.addView(caption, Ui.row(this, Ui.S1, 0));
+        parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
     }
 
     private Button buildViewModeIcon(String mode, String symbol, String description, boolean active) {
@@ -1415,10 +1490,7 @@ public class MainActivity extends Activity {
                 Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
         page.setFocusable(false);
 
-        // מסך הבית נשאר ממוקד ברשימת האיסוף; כל פעולות הניהול נמצאות בהגדרות.
-        page.addView(Ui.text(this,
-                "מה חדש: תצוגה מאוחדת או לפי חשבון, עם שמירת רשימות וסימוני איסוף בנפרד לכל מקור.",
-                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        // מסך הבית נשאר ממוקד ברשימת האיסוף; פרטי העדכון מוצגים בהגדרות.
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
         page.addView(messageText);
