@@ -61,8 +61,8 @@ final class Ui {
 
     static StateListDrawable interactive(Context c,int fill,int border,int fillFocus,int borderFocus,int radiusDp) {
         StateListDrawable s=new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused},shape(c,fillFocus,radiusDp,3,borderFocus));
-        s.addState(new int[]{android.R.attr.state_pressed},shape(c,fillFocus,radiusDp,3,borderFocus));
+        s.addState(new int[]{android.R.attr.state_focused},shape(c,fillFocus,radiusDp,6,borderFocus));
+        s.addState(new int[]{android.R.attr.state_pressed},shape(c,fillFocus,radiusDp,6,borderFocus));
         s.addState(new int[]{},shape(c,fill,radiusDp,1,border));
         return s;
     }
