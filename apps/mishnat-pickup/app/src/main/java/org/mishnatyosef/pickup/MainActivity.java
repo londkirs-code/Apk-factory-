@@ -173,6 +173,7 @@ public class MainActivity extends Activity {
     private boolean sourceMergeInProgress = false;
     private Button viewModeButton;
     private SeekBar displaySizeSlider;
+    private String focusRestoreKey;
     private boolean combinedView = false;
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
@@ -1027,13 +1028,35 @@ public class MainActivity extends Activity {
 
     private void cycleDisplayMode() {
         final String[] labels = {"צ׳ק ליסט צפוף", "70%", "85%", "100%", "115%", "רשת · 3 כרטיסים בשורה"};
-        // Never read from a possibly stale SeekBar: key 1 advances the exact persisted
-        // setting that Settings displays when it is opened.
+        // Keep keyboard focus while replacing the actual list containers. The previous
+        // implementation changed card styling but left the old LinearLayout/GridLayout
+        // containers in place, so shortcut mode 5 could never match Settings mode 5.
+        View focused = getCurrentFocus();
+        Object tag = focused == null ? null : focused.getTag();
+        focusRestoreKey = tag instanceof String ? (String) tag : null;
         int next = (displayMode + 1) % labels.length;
         setDisplayModeFromSlider(next);
+        rebuildProductContainersForDisplayMode();
         renderProducts(false);
         wireFocusOrder();
         showActionToast("גודל התצוגה: " + labels[next]);
+    }
+
+    private void rebuildProductContainersForDisplayMode() {
+        if (page == null || collectedSection == null || pendingList == null || collectedList == null)
+            return;
+        if (pendingList.getParent() == page) {
+            int index = page.indexOfChild(pendingList);
+            page.removeViewAt(index);
+            pendingList = createProductContainer();
+            page.addView(pendingList, index, new LinearLayout.LayoutParams(-1, -2));
+        }
+        if (collectedList.getParent() == collectedSection) {
+            int index = collectedSection.indexOfChild(collectedList);
+            collectedSection.removeViewAt(index);
+            collectedList = createProductContainer();
+            collectedSection.addView(collectedList, index, new LinearLayout.LayoutParams(-1, -2));
+        }
     }
 
     private void focusSearch() {
@@ -1436,7 +1459,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · מקש 1 ומחוון גודל התצוגה משתמשים באותה הגדרה בדיוק; תצוגת הרשת נשארת מסודרת לפי סדר הפריטים גם בזמן סימון, והשורה האחרונה מיושרת לימין עם מקום ריק משמאל."),
+                "בעדכון החדש · מקש 1 והמחוון בהגדרות מחליפים את אותם מצבי תצוגה בפועל, כולל מעבר אמיתי בין רשימה לרשת. בתצוגת רשת כל סימון ואיסוף מסדרים מחדש את שתי הרשימות ללא חורים; שורה חלקית מיושרת לימין והשטח הריק נשאר משמאל."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -2865,7 +2888,10 @@ public class MainActivity extends Activity {
     private void renderProducts(boolean ignoredScrollFlag) {
         if (pendingList == null || collectedList == null) return;
         View focused = getCurrentFocus();
-        String focusedKey = focused == null ? null : (String) focused.getTag();
+        Object focusedTag = focused == null ? null : focused.getTag();
+        String focusedKey = focusRestoreKey != null ? focusRestoreKey
+                : (focusedTag instanceof String ? (String) focusedTag : null);
+        focusRestoreKey = null;
         boolean sameKeys = productCards.size() == products.size() && lastRenderedDisplayMode == displayMode;
         if (sameKeys) for (ProductRow product : products) {
             ProductCard existing = productCards.get(product.key);
@@ -3358,8 +3384,11 @@ public class MainActivity extends Activity {
         ViewGroup parent = (ViewGroup) moving.row.getParent();
         if (parent != null) parent.removeView(moving.row);
         bindProductCard(moving, product, !wasCollected);
-        target.addView(moving.row, insertionIndex(target, product, !wasCollected),
-                productLayoutParams(target, insertionIndex(target, product, !wasCollected)));
+        int targetIndex = insertionIndex(target, product, !wasCollected);
+        target.addView(moving.row, targetIndex, productLayoutParams(target, targetIndex));
+        // GridLayout children keep their old explicit row/column specs when a card is
+        // moved. Reflow BOTH sections after every full collection/undo so no holes remain.
+        reflowGridListsInProductOrder();
         updateProgress();
         wireFocusOrder();
         if (hadKeyboardFocus && neighbor == null) moving.row.requestFocus();
