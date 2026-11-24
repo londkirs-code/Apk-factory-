@@ -1339,6 +1339,7 @@ public class MainActivity extends Activity {
         final int removeGeneration = ++authGeneration;
         loading = false;
         cacheWorker.execute(() -> {
+            archiveCurrentSnapshot(id);
             boolean removed = sourceRegistry.remove(id);
             mainHandler.post(() -> {
                 if (!removed) { showSyncMessage("לא ניתן היה לשמור את הסרת המקור. הנתונים נשארו במכשיר.", false); return; }
@@ -2366,6 +2367,7 @@ public class MainActivity extends Activity {
     private void saveCollectedState() {
         if (currentOrderId.isEmpty()) return;
         final String orderId = currentOrderId;
+        final String sourceId = activeSourceId;
         final int generation = authGeneration;
         final JSONArray ticks = collectedTicksJson();
         final String partial = partialQuantitiesJson().toString();
@@ -2373,6 +2375,7 @@ public class MainActivity extends Activity {
             if (generation == authGeneration) {
                 writeCollectedState(orderId, ticks);
                 preferences.edit().putString("partial_" + orderId, partial).commit();
+                archiveCurrentSnapshot(sourceId);
             }
         });
     }
@@ -2715,6 +2718,7 @@ public class MainActivity extends Activity {
                 JSONArray saved=new JSONArray();for(String value:values)saved.put(value);
                 prefs.edit().putString(DataGuard.COLLECTED_PREFIX+part.orderId,saved.toString())
                         .putString("partial_"+part.orderId,partials.toString()).commit();
+                archiveCurrentSnapshot(part.sourceId);
             }
         });
     }
@@ -2742,6 +2746,7 @@ public class MainActivity extends Activity {
                 JSONArray saved=new JSONArray();for(String value:ticks)saved.put(value);
                 prefs.edit().putString(DataGuard.COLLECTED_PREFIX+part.orderId,saved.toString())
                         .putString("partial_"+part.orderId,partials.toString()).commit();
+                archiveCurrentSnapshot(part.sourceId);
             }
         });
     }
