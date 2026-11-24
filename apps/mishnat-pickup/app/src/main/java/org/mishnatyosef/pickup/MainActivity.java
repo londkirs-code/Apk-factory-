@@ -1520,7 +1520,7 @@ public class MainActivity extends Activity {
                 return;
             }
         }
-        showSavedListsScreen(returnToLogin)
+        showSavedListsScreen(returnToLogin);
     }
 
     private void openSavedList(SavedListStore.Entry entry) {
