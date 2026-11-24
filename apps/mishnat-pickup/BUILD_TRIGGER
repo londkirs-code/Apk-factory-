@@ -40,3 +40,6 @@ requested_at=2026-11-24T08:48:00+02:00
 
 Final polish: per-item plus completion feedback, durable manual deletion after queued writes, source rebinding and fingerprint verification for restored lists.
 requested_at=2026-11-24T08:58:00+02:00
+
+Final release: persist imported images independently of list archives; image-cache failures remain non-fatal to list import.
+requested_at=2026-11-24T09:06:00+02:00
