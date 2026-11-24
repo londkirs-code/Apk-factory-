@@ -9,11 +9,6 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Paint;
-import android.graphics.Canvas;
-import android.graphics.RectF;
-import android.graphics.Path;
-import android.graphics.ColorFilter;
-import android.graphics.PixelFormat;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -25,6 +20,7 @@ import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.media.MediaPlayer;
 import android.media.AudioAttributes;
+import android.content.res.AssetFileDescriptor;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -904,7 +900,7 @@ public class MainActivity extends Activity {
         return true;
     }
 
-        private boolean isHomeShortcutScreen() {
+    private boolean isHomeShortcutScreen() {
         return pageScroll != null && !accountsScreenVisible && !savedListsScreenVisible;
     }
 
@@ -1779,23 +1775,7 @@ public class MainActivity extends Activity {
         if (!uiPreferences.getBoolean(soundKey, legacySound)) return;
         if (completed) {
             try {
-                MediaPlayer player = MediaPlayer.create(this, R.raw.victory_fanfare);
-                if (player != null) {
-                    if (Build.VERSION.SDK_INT >= 21) {
-                        player.setAudioAttributes(new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_MEDIA)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                                .build());
-                    } else {
-                        player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                    }
-                    player.setVolume(1f, 1f);
-                    player.setOnCompletionListener(MediaPlayer::release);
-                    player.setOnErrorListener((mp, what, extra) -> { mp.release(); return true; });
-                    player.start();
-                } else {
-                    playTone(ToneGenerator.TONE_PROP_ACK, 700);
-                }
+                playVictorySound();
             } catch (Exception error) {
                 android.util.Log.e("MishnatPickup", "Victory sound failed", error);
                 playTone(ToneGenerator.TONE_PROP_ACK, 700);
@@ -1803,6 +1783,41 @@ public class MainActivity extends Activity {
         } else {
             playTone(added ? ToneGenerator.TONE_PROP_BEEP2 : ToneGenerator.TONE_PROP_NACK,
                     added ? 180 : 230);
+        }
+    }
+
+    private void playVictorySound() throws Exception {
+        final MediaPlayer player = new MediaPlayer();
+        AssetFileDescriptor sound = null;
+        try {
+            if (Build.VERSION.SDK_INT >= 21) {
+                player.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build());
+            } else {
+                player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+            }
+            sound = getResources().openRawResourceFd(R.raw.victory_fanfare);
+            if (sound == null) throw new IllegalStateException("Victory sound resource unavailable");
+            player.setDataSource(sound.getFileDescriptor(), sound.getStartOffset(), sound.getLength());
+            sound.close();
+            sound = null;
+            player.setOnPreparedListener(mp -> {
+                mp.setVolume(1f, 1f);
+                mp.start();
+            });
+            player.setOnCompletionListener(MediaPlayer::release);
+            player.setOnErrorListener((mp, what, extra) -> {
+                android.util.Log.e("MishnatPickup", "Victory player error: " + what + "/" + extra);
+                mp.release();
+                return true;
+            });
+            player.prepareAsync();
+        } catch (Exception error) {
+            if (sound != null) try { sound.close(); } catch (Exception ignored) { }
+            try { player.release(); } catch (Exception ignored) { }
+            throw error;
         }
     }
 

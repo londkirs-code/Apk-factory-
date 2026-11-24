@@ -87,3 +87,8 @@ final_build_requested_at=2026-11-24T15:31:00+02:00
 Release follow-up: show concise Toast feedback for app button actions and saved setting changes (touch + keyboard); repair device vibration and audible feedback routing; center the home reset glyph; move search into the scrolling product area and saved-list archive entry into Settings while retaining offline login access.
 requested_at=2026-11-24T17:05:00+02:00
 final_build_requested_at=2026-11-24T17:06:00+02:00
+
+
+Release 1.68 request: repair actual vibration delivery with waveform feedback and diagnostics; embed a local CC0 victory jingle; make Toast messages explain icon actions; implement numeric-key navigation, display cycling, search, immediate top/bottom jumps, reset, image view and list-mode toggle; set Hebrew RTL search input and refine home icons.
+requested_at=2026-11-24T17:12:00+02:00
+final_build_requested_at=2026-11-24T17:13:00+02:00
