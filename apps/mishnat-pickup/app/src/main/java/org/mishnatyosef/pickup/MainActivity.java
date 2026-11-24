@@ -2193,7 +2193,7 @@ public class MainActivity extends Activity {
             this.multiple = multiple; this.size = Ui.dp(context, 28);
             paint.setColor(active ? Ui.P800 : Ui.P600);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Ui.dp(context, 1.9f));
+            paint.setStrokeWidth(Ui.dp(context, 2));
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeJoin(Paint.Join.ROUND);
         }
@@ -2235,7 +2235,7 @@ public class MainActivity extends Activity {
             size = Ui.dp(context, 25);
             paint.setColor(Ui.P800);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Ui.dp(context, 2.5f));
+            paint.setStrokeWidth(Ui.dp(context, 3));
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeJoin(Paint.Join.ROUND);
         }
