@@ -109,6 +109,34 @@ final class SavedListStore {
         } catch (Exception e) { return false; }
     }
 
+    /** Save a standalone order/list snapshot without touching the active order cache. */
+    synchronized boolean archiveSnapshot(String sourceId,String sourceLabel,JSONObject snapshot,SharedPreferences prefs) {
+        if(sourceId==null||sourceId.isEmpty()||snapshot==null)return false;
+        try {
+            JSONObject data=new JSONObject(snapshot.toString());
+            long orderId=data.optLong("order_id",-1);
+            JSONArray products=data.optJSONArray("products");
+            if(orderId<=0||products==null)return false;
+            String owner=data.optString("owner","");
+            String ownerKey=owner.isEmpty()?"noowner":owner.substring(0,Math.min(12,owner.length()));
+            String id=sourceId+"_"+ownerKey+"_"+orderId;
+            data.put("_saved_list_id",id).put("_source_id",sourceId)
+                .put("_source_label",sourceLabel==null?"רשימה שמורה":sourceLabel)
+                .put("_archived_at",System.currentTimeMillis());
+            if(prefs!=null) {
+                data.put("_collected_ticks",prefs.getString(DataGuard.COLLECTED_PREFIX+orderId,"[]"));
+                data.put("_partial_quantities",prefs.getString("partial_"+orderId,"{}"));
+            }
+            File target=new File(root,safeName(id)+".json"),temp=new File(root,safeName(id)+".json.tmp");
+            try(FileOutputStream out=new FileOutputStream(temp)) {
+                out.write(data.toString().getBytes(StandardCharsets.UTF_8));out.getFD().sync();
+            }
+            if(target.exists()&&!target.delete()){temp.delete();return false;}
+            if(!temp.renameTo(target)){temp.delete();return false;}
+            return true;
+        } catch(Exception e) { return false; }
+    }
+
     synchronized List<Entry> list() {
         List<Entry> entries = new ArrayList<>();
         File[] files = root.listFiles((dir, name) -> name.endsWith(".json"));
