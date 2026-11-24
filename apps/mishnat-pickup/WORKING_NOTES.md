@@ -6,7 +6,7 @@
 - מאגר: `londkirs-code/Apk-factory-` (ענף ברירת המחדל: `main`).
 - קוד המקור הקבוע: `apps/mishnat-pickup/` בלבד. אין לערוך קבצים בתיקיות אחרות לצורך האפליקציה הזו.
 - חבילת Android: `org.mishnatyosef.pickup`. יש לשמור על השם.
-- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 94`, `versionName 1.94`, `minSdk 19`, `targetSdk 35`).
+- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 95`, `versionName 1.95`, `minSdk 19`, `targetSdk 35`).
 - קוד Java: `app/src/main/java/org/mishnatyosef/pickup/` (13 קבצים, כ־5,900 שורות).
 - ממשק המשתמש, עיצוב ואייקונים: `Ui.java` (אייקונים וקטוריים ב-`Ui.IconDrawable`, כפתורי אייקון ב-`Ui.iconButton`). מחרוזות "מה חדש" (`showSettingsScreen`) מתעדכנות יחד עם כל שינוי שנראה למשתמש.
 - ניווט: `MainActivity.screen` (enum `Screen`) הוא מקור האמת למסך הנוכחי. כל מסך מוצג דרך `presentScreen`. מקש חזרה מטופל ב-`onBackPressed` לפי המסך.
@@ -48,6 +48,7 @@
 - `PickupInfo.extract` שומר רשימה לבנה בלבד של שדות. לעולם לא לשמור `card`, `tokef`, `tranzila_token` או שדות תשלום.
 
 ## פתוח / לבדוק
+- עד גרסה 1.94 חסר `android:supportsRtl="true"` במניפסט, ולכן כל `setLayoutDirection(RTL)` לא פעל והמסכים הוצגו הפוך (שמאל-לימין). תוקן ב-1.95. לבדוק כל מסך אחרי ההיפוך.
 - בדיקה על מכשיר אמיתי לא בוצעה. כל שינוי ממשקי צריך אישור על מכשיר.
 - בדיקת חשבון אמיתי לא בוצעה בסביבת העבודה.
 - אין בדיקות אוטומטיות (unit tests). יש רק lint עם `abortOnError true`.
