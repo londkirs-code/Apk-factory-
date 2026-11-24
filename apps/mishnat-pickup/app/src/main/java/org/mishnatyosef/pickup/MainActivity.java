@@ -161,6 +161,7 @@ public class MainActivity extends Activity {
     private boolean syncAllRunning = false, syncAwaitingResult = false;
     private boolean showingSavedList = false;
     private boolean savedListsScreenVisible = false;
+    private boolean savedListsReturnToLogin = false;
     private boolean sourceMergeInProgress = false;
     private Button viewModeButton;
     private boolean combinedView = false;
@@ -308,6 +309,9 @@ public class MainActivity extends Activity {
                 Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildNativeLoginForm());
         if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S2));
+        Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.PRIMARY);
+        savedLists.setOnClickListener(v -> showSavedListsScreen(true));
+        root.addView(savedLists, Ui.row(this, Ui.S2, Ui.S2));
         Button importOffline = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
         importOffline.setOnClickListener(v -> openImportPicker());
         root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
@@ -815,7 +819,7 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (savedListsScreenVisible) { savedListsScreenVisible=false; showHomeScreen(false); }
+        if (savedListsScreenVisible) { leaveSavedListsScreen(); }
         else if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
         else super.onBackPressed();
     }
@@ -827,6 +831,7 @@ public class MainActivity extends Activity {
     private void showHomeScreen(boolean loadData) {
         accountsScreenVisible = false;
         savedListsScreenVisible = false;
+        savedListsReturnToLogin = false;
         logoutButton = null;
         resetButton = null;
         retryButton = null;
@@ -1460,11 +1465,14 @@ public class MainActivity extends Activity {
             if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,insertionIndex(target,product,done),productLayoutParams(target));}}
         updateProgress();wireFocusOrder();checkCelebration();if(wasAll||!isAllCollected())performFeedback(false);
     }
-    private void showSavedListsScreen() {
+    private void showSavedListsScreen() { showSavedListsScreen(false); }
+
+    private void showSavedListsScreen(boolean fromLogin) {
         savedListsScreenVisible=true;
+        savedListsReturnToLogin=fromLogin;
         LinearLayout content=Ui.screen(this);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=Ui.text(this,"רשימות שמורות",Ui.T_TITLE,Ui.P900,true);header.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
-        Button back=Ui.button(this,"חזרה",Ui.Kind.SOFT);back.setOnClickListener(v->showHomeScreen(false));header.addView(back);
+        Button back=Ui.button(this,"חזרה",Ui.Kind.SOFT);back.setOnClickListener(v->leaveSavedListsScreen());header.addView(back);
         content.addView(header,Ui.row(this,0,Ui.S2));List<SavedListStore.Entry> entries=savedListStore.list();
         if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."));
         for(SavedListStore.Entry entry:entries){LinearLayout card=Ui.column(this);
@@ -1479,6 +1487,12 @@ public class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
         setContentView(scroll);Ui.systemBars(this);back.requestFocus();
     }
+    private void leaveSavedListsScreen() {
+        boolean toLogin=savedListsReturnToLogin;
+        savedListsScreenVisible=false;savedListsReturnToLogin=false;
+        if(toLogin)showLoginScreen("");else showHomeScreen(false);
+    }
+
     private void deleteSavedListEntry(SavedListStore.Entry entry) {
         savedListStore.delete(entry.id);
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
@@ -1493,13 +1507,13 @@ public class MainActivity extends Activity {
                     DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
                     mainHandler.post(()->{
                         if(entry.sourceId.equals(activeSourceId)){cacheTrusted=false;activeOwner="";clearOrderMemory();showHomeScreen(false);}
-                        showSavedListsScreen();
+                        showSavedListsScreen(savedListsReturnToLogin);
                     });
                 });
                 if(entry.sourceId.equals(activeSourceId))clear.run();
                 else cacheWorker.execute(()->{
                     DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
-                    mainHandler.post(this::showSavedListsScreen);
+                    mainHandler.post(()->showSavedListsScreen(savedListsReturnToLogin));
                 });
                 return;
             }
