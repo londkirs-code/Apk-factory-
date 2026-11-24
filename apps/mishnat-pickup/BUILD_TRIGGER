@@ -83,3 +83,7 @@ requested_at=2026-11-24T15:25:00+02:00
 
 Final rebuild request after all 1.64 source changes are committed. Build the latest MainActivity.java, Ui.java and RoundedImageView.java; run lint/compile, verify signed APK package/version/certificate, publish standalone APK and metadata. Preserve existing signing certificate.
 final_build_requested_at=2026-11-24T15:31:00+02:00
+
+Release follow-up: show concise Toast feedback for app button actions and saved setting changes (touch + keyboard); repair device vibration and audible feedback routing; center the home reset glyph; move search into the scrolling product area and saved-list archive entry into Settings while retaining offline login access.
+requested_at=2026-11-24T17:05:00+02:00
+final_build_requested_at=2026-11-24T17:06:00+02:00
