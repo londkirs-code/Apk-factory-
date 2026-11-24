@@ -1282,8 +1282,80 @@ public class MainActivity extends Activity {
             if(hasConnectedImportConflict(bundle))showImportConflict(bundle);
             else commitImport(bundle,false);
         });
+        Button saveSeparate=Ui.button(this,"שמור כרשימות עצמאיות",Ui.Kind.SOFT);
+        saveSeparate.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,false);});
+        Button addCurrent=Ui.button(this,"הוסף לרשימה הנוכחית",Ui.Kind.SOFT);
+        addCurrent.setEnabled(!activeSourceId.isEmpty()&&!currentOrderId.isEmpty());
+        addCurrent.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,true);});
+        panel.addView(saveSeparate,Ui.row(this,Ui.S3,Ui.S1));
+        panel.addView(addCurrent,Ui.row(this,0,Ui.S1));
         panel.addView(apply,Ui.row(this,Ui.S3,Ui.S1));panel.addView(cancel);
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+    }
+
+    private void archiveImportedBundle(ImportParser.Bundle bundle,boolean mergeCurrent) {
+        if(bundle==null||bundle.lists.isEmpty())return;
+        SourceRegistry.Source source=sourceRegistry.find(activeSourceId);
+        if(source==null||activeOwner.isEmpty()) {
+            Toast.makeText(this,"כדי לשמור קובץ כרשימה עצמאית צריך להתחבר לחשבון.",Toast.LENGTH_LONG).show();
+            ImportParser.delete(bundle.workDir);return;
+        }
+        String currentEntryId="";
+        if(mergeCurrent) {
+            archiveCurrentSnapshot(activeSourceId);
+            for(SavedListStore.Entry entry:savedListStore.list())
+                if(entry.sourceId.equals(activeSourceId)&&entry.owner.equals(activeOwner)&&entry.orderId.equals(currentOrderId)){currentEntryId=entry.id;break;}
+            if(currentEntryId.isEmpty()) {
+                Toast.makeText(this,"לא נמצאה הרשימה הנוכחית בארכיון. הקובץ לא מוזג.",Toast.LENGTH_LONG).show();
+                ImportParser.delete(bundle.workDir);return;
+            }
+        }
+        final String targetId=currentEntryId;
+        cacheWorker.execute(()->{
+            List<String> archived=new ArrayList<>();
+            try {
+                int index=0;
+                for(ImportParser.ImportedList list:bundle.lists) {
+                    JSONArray products=new JSONArray();
+                    for(ImportParser.Item item:list.items) {
+                        String key=item.id==null||item.id.trim().isEmpty()
+                                ? "import-"+DataGuard.sha256(item.name).substring(0,16) : item.id;
+                        String note=item.note==null?"":item.note;
+                        if(item.unit!=null&&!item.unit.trim().isEmpty())note=note.isEmpty()?item.unit:note+" · "+item.unit;
+                        if(item.category!=null&&!item.category.trim().isEmpty())note=note.isEmpty()?item.category:note+" · "+item.category;
+                        String imagePath="";
+                        File image=bundle.imageFile(item.image);
+                        if(image!=null&&image.isFile())imagePath=image.getAbsolutePath();
+                        products.put(new JSONObject().put("key",key).put("name",item.name)
+                                .put("amount",item.quantity==null||item.quantity.isEmpty()?"1":item.quantity)
+                                .put("note",note).put("image_url",item.imageUrl==null?"":item.imageUrl)
+                                .put("image_file",imagePath));
+                    }
+                    long syntheticId=System.currentTimeMillis()+index++;
+                    String title=list.orderName==null||list.orderName.trim().isEmpty()
+                            ? (list.accountName==null||list.accountName.trim().isEmpty()?"רשימה מיובאת":list.accountName)
+                            : list.orderName;
+                    JSONObject snapshot=new JSONObject().put("order_id",syntheticId).put("owner",activeOwner)
+                            .put("order_name",title).put("updated_at",list.updatedAt==null?"":list.updatedAt)
+                            .put("imported",true).put("products",products);
+                    if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))
+                        throw new Exception("לא ניתן לשמור את הרשימה '"+title+"'.");
+                    String ownerKey=activeOwner.substring(0,Math.min(12,activeOwner.length()));
+                    archived.add(source.id+"_"+ownerKey+"_"+syntheticId);
+                }
+                if(mergeCurrent)for(String id:archived)
+                    if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא מוזג לרשימה הנוכחית; העותקים המקוריים נשארו בארכיון.");
+                mainHandler.post(()->{
+                    ImportParser.delete(bundle.workDir);showSavedListsScreen(false);
+                    Toast.makeText(this,mergeCurrent?"הקבצים נוספו לרשימה הנוכחית ונשמרו גם כעותקים נפרדים.":"הקבצים נשמרו כרשימות עצמאיות.",Toast.LENGTH_LONG).show();
+                });
+            }catch(Exception e){
+                String error=safeError(e);mainHandler.post(()->{
+                    ImportParser.delete(bundle.workDir);showSavedListsScreen(false);
+                    Toast.makeText(this,"שמירת הקבצים נכשלה: "+error,Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
 
     private boolean hasConnectedImportConflict(ImportParser.Bundle bundle) {
