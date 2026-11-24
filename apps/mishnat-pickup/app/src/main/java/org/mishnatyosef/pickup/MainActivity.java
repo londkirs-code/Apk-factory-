@@ -2452,10 +2452,15 @@ public class MainActivity extends Activity {
             else views.image.setImageResource(android.R.drawable.ic_menu_gallery);
         }
         views.image.setOnClickListener(v -> openProductImage(card));
+        View.OnLongClickListener partialLongPress=v -> { showPartialCollectionDialog(product.key); return true; };
+        views.image.setOnLongClickListener(partialLongPress);
+        views.name.setOnLongClickListener(partialLongPress);
+        views.note.setOnLongClickListener(partialLongPress);
+        views.amount.setOnLongClickListener(partialLongPress);
         views.image.setFocusable(false);
         views.image.setFocusableInTouchMode(false);
         views.root.setOnClickListener(v -> toggleProduct(product.key));
-        views.root.setOnLongClickListener(v -> { showPartialCollectionDialog(product.key); return true; });
+        views.root.setOnLongClickListener(partialLongPress);
         if (displayMode == 0) views.note.setVisibility(View.GONE);
         return card;
     }
@@ -2536,7 +2541,7 @@ public class MainActivity extends Activity {
     }
 
     private boolean handleImageModeKey(KeyEvent event) {
-        if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+        if (displayMode == 0 || event.getAction() != KeyEvent.ACTION_DOWN) return false;
         ProductCard focused = findProductCard(getCurrentFocus());
         int key = event.getKeyCode();
         if (!imageMode) {
