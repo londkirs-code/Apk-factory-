@@ -43,6 +43,8 @@ final class SavedListStore {
 
     synchronized String cacheImage(File source) {
         if(source==null||!source.isFile()||source.length()<=0)return "";
+        File parent=source.getParentFile();
+        if(parent!=null&&parent.equals(imageRoot))return source.getAbsolutePath();
         try{
             String name=source.getName();int dot=name.lastIndexOf('.');
             String ext=dot>=0?name.substring(dot+1).toLowerCase(java.util.Locale.ROOT):"jpg";
