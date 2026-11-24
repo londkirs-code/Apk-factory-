@@ -1724,6 +1724,8 @@ public class MainActivity extends Activity {
             + "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
             + "• לחיצה על שם הרשימה בכותרת מציגה מיד את כל הרשימות לבחירה, עם כפתור לפעולות לרשימה ולהגדרות.\n"
             + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
+            + "• בכל חלון קופץ יש X בפינה השמאלית העליונה במקום כפתורי סגירה וביטול.\n"
+            + "• ״פעולות לרשימה״ מהכותרת כוללות את כל פעולות הרשימות השמורות (שם, מיזוג, ייצוא, מחיקה, רשימה חדשה, הזמנות קודמות, איחוד).\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
             + "• איחוד כמה רשימות לרשימה חדשה.\n"
             + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
@@ -2008,7 +2010,27 @@ public class MainActivity extends Activity {
     }
     private LinearLayout buildSearchRow() {
         LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        EditText input=new EditText(this);searchInput=input;input.setId(View.generateViewId());input.setSingleLine(true);
+        // שדה חיפוש שמיירט את 2/8 ואת החצים למעלה/למטה עוד לפני המקלדת (pre-IME).
+        // בטלפון מקשים המקלדת הייתה "בולעת" את 2 ומקלידה אותו, והניווט נתקע בשדה.
+        EditText input=new EditText(this){
+            @Override public boolean dispatchKeyEventPreIme(KeyEvent event){
+                int code=event.getKeyCode();
+                int direction=0;
+                if(code==KeyEvent.KEYCODE_2||code==KeyEvent.KEYCODE_NUMPAD_2||code==KeyEvent.KEYCODE_DPAD_UP)direction=View.FOCUS_UP;
+                else if(code==KeyEvent.KEYCODE_8||code==KeyEvent.KEYCODE_NUMPAD_8||code==KeyEvent.KEYCODE_DPAD_DOWN)direction=View.FOCUS_DOWN;
+                if(direction==0)return super.dispatchKeyEventPreIme(event);
+                if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
+                    View next=focusSearch(direction);
+                    if(next!=null){
+                        hideKeyboard(this);
+                        if(direction==View.FOCUS_UP&&pageScroll!=null)pageScroll.smoothScrollTo(0,0);
+                        next.requestFocus();
+                    }
+                }
+                return true;
+            }
+        };
+        searchInput=input;input.setId(View.generateViewId());input.setSingleLine(true);
         input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY*Ui.textScale(this));input.setTextColor(Ui.INK);input.setHintTextColor(Ui.MUTED);
         input.setHint("חיפוש פריט ברשימה…");input.setInputType(InputType.TYPE_CLASS_TEXT);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
@@ -2295,7 +2317,10 @@ public class MainActivity extends Activity {
         content.addView(history,Ui.row(this,0,Ui.S2));
         Button create=Ui.button(this,"יצירת רשימה חדשה",Ui.Kind.SOFT);
         create.setOnClickListener(v->createNewSavedList());
-        content.addView(create,Ui.row(this,0,Ui.S2));
+        Button mergeLists=Ui.button(this,"איחוד רשימות",Ui.Kind.SOFT);
+        mergeLists.setEnabled(savedListStore.list().size()>=2);
+        mergeLists.setOnClickListener(v->showMergeListsDialog());
+        content.addView(buttonPair(create,mergeLists),Ui.row(this,0,Ui.S2));
         List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
         if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."));
         else content.addView(Ui.section(this,entries.size()+" רשימות במכשיר"));
@@ -2326,15 +2351,40 @@ public class MainActivity extends Activity {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel=Ui.dialogPanel(this);
         panel.addView(Ui.text(this,displayTitle(entry),Ui.T_NAME,Ui.P900,true));
-        addSourceAction(panel,dialog,"שינוי שם",()->showRenameDialog(entry.owner,entry.orderId,displayTitle(entry),entry.title,this::refreshSavedListsScreen));
         panel.addView(Ui.text(this,entry.itemCount+" פריטים",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
-        addSourceAction(panel,dialog,"מיזוג לתוך רשימה אחרת",()->showMergeTargetDialog(entry));
-        addSourceAction(panel,dialog,"ייצוא לקובץ TXT",()->exportSavedList(entry));
-        addSourceAction(panel,dialog,"מחיקה מהרשימות השמורות",()->showModernConfirm("מחיקת רשימה שמורה","הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.","מחק רשימה",()->deleteSavedListEntry(entry)));
-        Button close=Ui.button(this,"סגירה",Ui.Kind.SOFT);close.setOnClickListener(v->dialog.dismiss());
-        panel.addView(close,Ui.row(this,Ui.S3,0));
+        addListEntryActions(panel,dialog,entry,this::refreshSavedListsScreen,true);
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
     }
+
+    /**
+     * הפעולות על רשימה שמורה. אותה קבוצה בדיוק מופיעה גם ב"פעולות נוספות" במסך הרשימות השמורות
+     * וגם ב"פעולות לרשימה" מהכותרת, כדי שהשניים יהיו מקבילים.
+     */
+    private void addListEntryActions(LinearLayout panel, Dialog dialog, SavedListStore.Entry entry,
+                                     Runnable afterRename, boolean includeOpen) {
+        if (includeOpen && !isDisplayedList(entry))
+            addSourceAction(panel, dialog, "פתיחת הרשימה", () -> openSavedList(entry));
+        addSourceAction(panel, dialog, "שינוי שם", () -> showRenameDialog(entry.owner, entry.orderId,
+                displayTitle(entry), entry.title, afterRename));
+        addSourceAction(panel, dialog, "מיזוג לתוך רשימה אחרת", () -> showMergeTargetDialog(entry));
+        addSourceAction(panel, dialog, "ייצוא לקובץ TXT", () -> exportSavedList(entry));
+        addSourceAction(panel, dialog, "מחיקה מהרשימות השמורות", () -> showModernConfirm("מחיקת רשימה שמורה",
+                "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
+                () -> deleteSavedListEntry(entry)));
+    }
+
+    /** פעולות כלליות על רשימות: אותן פעולות שבראש מסך הרשימות השמורות. */
+    private void addGeneralListActions(LinearLayout panel, Dialog dialog) {
+        if (showingSavedList && !connectedAccounts().isEmpty())
+            addSourceAction(panel, dialog, "חזרה להזמנה העדכנית מהאתר", this::returnToLatestOrder);
+        if (!connectedAccounts().isEmpty())
+            addSourceAction(panel, dialog, "הזמנות קודמות מהאתר", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
+        addSourceAction(panel, dialog, "יצירת רשימה חדשה", this::createNewSavedList);
+        if (savedListStore.list().size() >= 2)
+            addSourceAction(panel, dialog, "איחוד רשימות", this::showMergeListsDialog);
+        addSourceAction(panel, dialog, "כל הרשימות השמורות", () -> showSavedListsScreen(Screen.HOME));
+    }
+
 
     private void showOrderHistoryScreen() { showOrderHistoryScreen(Screen.SAVED_LISTS); }
 
@@ -2622,31 +2672,26 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, homeDisplayTitle(), Ui.T_NAME, Ui.P900, true));
-        List<SavedListStore.Entry> entries = savedListStore.list();
-        if (showingSavedList) {
-            Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.SOFT);
-            latest.setEnabled(!connectedAccounts().isEmpty());
-            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
-            panel.addView(latest, Ui.row(this, Ui.S1, Ui.S1));
-        }
+        LinearLayout body = Ui.column(this);
+        SavedListStore.Entry current = null;
         if (!combinedView && !currentOrderId.isEmpty()) {
-            Button rename = Ui.button(this, "שינוי שם לרשימה", Ui.Kind.SOFT);
-            rename.setOnClickListener(v -> { dialog.dismiss();
-                showRenameDialog(activeOwner, currentOrderId, homeDisplayTitle(), currentOrderTitle, this::refreshHomeTitle); });
-            panel.addView(rename, Ui.row(this, Ui.S1, Ui.S1));
+            archiveCurrentSnapshot(activeSourceId);
+            current = findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
         }
-        Button merge = Ui.button(this, "איחוד רשימות", Ui.Kind.SOFT);
-        merge.setEnabled(entries.size() >= 2);
-        merge.setOnClickListener(v -> { dialog.dismiss(); showMergeListsDialog(); });
-        panel.addView(merge, Ui.row(this, Ui.S1, Ui.S1));
-        Button close = Ui.button(this, "סגירה", Ui.Kind.SOFT);
-        close.setOnClickListener(v -> dialog.dismiss());
-        panel.addView(close, Ui.row(this, Ui.S3, 0));
+        if (current != null) {
+            body.addView(Ui.section(this, "הרשימה הזו"));
+            addListEntryActions(body, dialog, current, this::refreshHomeTitle, false);
+        }
+        body.addView(Ui.section(this, "רשימות"));
+        addGeneralListActions(body, dialog);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, -2));
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
-        View firstAction = panel.getChildCount() > 1 ? panel.getChildAt(1) : close;
-        if (!firstAction.isEnabled() || !firstAction.requestFocus()) close.requestFocus();
+        for (int i = 0; i < body.getChildCount(); i++)
+            if (body.getChildAt(i) instanceof Button && body.getChildAt(i).requestFocus()) break;
     }
 
     /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */
@@ -3273,8 +3318,70 @@ public class MainActivity extends Activity {
         return buttons;
     }
 
+    /**
+     * בכל חלון קופץ: כפתור X בפינה השמאלית העליונה במקום כפתורי "סגירה" / "ביטול".
+     * כפתורי הסגירה והביטול מוסרים, וה-X מפעיל את אותה פעולה (למשל ניקוי קבצים זמניים).
+     */
+    private void addDialogCloseButton(Dialog dialog) {
+        View content = dialog.findViewById(android.R.id.content);
+        if (!(content instanceof ViewGroup) || ((ViewGroup) content).getChildCount() == 0) return;
+        View root = ((ViewGroup) content).getChildAt(0);
+        if (!(root instanceof LinearLayout)) return;
+        LinearLayout panel = (LinearLayout) root;
+        if (panel.findViewWithTag("dialog_close_x") != null) return;
+        // לחלון שכבר יש בו X משלו (למשל מידע איסוף) לא מוסיפים עוד אחד.
+        List<Button> dismissButtons = new ArrayList<>();
+        boolean hasOwnClose = collectDismissButtons(panel, dismissButtons);
+        final Button cancelAction = dismissButtons.isEmpty() ? null : dismissButtons.get(0);
+        for (Button button : dismissButtons) {
+            if (button.getParent() instanceof ViewGroup) ((ViewGroup) button.getParent()).removeView(button);
+        }
+        if (hasOwnClose) return;
+        Button close = Ui.iconButton(this, Ui.IC_CLOSE, "סגירה", false);
+        close.setTag("dialog_close_x");
+        close.setOnClickListener(v -> { if (cancelAction != null) cancelAction.performClick(); else dialog.cancel(); });
+        int size = Ui.dp(this, Ui.iconButtonDp(this) - 4);
+        LinearLayout row = new LinearLayout(this);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        row.setGravity(Gravity.TOP);
+        row.addView(close, new LinearLayout.LayoutParams(size, size));
+        View first = panel.getChildAt(0);
+        if (first instanceof TextView && !(first instanceof Button)) {
+            // הכותרת עוברת לשורה אחת עם ה-X: X משמאל, הכותרת מימין.
+            panel.removeView(first);
+            LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, -2, 1f);
+            titleLp.leftMargin = Ui.dp(this, Ui.S2);
+            ((TextView) first).setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            row.addView(first, titleLp);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+        } else {
+            row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        }
+        panel.addView(row, 0, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    /** אוסף כפתורי "סגירה"/"ביטול". מחזיר true אם בחלון כבר יש כפתור X משלו. */
+    private boolean collectDismissButtons(ViewGroup group, List<Button> out) {
+        boolean ownClose = false;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof Ui.IconButton) {
+                CharSequence d = child.getContentDescription();
+                if (d != null && d.toString().startsWith("סגירת")) ownClose = true;
+            } else if (child instanceof Button && !(child instanceof CheckBox)) {
+                CharSequence text = ((Button) child).getText();
+                String label = text == null ? "" : text.toString().trim();
+                if ("סגירה".equals(label) || "ביטול".equals(label)) out.add((Button) child);
+            } else if (child instanceof ViewGroup) {
+                ownClose |= collectDismissButtons((ViewGroup) child, out);
+            }
+        }
+        return ownClose;
+    }
+
     private void styleConfirmWindow(Dialog dialog) {
         if (dialog.getWindow() == null) return;
+        addDialogCloseButton(dialog);
         dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         int width = Math.min(getResources().getDisplayMetrics().widthPixels
                 - Ui.dp(this, Ui.DIALOG_SIDE_MARGIN), Ui.dp(this, Ui.DIALOG_MAX_WIDTH));
