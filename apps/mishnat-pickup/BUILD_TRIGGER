@@ -1,3 +1,3 @@
-requested_at=2026-11-24T20:38:00+02:00
+requested_at=2026-11-24T20:48:00+02:00
 
-Release 1.80 retry after correcting the Gradle compile issue: Ui.dp accepts integer dp values, so vector icon stroke widths now use valid integer dimensions. Include the new plain-text import parser, saved-list merge engine, paginated history response model and architecture documentation. Build from latest main, increment version, verify APK package/version/signature continuity, publish standalone APK and metadata.
+Release 1.80 final retry: the previous queued run checked out the earlier ImportParser revision and failed on escaped character literals. The current main revision now uses numeric whitespace/BOM checks and integer dp widths. Build latest main, increment version, validate package/version/signature continuity, publish standalone APK and metadata.
