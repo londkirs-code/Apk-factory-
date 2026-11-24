@@ -80,3 +80,6 @@ requested_at=2026-11-24T14:20:00+02:00
 
 Release 1.64: move collection reset to a circular-arrow icon beside home settings; double keyboard-focus border thickness across controls and image focus rings; add independent per-item and completion sound/vibration preferences with positive add beep, negative removal beep, short item vibration, and long completion feedback. Preserve legacy feedback preferences as migration defaults; preserve reset confirmation and all collection/archive behavior.
 requested_at=2026-11-24T15:25:00+02:00
+
+Final rebuild request after all 1.64 source changes are committed. Build the latest MainActivity.java, Ui.java and RoundedImageView.java; run lint/compile, verify signed APK package/version/certificate, publish standalone APK and metadata. Preserve existing signing certificate.
+final_build_requested_at=2026-11-24T15:31:00+02:00
