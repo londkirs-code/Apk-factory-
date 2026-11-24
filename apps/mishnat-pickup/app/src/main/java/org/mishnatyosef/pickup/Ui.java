@@ -188,7 +188,7 @@ final class Ui {
 
     static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
             IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
-            IC_MAP=11, IC_PHONE=12;
+            IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13;
 
     static final class IconDrawable extends Drawable {
         private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -245,6 +245,9 @@ final class Ui {
                     path.cubicTo(15.9f,2.8f,19f,5.6f,19f,9.5f);
                     path.cubicTo(19f,12.5f,17f,15.5f,12f,21f);
                     canvas.drawPath(path,stroke); canvas.drawCircle(12f,9.5f,2.4f,stroke); break;
+                case IC_CHEVRON_DOWN:
+                    path.reset(); path.moveTo(6f,9.5f); path.lineTo(12f,15.5f); path.lineTo(18f,9.5f);
+                    stroke.setStrokeWidth(2.4f); canvas.drawPath(path,stroke); break;
                 case IC_PHONE:
                     box.set(7f,2.5f,17f,21.5f); canvas.drawRoundRect(box,2.2f,2.2f,stroke);
                     canvas.drawLine(10.5f,18.3f,13.5f,18.3f,stroke); break;
@@ -388,9 +391,67 @@ final class Ui {
         final LinearLayout root;
         final ImageView image;
         final TextView name,note,amount;
-        CardViews(LinearLayout r,ImageView i,TextView n,TextView d,TextView a) {
-            root=r;image=i;name=n;note=d;amount=a;
+        /** פס צבע המחלקה בצד הכרטיס (או בראשו במצב רשת). */
+        final View accent;
+        CardViews(LinearLayout r,ImageView i,TextView n,TextView d,TextView a,View accent) {
+            root=r;image=i;name=n;note=d;amount=a;this.accent=accent;
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // צבעי מחלקות: צבע קבוע לכל מחלקה, כך שקל לזהות אותה בכל רשימה.
+    // ---------------------------------------------------------------------
+
+    private static final int[] CATEGORY_PALETTE = {
+            0xFF2E7D32, 0xFF1565C0, 0xFFC62828, 0xFFEF6C00, 0xFF6A1B9A, 0xFF00838F,
+            0xFFAD1457, 0xFF5D4037, 0xFF827717, 0xFF283593, 0xFF00695C, 0xFFD84315};
+    private static final String[][] CATEGORY_HINTS = {
+            {"ירק", "0"}, {"עלים", "0"}, {"פיר", "3"}, {"ביצ", "8"}, {"חלב", "1"}, {"גבינ", "1"},
+            {"טיפוח", "5"}, {"נקיון", "5"}, {"ניקיון", "5"}, {"ביגוד", "4"}, {"גרב", "6"},
+            {"קפוא", "9"}, {"מאפ", "7"}, {"לחם", "7"}, {"קטניות", "8"}, {"שימור", "8"},
+            {"דגנ", "11"}, {"ממתק", "6"}, {"יסוד", "10"}, {"חשמל", "2"}, {"חנוכה", "2"},
+            {"פעמי", "10"}, {"תזונה", "11"}, {"בשר", "2"}, {"עוף", "2"}, {"דג", "1"}};
+
+    /** צבע המחלקה: לפי מילות מפתח בשם (ירקות ירוק, חלב כחול...), ואחרת לפי השם עצמו. 0 כשאין מחלקה. */
+    static int categoryColor(String category) {
+        if (category == null || category.trim().isEmpty()) return 0;
+        String name = category.trim();
+        for (String[] hint : CATEGORY_HINTS)
+            if (name.contains(hint[0])) return CATEGORY_PALETTE[Integer.parseInt(hint[1])];
+        int hash = 0;
+        for (int i = 0; i < name.length(); i++) hash = hash * 31 + name.charAt(i);
+        return CATEGORY_PALETTE[Math.abs(hash % CATEGORY_PALETTE.length)];
+    }
+
+    /** גוון בהיר של צבע (לרקע הכותרת). amount=0.88 כמעט לבן. */
+    static int lighten(int color, float amount) {
+        int r = Color.red(color), g = Color.green(color), b = Color.blue(color);
+        r = Math.round(r + (255 - r) * amount); g = Math.round(g + (255 - g) * amount);
+        b = Math.round(b + (255 - b) * amount);
+        return Color.rgb(r, g, b);
+    }
+
+    /** גוון כהה של צבע (לטקסט הכותרת). */
+    static int darken(int color, float amount) {
+        return Color.rgb(Math.round(Color.red(color) * (1 - amount)),
+                Math.round(Color.green(color) * (1 - amount)), Math.round(Color.blue(color) * (1 - amount)));
+    }
+
+    /** כותרת מחלקה ברשימה: פס צבע, שם המחלקה ומספר המוצרים. */
+    static TextView categoryHeader(Context c, String category, int count) {
+        int color = categoryColor(category);
+        TextView t = text(c, category + (count > 0 ? "  ·  " + count : ""), T_SECTION + 1, darken(color, 0.15f), true);
+        GradientDrawable bg = shape(c, lighten(color, 0.86f), 10, 0, 0);
+        t.setBackground(bg);
+        t.setCompoundDrawablePadding(dp(c, S2));
+        GradientDrawable bar = shape(c, color, 3, 0, 0);
+        bar.setSize(dp(c, 5), dp(c, 18));
+        t.setCompoundDrawablesRelativeWithIntrinsicBounds(bar, null, null, null);
+        t.setPadding(dp(c, S3), dp(c, S2), dp(c, S3), dp(c, S2));
+        t.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        t.setFocusable(false);
+        t.setClickable(false);
+        return t;
     }
 
     static CardViews productCard(Context c) { return productCard(c, 3); }
@@ -458,12 +519,27 @@ final class Ui {
             amount.setMinWidth(dp(c,36));
             amount.setLayoutParams(amountLp);
         }
-        root.addView(image); root.addView(details); root.addView(amount);
-        return new CardViews(root,image,name,note,amount);
+        View accent=new View(c);
+        accent.setVisibility(View.GONE);
+        LinearLayout.LayoutParams accentLp=grid
+                ? new LinearLayout.LayoutParams(-1,dp(c,4))
+                : new LinearLayout.LayoutParams(dp(c,compact?4:5),-1);
+        if(grid) accentLp.bottomMargin=dp(c,S1); else accentLp.setMarginEnd(dp(c,compact?S2:S3));
+        accent.setLayoutParams(accentLp);
+        root.addView(accent); root.addView(image); root.addView(details); root.addView(amount);
+        return new CardViews(root,image,name,note,amount,accent);
     }
 
     static void setImageFocus(Context c, CardViews v, boolean focused) {
         if (v.image instanceof RoundedImageView) ((RoundedImageView) v.image).setRing(focused);
+    }
+
+    /** צובע את פס המחלקה של הכרטיס; מוסתר כשאין מחלקה. */
+    static void bindCategory(CardViews v,String category) {
+        int color=categoryColor(category);
+        if(color==0){v.accent.setVisibility(View.GONE);return;}
+        v.accent.setBackground(shape(v.root.getContext(),color,3,0,0));
+        v.accent.setVisibility(View.VISIBLE);
     }
 
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {

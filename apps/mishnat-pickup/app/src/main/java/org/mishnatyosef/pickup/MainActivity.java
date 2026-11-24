@@ -29,6 +29,7 @@ import android.util.LruCache;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.ViewTreeObserver;
 import android.view.inputmethod.InputMethodManager;
 import android.view.HapticFeedbackConstants;
@@ -106,7 +107,9 @@ public class MainActivity extends Activity {
     private final ExecutorService profileLoader = Executors.newSingleThreadExecutor();
     // Offline image downloads must never block displaying the order.
     private final ExecutorService cacheWorker = Executors.newSingleThreadExecutor();
-    private final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(8 * 1024 * 1024) {
+    // זיכרון לתמונות: שמינית מהזיכרון הזמין לאפליקציה (לפחות 8MB).
+    private final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(
+            (int) Math.max(8L * 1024 * 1024, Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8))) {
         @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
     };
     // Persistent URL-keyed image cache: rendering never waits for image network requests.
@@ -130,6 +133,8 @@ public class MainActivity extends Activity {
     /** שם המכירה של ההזמנה המוצגת (למשל שם הפרשה), או ריק כשאין. */
     private String currentOrderTitle = "";
     private TextView homeTitleText;
+    /** במסך צר השם בשורה משלו מתחת לכפתורים, וסדר הניווט עובר דרכו. */
+    private boolean headerStacked = false;
     /** מידע האיסוף של ההזמנה המוצגת (מקום, שעות, הערות). בתצוגה המאוחדת - לכל חשבון. */
     private JSONObject currentPickupInfo = null;
     private final List<JSONObject> combinedPickupInfos = new ArrayList<>();
@@ -924,42 +929,27 @@ public class MainActivity extends Activity {
         ProductCard focused = findProductCard(getCurrentFocus());
         if (focused == null || focused.row == null) return false;
         if (!(focused.row.getParent() instanceof ViewGroup)) return true;
-
         ViewGroup container = (ViewGroup) focused.row.getParent();
-        int index = container.indexOfChild(focused.row);
-        int count = container.getChildCount();
-        if (index < 0 || count == 0) return true;
-
-        int column = index % 3;
-        int target = -1;
+        int[] pos = gridPositions.get(focused.row);
+        if (pos == null) return true;
+        int row = pos[0], column = pos[1];
+        View target = null;
         if (key == KeyEvent.KEYCODE_DPAD_LEFT) {
-            // In RTL, the next item in row order is visually to the left.
-            if (column < 2 && index + 1 < count) target = index + 1;
+            // ב-RTL הכרטיס הבא בסדר הקריאה נמצא משמאל.
+            target = gridCell(container, row, column + 1);
         } else if (key == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            if (column > 0) target = index - 1;
+            target = gridCell(container, row, column - 1);
         } else if (key == KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (index + 3 < count) target = index + 3;
-            // שורה אחרונה חלקית: ממשיכים לכרטיס האחרון בה במקום להיתקע.
-            else if (index / 3 < (count - 1) / 3) target = count - 1;
-            else if (container == pendingList && collectedList != null
-                    && collectedList.getChildCount() > 0) {
-                return focusGridCard(collectedList, Math.min(column, collectedList.getChildCount() - 1));
-            }
-        } else if (key == KeyEvent.KEYCODE_DPAD_UP) {
-            if (index >= 3) target = index - 3;
-            else if (container == collectedList && pendingList != null
-                    && pendingList.getChildCount() > 0) {
-                int lastRowStart = ((pendingList.getChildCount() - 1) / 3) * 3;
-                return focusGridCard(pendingList,
-                        Math.min(lastRowStart + column, pendingList.getChildCount() - 1));
-            }
+            target = gridNeighbor(container, row, column, true);
+            if (target == null && container == pendingList && collectedList != null)
+                target = gridNeighbor(collectedList, Integer.MIN_VALUE + 1, column, true);
+        } else {
+            target = gridNeighbor(container, row, column, false);
+            if (target == null && container == collectedList && pendingList != null)
+                target = gridNeighbor(pendingList, Integer.MAX_VALUE - 1, column, false);
+            if (target == null) return moveFocusToHomeTop();
         }
-        if (target >= 0) return focusGridCard(container, target);
-        // Every card in the first grid row can move focus to the fixed header
-        // (also when every item is already collected and the pending grid is empty).
-        if (key == KeyEvent.KEYCODE_DPAD_UP && index < 3 && (container == pendingList
-                || (container == collectedList && (pendingList == null || pendingList.getChildCount() == 0))))
-            return moveFocusToHomeTop();
+        if (target != null) target.requestFocus();
         // Do not let focus escape from the card grid to images, labels or other controls.
         return true;
     }
@@ -977,21 +967,44 @@ public class MainActivity extends Activity {
         return true;
     }
 
+    /**
+     * כשהפוקוס נכנס מלמעלה או מלמטה לשורה של כמה כפתורים, הוא נוחת על הכפתור הימני ביותר
+     * (תחילת השורה בעברית), ולא על הכפתור הקרוב לפי מיקום, שלרוב יצא השמאלי.
+     */
+    private boolean redirectToRowStart(KeyEvent event) {
+        if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+        int key = event.getKeyCode();
+        if (key != KeyEvent.KEYCODE_DPAD_UP && key != KeyEvent.KEYCODE_DPAD_DOWN) return false;
+        View current = getCurrentFocus();
+        if (current == null || current instanceof EditText) return false;
+        int explicit = key == KeyEvent.KEYCODE_DPAD_UP ? current.getNextFocusUpId() : current.getNextFocusDownId();
+        if (explicit != View.NO_ID) return false;
+        if (!(getWindow().getDecorView() instanceof ViewGroup)) return false;
+        View next = android.view.FocusFinder.getInstance().findNextFocus((ViewGroup) getWindow().getDecorView(),
+                current, key == KeyEvent.KEYCODE_DPAD_UP ? View.FOCUS_UP : View.FOCUS_DOWN);
+        if (next == null || !(next.getParent() instanceof LinearLayout)) return false;
+        LinearLayout row = (LinearLayout) next.getParent();
+        if (row.getOrientation() != LinearLayout.HORIZONTAL) return false;
+        for (ViewParent p = current.getParent(); p != null; p = p.getParent()) if (p == row) return false;
+        View start = null;
+        int count = 0;
+        boolean rtl = row.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View child = row.getChildAt(rtl ? i : row.getChildCount() - 1 - i);
+            if (child.getVisibility() != View.VISIBLE || !child.isFocusable() || !child.isEnabled()) continue;
+            count++;
+            if (start == null) start = child;
+        }
+        if (count < 2 || start == null || start == next) return false;
+        return start.requestFocus();
+    }
+
     private boolean handleFirstListItemUp(KeyEvent event) {
         if (event.getAction() != KeyEvent.ACTION_DOWN || event.getKeyCode() != KeyEvent.KEYCODE_DPAD_UP) return false;
         if (displayMode == 5) return false; // במצב רשת הטיפול נעשה בניווט הרשת
         ProductCard focused = findProductCard(getCurrentFocus());
         if (focused == null || focused.row == null || focused.row != firstCard()) return false;
         return moveFocusToHomeTop();
-    }
-
-    private boolean focusGridCard(ViewGroup container, int index) {
-        if (container == null || index < 0 || index >= container.getChildCount()) return true;
-        View target = container.getChildAt(index);
-        ProductCard card = findProductCard(target);
-        if (card != null) card.row.requestFocus();
-        else target.requestFocus();
-        return true;
     }
 
     private boolean isHomeShortcutScreen() {
@@ -1184,6 +1197,7 @@ public class MainActivity extends Activity {
     private void toggleListViewMode() {
         if (sourceRegistry == null) return;
         if (syncAllRunning) { showActionToast("אפשר להחליף תצוגה בסיום הסנכרון"); return; }
+        if (sourceRegistry.all().size() <= 1) { showActionToast("יש חשבון אחד בלבד, ושתי התצוגות זהות"); return; }
         String next = "COMBINED_SUM".equals(sourceRegistry.viewMode())
                 ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
         sourceRegistry.setViewMode(next);
@@ -1209,6 +1223,13 @@ public class MainActivity extends Activity {
         if (isHomeShortcutScreen() && event.getKeyCode() != KeyEvent.KEYCODE_MENU) {
             int navigationKey = isTextEntryFocused() ? KeyEvent.KEYCODE_UNKNOWN
                     : navigationKeyForShortcut(event.getKeyCode());
+            // חריגה בשדה החיפוש: 2 ו-8 ממשיכים לנווט (למעלה לכותרת, למטה לרשימה) ואינם מוקלדים,
+            // כדי שהניווט בספרות לא ייתקע בחיפוש.
+            if (searchInput != null && getCurrentFocus() == searchInput) {
+                int code = event.getKeyCode();
+                if (code == KeyEvent.KEYCODE_2 || code == KeyEvent.KEYCODE_NUMPAD_2) navigationKey = KeyEvent.KEYCODE_DPAD_UP;
+                else if (code == KeyEvent.KEYCODE_8 || code == KeyEvent.KEYCODE_NUMPAD_8) navigationKey = KeyEvent.KEYCODE_DPAD_DOWN;
+            }
             if (navigationKey != KeyEvent.KEYCODE_UNKNOWN) {
                 KeyEvent mapped = new KeyEvent(event.getDownTime(), event.getEventTime(),
                         event.getAction(), navigationKey, event.getRepeatCount(), event.getMetaState());
@@ -1224,6 +1245,7 @@ public class MainActivity extends Activity {
             return true;
         }
         if (handleFirstListItemUp(event)) return true;
+        if (redirectToRowStart(event)) return true;
         if (handleGridNavigationKey(event)) return true;
         if (handleImageModeKey(event)) return true;
         if (celebration != null && event.getAction() == KeyEvent.ACTION_DOWN) dismissCelebration();
@@ -1697,13 +1719,14 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• שם המכירה במרכז הכותרת, והכפתורים בצדדים.\n"
-            + "• המוצרים ממוינים לפי מחלקות (קטגוריות), לפי סדר המחלקות של המכירה.\n"
-            + "• מידע איסוף (מקום, שעות, הערות, מפה וחיוג) ליד כל הזמנה במסך ההזמנות הקודמות.\n"
-            + "• מסך הגדרות מסודר בקבוצות, בלי כפתורים מיותרים.\n"
-            + "• אפשר להגיע לחיפוש במקשים: למעלה מהפריט הראשון.\n"
-            + "• בחירת החשבון הפעיל (בהגדרות ובמסך ההזמנות הקודמות), ולכל חשבון היסטוריית הזמנות משלו.\n"
-            + "• כפתורי התצוגה (מאוחדת / לפי חשבון) חזרו לכותרת.";
+            "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
+            + "• שם הרשימה בכותרת הוא כפתור: מעבר לרשימה שמורה אחרת, שינוי שם, איחוד רשימות וחזרה להזמנה העדכנית.\n"
+            + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
+            + "• איחוד כמה רשימות לרשימה חדשה.\n"
+            + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
+            + "• ניווט: 2 ו-8 ממשיכים לנווט גם מתוך החיפוש; כניסה לשורת כפתורים מתחילה בכפתור הימני.\n"
+            + "• מצב רשת: לחיצה על מוצר כבר לא מקפיצה לראש העמוד ולא מאבדת את הבחירה.\n"
+            + "• תמונות: מטמון אחד לכל החשבונות, הורדה מראש של כל התמונות, ובלי ניסיונות חוזרים אחרי כישלון.";
 
     /** כרטיס קבוצה במסך ההגדרות: כותרת קטנה ותוכן על רקע בהיר. */
     private LinearLayout settingsCard(LinearLayout content, String title) {
@@ -2275,7 +2298,7 @@ public class MainActivity extends Activity {
         Button firstOpen=null;
         for(SavedListStore.Entry entry:entries){LinearLayout card=Ui.column(this);
             card.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_CARD,1,Ui.P200));card.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3));
-            card.addView(Ui.text(this,entry.title,Ui.T_NAME,Ui.P900,true));
+            card.addView(Ui.text(this,displayTitle(entry),Ui.T_NAME,Ui.P900,true));
             card.addView(Ui.text(this,entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt),Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
             // שני כפתורים בשורה במקום ארבעה כפתורים זה מתחת לזה: פחות גלילה ופחות לחיצות מקלדת.
             LinearLayout actions=new LinearLayout(this);actions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -2298,7 +2321,8 @@ public class MainActivity extends Activity {
     private void showSavedListActions(SavedListStore.Entry entry) {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel=Ui.dialogPanel(this);
-        panel.addView(Ui.text(this,entry.title,Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,displayTitle(entry),Ui.T_NAME,Ui.P900,true));
+        addSourceAction(panel,dialog,"שינוי שם",()->showRenameDialog(entry.owner,entry.orderId,displayTitle(entry),entry.title,this::refreshSavedListsScreen));
         panel.addView(Ui.text(this,entry.itemCount+" פריטים",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
         addSourceAction(panel,dialog,"מיזוג לתוך רשימה אחרת",()->showMergeTargetDialog(entry));
         addSourceAction(panel,dialog,"ייצוא לקובץ TXT",()->exportSavedList(entry));
@@ -2457,8 +2481,8 @@ public class MainActivity extends Activity {
             long id=extractOrderId(row);if(id<=0)continue;String title=OrderHistoryPage.title(row);
             // בהיסטוריה מוצג שם המכירה בלבד, ולידו כפתור מידע איסוף להזמנה.
             Button item=Ui.button(this,title,Ui.Kind.SOFT);
-            item.setContentDescription("שמירת ההזמנה "+title+" כרשימה");
-            item.setOnClickListener(v->saveHistoricalOrder(id,title,row));
+            item.setContentDescription("הוספת ההזמנה "+title);
+            item.setOnClickListener(v->chooseHistoryDestination(id,title,row));
             Button info=Ui.iconButton(this,Ui.IC_INFO,"מידע איסוף",false);
             info.setOnClickListener(v->{
                 JSONObject pickup=PickupInfo.extract(row,null);
@@ -2479,7 +2503,217 @@ public class MainActivity extends Activity {
             else if(historyContent.getChildCount()>2)historyContent.getChildAt(historyContent.getChildCount()-1).requestFocus();
         }
     }
-    private void saveHistoricalOrder(long id,String title,JSONObject historyRow) {
+    // ---------------------------------------------------------------------
+    // מעבר בין רשימות, איחוד רשימות ובחירת יעד להזמנה מהעבר
+    // ---------------------------------------------------------------------
+
+    private interface EntryChoice { void choose(SavedListStore.Entry entry); }
+
+    private static String savedEntryId(String sourceId, String owner, String orderId) {
+        String ownerKey = owner == null || owner.isEmpty() ? "noowner" : owner.substring(0, Math.min(12, owner.length()));
+        return sourceId + "_" + ownerKey + "_" + orderId;
+    }
+
+    private SavedListStore.Entry findSavedEntry(String id) {
+        for (SavedListStore.Entry entry : savedListStore.list()) if (entry.id.equals(id)) return entry;
+        return null;
+    }
+
+    /** האם הרשימה השמורה הזו היא הרשימה שמוצגת עכשיו במסך הראשי. */
+    private boolean isDisplayedList(SavedListStore.Entry entry) {
+        return entry != null && !combinedView && entry.sourceId.equals(activeSourceId)
+                && entry.owner.equals(activeOwner) && entry.orderId.equals(currentOrderId);
+    }
+
+    /** חלון בחירת רשימה שמורה. הרשימה המוצגת כרגע מסומנת. */
+    private void pickSavedList(String title, String excludeId, EntryChoice choice) {
+        List<SavedListStore.Entry> entries = savedListStore.list();
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
+        LinearLayout body = Ui.column(this);
+        Button first = null;
+        for (SavedListStore.Entry entry : entries) {
+            if (entry.id.equals(excludeId)) continue;
+            boolean current = isDisplayedList(entry);
+            Button choose = Ui.button(this, displayTitle(entry) + " · " + entry.itemCount + " פריטים"
+                    + (current ? "  ·  מוצגת" : ""), current ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+            choose.setOnClickListener(v -> { dialog.dismiss(); choice.choose(entry); });
+            body.addView(choose, Ui.row(this, Ui.S1, Ui.S1));
+            if (first == null) first = choose;
+        }
+        if (first == null) body.addView(Ui.text(this, "אין רשימות שמורות.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(cancel, Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.8f));
+        if (first != null) first.requestFocus(); else cancel.requestFocus();
+    }
+
+    /** לחיצה על שם הרשימה בכותרת: מעבר לרשימה אחרת, שינוי שם, איחוד, או חזרה להזמנה העדכנית. */
+    private void showListSwitcher() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, homeDisplayTitle(), Ui.T_NAME, Ui.P900, true));
+        List<SavedListStore.Entry> entries = savedListStore.list();
+        Button openOther = Ui.button(this, "מעבר לרשימה שמורה אחרת", Ui.Kind.PRIMARY);
+        openOther.setEnabled(!entries.isEmpty());
+        openOther.setOnClickListener(v -> { dialog.dismiss();
+            pickSavedList("מעבר לרשימה", "", entry -> { if (!isDisplayedList(entry)) openSavedList(entry); }); });
+        panel.addView(openOther, Ui.row(this, Ui.S3, Ui.S1));
+        if (showingSavedList) {
+            Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.SOFT);
+            latest.setEnabled(!connectedAccounts().isEmpty());
+            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
+            panel.addView(latest, Ui.row(this, Ui.S1, Ui.S1));
+        }
+        if (!combinedView && !currentOrderId.isEmpty()) {
+            Button rename = Ui.button(this, "שינוי שם לרשימה", Ui.Kind.SOFT);
+            rename.setOnClickListener(v -> { dialog.dismiss();
+                showRenameDialog(activeOwner, currentOrderId, homeDisplayTitle(), currentOrderTitle, this::refreshHomeTitle); });
+            panel.addView(rename, Ui.row(this, Ui.S1, Ui.S1));
+        }
+        Button merge = Ui.button(this, "איחוד רשימות", Ui.Kind.SOFT);
+        merge.setEnabled(entries.size() >= 2);
+        merge.setOnClickListener(v -> { dialog.dismiss(); showMergeListsDialog(); });
+        panel.addView(merge, Ui.row(this, Ui.S1, Ui.S1));
+        Button close = Ui.button(this, "סגירה", Ui.Kind.SOFT);
+        close.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(close, Ui.row(this, Ui.S3, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (openOther.isEnabled()) openOther.requestFocus(); else close.requestFocus();
+    }
+
+    /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */
+    private void returnToLatestOrder() {
+        showingSavedList = false;
+        if (sourceRegistry.all().size() > 1) { showHomeScreen(false); syncAllAccounts(); return; }
+        if (accessToken.isEmpty()) {
+            String other = firstConnectedAccountId();
+            if (!other.isEmpty()) { switchSource(other, () -> showHomeScreen(true)); return; }
+        }
+        showHomeScreen(!accessToken.isEmpty());
+    }
+
+    /** איחוד כמה רשימות שמורות לרשימה חדשה. הרשימות המקוריות נשארות כמו שהן. */
+    private void showMergeListsDialog() {
+        List<SavedListStore.Entry> entries = savedListStore.list();
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "איחוד רשימות", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "סמנו לפחות שתי רשימות. תיווצר רשימה חדשה עם כל המוצרים; כמויות של מוצרים זהים יסוכמו. הרשימות המקוריות נשמרות.",
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        LinearLayout body = Ui.column(this);
+        final List<CheckBox> boxes = new ArrayList<>();
+        for (SavedListStore.Entry entry : entries) {
+            CheckBox box = new CheckBox(this);
+            box.setText(displayTitle(entry) + " · " + entry.itemCount + " פריטים");
+            box.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY);
+            box.setTextColor(Ui.INK);
+            if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
+            box.setBackground(Ui.focusFrame(this));
+            box.setPadding(Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2));
+            box.setTag(entry);
+            box.setChecked(isDisplayedList(entry));
+            boxes.add(box);
+            body.addView(box, Ui.row(this, 0, 0));
+        }
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button create = Ui.button(this, "איחוד לרשימה חדשה", Ui.Kind.PRIMARY);
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        create.setOnClickListener(v -> {
+            List<SavedListStore.Entry> chosen = new ArrayList<>();
+            for (CheckBox box : boxes) if (box.isChecked()) chosen.add((SavedListStore.Entry) box.getTag());
+            if (chosen.size() < 2) { showActionToast("יש לסמן לפחות שתי רשימות"); return; }
+            dialog.dismiss();
+            mergeIntoNewList(chosen);
+        });
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(buttonPair(create, cancel), Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.85f));
+        if (!boxes.isEmpty()) boxes.get(0).requestFocus();
+    }
+
+    private void mergeIntoNewList(List<SavedListStore.Entry> chosen) {
+        StringBuilder name = new StringBuilder();
+        for (SavedListStore.Entry entry : chosen) {
+            if (name.length() > 0) name.append(" + ");
+            name.append(displayTitle(entry));
+        }
+        String title = name.length() > 80 ? name.substring(0, 80) : name.toString();
+        String id = createEmptySavedList(title);
+        if (id.isEmpty()) { Toast.makeText(this, "כדי לאחד רשימות צריך חשבון פעיל.", Toast.LENGTH_LONG).show(); return; }
+        int merged = 0;
+        for (SavedListStore.Entry entry : chosen) if (savedListStore.mergeEntries(id, entry.id)) merged++;
+        // מיזוג משנה את שם הרשימה לפי שמות המקור; מחזירים את השם שנבחר.
+        try {
+            JSONObject data = savedListStore.readEntry(id);
+            data.put("order_name", title);
+            savedListStore.archiveSnapshot(data.optString("_source_id"), data.optString("_source_label"), data, null);
+        } catch (Exception ignored) { }
+        SavedListStore.Entry result = findSavedEntry(id);
+        if (merged == 0 || result == null) { Toast.makeText(this, "האיחוד נכשל; הרשימות המקוריות לא השתנו.", Toast.LENGTH_LONG).show(); return; }
+        Toast.makeText(this, "נוצרה רשימה מאוחדת מ-" + merged + " רשימות.", Toast.LENGTH_LONG).show();
+        openSavedList(result);
+    }
+
+    /** יוצר רשימה שמורה ריקה תחת החשבון הפעיל. מחזיר את מזהה הרשימה, או ריק בכישלון. */
+    private String createEmptySavedList(String title) {
+        if (activeSourceId.isEmpty() || activeOwner.isEmpty()) return "";
+        SourceRegistry.Source source = sourceRegistry.find(activeSourceId);
+        if (source == null) return "";
+        try {
+            long id = System.currentTimeMillis();
+            JSONObject snapshot = new JSONObject().put("order_id", id).put("owner", activeOwner)
+                    .put("order_name", title).put("imported", true).put("products", new JSONArray());
+            if (!savedListStore.archiveSnapshot(source.id, source.label, snapshot, null)) return "";
+            return savedEntryId(source.id, activeOwner, String.valueOf(id));
+        } catch (Exception e) { return ""; }
+    }
+
+    /** בחירה אחרי לחיצה על הזמנה מהעבר: רשימה חדשה, או הוספה לרשימה קיימת. */
+    private void chooseHistoryDestination(long id, String title, JSONObject historyRow) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "לאן להוסיף את ההזמנה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        Button asNew = Ui.button(this, "רשימה חדשה", Ui.Kind.PRIMARY);
+        asNew.setOnClickListener(v -> { dialog.dismiss(); saveHistoricalOrder(id, title, historyRow, null); });
+        panel.addView(asNew, Ui.row(this, Ui.S2, Ui.S1));
+        Button toExisting = Ui.button(this, "הוספה לרשימה קיימת", Ui.Kind.SOFT);
+        toExisting.setEnabled(!savedListStore.list().isEmpty());
+        toExisting.setOnClickListener(v -> { dialog.dismiss();
+            pickSavedList("הוספה לרשימה", "", entry -> saveHistoricalOrder(id, title, historyRow, entry)); });
+        panel.addView(toExisting, Ui.row(this, Ui.S1, Ui.S1));
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(cancel, Ui.row(this, Ui.S3, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        asNew.requestFocus();
+    }
+
+    private void saveHistoricalOrder(long id,String title,JSONObject historyRow,SavedListStore.Entry target) {
         if(accessToken.isEmpty()||activeSourceId.isEmpty()){Toast.makeText(this,"אין חיבור פעיל לשמירת ההזמנה.",Toast.LENGTH_LONG).show();return;}
         final RequestSession session=new RequestSession(authGeneration,accessToken);
         Toast.makeText(this,"טוען את פרטי ההזמנה…",Toast.LENGTH_SHORT).show();
@@ -2494,9 +2728,24 @@ public class MainActivity extends Activity {
                 JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name",title).put("updated_at",first(order,"created_at","updated_at","date")).put("imported",true).put("products",items);
                 JSONObject pickup=PickupInfo.extract(historyRow,order);if(pickup!=null)snapshot.put("pickup_info",pickup);
                 SourceRegistry.Source source=sourceRegistry.find(activeSourceId);if(source==null)throw new Exception("החיבור הפעיל אינו קיים.");
+                String historyEntryId=savedEntryId(source.id,owner,String.valueOf(id));
+                boolean existedBefore=findSavedEntry(historyEntryId)!=null;
                 if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
+                if(target!=null){
+                    // הוספה לרשימה קיימת: הפריטים מתאחדים לתוכה, והעותק הזמני נמחק (אלא אם נשמר כבר קודם).
+                    if(!savedListStore.mergeEntries(target.id,historyEntryId))throw new Exception("ההוספה לרשימה נכשלה.");
+                    if(!existedBefore)savedListStore.delete(historyEntryId);
+                }
                 if(!session.isCurrent(this))return;
-                mainHandler.post(()->{if(screen==Screen.HISTORY)leaveHistoryScreen();Toast.makeText(this,"ההזמנה נשמרה כרשימה עצמאית במסך רשימות שמורות.",Toast.LENGTH_LONG).show();});
+                mainHandler.post(()->{
+                    if(target!=null){
+                        Toast.makeText(this,"ההזמנה נוספה לרשימה "+displayTitle(target)+".",Toast.LENGTH_LONG).show();
+                        SavedListStore.Entry updated=findSavedEntry(target.id);
+                        // הרשימה שעודכנה נפתחת, כדי שהמוצרים החדשים יוצגו מיד.
+                        if(updated!=null){openSavedList(updated);return;}
+                    } else Toast.makeText(this,"ההזמנה נשמרה כרשימה חדשה במסך רשימות שמורות.",Toast.LENGTH_LONG).show();
+                    if(screen==Screen.HISTORY)leaveHistoryScreen();
+                });
             } catch(Exception e) {String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"שמירת ההזמנה נכשלה: "+error,Toast.LENGTH_LONG).show());}
         });
     }
@@ -2514,7 +2763,7 @@ public class MainActivity extends Activity {
         try {
             Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/plain");
-            String name=(entry.title==null||entry.title.trim().isEmpty()?"רשימת איסוף":entry.title).replaceAll("[/:*?<>|]","_").replace("\\\\","_").replace("\"","_");
+            String name=displayTitle(entry).replaceAll("[/:*?<>|]","_").replace("\\\\","_").replace("\"","_");
             intent.putExtra(Intent.EXTRA_TITLE,name+".txt");pendingExportListId=entry.id;
             startActivityForResult(intent,REQUEST_EXPORT_FILE);
         } catch(Exception e) {pendingExportListId="";Toast.makeText(this,"לא ניתן לפתוח שמירת קובץ.",Toast.LENGTH_LONG).show();}
@@ -2545,8 +2794,8 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this,"בחר רשימת יעד למיזוג",Ui.T_NAME,Ui.P900,true));int choices=0;
         for(SavedListStore.Entry target:savedListStore.list()) {
             if(target.id.equals(source.id))continue;choices++;
-            Button choose=Ui.button(this,target.title+" · "+target.itemCount+" פריטים",Ui.Kind.SOFT);
-            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+source.title+"' יצורפו ל '"+target.title+"'. כמויות של פריטים זהים יסוכמו; רשימת המקור תישאר שמורה.","מזג רשימות",()->{boolean ok=savedListStore.mergeEntries(target.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"הרשימות מוזגו בהצלחה.":"המיזוג נכשל; הרשימות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
+            Button choose=Ui.button(this,displayTitle(target)+" · "+target.itemCount+" פריטים",Ui.Kind.SOFT);
+            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+displayTitle(source)+"' יצורפו ל '"+displayTitle(target)+"'. כמויות של פריטים זהים יסוכמו; רשימת המקור תישאר שמורה.","מזג רשימות",()->{boolean ok=savedListStore.mergeEntries(target.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"הרשימות מוזגו בהצלחה.":"המיזוג נכשל; הרשימות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
             panel.addView(choose,Ui.row(this,Ui.S2,0));
         }
         if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי רשימות שמורות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
@@ -2679,6 +2928,10 @@ public class MainActivity extends Activity {
         boolean unifiedMode = sourceRegistry != null && "COMBINED_SUM".equals(sourceRegistry.viewMode());
         Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת", unifiedMode);
         Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון", !unifiedMode);
+        // עם חשבון אחד בלבד שתי התצוגות זהות, ולכן הכפתורים מוסתרים (המקום נשמר כדי שהשם יישאר באמצע).
+        boolean multipleSources = sourceRegistry != null && sourceRegistry.all().size() > 1;
+        unified.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
+        byAccount.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
 
         LinearLayout rightSide = new LinearLayout(this);
         rightSide.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -2694,25 +2947,52 @@ public class MainActivity extends Activity {
         byAccountLp.setMarginStart(gap);
         leftSide.addView(byAccount, byAccountLp);
 
-        TextView title = Ui.text(this, currentOrderTitle.isEmpty() ? "רשימת איסוף" : currentOrderTitle,
-                wide ? Ui.T_TITLE : Ui.T_NAME + 2, Ui.P900, true);
+        TextView title = Ui.text(this, homeDisplayTitle(), wide ? Ui.T_TITLE : Ui.T_NAME + 2, Ui.P900, true);
         homeTitleText = title;
+        // השם הוא כפתור: מסגרת, חץ למטה ומשוב לחיצה. לחיצה פותחת מעבר בין רשימות.
+        title.setClickable(true);
+        title.setFocusable(true);
+        title.setFocusableInTouchMode(false);
+        title.setId(View.generateViewId());
+        title.setContentDescription("בחירת רשימה");
+        title.setBackground(Ui.interactive(this, Ui.P100, Ui.P300, Ui.P200, Ui.P700, Ui.R_BUTTON));
+        title.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S1));
+        Drawable chevron = new Ui.IconDrawable(this, Ui.IC_CHEVRON_DOWN, Ui.P700, 20, 1f);
+        chevron.setBounds(0, 0, Ui.dp(this, 20), Ui.dp(this, 20));
+        title.setCompoundDrawablesRelative(null, null, chevron, null);
+        title.setCompoundDrawablePadding(Ui.dp(this, Ui.S1));
+        title.setOnClickListener(v -> showListSwitcher());
+        // לחיצה ארוכה על השם: שינוי שם לרשימה הנוכחית.
+        title.setOnLongClickListener(v -> {
+            if (combinedView || currentOrderId.isEmpty()) {
+                showActionToast("שינוי שם לרשימה נעשה ממסך רשימות שמורות");
+                return true;
+            }
+            showRenameDialog(activeOwner, currentOrderId, homeDisplayTitle(), currentOrderTitle, this::refreshHomeTitle);
+            return true;
+        });
         title.setGravity(Gravity.CENTER);
         title.setMaxLines(2);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
         headerButtons.add(settings); headerButtons.add(resetButton);
-        headerButtons.add(unified); headerButtons.add(byAccount);
+        if (multipleSources) { headerButtons.add(unified); headerButtons.add(byAccount); }
 
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         int sideWidth = size * 2 + gap;
         row.addView(rightSide, new LinearLayout.LayoutParams(sideWidth, size));
+        headerStacked = !wide;
         if (wide) {
+            // השם ברוחב התוכן שלו, ממורכז בין שני הצדדים.
+            FrameLayout middle = new FrameLayout(this);
+            FrameLayout.LayoutParams inner = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
+            middle.addView(title, inner);
             LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, -2, 1f);
             titleLp.setMargins(Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2), 0);
-            row.addView(title, titleLp);
+            row.addView(middle, titleLp);
+            headerButtons.add(2, title);
         } else {
             row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         }
@@ -2721,7 +3001,10 @@ public class MainActivity extends Activity {
 
         LinearLayout stacked = Ui.column(this);
         stacked.addView(row, new LinearLayout.LayoutParams(-1, -2));
-        stacked.addView(title, Ui.row(this, Ui.S2, 0));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-2, -2);
+        titleLp.gravity = Gravity.CENTER_HORIZONTAL;
+        titleLp.topMargin = Ui.dp(this, Ui.S2);
+        stacked.addView(title, titleLp);
         return stacked;
     }
 
@@ -2923,11 +3206,14 @@ public class MainActivity extends Activity {
         buttons.setGravity(Gravity.CENTER_VERTICAL);
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         Button approve = Ui.button(this, positive, Ui.Kind.STRONG);
-        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);        first.setMargins(0, 0, Ui.dp(this, Ui.S2), 0);
+        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);
+        first.setMarginEnd(Ui.dp(this, Ui.S1));
         LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, -2, 1f);
-        second.setMargins(Ui.dp(this, Ui.S2), 0, 0, 0);
-        buttons.addView(cancel, first);
-        buttons.addView(approve, second);
+        second.setMarginStart(Ui.dp(this, Ui.S1));
+        // אישור מימין (הראשון בסדר הקריאה) והוא מקבל את הפוקוס; ביטול משמאל.
+        buttons.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        buttons.addView(approve, first);
+        buttons.addView(cancel, second);
         cancel.setOnClickListener(v -> dialog.dismiss());
         approve.setOnClickListener(v -> { dialog.dismiss(); action.run(); });
         dialog.setOnShowListener(d -> approve.requestFocus());
@@ -3111,6 +3397,7 @@ public class MainActivity extends Activity {
             sortByCategory(restored, currentPickupInfo);
             products.clear();
             products.addAll(restored);
+            prefetchImages(restored);
             loadCollectedState();
             syncCompletionState();
         } catch (Exception error) {
@@ -3242,6 +3529,7 @@ public class MainActivity extends Activity {
         renderProducts(false);
         wireFocusOrder();
         showSyncMessage("", false);
+        prefetchImages(rows);
 
         boolean rewrite = verdict != DataGuard.Verdict.SAME || !isCacheManifestValid(stableOwner);
         if (!rewrite) {
@@ -3436,8 +3724,85 @@ public class MainActivity extends Activity {
     /** שם ההזמנה המוצג בכותרת המסך: שם המכירה בלבד. */
     private void setCurrentOrderTitle(String title) {
         currentOrderTitle = title == null ? "" : title.trim();
-        if (homeTitleText != null)
-            homeTitleText.setText(currentOrderTitle.isEmpty() ? "רשימת איסוף" : currentOrderTitle);
+        refreshHomeTitle();
+    }
+
+    /** השם המוצג בכותרת: שם מותאם אישית לרשימה אם הוגדר, אחרת שם המכירה. */
+    private String homeDisplayTitle() {
+        if (!combinedView && !currentOrderId.isEmpty()) {
+            String custom = customName(activeOwner, currentOrderId);
+            if (!custom.isEmpty()) return custom;
+        }
+        return currentOrderTitle.isEmpty() ? "רשימת איסוף" : currentOrderTitle;
+    }
+
+    private void refreshHomeTitle() {
+        if (homeTitleText != null) homeTitleText.setText(homeDisplayTitle());
+    }
+
+    // ---------------------------------------------------------------------
+    // שמות מותאמים אישית לרשימות. נשמרים בנפרד מהרשימה עצמה, לפי בעלים ומזהה הזמנה,
+    // ולכן אינם נמחקים כשהרשימה מסונכרנת מחדש או נשמרת שוב בארכיון.
+    // ---------------------------------------------------------------------
+
+    private static String customNameKey(String owner, String orderId) {
+        String ownerKey = owner == null || owner.isEmpty() ? "noowner" : owner.substring(0, Math.min(12, owner.length()));
+        return "custom_name_" + ownerKey + "_" + (orderId == null ? "" : orderId);
+    }
+
+    private String customName(String owner, String orderId) {
+        if (uiPreferences == null || orderId == null || orderId.isEmpty()) return "";
+        return uiPreferences.getString(customNameKey(owner, orderId), "").trim();
+    }
+
+    private String displayTitle(SavedListStore.Entry entry) {
+        String custom = customName(entry.owner, entry.orderId);
+        if (!custom.isEmpty()) return custom;
+        return entry.title == null || entry.title.trim().isEmpty() ? "רשימה" : entry.title;
+    }
+
+    /** חלון שינוי שם לרשימה. שם ריק מחזיר את השם המקורי (שם המכירה). */
+    private void showRenameDialog(String owner, String orderId, String currentName, String originalName, Runnable onDone) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "שם לרשימה", Ui.T_NAME, Ui.P900, true));
+        if (originalName != null && !originalName.isEmpty())
+            panel.addView(Ui.text(this, "שם המקור: " + originalName + ". השאירו ריק כדי לחזור אליו.",
+                    Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, 0));
+        EditText input = createLoginInput("שם לרשימה", InputType.TYPE_CLASS_TEXT);
+        input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        input.setTextDirection(View.TEXT_DIRECTION_RTL);
+        input.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        input.setText(currentName == null ? "" : currentName);
+        input.setSelection(input.getText().length());
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        panel.addView(input, Ui.row(this, Ui.S3, Ui.S3));
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        Button save = Ui.button(this, "שמירה", Ui.Kind.PRIMARY);
+        Runnable apply = () -> {
+            String value = input.getText().toString().trim();
+            if (value.length() > 80) value = value.substring(0, 80);
+            SharedPreferences.Editor edit = uiPreferences.edit();
+            if (value.isEmpty() || value.equals(originalName)) edit.remove(customNameKey(owner, orderId));
+            else edit.putString(customNameKey(owner, orderId), value);
+            edit.apply();
+            hideKeyboard(input);
+            dialog.dismiss();
+            showActionToast(value.isEmpty() ? "הוחזר השם המקורי" : "השם נשמר: " + value);
+            if (onDone != null) onDone.run();
+        };
+        save.setOnClickListener(v -> apply.run());
+        cancel.setOnClickListener(v -> { hideKeyboard(input); dialog.dismiss(); });
+        input.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE || isEnterKey(event)) { apply.run(); return true; }
+            return false;
+        });
+        panel.addView(buttonPair(save, cancel));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        input.requestFocus();
     }
 
     private void cacheOrderIfComplete(int generation, String requestToken, String owner,
@@ -3592,6 +3957,8 @@ public class MainActivity extends Activity {
 
     private void renderProducts(boolean ignoredScrollFlag) {
         if (pendingList == null || collectedList == null) return;
+        // כותרות המחלקות מוסרות לפני כל חישוב מיקום, ומוחזרות בסוף (decorateLists).
+        removeCategoryHeaders();
         View focused = getCurrentFocus();
         Object focusedTag = focused == null ? null : focused.getTag();
         String focusedKey = focusRestoreKey != null ? focusRestoreKey
@@ -3636,7 +4003,7 @@ public class MainActivity extends Activity {
         // Grid positions are rebuilt from the original product order after every state
         // change. This keeps both sections stable when cards move between pending and
         // collected, and explicitly leaves any incomplete row's empty cells on the left.
-        reflowGridListsInProductOrder();
+        decorateLists();
         lastRenderedDisplayMode = displayMode;
         int visibleCount = 0; for(ProductRow p:products) if(matchesSearch(p)) visibleCount++;
         if (searchEmptyText != null) searchEmptyText.setVisibility(!searchQuery.trim().isEmpty() && visibleCount==0 ? View.VISIBLE : View.GONE);
@@ -3652,6 +4019,60 @@ public class MainActivity extends Activity {
                 }
                 if (restore == null || !restore.row.requestFocus()) focusFirstPending();
             });
+        }
+    }
+
+    private static final Object CATEGORY_HEADER_TAG = new Object();
+    /** מיקום כל כרטיס ברשת: {שורה, עמודה}, עמודה 0 היא הימנית. */
+    private final Map<View, int[]> gridPositions = new java.util.WeakHashMap<>();
+
+    private void removeCategoryHeaders() {
+        for (ViewGroup list : new ViewGroup[]{pendingList, collectedList}) {
+            if (list == null) continue;
+            for (int i = list.getChildCount() - 1; i >= 0; i--)
+                if (list.getChildAt(i).getTag() == CATEGORY_HEADER_TAG) list.removeViewAt(i);
+        }
+    }
+
+    /** מוסיף כותרות מחלקה וצבעים אחרי שהכרטיסים במקומם. ברשת - בונה מחדש את המיקומים. */
+    private void decorateLists() {
+        if (displayMode == 5 && pendingList instanceof GridLayout && collectedList instanceof GridLayout) {
+            reflowGridListsInProductOrder();
+            return;
+        }
+        addListHeaders(pendingList);
+        addListHeaders(collectedList);
+    }
+
+    private boolean hasCategories() {
+        for (ProductRow product : products) if (!product.category.isEmpty()) return true;
+        return false;
+    }
+
+    private void addListHeaders(ViewGroup list) {
+        if (list == null || !hasCategories()) return;
+        String previous = null;
+        for (int i = 0; i < list.getChildCount(); i++) {
+            ProductCard card = findProductCard(list.getChildAt(i));
+            if (card == null || card.product == null) continue;
+            String category = card.product.category.isEmpty() ? "ללא מחלקה" : card.product.category;
+            if (category.equals(previous)) continue;
+            previous = category;
+            int count = 0;
+            for (int j = i; j < list.getChildCount(); j++) {
+                ProductCard other = findProductCard(list.getChildAt(j));
+                if (other == null || other.product == null) continue;
+                String otherCategory = other.product.category.isEmpty() ? "ללא מחלקה" : other.product.category;
+                if (!otherCategory.equals(category)) break;
+                count++;
+            }
+            TextView header = Ui.categoryHeader(this, category, count);
+            header.setTag(CATEGORY_HEADER_TAG);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.topMargin = Ui.dp(this, i == 0 ? Ui.S1 : Ui.S3);
+            lp.bottomMargin = Ui.dp(this, Ui.S2);
+            list.addView(header, i, lp);
+            i++;
         }
     }
 
@@ -3673,12 +4094,98 @@ public class MainActivity extends Activity {
                 collectedOrder.add(partial);
         }
 
+        // הבנייה מחדש מסירה את כל הכרטיסים לרגע. שומרים את הכרטיס שבפוקוס ואת מיקום הגלילה,
+        // ומחזירים אותם מיד, כדי שלחיצה על מוצר לא תעיף את הבחירה ולא תקפיץ לראש העמוד.
+        ProductCard focusedCard = findProductCard(getCurrentFocus());
+        final int scrollY = pageScroll == null ? 0 : pageScroll.getScrollY();
+        View scrollChild = pageScroll == null ? null : pageScroll.getChildAt(0);
+        if (scrollChild != null) scrollChild.setMinimumHeight(scrollChild.getHeight());
+        boolean blockFocus = pageScroll != null;
+        if (blockFocus) pageScroll.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         pendingList.removeAllViews();
         collectedList.removeAllViews();
-        for (int i = 0; i < pendingOrder.size(); i++)
-            pendingList.addView(pendingOrder.get(i).row, productLayoutParams(pendingList, i));
-        for (int i = 0; i < collectedOrder.size(); i++)
-            collectedList.addView(collectedOrder.get(i).row, productLayoutParams(collectedList, i));
+        gridPositions.clear();
+        layoutGrid((GridLayout) pendingList, pendingOrder);
+        layoutGrid((GridLayout) collectedList, collectedOrder);
+        if (blockFocus) pageScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        if (focusedCard != null && focusedCard.row.getParent() != null) focusedCard.row.requestFocus();
+        if (pageScroll != null) {
+            pageScroll.scrollTo(0, scrollY);
+            final View child = scrollChild;
+            pageScroll.post(() -> {
+                if (child != null) child.setMinimumHeight(0);
+                if (focusedCard == null) pageScroll.scrollTo(0, scrollY);
+            });
+        }
+    }
+
+    /** פריסת רשת של שלושה כרטיסים בשורה. כל מחלקה מתחילה בשורה חדשה עם כותרת ברוחב מלא. */
+    private void layoutGrid(GridLayout grid, List<ProductCard> cards) {
+        boolean headers = hasCategories();
+        int row = 0, column = 0;
+        String previous = null;
+        for (int i = 0; i < cards.size(); i++) {
+            ProductCard card = cards.get(i);
+            String category = card.product == null || card.product.category.isEmpty()
+                    ? "ללא מחלקה" : card.product.category;
+            if (headers && !category.equals(previous)) {
+                if (column != 0) { row++; column = 0; }
+                int count = 0;
+                for (int j = i; j < cards.size(); j++) {
+                    ProductCard other = cards.get(j);
+                    String otherCategory = other.product == null || other.product.category.isEmpty()
+                            ? "ללא מחלקה" : other.product.category;
+                    if (!otherCategory.equals(category)) break;
+                    count++;
+                }
+                TextView header = Ui.categoryHeader(this, category, count);
+                header.setTag(CATEGORY_HEADER_TAG);
+                GridLayout.LayoutParams hlp = new GridLayout.LayoutParams(
+                        GridLayout.spec(row), GridLayout.spec(0, 3, 1f));
+                hlp.width = 0;
+                hlp.setMargins(Ui.dp(this, 2), Ui.dp(this, row == 0 ? Ui.S1 : Ui.S3), Ui.dp(this, 2), Ui.dp(this, Ui.S1));
+                grid.addView(header, hlp);
+                row++;
+                previous = category;
+            }
+            GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
+                    GridLayout.spec(row), GridLayout.spec(2 - column, 1f));
+            lp.width = 0; lp.height = Ui.dp(this, 176);
+            lp.setMargins(Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2));
+            grid.addView(card.row, lp);
+            gridPositions.put(card.row, new int[]{row, column});
+            column++;
+            if (column == 3) { column = 0; row++; }
+        }
+    }
+
+    /** הכרטיס הקרוב ביותר בשורה הסמוכה (מעל או מתחת) ברשת. */
+    private View gridNeighbor(ViewGroup container, int row, int column, boolean down) {
+        int bestRow = down ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+        for (int i = 0; i < container.getChildCount(); i++) {
+            int[] pos = gridPositions.get(container.getChildAt(i));
+            if (pos == null) continue;
+            if (down ? (pos[0] > row && pos[0] < bestRow) : (pos[0] < row && pos[0] > bestRow)) bestRow = pos[0];
+        }
+        if (bestRow == Integer.MAX_VALUE || bestRow == Integer.MIN_VALUE) return null;
+        View best = null; int bestDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View child = container.getChildAt(i);
+            int[] pos = gridPositions.get(child);
+            if (pos == null || pos[0] != bestRow) continue;
+            int distance = Math.abs(pos[1] - column);
+            if (distance < bestDistance) { bestDistance = distance; best = child; }
+        }
+        return best;
+    }
+
+    private View gridCell(ViewGroup container, int row, int column) {
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View child = container.getChildAt(i);
+            int[] pos = gridPositions.get(child);
+            if (pos != null && pos[0] == row && pos[1] == column) return child;
+        }
+        return null;
     }
 
     private int insertionIndex(ViewGroup target, ProductRow product, boolean done) {
@@ -3878,6 +4385,7 @@ public class MainActivity extends Activity {
         card.product=product;String detail=product.note==null?"":product.note;
         if(partial)detail=(detail.isEmpty()?"":detail+" · ")+"נותרו "+shownAmount+" מתוך "+product.amount;
         Ui.bindProduct(card.views,product.name,detail,shownAmount,done);
+        Ui.bindCategory(card.views,product.category);
         if(displayMode==0)card.views.note.setVisibility(View.GONE);
         if(imageMode&&findProductCard(getCurrentFocus())==card)Ui.setImageFocus(this,card.views,true);
     }
@@ -3897,6 +4405,7 @@ public class MainActivity extends Activity {
     private void bindPartialProductCard(ProductCard card,ProductRow product,double quantity){
         card.product=product;String detail=(product.note==null||product.note.isEmpty()?"":product.note+" · ")+"נאספו חלקית · הקשה להחזרה";
         Ui.bindProduct(card.views,product.name,detail,formatQuantity(quantity),true);
+        Ui.bindCategory(card.views,product.category);
         card.views.name.setPaintFlags(card.views.name.getPaintFlags()&~Paint.STRIKE_THRU_TEXT_FLAG);
         card.views.name.setTextColor(Ui.INK);card.views.amount.setTextColor(Ui.P800);card.views.image.setAlpha(1f);    }
     private int partialInsertionIndex(ProductRow product){
@@ -3925,7 +4434,8 @@ public class MainActivity extends Activity {
                 String orderId = String.valueOf(snapshot.optLong("order_id", -1));
                 JSONArray rows = snapshot.optJSONArray("products");
                 if (rows == null || "-1".equals(orderId)) continue;
-                String savedName = snapshot.optString("order_name", "").trim();
+                String savedName = customName(snapshot.optString("owner", ""), orderId);
+                if (savedName.isEmpty()) savedName = snapshot.optString("order_name", "").trim();
                 if (!savedName.isEmpty()) orderNames.add(savedName);
                 JSONObject savedInfo = snapshot.optJSONObject("pickup_info");
                 if (savedInfo != null) {
@@ -4083,6 +4593,7 @@ public class MainActivity extends Activity {
         ViewGroup source = wasCollected ? collectedList : pendingList;
         ProductRow product = findProduct(key);
         if (product == null) return;
+        removeCategoryHeaders();
         int oldIndex = source.indexOfChild(moving.row);
         boolean hadKeyboardFocus = moving.row.hasFocus();
         View neighbor = null;
@@ -4109,7 +4620,7 @@ public class MainActivity extends Activity {
         target.addView(moving.row, targetIndex, productLayoutParams(target, targetIndex));
         // GridLayout children keep their old explicit row/column specs when a card is
         // moved. Reflow BOTH sections after every full collection/undo so no holes remain.
-        reflowGridListsInProductOrder();
+        decorateLists();
         updateProgress();
         wireFocusOrder();
         if (hadKeyboardFocus && neighbor == null) moving.row.requestFocus();
@@ -4144,10 +4655,15 @@ public class MainActivity extends Activity {
         // סדר הניווט במקשים: כפתורי הכותרת ← שדה החיפוש ← הפריט הראשון, ולהפך.
         // (מקש 3 ממשיך לפתוח את החיפוש ישירות.)
         int searchId = searchInput == null ? firstId : searchInput.getId();
-        for (View button : headerButtons) button.setNextFocusDownId(searchId);
+        boolean titleRow = headerStacked && homeTitleText != null && homeTitleText.isFocusable();
+        for (View button : headerButtons) button.setNextFocusDownId(titleRow ? homeTitleText.getId() : searchId);
+        if (titleRow) {
+            homeTitleText.setNextFocusDownId(searchId);
+            if (!headerButtons.isEmpty()) homeTitleText.setNextFocusUpId(headerButtons.get(0).getId());
+        }
         if (searchInput != null) {
             searchInput.setNextFocusDownId(firstId);
-            View top = headerButtons.isEmpty() ? null : headerButtons.get(0);
+            View top = titleRow ? homeTitleText : (headerButtons.isEmpty() ? null : headerButtons.get(0));
             if (top != null) searchInput.setNextFocusUpId(top.getId());
         }
         if (retryButton != null && retryButton.getVisibility() == View.VISIBLE) retryButton.setNextFocusDownId(firstId);
@@ -4155,8 +4671,11 @@ public class MainActivity extends Activity {
     }
 
     private View firstCard() {
-        if (pendingList != null && pendingList.getChildCount() > 0) return pendingList.getChildAt(0);
-        if (collectedList != null && collectedList.getChildCount() > 0) return collectedList.getChildAt(0);
+        for (ViewGroup list : new ViewGroup[]{pendingList, collectedList}) {
+            if (list == null) continue;
+            for (int i = 0; i < list.getChildCount(); i++)
+                if (list.getChildAt(i).getTag() != CATEGORY_HEADER_TAG) return list.getChildAt(i);
+        }
         return null;
     }
 
@@ -4167,10 +4686,11 @@ public class MainActivity extends Activity {
     }
 
     private void focusLastCard() {
-        if (collectedList != null && collectedList.getChildCount() > 0)
-            collectedList.getChildAt(collectedList.getChildCount() - 1).requestFocus();
-        else if (pendingList != null && pendingList.getChildCount() > 0)
-            pendingList.getChildAt(pendingList.getChildCount() - 1).requestFocus();
+        for (ViewGroup list : new ViewGroup[]{collectedList, pendingList}) {
+            if (list == null) continue;
+            for (int i = list.getChildCount() - 1; i >= 0; i--)
+                if (list.getChildAt(i).getTag() != CATEGORY_HEADER_TAG) { list.getChildAt(i).requestFocus(); return; }
+        }
     }
 
     private void loadLegacyProductImage(ProductRow product, ImageView target) {
@@ -4230,10 +4750,64 @@ public class MainActivity extends Activity {
         });
     }
 
+    /**
+     * מטמון התמונות גלובלי לכל האפליקציה: תיקייה אחת, לפי כתובת התמונה, בלי קשר לחשבון, למקור
+     * או לרשימה. תמונה שהורדה פעם אחת נטענת מהדיסק בכל רשימה ובכל חשבון, ולא מורדת שוב.
+     * המטמון אינו נמחק בהחלפת חשבון, בהתנתקות או בסנכרון.
+     */
     private File imageCacheFile(String imageUrl) {
         if (imageUrl == null || imageUrl.isEmpty()) return null;
-        File dir = new File(getFilesDir(), "product_image_cache");
-        return new File(dir, DataGuard.sha256(imageUrl) + ".img");
+        File dir = new File(getApplicationContext().getFilesDir(), "product_image_cache");
+        return new File(dir, DataGuard.sha256(imageUrl.trim()) + ".img");
+    }
+
+    /** כתובות שההורדה שלהן נכשלה לאחרונה, כדי לא לנסות שוב בכל ציור מחדש של הרשימה. */
+    private final Map<String, Long> failedImages = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long IMAGE_RETRY_MS = 10 * 60 * 1000L;
+
+    private boolean recentlyFailed(String imageUrl) {
+        Long at = failedImages.get(imageUrl);
+        if (at == null) return false;
+        if (System.currentTimeMillis() - at > IMAGE_RETRY_MS) { failedImages.remove(imageUrl); return false; }
+        return true;
+    }
+
+    /** מוריד מראש לדיסק את כל תמונות הרשימה שעוד אינן שמורות (גם בתצוגה ללא תמונות), כדי שיהיו זמינות גם בלי אינטרנט. */
+    private void prefetchImages(List<ProductRow> rows) {
+        if (rows == null) return;
+        final List<String> urls = new ArrayList<>();
+        for (ProductRow row : rows) {
+            if (row.imageUrl == null || row.imageUrl.isEmpty() || urls.contains(row.imageUrl)) continue;
+            File file = imageCacheFile(row.imageUrl);
+            if (file != null && file.isFile() && file.length() > 0) continue;
+            urls.add(row.imageUrl);
+        }
+        if (urls.isEmpty()) return;
+        cacheWorker.execute(() -> {
+            for (String url : urls) {
+                if (recentlyFailed(url)) continue;
+                synchronized (imageTargetsLock) { if (!imageDownloads.add(url)) continue; }
+                try {
+                    File target = imageCacheFile(url);
+                    if (target == null || (target.isFile() && target.length() > 0)) continue;
+                    File dir = target.getParentFile();
+                    if (dir != null && !dir.exists()) dir.mkdirs();
+                    File temp = new File(dir, target.getName() + ".pre");
+                    if (downloadImageToFile(url, temp) && temp.renameTo(target)) failedImages.remove(url);
+                    else { temp.delete(); failedImages.put(url, System.currentTimeMillis()); }
+                } finally {
+                    // כרטיסים שחיכו לתמונה הזו בזמן ההורדה המוקדמת מקבלים אותה עכשיו מהדיסק.
+                    List<WeakReference<ImageView>> waiting;
+                    synchronized (imageTargetsLock) { imageDownloads.remove(url); waiting = imageTargets.remove(url); }
+                    if (waiting != null && !waiting.isEmpty()) mainHandler.post(() -> {
+                        for (WeakReference<ImageView> reference : waiting) {
+                            ImageView view = reference.get();
+                            if (view != null && url.equals(view.getTag())) loadProductImage(url, view);
+                        }
+                    });
+                }
+            }
+        });
     }
 
     private Bitmap decodeProductImage(File file) {
@@ -4260,6 +4834,8 @@ public class MainActivity extends Activity {
         Bitmap cached = imageCache.get(imageUrl);
         if (cached != null) { target.setImageBitmap(cached); return; }
         target.setImageDrawable(Ui.photoPlaceholder(this));
+        File onDisk = imageCacheFile(imageUrl);
+        if (recentlyFailed(imageUrl) && (onDisk == null || !onDisk.isFile())) return;
 
         // Deduplicate both disk decoding and network downloads by URL. Repeated
         // renders attach their ImageView to the same in-flight cache operation.
@@ -4318,6 +4894,7 @@ public class MainActivity extends Activity {
                 if (bitmap != null && !imageCache.snapshot().containsKey(imageUrl)) bitmap.recycle();
                 if (temp != null) temp.delete();
                 bitmap = null;
+                failedImages.put(imageUrl, System.currentTimeMillis());
             } finally {
                 if (connection != null) connection.disconnect();
                 List<WeakReference<ImageView>> targets;
