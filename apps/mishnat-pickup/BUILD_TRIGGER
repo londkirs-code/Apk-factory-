@@ -31,3 +31,6 @@ requested_at=2026-11-24T08:15:00+02:00
 
 Final signed build: include saved-list login access, owner-isolated archive IDs and progress archival before account reset.
 requested_at=2026-11-24T08:24:00+02:00
+
+Fix saved-list navigation syntax and include persistent progress archival and partial reset.
+requested_at=2026-11-24T08:36:00+02:00
