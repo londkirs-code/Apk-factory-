@@ -1078,7 +1078,6 @@ public class MainActivity extends Activity {
             File image=bundle.imageFile(item.image);
             if(image!=null&&image.isFile()&&image.length()>0) {
                 imageFile=savedListStore.cacheImage(image);
-                if(imageFile.isEmpty())throw new Exception("לא ניתן לשמור תמונת מוצר במטמון העצמאי.");
             }
             String note=item.note;
             if(!item.unit.isEmpty())note=(note.isEmpty()?"":note+" · ")+"יחידה: "+item.unit;
