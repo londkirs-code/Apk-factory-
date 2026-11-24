@@ -198,6 +198,9 @@ jobs:
           mkdir -p downloads/mishnat-pickup/history
           cp apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk downloads/mishnat-pickup/app.apk
           cp downloads/mishnat-pickup/app.apk "downloads/mishnat-pickup/history/mishnat-pickup-v${VERSION_NAME}-code${VERSION_CODE}.apk"
+          # עותק בשם "משנת אוסף" ומספר הגרסה, להורדה בשם ברור. הקודם נמחק.
+          find downloads/mishnat-pickup -maxdepth 1 -name 'משנת אוסף *.apk' -delete
+          cp downloads/mishnat-pickup/app.apk "downloads/mishnat-pickup/משנת אוסף ${VERSION_NAME}.apk"
           SHA="$(sha256sum downloads/mishnat-pickup/app.apk | cut -d ' ' -f1)"
           SOURCE_SHA="$(git rev-parse HEAD)"
           UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -229,7 +232,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add downloads/mishnat-pickup/ apps/mishnat-pickup/app/build.gradle
+          git add -A downloads/mishnat-pickup/ apps/mishnat-pickup/app/build.gradle
           git commit -m "release: publish signed Mishnat Pickup APK ${{ steps.verify.outputs.version_code }}"
           for attempt in 1 2 3 4 5; do
             git fetch origin main
@@ -264,7 +267,7 @@ jobs:
               '',
               `גרסה: ${process.env.VERSION_NAME} (${process.env.VERSION_CODE})`,
               `SHA-256: ${process.env.SHA}`,
-              'הורדת APK: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/app.apk',
+              `הורדת APK: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/${encodeURIComponent('משנת אוסף ' + process.env.VERSION_NAME + '.apk')}`,
               `[יומן הבנייה](${process.env.RUN_URL})`,
               '',
               '_הבנייה אינה מהווה בדיקת התחברות מול חשבון אמיתי או בדיקת התקנה במכשיר._'

@@ -10,7 +10,7 @@
 - קוד Java: `app/src/main/java/org/mishnatyosef/pickup/` (13 קבצים, כ־5,900 שורות).
 - ממשק המשתמש, עיצוב ואייקונים: `Ui.java` (אייקונים וקטוריים ב-`Ui.IconDrawable`, כפתורי אייקון ב-`Ui.iconButton`). מחרוזות "מה חדש" (`showSettingsScreen`) מתעדכנות יחד עם כל שינוי שנראה למשתמש.
 - ניווט: `MainActivity.screen` (enum `Screen`) הוא מקור האמת למסך הנוכחי. כל מסך מוצג דרך `presentScreen`. מקש חזרה מטופל ב-`onBackPressed` לפי המסך.
-- ה־APK שפורסם: `downloads/mishnat-pickup/app.apk`, מטא־דאטה ב־`downloads/mishnat-pickup/build-info.txt`.
+- ה־APK שפורסם: `downloads/mishnat-pickup/app.apk` (קישור קבוע), ועותק בשם `משנת אוסף <גרסה>.apk` שאליו מפנה ההודעה, מטא־דאטה ב־`downloads/mishnat-pickup/build-info.txt`.
 - workflow לבנייה: `.github/workflows/build-mishnat-pickup.yml`.
 - Skill הבנייה הקיים: `apps/mishnat-pickup/skills/build-mishnat-pickup-apk/SKILL.md`.
 
@@ -23,7 +23,7 @@
 - כל ענף עבודה נפרד. שינויים נכנסים ל־`main` דרך PR.
 
 ## בנייה ופרסום
-- כל PR שנוגע ב-`apps/mishnat-pickup/` נבנה אוטומטית (`.github/workflows/build-mishnat-pickup-pr.yml`). ה-APK נשמר בענף תחת `downloads/mishnat-pickup-pr/<PR>/app.apk`, ותגובה עם קישור הורדה נוספת ל-PR (מגיעה במייל). אם `versionCode` לא גבוה מהגרסה שפורסמה, הבנייה מעלה אותו אוטומטית כדי שההתקנה תעבוד מעל הגרסה הקיימת.
+- כל PR שנוגע ב-`apps/mishnat-pickup/` נבנה אוטומטית (`.github/workflows/build-mishnat-pickup-pr.yml`). ה-APK נשמר בענף תחת `downloads/mishnat-pickup-pr/<PR>/משנת אוסף <גרסה>.apk` (שם הקובץ: "משנת אוסף" ומספר הגרסה, לבקשת המשתמש), ותגובה עם קישור הורדה נוספת ל-PR (מגיעה במייל). אם `versionCode` לא גבוה מהגרסה שפורסמה, הבנייה מעלה אותו אוטומטית כדי שההתקנה תעבוד מעל הגרסה הקיימת.
 - אין SDK של Android בסביבת העבודה של Claude, ולכן הקומפילציה נבדקת רק דרך הבנייה ב-PR.
 - בנייה ידנית: הודעה בדיוק `/build-mishnat-pickup` ב־issue מספר 1 של המאגר. יש לוודא שנוצרה ריצה חדשה ולחכות לסיומה.
 - ה־workflow אמור לוודא: בנייה Release, שם החבילה והגרסה ב־APK, חתימה, והמשכיות חתימה מול ה־APK הקודם, כדי שהתקנה מעל גרסה קודמת תעבוד.

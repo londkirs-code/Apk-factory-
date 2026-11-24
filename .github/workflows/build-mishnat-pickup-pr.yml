@@ -141,8 +141,12 @@ jobs:
           set -euo pipefail
           DEST="downloads/mishnat-pickup-pr/${{ github.event.pull_request.number }}"
           mkdir -p "$DEST"
-          cp apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk "$DEST/app.apk"
-          SHA="$(sha256sum "$DEST/app.apk" | cut -d ' ' -f1)"
+          # שם הקובץ: "משנת אוסף" ומספר הגרסה. קבצים קודמים בתיקייה נמחקים כדי שלא יצטברו.
+          APK_NAME="משנת אוסף ${{ steps.verify.outputs.version_name }}.apk"
+          find "$DEST" -maxdepth 1 -name '*.apk' -delete
+          cp apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk "$DEST/$APK_NAME"
+          SHA="$(sha256sum "$DEST/$APK_NAME" | cut -d ' ' -f1)"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
           cat > "$DEST/build-info.txt" <<INFO
           app=mishnat-pickup
           pr=${{ github.event.pull_request.number }}
@@ -163,7 +167,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # Never commit the temporary versionCode bump made for this build.
           git checkout -- apps/mishnat-pickup/app/build.gradle
-          git add downloads/mishnat-pickup-pr/
+          git add -A downloads/mishnat-pickup-pr/
           if git diff --cached --quiet; then
             echo "APK unchanged; nothing to commit."
             exit 0
@@ -180,12 +184,13 @@ jobs:
           VERSION_NAME: ${{ steps.verify.outputs.version_name }}
           VERSION_CODE: ${{ steps.verify.outputs.version_code }}
           SHA: ${{ steps.copy.outputs.sha256 }}
+          APK_NAME: ${{ steps.copy.outputs.apk_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const { execSync } = require('child_process');
             const head = execSync('git rev-parse HEAD').toString().trim();
-            const url = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${head}/downloads/mishnat-pickup-pr/${process.env.PR_NUMBER}/app.apk`;
+            const url = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${head}/downloads/mishnat-pickup-pr/${process.env.PR_NUMBER}/${encodeURIComponent(process.env.APK_NAME)}`;
             const body = [
               `📦 בנייה חדשה של אפליקציית איסוף משנת יוסף מה־PR הזה.`,
               '',
