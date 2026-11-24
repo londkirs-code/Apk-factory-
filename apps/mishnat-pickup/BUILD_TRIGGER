@@ -46,3 +46,6 @@ requested_at=2026-11-24T09:06:00+02:00
 
 Final polish: show globally cached imported images in combined and archived-list views, with no repeated hashing during collection updates.
 requested_at=2026-11-24T09:18:00+02:00
+
+Final account-safety fix: restore archived lists using the matching owner source, avoiding duplicate accounts or overwriting another account's active cache.
+requested_at=2026-11-24T09:26:00+02:00
