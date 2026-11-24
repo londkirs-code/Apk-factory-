@@ -1469,10 +1469,9 @@ public class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
         double initial=Math.max(1,Math.min(total,collectedQuantity(product)));
         slider.setProgress((int)Math.round((initial-1.0)/(total-1.0)*steps));
-        java.util.function.IntToDoubleFunction quantityAt=progress->1.0+(total-1.0)*progress/steps;
-        selected.setText(formatQuantity(quantityAt.applyAsDouble(slider.getProgress()))+" מתוך "+formatQuantity(total));
+        selected.setText(formatQuantity(1.0+(total-1.0)*slider.getProgress()/steps)+" מתוך "+formatQuantity(total));
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){selected.setText(formatQuantity(quantityAt.applyAsDouble(progress))+" מתוך "+formatQuantity(total));}
+            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){selected.setText(formatQuantity(1.0+(total-1.0)*progress/steps)+" מתוך "+formatQuantity(total));}
             @Override public void onStartTrackingTouch(SeekBar bar){}
             @Override public void onStopTrackingTouch(SeekBar bar){}
         });
@@ -1483,7 +1482,7 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this,"הזיזו את הסרגל לבחירת הכמות שנאספה",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
         panel.addView(selected,Ui.row(this,Ui.S1,Ui.S1));panel.addView(slider,Ui.row(this,0,Ui.S4));
         Button save=Ui.button(this,"אישור הכמות",Ui.Kind.PRIMARY),cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
-        save.setOnClickListener(v->{dialog.dismiss();applyPartialCollection(key,quantityAt.applyAsDouble(slider.getProgress()));});
+        save.setOnClickListener(v->{dialog.dismiss();applyPartialCollection(key,1.0+(total-1.0)*slider.getProgress()/steps);});
         cancel.setOnClickListener(v->dialog.dismiss());panel.addView(save);panel.addView(cancel,Ui.row(this,Ui.S2,0));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
         slider.setFocusable(true);slider.setFocusableInTouchMode(true);slider.requestFocus();
