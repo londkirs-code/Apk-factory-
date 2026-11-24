@@ -1274,13 +1274,17 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         logoutButton = Ui.button(this, accessToken.isEmpty() ? "התחברות" : "התנתקות", Ui.Kind.SOFT);
-        logoutButton.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams logoutParams = new LinearLayout.LayoutParams(-2, -2);
+        logoutParams.setMargins(Ui.dp(this, Ui.S1), 0, Ui.dp(this, Ui.S1), 0);
+        logoutButton.setLayoutParams(logoutParams);
         logoutButton.setOnClickListener(v -> {
             if (accessToken.isEmpty()) showLoginScreen("");
             else confirmLogout();
         });
         Button accounts = Ui.button(this, "חשבונות (" + (sourceRegistry == null ? 0 : sourceRegistry.all().size()) + ")", Ui.Kind.SOFT);
-        accounts.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams accountsParams = new LinearLayout.LayoutParams(-2, -2);
+        accountsParams.setMargins(Ui.dp(this, Ui.S1), 0, Ui.dp(this, Ui.S1), 0);
+        accounts.setLayoutParams(accountsParams);
         accounts.setOnClickListener(v -> showAccountsScreen());
         TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
         row.addView(logoutButton);
@@ -1337,16 +1341,16 @@ public class MainActivity extends Activity {
                 Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        head.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         progressPercent = Ui.text(this, "0%", Ui.T_TITLE, Ui.P800, true);
         progressPercent.setGravity(Gravity.CENTER);
         progressPercent.setMinWidth(Ui.dp(this, Ui.PERCENT_WIDTH));
         LinearLayout.LayoutParams percent = new LinearLayout.LayoutParams(
                 Ui.dp(this, Ui.PERCENT_WIDTH), -2);
-        percent.rightMargin = Ui.dp(this, Ui.S3);
+        percent.leftMargin = Ui.dp(this, Ui.S3);
         head.addView(progressPercent, percent);
         progressText = Ui.text(this, "נאספו 0 מתוך 0", Ui.T_BODY, Ui.P800, true);
-        progressText.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        progressText.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
         card.addView(head);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -1489,9 +1493,9 @@ public class MainActivity extends Activity {
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         Button approve = Ui.button(this, positive, Ui.Kind.STRONG);
         LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);
-        first.setMargins(0, 0, Ui.dp(this, Ui.S1), 0);
+        first.setMargins(0, 0, Ui.dp(this, Ui.S2), 0);
         LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, -2, 1f);
-        second.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
+        second.setMargins(Ui.dp(this, Ui.S2), 0, 0, 0);
         buttons.addView(cancel, first);
         buttons.addView(approve, second);
         cancel.setOnClickListener(v -> dialog.dismiss());
