@@ -1,6 +1,8 @@
 <resources>
     <style name="MishnatPickupBase" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowBackground">#FFF6F3FB</item>
+        <item name="android:textColorHighlight">#66A488D8</item>
         <item name="android:colorAccent">#3E2A63</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>

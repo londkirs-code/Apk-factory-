@@ -490,7 +490,7 @@ public class MainActivity extends Activity {
     private EditText createLoginInput(String hint, int inputType) {
         EditText input = new EditText(this);
         input.setSingleLine(true);
-        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
         input.setTextColor(Ui.INK);
         input.setHintTextColor(Ui.MUTED);
         input.setHint(hint);
@@ -1719,7 +1719,8 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
+            "• עיצוב חדש לכל האפליקציה: גווני סגול נקיים, טקסט גדול וברור שלא נחתך, ושוליים מסודרים גם במסכים קטנים.\n"
+            + "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
             + "• שם הרשימה בכותרת הוא כפתור: מעבר לרשימה שמורה אחרת, שינוי שם, איחוד רשימות וחזרה להזמנה העדכנית.\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
             + "• איחוד כמה רשימות לרשימה חדשה.\n"
@@ -1991,7 +1992,7 @@ public class MainActivity extends Activity {
             // Explicit physical columns: first card right, second middle, third left.
             GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
                     GridLayout.spec(index / 3), GridLayout.spec(2 - (index % 3), 1f));
-            lp.width=0; lp.height=Ui.dp(this,176);
+            lp.width=0; lp.height=ViewGroup.LayoutParams.WRAP_CONTENT; lp.setGravity(Gravity.FILL);
             lp.setMargins(Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2));return lp;
         }
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
@@ -2006,7 +2007,7 @@ public class MainActivity extends Activity {
     private LinearLayout buildSearchRow() {
         LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         EditText input=new EditText(this);searchInput=input;input.setId(View.generateViewId());input.setSingleLine(true);
-        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY);input.setTextColor(Ui.INK);input.setHintTextColor(Ui.MUTED);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY*Ui.textScale(this));input.setTextColor(Ui.INK);input.setHintTextColor(Ui.MUTED);
         input.setHint("חיפוש פריט ברשימה…");input.setInputType(InputType.TYPE_CLASS_TEXT);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
         input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -2028,7 +2029,8 @@ public class MainActivity extends Activity {
                 hideKeyboard(v);v.clearFocus();focusFirstPending();return true;}
             return false;
         });
-        row.addView(input,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1f));
+        input.setMinHeight(Ui.dp(this,48));
+        row.addView(input,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f));
         input.addTextChangedListener(new TextWatcher(){
             @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
             @Override public void onTextChanged(CharSequence s,int start,int before,int count){searchQuery=s==null?"":s.toString();renderProducts(false);}
@@ -2083,7 +2085,7 @@ public class MainActivity extends Activity {
                                      boolean legacyDefault, int top, int bottom) {
         CheckBox option = new CheckBox(this);
         option.setText(label);
-        option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY);
+        option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
         option.setTextColor(Ui.INK);
         option.setChecked(uiPreferences.getBoolean(key, legacyDefault));
         if (Build.VERSION.SDK_INT >= 21) option.setButtonTintList(Ui.tint(Ui.P600));
@@ -2620,7 +2622,7 @@ public class MainActivity extends Activity {
         for (SavedListStore.Entry entry : entries) {
             CheckBox box = new CheckBox(this);
             box.setText(displayTitle(entry) + " · " + entry.itemCount + " פריטים");
-            box.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY);
+            box.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
             box.setTextColor(Ui.INK);
             if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
             box.setBackground(Ui.focusFrame(this));
@@ -2900,8 +2902,8 @@ public class MainActivity extends Activity {
     private LinearLayout buildHomeHeader() {
         // כותרת ומד ההתקדמות נשארים קבועים; פעולות הניהול נמצאות בהגדרות.
         LinearLayout header = Ui.column(this);
-        header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
-                Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2));
+        int pad = Ui.dp(this, Ui.screenPad(this));
+        header.setPadding(pad, Ui.dp(this, Ui.S3), pad, Ui.dp(this, Ui.S2));
         header.addView(buildHomeTitleRow());
         imageModeHint = null;
         header.addView(buildProgressCard(), Ui.row(this, Ui.S2, 0));
@@ -2972,8 +2974,7 @@ public class MainActivity extends Activity {
             return true;
         });
         title.setGravity(Gravity.CENTER);
-        title.setMaxLines(2);
-        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        // השם מוצג במלואו; שם ארוך יורד לשורה נוספת ולא נחתך.
 
         headerButtons.add(settings); headerButtons.add(resetButton);
         if (multipleSources) { headerButtons.add(unified); headerButtons.add(byAccount); }
@@ -3047,16 +3048,16 @@ public class MainActivity extends Activity {
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
         head.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        progressPercent = Ui.text(this, "0%", Ui.T_TITLE, Ui.P800, true);
+        // האחוז ברוחב התוכן שלו (גם "100%" נכנס במלואו), והטקסט לידו יורד שורה במקרה הצורך.
+        progressText = Ui.text(this, "נאספו 0 מתוך 0", Ui.T_BODY, Ui.P900, true);
+        progressPercent = Ui.text(this, "0%", Ui.T_TITLE, Ui.P700, true);
         progressPercent.setGravity(Gravity.CENTER);
-        progressPercent.setMinWidth(Ui.dp(this, Ui.PERCENT_WIDTH));
-        LinearLayout.LayoutParams percent = new LinearLayout.LayoutParams(
-                Ui.dp(this, Ui.PERCENT_WIDTH), -2);
-        percent.leftMargin = Ui.dp(this, Ui.S3);
-        head.addView(progressPercent, percent);
-        progressText = Ui.text(this, "נאספו 0 מתוך 0", Ui.T_BODY, Ui.P800, true);
+        progressPercent.setMinWidth(Ui.dp(this, 48));
+        LinearLayout.LayoutParams percent = new LinearLayout.LayoutParams(-2, -2);
+        percent.setMarginStart(Ui.dp(this, Ui.S3));
         progressText.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
+        head.addView(progressPercent, percent);
         card.addView(head);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
@@ -3074,8 +3075,8 @@ public class MainActivity extends Activity {
         scroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         scroll.setBackgroundColor(Ui.BG);
         page = Ui.column(this);
-        page.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2),
-                Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
+        int pagePad = Ui.dp(this, Ui.screenPad(this));
+        page.setPadding(pagePad, Ui.dp(this, Ui.S2), pagePad, Ui.dp(this, Ui.S8));
         page.setFocusable(false);
 
         // החיפוש נע בתוך אזור הגלילה יחד עם הרשימה; הכותרת וההתקדמות נשארות נגישות.
@@ -4150,7 +4151,8 @@ public class MainActivity extends Activity {
             }
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
                     GridLayout.spec(row), GridLayout.spec(2 - column, 1f));
-            lp.width = 0; lp.height = Ui.dp(this, 176);
+            // גובה לפי התוכן (שם ארוך יורד שורה ולא נחתך); כל הכרטיסים בשורה נמתחים לגובה הגבוה שבהם.
+            lp.width = 0; lp.height = ViewGroup.LayoutParams.WRAP_CONTENT; lp.setGravity(Gravity.FILL);
             lp.setMargins(Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2));
             grid.addView(card.row, lp);
             gridPositions.put(card.row, new int[]{row, column});

@@ -35,20 +35,23 @@ import android.widget.TextView;
 final class Ui {
     private Ui() {}
 
-    static final int P25=0xFFFDFBFF, P50=0xFFF9F7FC, P100=0xFFF1EBFA, P200=0xFFE5DEEF,
-            P300=0xFFCFC0E8, P400=0xFFA98BD6, P500=0xFF8765C0, P600=0xFF69489D,
-            P700=0xFF533881, P800=0xFF3E2A63, P900=0xFF2A1D45;
-    static final int INK=0xFF19161F, MUTED=0xFF443F4C;
-    static final int BG=P50, SURFACE=P25, LINE=P200, FOCUS=P700, ON_DARK=P25;
+    // פלטת סגול נקייה: רקע לבנדר בהיר מאוד, משטחים לבנים, סגול עמוק לפעולות ולכותרות.
+    static final int P25=0xFFFFFFFF, P50=0xFFF6F3FB, P100=0xFFEEE8F8, P200=0xFFE0D7F1,
+            P300=0xFFC8B8E8, P400=0xFFA488D8, P500=0xFF8662C7, P600=0xFF6B45AE,
+            P700=0xFF56348F, P800=0xFF412670, P900=0xFF2C1A4D;
+    static final int INK=0xFF1C1529, MUTED=0xFF4B4459;
+    static final int BG=P50, SURFACE=P25, LINE=P200, FOCUS=P700, ON_DARK=0xFFFFFFFF;
     static final int IMAGE_FOCUS_OUTER=2, IMAGE_FOCUS_INSET=4, IMAGE_FOCUS_INNER=1;
     static final int SCRIM=0xEB2A1D45;
 
     static final int S1=4, S2=8, S3=12, S4=16, S5=20, S6=24, S8=32;
-    static final int R_CARD=20, R_BUTTON=16, R_IMAGE=16, R_DIALOG=24;
-    static final float T_TITLE=26, T_SECTION=15, T_BODY=18, T_NAME=20, T_AMOUNT=34,
-            T_NOTE=15, T_BUTTON=18;
-    static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=360,
-            DIALOG_SIDE_MARGIN=40, IMAGE_SAMPLE_MIN=78, MAX_NAME_LINES=3, MAX_NOTE_LINES=2;
+    static final int R_CARD=16, R_BUTTON=14, R_IMAGE=12, R_DIALOG=22;
+    // גדלי טקסט בסיסיים. בפועל הם מותאמים לרוחב המסך (textScale), כדי שגם במסך קטן של
+    // טלפון מקשים הטקסט יהיה גדול וברור אבל ייכנס בלי להיחתך.
+    static final float T_TITLE=24, T_SECTION=16, T_BODY=18, T_NAME=19, T_AMOUNT=26,
+            T_NOTE=16, T_BUTTON=17;
+    static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=400,
+            DIALOG_SIDE_MARGIN=24, IMAGE_SAMPLE_MIN=78, MAX_NAME_LINES=3, MAX_NOTE_LINES=2;
     /** גודל אחיד לכל כפתורי האייקון בכותרות. במסכים צרים (מכשירי מקשים) הכפתורים קטנים מעט. */
     static final int ICON_BUTTON=48, ICON_GLYPH=24;
 
@@ -65,6 +68,23 @@ final class Ui {
     static int dp(Context c, int v) {
         return Math.round(v*c.getResources().getDisplayMetrics().density);
     }
+
+    /** מקדם לגודל הטקסט לפי רוחב המסך: מעט קטן יותר במסכים צרים מאוד, אף פעם לא זעיר. */
+    static float textScale(Context c) {
+        int w=c.getResources().getConfiguration().screenWidthDp;
+        return w<280?0.86f:(w<330?0.92f:(w<380?0.97f:1f));
+    }
+
+    /** שוליים צדדיים של מסך: צרים יותר במסכים קטנים, כדי להשאיר מקום לתוכן. */
+    static int screenPad(Context c) {
+        int w=c.getResources().getConfiguration().screenWidthDp;
+        return w<330?S3:S4;
+    }
+
+    // פונטים: Sans (ב-Android לעברית - Noto Sans Hebrew) רגיל לגוף, בינוני לכפתורים, מודגש לכותרות.
+    static final Typeface FONT_REGULAR=Typeface.create("sans-serif",Typeface.NORMAL);
+    static final Typeface FONT_MEDIUM=Typeface.create("sans-serif-medium",Typeface.NORMAL);
+    static final Typeface FONT_BOLD=Typeface.create("sans-serif",Typeface.BOLD);
 
     static int imageSize(Context c) {
         int w=c.getResources().getConfiguration().screenWidthDp;
@@ -111,14 +131,18 @@ final class Ui {
 
     static TextView text(Context c,String value,float sp,int color,boolean bold) {
         TextView t=new TextView(c); t.setText(value);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP,sp); t.setTextColor(color);
-        t.setTypeface(Typeface.create("sans-serif",bold?Typeface.BOLD:Typeface.NORMAL));
-        t.setIncludeFontPadding(false); t.setLineSpacing(0f,1.15f); return t;
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP,sp*textScale(c)); t.setTextColor(color);
+        t.setTypeface(bold?FONT_BOLD:FONT_REGULAR);
+        // ריווח שורות נדיב ושוליים פנימיים של הפונט, כדי שעברית עם ניקוד ותווים גבוהים לא תיחתך.
+        t.setIncludeFontPadding(true); t.setLineSpacing(0f,1.12f);
+        t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);
+        return t;
     }
 
     static LinearLayout screen(Context c) {
         LinearLayout l=column(c); l.setBackgroundColor(BG);
-        l.setPadding(dp(c,S5),dp(c,S5),dp(c,S5),dp(c,S5)); return l;
+        int pad=dp(c,screenPad(c));
+        l.setPadding(pad,dp(c,S3),pad,dp(c,S6)); return l;
     }
 
     static LinearLayout column(Context c) {
@@ -132,13 +156,13 @@ final class Ui {
     }
 
     static TextView section(Context c,String value) {
-        TextView t=text(c,value,T_SECTION,P600,true);
-        t.setLayoutParams(row(c,S6,S2)); return t;
+        TextView t=text(c,value,T_SECTION,P700,true);
+        t.setLayoutParams(row(c,S5,S2)); return t;
     }
 
     static TextView banner(Context c,String value) {
-        TextView t=text(c,value,T_NOTE,P800,false);
-        t.setBackground(shape(c,P100,R_BUTTON,1,P300));
+        TextView t=text(c,value,T_NOTE,P900,false);
+        t.setBackground(shape(c,P100,R_BUTTON,0,0));
         t.setPadding(dp(c,S4),dp(c,S3),dp(c,S4),dp(c,S3));
         t.setLayoutParams(row(c,0,S3)); return t;
     }
@@ -149,7 +173,7 @@ final class Ui {
         LayerDrawable layers=new LayerDrawable(new Drawable[]{track,fill});
         layers.setId(0,android.R.id.background); layers.setId(1,android.R.id.progress);
         p.setProgressDrawable(layers);
-        p.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(c,S3)));
+        p.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(c,10)));
     }
 
     enum Kind { PRIMARY, SOFT, STRONG }
@@ -166,18 +190,19 @@ final class Ui {
             default: fill=P100;border=P300;focusFill=P200;focusBorder=P700;color=P800;break;
         }
         b.setId(View.generateViewId()); b.setText(label);
-        b.setAllCaps(false); b.setTextSize(TypedValue.COMPLEX_UNIT_SP,T_BUTTON);
-        b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL)); b.setTextColor(color);
+        b.setAllCaps(false); b.setTextSize(TypedValue.COMPLEX_UNIT_SP,T_BUTTON*textScale(c));
+        b.setTypeface(FONT_MEDIUM); b.setTextColor(color);
+        b.setIncludeFontPadding(true); b.setLineSpacing(0f,1.08f);
         if(Build.VERSION.SDK_INT>=21) b.setStateListAnimator(null);
         b.setFocusable(true); b.setFocusableInTouchMode(false);
         b.setBackground(interactive(c,fill,border,focusFill,focusBorder,R_BUTTON));
-        // Compact control dimensions while preserving the original label size.
-        b.setMinHeight(dp(c,44)); b.setMinimumHeight(dp(c,44));
+        // גובה מינימלי נוח ללחיצה ולפוקוס במקלדת; טקסט ארוך יורד שורה ולא נחתך.
+        b.setMinHeight(dp(c,48)); b.setMinimumHeight(dp(c,48));
         // Default breathing room for every vertically stacked action button.
         // Call sites in horizontal button groups provide their own side margins.
         b.setLayoutParams(row(c,S2,S2));
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
+        b.setPadding(dp(c,S4),dp(c,S2),dp(c,S4),dp(c,S2));
         return b;
     }
 
@@ -469,9 +494,9 @@ final class Ui {
         root.setFocusableInTouchMode(false); root.setClickable(true);
         root.setBackground(interactive(c,SURFACE,LINE,P100,FOCUS,R_CARD));
         int horizontalPad = compact ? S2 : Math.max(S2, Math.round(S4*scale));
-        int verticalPad = compact ? 2 : Math.max(2, Math.round(S2*scale));
+        int verticalPad = compact ? 6 : Math.max(S2, Math.round(S3*scale));
         root.setPadding(dp(c,horizontalPad),dp(c,verticalPad),dp(c,horizontalPad),dp(c,verticalPad));
-        root.setMinimumHeight(dp(c, compact ? 34 : 0));
+        root.setMinimumHeight(dp(c, compact ? 44 : (grid ? 150 : 0)));
         root.setLayoutParams(row(c,0,compact ? S1 : Math.max(2,Math.round(S3*scale))));
 
         ImageView image=new RoundedImageView(c,dp(c, grid ? 12 : R_IMAGE));
@@ -493,18 +518,15 @@ final class Ui {
             detailsLp.setMarginEnd(dp(c,compact?S2:Math.round(S4*scale)));
         }
         details.setLayoutParams(detailsLp);
-        TextView name=text(c,"",compact?14:T_NAME*scale,INK,true);
-        name.setMaxLines(grid?2:(compact?1:MAX_NAME_LINES));
-        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        TextView name=text(c,"",compact?16:Math.max(15,T_NAME*scale),INK,true);
+        // שם המוצר וההערה מוצגים במלואם, בכמה שורות שצריך, בלי חיתוך.
         if (grid) name.setGravity(Gravity.CENTER);
-        TextView note=text(c,"",compact?12:T_NOTE*scale,MUTED,false);
-        note.setMaxLines(grid?2:MAX_NOTE_LINES);
-        note.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        TextView note=text(c,"",compact?14:Math.max(14,T_NOTE*scale),MUTED,false);
         if (grid) note.setGravity(Gravity.CENTER);
         note.setLayoutParams(row(c,1,0));
         details.addView(name); details.addView(note);
 
-        TextView amount=text(c,"",grid?19:(compact?17:T_AMOUNT*scale),P800,true);
+        TextView amount=text(c,"",grid?20:(compact?18:Math.max(18,T_AMOUNT*scale)),P800,true);
         amount.setGravity(Gravity.CENTER);
         amount.setMinWidth(dp(c,grid?0:(compact?34:Math.max(40,Math.round(56*scale)))));
         amount.setBackground(shape(c,P100,R_BUTTON,0,0));
@@ -556,7 +578,7 @@ final class Ui {
 
     static LinearLayout dialogPanel(Context c) {
         LinearLayout l=column(c); l.setBackground(shape(c,SURFACE,R_DIALOG,1,LINE));
-        l.setPadding(dp(c,S6),dp(c,S6),dp(c,S6),dp(c,S4)); return l;
+        l.setPadding(dp(c,S5),dp(c,S5),dp(c,S5),dp(c,S4)); return l;
     }
 
     static void systemBars(Activity a) {
