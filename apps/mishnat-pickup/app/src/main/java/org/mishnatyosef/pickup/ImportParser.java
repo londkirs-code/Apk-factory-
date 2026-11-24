@@ -23,9 +23,66 @@ final class ImportParser {
         if(source==null)throw new Exception("לא ניתן לפתוח את הקובץ.");
         if(workDir.exists())delete(workDir);if(!workDir.mkdirs())throw new Exception("לא ניתן ליצור תיקיית ייבוא זמנית.");
         BufferedInputStream in=new BufferedInputStream(source);in.mark(8);int a=in.read(),b=in.read();in.reset();
-        try {byte[] json=(a=='P'&&b=='K')?readZip(new LimitInputStream(in,MAX_ZIP),workDir):readLimited(in,MAX_JSON,"קובץ JSON גדול מ־10MB.");return parseJson(json,workDir);}
-        catch(Exception e){delete(workDir);throw e;}finally{try{in.close();}catch(Exception ignored){}}
+        try {
+            byte[] raw=(a=='P'&&b=='K')
+                    ? readZip(new LimitInputStream(in,MAX_ZIP),workDir)
+                    : readLimited(in,MAX_JSON,"קובץ גדול מ־10MB.");
+            int first=0;
+            while(first<raw.length&&(raw[first]==' '||raw[first]=='\\n'||raw[first]=='\\r'||raw[first]=='\\t'||(first==0&&(raw[first]&0xff)==0xef)))first++;
+            if(first<raw.length&&raw[first]=='{')return parseJson(raw,workDir);
+            return parseText(raw,workDir);
+        } catch(Exception e){delete(workDir);throw e;}
+        finally{try{in.close();}catch(Exception ignored){}}
     }
+    /**
+     * Plain text format: one product per line. Optional columns are separated by |
+     * name | quantity | unit | note | category. A line with only a name defaults to quantity 1.
+     * Empty lines and lines beginning with # are ignored.
+     */
+    private static Bundle parseText(byte[] raw,File dir)throws Exception {
+        String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8);
+        if(text.length()>0&&text.charAt(0)=='\\uFEFF')text=text.substring(1);
+        String[] lines=text.split("\\r?\\n");
+        ImportedList list=new ImportedList();
+        list.accountId="text-"+java.util.UUID.randomUUID().toString();
+        list.accountName="רשימה מקובץ טקסט";
+        list.orderId=String.valueOf(System.currentTimeMillis());
+        list.orderName="רשימה מקובץ טקסט";
+        Set<String> ids=new HashSet<>();
+        for(int i=0;i<lines.length;i++) {
+            String line=lines[i]==null?"":lines[i].trim();
+            if(line.isEmpty()||line.startsWith("#"))continue;
+            if(list.items.size()>=MAX_ITEMS)throw new Exception("קובץ הטקסט מכיל יותר מ־5000 פריטים.");
+            String[] columns=line.split("\\|",-1);
+            String name=clean(columns[0]);
+            if(name.isEmpty())continue;
+            if(name.length()>200)throw new Exception("שורה "+(i+1)+": שם מוצר ארוך מ־200 תווים.");
+            String quantity="1",unit="",note="",category="";
+            if(columns.length>1&&!clean(columns[1]).isEmpty()) {
+                quantity=clean(columns[1]);
+                try {
+                    double amount=Double.parseDouble(quantity.replace(',','.'));
+                    if(Double.isNaN(amount)||Double.isInfinite(amount)||amount<=0)throw new NumberFormatException();
+                    quantity=String.valueOf(amount);
+                } catch(Exception e) { throw new Exception("שורה "+(i+1)+": הכמות חייבת להיות מספר חיובי."); }
+            }
+            if(columns.length>2)unit=clean(columns[2]);
+            if(columns.length>3)note=clean(columns[3]);
+            if(columns.length>4)category=clean(columns[4]);
+            if(columns.length>5)throw new Exception("שורה "+(i+1)+": אפשר לכלול עד חמש עמודות.");
+            if(unit.length()>40||note.length()>300||category.length()>100)
+                throw new Exception("שורה "+(i+1)+": אחד משדות הפריט ארוך מהמותר.");
+            String base=DataGuard.sha256(name.toLowerCase(Locale.ROOT));
+            String id=base.substring(0,24);
+            int suffix=1;while(!ids.add(id))id=base.substring(0,20)+"_"+(suffix++);
+            Item item=new Item();item.id=id;item.name=name;item.quantity=quantity;
+            item.unit=unit;item.note=note;item.category=category;
+            list.items.add(item);
+        }
+        if(list.items.isEmpty())throw new Exception("קובץ הטקסט אינו מכיל פריטים. כל שורה צריכה לכלול שם מוצר.");
+        Bundle bundle=new Bundle(dir);bundle.lists.add(list);return bundle;
+    }
+
     private static byte[] readZip(InputStream input,File workDir)throws Exception {
         ByteArrayOutputStream json=new ByteArrayOutputStream();ZipInputStream zip=new ZipInputStream(input);
         long expanded=0;int entries=0;boolean found=false;Set<String> names=new HashSet<>();byte[] buf=new byte[8192];
