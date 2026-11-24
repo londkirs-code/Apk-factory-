@@ -63,9 +63,9 @@ final class OrderHistoryPage {
      */
     static String saleName(JSONObject order) {
         JSONObject[] candidates=candidates(order);
-        // 1. sale.week הוא השדה הראשי, ולכן נבדק ראשון בכל רמות הקינון.
-        String[][] nestedSteps={{"sale","week"},{"sale","name"},{"sale","title"},
-                {"parent","week"},{"parent","name"},{"parent","title"}};
+        // 1. parent.week הוא השדה הראשי לשם המוצג, ולכן נבדק ראשון בכל רמות הקינון.
+        String[][] nestedSteps={{"parent","week"},{"sale","week"},{"sale","name"},{"sale","title"},
+                {"parent","name"},{"parent","title"}};
         for(String[] step:nestedSteps)
             for(JSONObject candidate:candidates) {
                 String value=first(candidate==null?null:candidate.optJSONObject(step[0]),step[1]);
