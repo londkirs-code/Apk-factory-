@@ -2579,8 +2579,9 @@ public class MainActivity extends Activity {
         while (current != null) {
             Object tag = current.getTag();
             if (tag instanceof String) {
-                ProductCard card = productCards.get((String) tag);
-                if (card != null && card.row == current) return card;
+                String key=(String)tag;
+                ProductCard card=key.startsWith("partial:")?partialCards.get(key.substring(8)):productCards.get(key);
+                if(card!=null&&card.row==current)return card;
             }
             if (!(current.getParent() instanceof View)) break;
             current = (View) current.getParent();
@@ -2704,7 +2705,7 @@ public class MainActivity extends Activity {
     }
     private ProductCard createPartialProductCard(ProductRow product){
         Ui.CardViews views=Ui.productCard(this,displayMode);ProductCard card=new ProductCard(views,product);
-        views.root.setFocusable(false);views.root.setFocusableInTouchMode(false);views.root.setTag("partial:"+product.key);
+        views.root.setFocusable(true);views.root.setFocusableInTouchMode(false);views.root.setTag("partial:"+product.key);
         if(displayMode!=0){if(!product.imagePath.isEmpty())loadLegacyProductImage(product,views.image);
             else if(!product.imageUrl.isEmpty())loadProductImage(product.imageUrl,views.image);else views.image.setImageResource(android.R.drawable.ic_menu_gallery);}
         View.OnClickListener undo=v->applyPartialCollection(product.key,0);
