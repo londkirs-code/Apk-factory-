@@ -159,6 +159,7 @@ public class MainActivity extends Activity {
     private int syncQueueTotal = 0;
     private String syncReturnSource = "", syncReturnMode = "COMBINED_BY_SOURCE";
     private boolean syncAllRunning = false, syncAwaitingResult = false;
+    private boolean showingSavedList = false;
     private boolean sourceMergeInProgress = false;
     private Button viewModeButton;
     private boolean combinedView = false;
@@ -831,7 +832,7 @@ public class MainActivity extends Activity {
         root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
         Ui.systemBars(this);
-        combinedView = sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning;
+        combinedView = !showingSavedList && sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning;
         if (combinedView) loadCombinedSnapshot();
         else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
         if (combinedView && retryButton != null) { retryButton.setText("סנכרן את כל החיבורים"); retryButton.setVisibility(View.VISIBLE); }
@@ -1152,6 +1153,8 @@ public class MainActivity extends Activity {
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
+        addDisplaySettings(content);
+        addFeedbackSettings(content);
 
         content.addView(Ui.section(this, "סנכרון"));
         Button sync = Ui.button(this, "סנכרן את כל החשבונות", Ui.Kind.PRIMARY);
@@ -1340,6 +1343,158 @@ public class MainActivity extends Activity {
         });
     }
 
+    private ViewGroup createProductContainer() {
+        if (displayMode == 5) {
+            GridLayout grid = new GridLayout(this); grid.setColumnCount(3);
+            grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS); grid.setUseDefaultMargins(false);
+            grid.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); return grid;
+        }
+        return Ui.column(this);
+    }
+    private ViewGroup.LayoutParams productLayoutParams(ViewGroup parent) {
+        if (parent instanceof GridLayout) {
+            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1f),GridLayout.spec(GridLayout.UNDEFINED));
+            lp.width=0;lp.height=ViewGroup.LayoutParams.WRAP_CONTENT;
+            lp.setMargins(Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2));return lp;
+        }
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=Ui.dp(this,displayMode==0?Ui.S1:Ui.S3);return lp;
+    }
+    private boolean matchesSearch(ProductRow row) {
+        if(row==null||searchQuery==null||searchQuery.trim().isEmpty())return true;
+        String q=searchQuery.trim().toLowerCase(Locale.ROOT);
+        return row.name.toLowerCase(Locale.ROOT).contains(q)||row.note.toLowerCase(Locale.ROOT).contains(q)
+                ||row.key.toLowerCase(Locale.ROOT).contains(q)||row.amount.toLowerCase(Locale.ROOT).contains(q);
+    }
+    private LinearLayout buildSearchRow() {
+        LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        EditText input=new EditText(this);searchInput=input;input.setSingleLine(true);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY);input.setTextColor(Ui.INK);input.setHintTextColor(Ui.MUTED);
+        input.setHint("חיפוש פריט ברשימה…");input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        input.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2));
+        input.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_BUTTON,1,Ui.P200));input.setText(searchQuery);
+        row.addView(input,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1f));
+        Button saved=Ui.button(this,"רשימות שמורות",Ui.Kind.SOFT);saved.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,14);
+        LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(-2,Ui.dp(this,48));savedLp.setMargins(Ui.dp(this,Ui.S2),0,0,0);
+        row.addView(saved,savedLp);saved.setOnClickListener(v->showSavedListsScreen());
+        input.addTextChangedListener(new TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
+            @Override public void onTextChanged(CharSequence s,int start,int before,int count){searchQuery=s==null?"":s.toString();renderProducts(false);}
+            @Override public void afterTextChanged(Editable e){}
+        });return row;
+    }
+    private void addDisplaySettings(LinearLayout content) {
+        content.addView(Ui.section(this,"תצוגת רשימת המוצרים"));
+        String[] labels={"צ׳ק ליסט צפוף · ללא תמונות","קטן · 70%","קומפקטי · 85%","רגיל · 100%","גדול · 115%","רשת · 3 פריטים בשורה"};
+        LinearLayout choices=Ui.column(this);
+        for(int i=0;i<labels.length;i++){final int mode=i;
+            Button choice=Ui.button(this,(displayMode==i?"✓  ":"")+labels[i],displayMode==i?Ui.Kind.PRIMARY:Ui.Kind.SOFT);
+            choice.setOnClickListener(v->{displayMode=mode;uiPreferences.edit().putInt("display_mode",mode).apply();
+                if(searchInput!=null)searchQuery=searchInput.getText().toString();showHomeScreen(false);showSettingsScreen();});
+            choices.addView(choice);
+        }content.addView(choices);
+    }
+    private void addFeedbackSettings(LinearLayout content) {
+        content.addView(Ui.section(this,"צליל ורטט"));
+        CheckBox sound=new CheckBox(this);sound.setText("צליל בכל איסוף או הסרה ובהשלמת הרשימה");
+        sound.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY);sound.setTextColor(Ui.INK);
+        sound.setChecked(uiPreferences.getBoolean("feedback_sound",false));
+        if(Build.VERSION.SDK_INT>=21)sound.setButtonTintList(Ui.tint(Ui.P600));
+        sound.setOnCheckedChangeListener((button,checked)->uiPreferences.edit().putBoolean("feedback_sound",checked).apply());
+        content.addView(sound,Ui.row(this,Ui.S2,Ui.S1));
+        CheckBox vibration=new CheckBox(this);vibration.setText("רטט בכל איסוף או הסרה ובהשלמת הרשימה");
+        vibration.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,Ui.T_BODY);vibration.setTextColor(Ui.INK);
+        vibration.setChecked(uiPreferences.getBoolean("feedback_vibration",false));
+        if(Build.VERSION.SDK_INT>=21)vibration.setButtonTintList(Ui.tint(Ui.P600));
+        vibration.setOnCheckedChangeListener((button,checked)->uiPreferences.edit().putBoolean("feedback_vibration",checked).apply());
+        content.addView(vibration,Ui.row(this,Ui.S1,Ui.S2));
+    }
+    private void performFeedback(boolean completed) {
+        if(uiPreferences==null)return;
+        if(uiPreferences.getBoolean("feedback_vibration",false))try{
+            Vibrator v=(Vibrator)getSystemService(VIBRATOR_SERVICE);
+            if(v!=null&&v.hasVibrator()){long d=completed?260L:45L;
+                if(Build.VERSION.SDK_INT>=26)v.vibrate(android.os.VibrationEffect.createOneShot(d,completed?android.os.VibrationEffect.DEFAULT_AMPLITUDE:90));
+                else v.vibrate(d);}
+        }catch(Exception ignored){}
+        if(uiPreferences.getBoolean("feedback_sound",false))try{
+            ToneGenerator tone=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,75);
+            tone.startTone(completed?ToneGenerator.TONE_PROP_ACK:ToneGenerator.TONE_PROP_BEEP,completed?240:75);
+            mainHandler.postDelayed(tone::release,completed?300L:120L);
+        }catch(Exception ignored){}
+    }
+    private void showPartialCollectionDialog(String key) {
+        ProductRow product=findProduct(key);if(product==null)return;
+        EditText amount=new EditText(this);amount.setSingleLine(true);
+        amount.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        amount.setText(formatQuantity(collectedQuantity(product)));amount.setSelectAllOnFocus(true);
+        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel=Ui.dialogPanel(this);panel.addView(Ui.text(this,"איסוף כמות חלקית",Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,product.name,Ui.T_BODY,Ui.INK,true),Ui.row(this,Ui.S2,Ui.S1));
+        panel.addView(Ui.text(this,"כמה יחידות נאספו מתוך "+product.amount+"?",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,0,Ui.S1));
+        panel.addView(amount,Ui.row(this,Ui.S1,Ui.S3));
+        Button save=Ui.button(this,"שמירת הכמות",Ui.Kind.PRIMARY),cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
+        save.setOnClickListener(v->{double value;try{value=Double.parseDouble(amount.getText().toString().trim().replace(',','.'));}
+            catch(Exception e){Toast.makeText(this,"יש להזין כמות מספרית.",Toast.LENGTH_SHORT).show();return;}
+            double total=parseQuantity(product.amount);if(value<0||value>total){Toast.makeText(this,"הכמות חייבת להיות בין 0 ל-"+product.amount+".",Toast.LENGTH_SHORT).show();return;}
+            dialog.dismiss();applyPartialCollection(key,value);});
+        cancel.setOnClickListener(v->dialog.dismiss());panel.addView(save);panel.addView(cancel,Ui.row(this,Ui.S2,0));
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);amount.requestFocus();
+    }
+    private void applyPartialCollection(String key,double quantity) {
+        ProductRow product=findProduct(key);if(product==null)return;boolean wasAll=isAllCollected();double total=parseQuantity(product.amount);
+        if(combinedView)updateCombinedPartial(key,Math.min(total,quantity));
+        else{collected.remove(key);if(quantity>=total-0.000001){collected.add(key);partialCollected.remove(key);}
+            else if(quantity>0)partialCollected.put(key,quantity);else partialCollected.remove(key);saveCollectedState();}
+        ProductCard card=productCards.get(key);if(card!=null){boolean done=collected.contains(key);bindProductCard(card,product,done);
+            ViewGroup target=done?collectedList:pendingList;ViewGroup parent=(ViewGroup)card.row.getParent();
+            if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,productLayoutParams(target),insertionIndex(target,product,done));}}
+        updateProgress();wireFocusOrder();checkCelebration();if(wasAll||!isAllCollected())performFeedback(false);
+    }
+    private void showSavedListsScreen() {
+        LinearLayout content=Ui.screen(this);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title=Ui.text(this,"רשימות שמורות",Ui.T_TITLE,Ui.P900,true);header.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
+        Button back=Ui.button(this,"חזרה",Ui.Kind.SOFT);back.setOnClickListener(v->showHomeScreen(false));header.addView(back);
+        content.addView(header,Ui.row(this,0,Ui.S2));List<SavedListStore.Entry> entries=savedListStore.list();
+        if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."));
+        for(SavedListStore.Entry entry:entries){LinearLayout card=Ui.column(this);
+            card.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_CARD,1,Ui.P200));card.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3));
+            card.addView(Ui.text(this,entry.title,Ui.T_NAME,Ui.P900,true));
+            card.addView(Ui.text(this,entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt),Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
+            Button open=Ui.button(this,"פתיחת הרשימה",Ui.Kind.PRIMARY);open.setOnClickListener(v->openSavedList(entry));
+            Button delete=Ui.button(this,"מחיקה מהרשימות השמורות",Ui.Kind.SOFT);
+            delete.setOnClickListener(v->showModernConfirm("מחיקת רשימה שמורה","הרשימה תימחק מהמכשיר בלבד. חשבון מחובר או רשימות אחרות לא יושפעו.","מחק רשימה",()->{savedListStore.delete(entry.id);showSavedListsScreen();}));
+            card.addView(open);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
+        }
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+        setContentView(scroll);Ui.systemBars(this);back.requestFocus();
+    }
+    private void openSavedList(SavedListStore.Entry entry) {
+        SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
+        try{if(source==null)source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,entry.sourceLabel,entry.owner);}
+        catch(Exception e){showSyncMessage(e.getMessage(),false);return;}
+        final String sourceId=source.id;Runnable activate=()->cacheWorker.execute(()->{
+            boolean installed=savedListStore.install(entry.id,new File(sourceRegistry.sourceDir(sourceId),"pickup_order_cache"));
+            boolean restored=installed&&savedListStore.restoreProgress(entry.id,sourceRegistry.prefs(sourceId));
+            JSONObject snapshot=null;try{snapshot=savedListStore.readEntry(entry.id);}catch(Exception ignored){}
+            final JSONObject saved=snapshot;
+            mainHandler.post(()->{if(!installed||!restored||saved==null){showSyncMessage("לא ניתן לפתוח את הרשימה השמורה.",false);return;}
+                activeOwner=saved.optString("owner",entry.owner);String print=saved.optString("fingerprint","");long orderId=saved.optLong("order_id",-1);
+                DataGuard.saveMeta(preferences,activeOwner,orderId,print,preferences.getString(DataGuard.K_TOKEN_FINGERPRINT,""));
+                cacheTrusted=isCacheManifestValid(activeOwner);showingSavedList=true;clearOrderMemory();showHomeScreen(false);
+                showSyncMessage("הרשימה השמורה נפתחה. היא תישאר במכשיר עד למחיקה ידנית.",false);});
+        });
+        if(!sourceId.equals(activeSourceId))switchSource(sourceId,activate);else activate.run();
+    }
+    private void archiveExistingSnapshots() {if(savedListStore!=null&&sourceRegistry!=null)for(SourceRegistry.Source s:sourceRegistry.all())archiveCurrentSnapshot(s.id);}
+    private void archiveCurrentSnapshot(String sourceId) {
+        if(savedListStore==null||sourceRegistry==null||sourceId==null||sourceId.isEmpty())return;
+        SourceRegistry.Source source=sourceRegistry.find(sourceId);if(source==null)return;
+        File file=new File(new File(sourceRegistry.sourceDir(sourceId),"pickup_order_cache"),"order.json");
+        savedListStore.archive(sourceId,source.label,file,sourceRegistry.prefs(sourceId));
+    }
+
     private LinearLayout buildHomeHeader() {
         // כותרת ומד ההתקדמות נשארים קבועים; פעולות הניהול נמצאות בהגדרות.
         LinearLayout header = Ui.column(this);
@@ -1457,6 +1612,7 @@ public class MainActivity extends Activity {
         button.setOnClickListener(v -> {
             if (syncAllRunning) return;
             sourceRegistry.setViewMode(mode);
+            showingSavedList=false;
             showHomeScreen(false);
         });
         return button;
