@@ -159,7 +159,7 @@ final class DataGuard {
         wipeCacheFiles(filesDir);
         SharedPreferences.Editor edit = prefs.edit();
         for (String key : new ArrayList<>(prefs.getAll().keySet())) {
-            if (key.startsWith(COLLECTED_PREFIX) || key.startsWith("meta_")) edit.remove(key);
+            if (key.startsWith(COLLECTED_PREFIX) || key.startsWith("partial_") || key.startsWith("meta_")) edit.remove(key);
         }
         edit.commit();
     }
