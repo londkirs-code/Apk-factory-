@@ -34,3 +34,6 @@ requested_at=2026-11-24T08:24:00+02:00
 
 Fix saved-list navigation syntax and include persistent progress archival and partial reset.
 requested_at=2026-11-24T08:36:00+02:00
+
+Final release: archive every collection change, preserve progress across source removal, reset partial marks correctly and restore orphaned saved lists.
+requested_at=2026-11-24T08:48:00+02:00
