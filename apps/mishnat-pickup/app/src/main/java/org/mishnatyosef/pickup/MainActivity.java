@@ -2515,7 +2515,7 @@ public class MainActivity extends Activity {
         int index = 0;
         for (ProductRow candidate : products) {
             if (candidate.key.equals(product.key)) break;
-            if (matchesSearch(candidate) && collected.contains(candidate.key) == done) index++;
+            if (matchesSearch(candidate) && (done ? (collected.contains(candidate.key) || collectedQuantity(candidate) > 0) : !collected.contains(candidate.key))) index++;
         }
         return Math.min(index, target.getChildCount());
     }
@@ -2904,6 +2904,9 @@ public class MainActivity extends Activity {
         if (hadKeyboardFocus && neighbor != null) neighbor.requestFocus();
         if (wasCollected) { collected.remove(key); partialCollected.remove(key); }
         else { collected.add(key); partialCollected.remove(key); }
+        ProductCard stalePartial=partialCards.get(key);
+        if(stalePartial!=null&&stalePartial.row.getParent() instanceof ViewGroup)
+            ((ViewGroup)stalePartial.row.getParent()).removeView(stalePartial.row);
         if (combinedView) {
             updateCombinedParts(key, !wasCollected);
             moving.views.note.setText(combinedNote(combinedParts.get(key)));
