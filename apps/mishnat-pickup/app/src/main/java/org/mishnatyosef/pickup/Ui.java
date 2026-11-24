@@ -149,30 +149,65 @@ final class Ui {
         }
     }
 
-    static CardViews productCard(Context c) {
+    static CardViews productCard(Context c) { return productCard(c, 3); }
+
+    /** mode 0: dense checklist; modes 1-4: scaled cards; mode 5: three-column grid. */
+    static CardViews productCard(Context c, int mode) {
+        boolean compact = mode == 0;
+        boolean grid = mode == 5;
+        float scale = mode == 1 ? .70f : mode == 2 ? .85f : mode == 4 ? 1.15f : 1f;
         LinearLayout root=new LinearLayout(c);
-        root.setOrientation(LinearLayout.HORIZONTAL); root.setGravity(Gravity.CENTER_VERTICAL);
+        root.setOrientation(grid ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        root.setGravity(Gravity.CENTER_VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); root.setFocusable(true);
         root.setFocusableInTouchMode(false); root.setClickable(true);
         root.setBackground(interactive(c,SURFACE,LINE,P100,FOCUS,R_CARD));
-        root.setPadding(dp(c,S4),dp(c,S2),dp(c,S4),dp(c,S2));
-        root.setLayoutParams(row(c,0,S3));
+        int horizontalPad = compact ? S2 : Math.max(S2, Math.round(S4*scale));
+        int verticalPad = compact ? 2 : Math.max(2, Math.round(S2*scale));
+        root.setPadding(dp(c,horizontalPad),dp(c,verticalPad),dp(c,horizontalPad),dp(c,verticalPad));
+        root.setMinimumHeight(dp(c, compact ? 34 : 0));
+        root.setLayoutParams(row(c,0,compact ? S1 : Math.max(2,Math.round(S3*scale))));
 
-        ImageView image=new RoundedImageView(c,dp(c,R_IMAGE)); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        ImageView image=new RoundedImageView(c,dp(c, grid ? 12 : R_IMAGE));
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
         image.setBackground(shape(c,P100,R_IMAGE,0,0));
-        int size=imageSize(c); image.setLayoutParams(new LinearLayout.LayoutParams(size,size));
+        int size = compact ? 0 : grid ? dp(c,48) : Math.max(dp(c,28),Math.round(imageSize(c)*scale));
+        image.setLayoutParams(grid
+                ? new LinearLayout.LayoutParams(size,size)
+                : new LinearLayout.LayoutParams(size,size));
+        if (compact) image.setVisibility(View.GONE);
 
         LinearLayout details=column(c);
-        LinearLayout.LayoutParams detailsLp=new LinearLayout.LayoutParams(0,-2,1f);
-        detailsLp.setMarginStart(dp(c,S4)); detailsLp.setMarginEnd(dp(c,S4));
+        LinearLayout.LayoutParams detailsLp = grid
+                ? new LinearLayout.LayoutParams(-1,-2)
+                : new LinearLayout.LayoutParams(0,-2,1f);
+        if (grid) {
+            detailsLp.topMargin = dp(c,S1);
+            details.setGravity(Gravity.CENTER);
+        } else {
+            detailsLp.setMarginStart(dp(c,compact?S2:Math.round(S4*scale)));
+            detailsLp.setMarginEnd(dp(c,compact?S2:Math.round(S4*scale)));
+        }
         details.setLayoutParams(detailsLp);
-        TextView name=text(c,"",T_NAME,INK,true); name.setMaxLines(3);
-        TextView note=text(c,"",T_NOTE,MUTED,false); note.setMaxLines(2);
-        note.setLayoutParams(row(c,S1,0)); details.addView(name); details.addView(note);
+        TextView name=text(c,"",compact?14:T_NAME*scale,INK,true);
+        name.setMaxLines(grid?2:(compact?1:MAX_NAME_LINES));
+        TextView note=text(c,"",compact?12:T_NOTE*scale,MUTED,false);
+        note.setMaxLines(grid?2:MAX_NOTE_LINES);
+        note.setLayoutParams(row(c,1,0));
+        details.addView(name); details.addView(note);
 
-        TextView amount=text(c,"",T_AMOUNT,P800,true); amount.setGravity(Gravity.CENTER);
-        amount.setMinWidth(dp(c,56)); amount.setBackground(shape(c,P100,R_BUTTON,0,0));
-        amount.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
+        TextView amount=text(c,"",grid?19:(compact?17:T_AMOUNT*scale),P800,true);
+        amount.setGravity(Gravity.CENTER);
+        amount.setMinWidth(dp(c,grid?0:(compact?34:Math.max(40,Math.round(56*scale)))));
+        amount.setBackground(shape(c,P100,R_BUTTON,0,0));
+        amount.setPadding(dp(c,compact?S2:Math.max(2,Math.round(S3*scale))),
+                dp(c,1),dp(c,compact?S2:Math.max(2,Math.round(S3*scale))),dp(c,1));
+        if (grid) {
+            LinearLayout.LayoutParams imageLp=(LinearLayout.LayoutParams)image.getLayoutParams();
+            imageLp.gravity=Gravity.CENTER_HORIZONTAL;
+            image.setLayoutParams(imageLp);
+            amount.setLayoutParams(row(c,S1,0));
+        }
         root.addView(image); root.addView(details); root.addView(amount);
         return new CardViews(root,image,name,note,amount);
     }
@@ -190,7 +225,6 @@ final class Ui {
         v.name.setTextColor(collected?MUTED:INK); v.amount.setTextColor(collected?P600:P800);
         v.image.setAlpha(collected?0.55f:1f);
         v.root.setBackground(interactive(c,collected?P100:SURFACE,collected?P200:LINE,P200,FOCUS,R_CARD));
-        v.root.setPadding(dp(c,S4),dp(c,S2),dp(c,S4),dp(c,S2));
         v.root.setContentDescription(name+", כמות "+amount+(collected?", לוקט":""));
     }
 
