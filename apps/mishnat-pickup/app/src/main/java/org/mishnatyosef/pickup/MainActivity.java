@@ -1162,7 +1162,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "גרסה 1.52 · חיפוש, איסוף חלקי, שש רמות תצוגה, צליל ורטט לבחירה וארכיון רשימות מתעדכן שנגיש גם לאחר התנתקות."),
+                "גרסה 1.53 · חיפוש, איסוף חלקי, שש רמות תצוגה, צליל ורטט לבחירה וארכיון רשימות מתעדכן שנגיש גם לאחר התנתקות."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
