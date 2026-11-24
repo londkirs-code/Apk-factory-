@@ -1167,7 +1167,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "גרסה 1.58 · איסוף חלקי מוצג גם ב׳נאספו׳; בחירת כמות ומעבר תצוגה באמצעות סרגלים; תוקנה רשת הכרטיסים."),
+                "בעדכון החדש · הכמות שנאספה מופיעה גם ב׳נאספו׳; בחירת הכמות וגודל התצוגה בסרגל הזזה; תוקנה רשת של שלושה כרטיסים."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
