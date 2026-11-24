@@ -807,7 +807,12 @@ public class MainActivity extends Activity {
         if (!imageMode && !accountsScreenVisible && event.getKeyCode() == KeyEvent.KEYCODE_5) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() > 0 && !keyFiveLongHandled) {
                 ProductCard focused = findProductCard(getCurrentFocus());
-                if (focused != null) { keyFiveLongHandled = true; showPartialCollectionDialog(focused.product.key); return true; }
+                if (focused != null) {
+                    keyFiveLongHandled = true;
+                    if (parseQuantity(focused.product.amount) > 1.000001)
+                        showPartialCollectionDialog(focused.product.key);
+                    return true;
+                }
             }
             if (event.getAction() == KeyEvent.ACTION_UP && keyFiveLongHandled) { keyFiveLongHandled = false; return true; }
         }
@@ -1437,7 +1442,8 @@ public class MainActivity extends Activity {
         }catch(Exception ignored){}
     }
     private void showPartialCollectionDialog(String key) {
-        ProductRow product=findProduct(key);if(product==null)return;
+        ProductRow product=findProduct(key);
+        if(product==null||parseQuantity(product.amount)<=1.000001)return;
         EditText amount=new EditText(this);amount.setSingleLine(true);
         amount.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);
         amount.setText(formatQuantity(collectedQuantity(product)));amount.setSelectAllOnFocus(true);
@@ -2483,15 +2489,26 @@ public class MainActivity extends Activity {
             else if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, views.image);
             else views.image.setImageResource(android.R.drawable.ic_menu_gallery);
         }
+        // Every text/amount touch target explicitly routes taps to collection and long presses
+        // to partial collection. This avoids child long-click listeners swallowing short taps.
         views.image.setOnClickListener(v -> openProductImage(card));
-        View.OnLongClickListener partialLongPress=v -> { showPartialCollectionDialog(product.key); return true; };
+        View.OnClickListener collectClick=v -> toggleProduct(product.key);
+        View.OnLongClickListener partialLongPress=v -> {
+            ProductRow current=findProduct(product.key);
+            if(current!=null&&parseQuantity(current.amount)>1.000001)
+                showPartialCollectionDialog(product.key);
+            return true;
+        };
         views.image.setOnLongClickListener(partialLongPress);
+        views.name.setOnClickListener(collectClick);
         views.name.setOnLongClickListener(partialLongPress);
+        views.note.setOnClickListener(collectClick);
         views.note.setOnLongClickListener(partialLongPress);
+        views.amount.setOnClickListener(collectClick);
         views.amount.setOnLongClickListener(partialLongPress);
         views.image.setFocusable(false);
         views.image.setFocusableInTouchMode(false);
-        views.root.setOnClickListener(v -> toggleProduct(product.key));
+        views.root.setOnClickListener(collectClick);
         views.root.setOnLongClickListener(partialLongPress);
         if (displayMode == 0) views.note.setVisibility(View.GONE);
         return card;
@@ -2816,12 +2833,13 @@ public class MainActivity extends Activity {
         ProductRow product = findProduct(key);
         if (product == null) return;
         int oldIndex = source.indexOfChild(moving.row);
+        boolean hadKeyboardFocus = moving.row.hasFocus();
         View neighbor = null;
         if (oldIndex >= 0) {
             if (oldIndex + 1 < source.getChildCount()) neighbor = source.getChildAt(oldIndex + 1);
             else if (oldIndex > 0) neighbor = source.getChildAt(oldIndex - 1);
         }
-        if (neighbor != null) neighbor.requestFocus();
+        if (hadKeyboardFocus && neighbor != null) neighbor.requestFocus();
         if (wasCollected) { collected.remove(key); partialCollected.remove(key); }
         else { collected.add(key); partialCollected.remove(key); }
         if (combinedView) {
@@ -2836,7 +2854,7 @@ public class MainActivity extends Activity {
         target.addView(moving.row, insertionIndex(target, product, !wasCollected), productLayoutParams(target));
         updateProgress();
         wireFocusOrder();
-        if (neighbor == null) moving.row.requestFocus();
+        if (hadKeyboardFocus && neighbor == null) moving.row.requestFocus();
         performFeedback(false);
         checkCelebration();
     }
