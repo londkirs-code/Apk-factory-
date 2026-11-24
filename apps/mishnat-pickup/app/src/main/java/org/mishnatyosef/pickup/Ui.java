@@ -49,8 +49,18 @@ final class Ui {
             T_NOTE=15, T_BUTTON=18;
     static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=360,
             DIALOG_SIDE_MARGIN=40, IMAGE_SAMPLE_MIN=78, MAX_NAME_LINES=3, MAX_NOTE_LINES=2;
-    /** גודל אחיד לכל כפתורי האייקון בכותרות. */
+    /** גודל אחיד לכל כפתורי האייקון בכותרות. במסכים צרים (מכשירי מקשים) הכפתורים קטנים מעט. */
     static final int ICON_BUTTON=48, ICON_GLYPH=24;
+
+    static int iconButtonDp(Context c) {
+        int w=c.getResources().getConfiguration().screenWidthDp;
+        return w < 300 ? 36 : (w < 340 ? 40 : ICON_BUTTON);
+    }
+
+    /** האם יש מספיק רוחב לכותרת ולכפתורי האייקון באותה שורה. */
+    static boolean wideHeader(Context c) {
+        return c.getResources().getConfiguration().screenWidthDp >= 420;
+    }
 
     static int dp(Context c, int v) {
         return Math.round(v*c.getResources().getDisplayMetrics().density);
@@ -177,7 +187,8 @@ final class Ui {
     // ---------------------------------------------------------------------
 
     static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
-            IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9;
+            IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
+            IC_MAP=11, IC_PHONE=12;
 
     static final class IconDrawable extends Drawable {
         private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -223,6 +234,20 @@ final class Ui {
                     canvas.drawLine(15.2f,15.2f,20f,20f,stroke); break;
                 case IC_PHOTO: drawPhoto(canvas); break;
                 case IC_HISTORY: drawHistory(canvas); break;
+                case IC_INFO:
+                    canvas.drawCircle(12f,12f,9f,stroke);
+                    canvas.drawLine(12f,11f,12f,16.8f,stroke);
+                    canvas.drawCircle(12f,7.6f,1.25f,fill); break;
+                case IC_MAP:
+                    path.reset(); path.moveTo(12f,21f);
+                    path.cubicTo(7f,15.5f,5f,12.5f,5f,9.5f);
+                    path.cubicTo(5f,5.6f,8.1f,2.8f,12f,2.8f);
+                    path.cubicTo(15.9f,2.8f,19f,5.6f,19f,9.5f);
+                    path.cubicTo(19f,12.5f,17f,15.5f,12f,21f);
+                    canvas.drawPath(path,stroke); canvas.drawCircle(12f,9.5f,2.4f,stroke); break;
+                case IC_PHONE:
+                    box.set(7f,2.5f,17f,21.5f); canvas.drawRoundRect(box,2.2f,2.2f,stroke);
+                    canvas.drawLine(10.5f,18.3f,13.5f,18.3f,stroke); break;
                 default: break;
             }
             canvas.restoreToCount(save);
@@ -339,7 +364,7 @@ final class Ui {
         b.setContentDescription(description);
         b.setBackground(interactive(c,active?P200:SURFACE,active?P600:P200,
                 active?P300:P100,active?P900:P700,R_BUTTON));
-        b.setLayoutParams(new LinearLayout.LayoutParams(dp(c,ICON_BUTTON),dp(c,ICON_BUTTON)));
+        b.setLayoutParams(new LinearLayout.LayoutParams(dp(c,iconButtonDp(c)),dp(c,iconButtonDp(c))));
         return b;
     }
 

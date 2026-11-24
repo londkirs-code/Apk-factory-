@@ -130,6 +130,9 @@ public class MainActivity extends Activity {
     /** שם המכירה של ההזמנה המוצגת (למשל שם הפרשה), או ריק כשאין. */
     private String currentOrderTitle = "";
     private TextView homeTitleText;
+    /** מידע האיסוף של ההזמנה המוצגת (מקום, שעות, הערות). בתצוגה המאוחדת - לכל חשבון. */
+    private JSONObject currentPickupInfo = null;
+    private final List<JSONObject> combinedPickupInfos = new ArrayList<>();
     private final List<ProductRow> products = new ArrayList<>();
     private final Set<String> collected = new HashSet<>();
     private final Map<String, Double> partialCollected = new HashMap<>();
@@ -1706,7 +1709,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · שם ההזמנה הוא שם המכירה (הפרשה), גם בכותרת וגם בהיסטוריה. בעדכון הקודם: אייקונים חדשים וחדים בכל המסכים, ניווט מקלדת מתוקן (Menu פותח וסוגר הגדרות, חזרה מחזירה למסך הקודם ולא סוגרת את האפליקציה, 7/9 מעבירים את הבחירה לראש ולסוף הרשימה), חזרה לאותו פריט אחרי יציאה מההגדרות, מעבר רך בין מסכים, Enter בסיסמה מתחבר, ומסך רשימות שמורות מסודר יותר."),
+                "בעדכון החדש · כפתור מידע איסוף (ⓘ) בראש הרשימה: מועד ושעות האיסוף, מקום וכתובת עם פתיחה במפה, אחראי הנקודה, הודעות והערות המכירה. שם ההזמנה הוא שם המכירה (הפרשה). בעדכון הקודם: אייקונים חדשים וחדים בכל המסכים, ניווט מקלדת מתוקן (Menu פותח וסוגר הגדרות, חזרה מחזירה למסך הקודם ולא סוגרת את האפליקציה, 7/9 מעבירים את הבחירה לראש ולסוף הרשימה), חזרה לאותו פריט אחרי יציאה מההגדרות, מעבר רך בין מסכים, Enter בסיסמה מתחבר, ומסך רשימות שמורות מסודר יותר."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -2334,7 +2337,7 @@ public class MainActivity extends Activity {
             long id=extractOrderId(row);if(id<=0)continue;String title=OrderHistoryPage.title(row);
             // בהיסטוריה מוצג שם המכירה בלבד.
             Button item=Ui.button(this,title,Ui.Kind.SOFT);
-            item.setOnClickListener(v->saveHistoricalOrder(id,title));historyContent.addView(item,Ui.row(this,0,Ui.S2));
+            item.setOnClickListener(v->saveHistoricalOrder(id,title,row));historyContent.addView(item,Ui.row(this,0,Ui.S2));
         }
         if(historyPage<historyLastPage){historyMoreButton=Ui.button(this,"טען הזמנות ישנות יותר",Ui.Kind.PRIMARY);historyMoreButton.setOnClickListener(v->loadOrderHistoryPage(historyPage+1));historyContent.addView(historyMoreButton,Ui.row(this,0,Ui.S3));}else historyMoreButton=null;
         // אחרי "טען עוד" הפוקוס נשאר במקום הגיוני: על כפתור טען עוד החדש או על הפריט האחרון.
@@ -2343,7 +2346,7 @@ public class MainActivity extends Activity {
             else if(historyContent.getChildCount()>2)historyContent.getChildAt(historyContent.getChildCount()-1).requestFocus();
         }
     }
-    private void saveHistoricalOrder(long id,String title) {
+    private void saveHistoricalOrder(long id,String title,JSONObject historyRow) {
         if(accessToken.isEmpty()||activeSourceId.isEmpty()){Toast.makeText(this,"אין חיבור פעיל לשמירת ההזמנה.",Toast.LENGTH_LONG).show();return;}
         final RequestSession session=new RequestSession(authGeneration,accessToken);
         Toast.makeText(this,"טוען את פרטי ההזמנה…",Toast.LENGTH_SHORT).show();
@@ -2355,6 +2358,7 @@ public class MainActivity extends Activity {
                 JSONArray items=new JSONArray();
                 for(ProductRow p:rows)items.put(new JSONObject().put("key",p.key).put("name",p.name).put("image_url",p.imageUrl).put("amount",p.amount).put("note",p.note).put("image_file",""));
                 JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name",title).put("updated_at",first(order,"created_at","updated_at","date")).put("imported",true).put("products",items);
+                JSONObject pickup=PickupInfo.extract(historyRow,order);if(pickup!=null)snapshot.put("pickup_info",pickup);
                 SourceRegistry.Source source=sourceRegistry.find(activeSourceId);if(source==null)throw new Exception("החיבור הפעיל אינו קיים.");
                 if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
                 if(!session.isCurrent(this))return;
@@ -2522,29 +2526,39 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeTitleRow() {
-        // שורת כותרת: השם מימין, ומשמאל קבוצת אייקונים אחידה בגודל ובעיצוב:
-        // שתי אפשרויות התצוגה צמודות (מאוחדת / לפי חשבון), ואחריהן איפוס והגדרות.
+        // שורת כותרת: שם המכירה מימין, ומשמאל קבוצת אייקונים אחידה:
+        // מידע איסוף, שתי אפשרויות התצוגה (מאוחדת / לפי חשבון), איפוס והגדרות.
+        // במסך צר השם יורד לשורה משלו, כדי שלא יידחס בין האייקונים.
+        boolean wide = Ui.wideHeader(this);
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
         TextView title = Ui.text(this, currentOrderTitle.isEmpty() ? "רשימת איסוף" : currentOrderTitle,
-                Ui.T_TITLE, Ui.P900, true);
+                wide ? Ui.T_TITLE : Ui.T_NAME + 2, Ui.P900, true);
         homeTitleText = title;
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
-        titleParams.setMarginEnd(Ui.dp(this, Ui.S2));
-        row.addView(title, titleParams);
+        if (wide) {
+            LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
+            titleParams.setMarginEnd(Ui.dp(this, Ui.S2));
+            row.addView(title, titleParams);
+        } else {
+            row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        }
+
+        headerButtons.clear();
+        Button info = Ui.iconButton(this, Ui.IC_INFO, "מידע איסוף", false);
+        info.setTag("home_first_header_button");
+        info.setOnClickListener(v -> showPickupInfo());
+        addHeaderSpacing(row, info, 0);
 
         String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
         Button unified = buildViewModeIcon("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת",
                 "COMBINED_SUM".equals(mode));
         Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון",
                 "COMBINED_BY_SOURCE".equals(mode));
-        unified.setTag("home_first_header_button");
-        headerButtons.clear();
-        row.addView(unified);
+        addHeaderSpacing(row, unified, Ui.S3);
         addHeaderSpacing(row, byAccount, Ui.S1);
 
         resetButton = Ui.iconButton(this, Ui.IC_RESET, "איפוס ליקוט", false);
@@ -2557,15 +2571,20 @@ public class MainActivity extends Activity {
         settings.setTag("home_settings_button");
         settings.setOnClickListener(v -> showSettingsScreen());
         addHeaderSpacing(row, settings, Ui.S1);
-        headerButtons.add(unified); headerButtons.add(byAccount);
+        headerButtons.add(info); headerButtons.add(unified); headerButtons.add(byAccount);
         headerButtons.add(resetButton); headerButtons.add(settings);
-        return row;
+        if (wide) return row;
+
+        LinearLayout stacked = Ui.column(this);
+        stacked.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        stacked.addView(title, Ui.row(this, Ui.S2, 0));
+        return stacked;
     }
 
     private void addHeaderSpacing(LinearLayout row, View button, int startMarginDp) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                Ui.dp(this, Ui.ICON_BUTTON), Ui.dp(this, Ui.ICON_BUTTON));
-        lp.setMarginStart(Ui.dp(this, startMarginDp));
+        int size = Ui.dp(this, Ui.iconButtonDp(this));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+        lp.setMarginStart(Ui.dp(this, Ui.iconButtonDp(this) < Ui.ICON_BUTTON ? Math.min(startMarginDp, Ui.S1) : startMarginDp));
         row.addView(button, lp);
     }
 
@@ -2921,6 +2940,7 @@ public class MainActivity extends Activity {
                 String sale = OrderHistoryPage.saleName(latest);
                 if (sale.isEmpty()) sale = OrderHistoryPage.saleName(order);
                 final String orderTitle = sale.isEmpty() ? "הזמנה " + id : sale;
+                final JSONObject pickupInfo = PickupInfo.extract(latest, order);
                 if (!session.isCurrent(this)) return;
                 // This request is deliberately detached from the order flow: product data
                 // is rendered as soon as it arrives, while the account name loads quietly.
@@ -2928,7 +2948,7 @@ public class MainActivity extends Activity {
                 final String resolvedOwner = owner;
                 final String resolvedToken = session.token;
                 mainHandler.post(() -> onFreshOrder(session.generation, resolvedToken,
-                        resolvedOwner, id, order, parsed, orderTitle));
+                        resolvedOwner, id, order, parsed, orderTitle, pickupInfo));
             } catch (Exception error) {
                 String message = safeError(error);
                 mainHandler.post(() -> onOrderLoadError(session, message));
@@ -3005,6 +3025,7 @@ public class MainActivity extends Activity {
                 throw new Exception("cache fingerprint mismatch");
             currentOrderId = String.valueOf(id);
             setCurrentOrderTitle(saved.optString("order_name", ""));
+            currentPickupInfo = saved.optJSONObject("pickup_info");
             products.clear();
             products.addAll(restored);
             loadCollectedState();
@@ -3020,7 +3041,8 @@ public class MainActivity extends Activity {
     }
 
     private void onFreshOrder(int generation, String requestToken, String owner,
-                              long orderId, JSONObject order, List<ProductRow> rows, String orderTitle) {
+                              long orderId, JSONObject order, List<ProductRow> rows, String orderTitle,
+                              JSONObject pickupInfo) {
         if (generation != authGeneration || !requestToken.equals(accessToken) || isFinishing()) return;
         loading = false;
         String stableOwner = owner == null ? "" : owner;
@@ -3030,6 +3052,7 @@ public class MainActivity extends Activity {
             clearOrderMemory();
             currentOrderId = String.valueOf(orderId);
             setCurrentOrderTitle(orderTitle);
+            currentPickupInfo = pickupInfo;
             products.addAll(rows);
             syncCompletionState();
             renderProducts(false);
@@ -3120,6 +3143,7 @@ public class MainActivity extends Activity {
         orderData = order;
         currentOrderId = String.valueOf(orderId);
         setCurrentOrderTitle(orderTitle);
+        currentPickupInfo = pickupInfo;
         products.clear();
         products.addAll(rows);
         collected.clear(); partialCollected.clear();
@@ -3145,7 +3169,7 @@ public class MainActivity extends Activity {
                     DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint,
                             DataGuard.tokenFingerprint(requestToken));
                     // רשימות שנשמרו לפני שהתווסף שם המכירה מקבלות אותו בסנכרון הבא.
-                    updateCachedOrderName(orderTitle);
+                    updateCachedOrderName(orderTitle, pickupInfo);
                     archiveCurrentSnapshot(sourceForArchive);
                 }
                 mainHandler.post(this::advanceSyncQueue);
@@ -3170,7 +3194,7 @@ public class MainActivity extends Activity {
             preferences.edit().putString("partial_" + orderKey, partialState).commit();
             try {
                 cacheOrderIfComplete(generation, requestToken, stableOwner, orderId,
-                        order, rows, fingerprint, orderTitle);
+                        order, rows, fingerprint, orderTitle, pickupInfo);
                 if (generation != authGeneration || !requestToken.equals(accessToken)) return;
                 DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint, tokenFingerprint);
                 archiveCurrentSnapshot(sourceForArchive);
@@ -3214,15 +3238,114 @@ public class MainActivity extends Activity {
             preferences.edit().putString(DataGuard.COLLECTED_PREFIX + orderId, ticks.toString()).commit();
     }
 
+    /** חלון מידע האיסוף: מועד ושעות, מקום, איש קשר, הערות ופרטי ההזמנה. */
+    private void showPickupInfo() {
+        List<JSONObject> infos = new ArrayList<>();
+        if (combinedView && !combinedPickupInfos.isEmpty()) infos.addAll(combinedPickupInfos);
+        else if (currentPickupInfo != null) infos.add(currentPickupInfo);
+        if (infos.isEmpty()) {
+            Toast.makeText(this, products.isEmpty()
+                    ? "אין עדיין הזמנה להצגת מידע איסוף."
+                    : "אין מידע איסוף שמור לרשימה זו. סנכרון עם האתר יעדכן אותו.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView title = Ui.text(this, "מידע איסוף", Ui.T_NAME, Ui.P900, true);
+        head.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+        Button close = Ui.iconButton(this, Ui.IC_CLOSE, "סגירת מידע האיסוף", false);
+        close.setOnClickListener(v -> dialog.dismiss());
+        head.addView(close);
+        panel.addView(head, Ui.row(this, 0, Ui.S2));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        // המקלדת גוללת את המידע עצמו (חצים / 2 ו-8), ובסוף עוברת לכפתורי הפעולה.
+        scroll.setFocusable(true);
+        scroll.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
+        scroll.setBackground(Ui.focusFrame(this));
+        LinearLayout body = Ui.column(this);
+        body.setPadding(Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2));
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        for (int i = 0; i < infos.size(); i++) {
+            JSONObject info = infos.get(i);
+            if (infos.size() > 1) {
+                String label = info.optString("_source_label", "").trim();
+                String heading = PickupInfo.title(info);
+                TextView source = Ui.text(this, (label.isEmpty() ? "" : label + " · ") + heading,
+                        Ui.T_BODY, Ui.P800, true);
+                source.setBackground(Ui.shape(this, Ui.P100, Ui.R_BUTTON, 0, 0));
+                source.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2));
+                body.addView(source, Ui.row(this, i == 0 ? 0 : Ui.S5, Ui.S1));
+            }
+            for (PickupInfo.Line line : PickupInfo.describe(info)) {
+                if (line.isSection()) {
+                    body.addView(Ui.section(this, line.label));
+                    continue;
+                }
+                LinearLayout row = Ui.column(this);
+                row.addView(Ui.text(this, line.label, Ui.T_NOTE, Ui.P600, true));
+                TextView value = Ui.text(this, line.value, Ui.T_BODY, Ui.INK, false);
+                row.addView(value, Ui.row(this, 2, 0));
+                body.addView(row, Ui.row(this, Ui.S1, Ui.S2));
+            }
+            addPickupActions(body, info, dialog);
+        }
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (dialog.getWindow() != null) {
+            int height = (int) (getResources().getDisplayMetrics().heightPixels * 0.86f);
+            dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width, height);
+        }
+        scroll.requestFocus();
+    }
+
+    /** כפתורי ניווט למפה וחיוג לאחראי הנקודה, כשיש מיקום או טלפון. */
+    private void addPickupActions(LinearLayout body, JSONObject info, Dialog dialog) {
+        String map = PickupInfo.mapUri(info);
+        String phone = PickupInfo.phone(info);
+        if (!map.isEmpty()) {
+            Button open = Ui.button(this, "פתיחת המיקום במפה", Ui.Kind.PRIMARY);
+            open.setOnClickListener(v -> {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(map))); }
+                catch (android.content.ActivityNotFoundException e) {
+                    Toast.makeText(this, "לא נמצאה במכשיר אפליקציית מפות.", Toast.LENGTH_LONG).show();
+                }
+            });
+            body.addView(open, Ui.row(this, Ui.S3, Ui.S1));
+        }
+        if (!phone.isEmpty()) {
+            Button call = Ui.button(this, "חיוג לאחראי הנקודה", Ui.Kind.SOFT);
+            call.setOnClickListener(v -> {
+                try { startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone.replaceAll("[^0-9+]", "")))); }
+                catch (android.content.ActivityNotFoundException e) {
+                    Toast.makeText(this, "לא ניתן לפתוח חייגן במכשיר.", Toast.LENGTH_LONG).show();
+                }
+            });
+            body.addView(call, Ui.row(this, Ui.S1, Ui.S1));
+        }
+    }
+
     /** מעדכן את שם המכירה בעותק המקומי של ההזמנה הפעילה, בלי לגעת במוצרים ובסימונים. */
-    private void updateCachedOrderName(String orderTitle) {
-        if (orderTitle == null || orderTitle.isEmpty()) return;
+    private void updateCachedOrderName(String orderTitle, JSONObject pickupInfo) {
+        if ((orderTitle == null || orderTitle.isEmpty()) && pickupInfo == null) return;
         File manifest = new File(new File(activeFilesDir(), "pickup_order_cache"), "order.json");
         if (!manifest.isFile()) return;
         try {
             JSONObject saved = new JSONObject(readImportText(manifest));
-            if (orderTitle.equals(saved.optString("order_name", ""))) return;
-            saved.put("order_name", orderTitle);
+            boolean sameName = orderTitle == null || orderTitle.isEmpty()
+                    || orderTitle.equals(saved.optString("order_name", ""));
+            JSONObject oldInfo = saved.optJSONObject("pickup_info");
+            boolean sameInfo = pickupInfo == null || (oldInfo != null && oldInfo.toString().equals(pickupInfo.toString()));
+            if (sameName && sameInfo) return;
+            if (!sameName) saved.put("order_name", orderTitle);
+            if (!sameInfo) saved.put("pickup_info", pickupInfo);
             File temp = new File(manifest.getParentFile(), "order.json.tmp");
             try (FileOutputStream out = new FileOutputStream(temp)) {
                 out.write(saved.toString().getBytes(StandardCharsets.UTF_8));
@@ -3241,7 +3364,7 @@ public class MainActivity extends Activity {
 
     private void cacheOrderIfComplete(int generation, String requestToken, String owner,
                                       long orderId, JSONObject order, List<ProductRow> rows,
-                                      String fingerprint, String orderTitle) throws Exception {
+                                      String fingerprint, String orderTitle, JSONObject pickupInfo) throws Exception {
         if (generation != authGeneration || !requestToken.equals(accessToken)) return;
         File root = new File(activeFilesDir(), "pickup_order_cache");
         File temp = new File(activeFilesDir(), "pickup_order_cache_tmp");
@@ -3271,6 +3394,7 @@ public class MainActivity extends Activity {
         snapshot.put("order_id", orderId);
         snapshot.put("owner", owner);
         snapshot.put("order_name", orderTitle == null ? "" : orderTitle);
+        if (pickupInfo != null) snapshot.put("pickup_info", pickupInfo);
         snapshot.put("fingerprint", fingerprint);
         snapshot.put("fingerprint_version", 2);
         snapshot.put("sort_value", orderSortValue(order));
@@ -3705,6 +3829,8 @@ public class MainActivity extends Activity {
         products.clear(); collected.clear(); partialCollected.clear(); combinedParts.clear();
         java.util.LinkedHashMap<String, java.util.List<SourcePart>> grouped = new java.util.LinkedHashMap<>();
         Set<String> orderNames = new java.util.LinkedHashSet<>();
+        combinedPickupInfos.clear();
+        currentPickupInfo = null;
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
             File manifest = new File(root, "order.json");
@@ -3721,6 +3847,13 @@ public class MainActivity extends Activity {
                 if (rows == null || "-1".equals(orderId)) continue;
                 String savedName = snapshot.optString("order_name", "").trim();
                 if (!savedName.isEmpty()) orderNames.add(savedName);
+                JSONObject savedInfo = snapshot.optJSONObject("pickup_info");
+                if (savedInfo != null) {
+                    // שם החשבון מצורף כדי להבחין בין נקודות איסוף של חשבונות שונים.
+                    JSONObject labeled = new JSONObject(savedInfo.toString());
+                    labeled.put("_source_label", source.label == null ? "" : source.label);
+                    combinedPickupInfos.add(labeled);
+                }
                 Set<String> ticks = new HashSet<>();
                 JSONObject partials = new JSONObject();
                 try {
@@ -4166,6 +4299,8 @@ public class MainActivity extends Activity {
         orderData = null;
         currentOrderId = "";
         setCurrentOrderTitle("");
+        currentPickupInfo = null;
+        combinedPickupInfos.clear();
         // Keep the URL-keyed bitmap cache across account switches and list rebuilds.
         // Evicting it here caused every already-loaded product image to be decoded again.
     }

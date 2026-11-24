@@ -63,12 +63,14 @@ final class OrderHistoryPage {
      */
     static String saleName(JSONObject order) {
         JSONObject[] candidates=candidates(order);
-        // 1. parent.week הוא השדה הראשי לשם המוצג, ולכן נבדק ראשון בכל רמות הקינון.
-        String[][] nestedSteps={{"parent","week"},{"sale","week"},{"sale","name"},{"sale","title"},
-                {"parent","name"},{"parent","title"}};
-        for(String[] step:nestedSteps)
+        // 1. parent.week הוא השדה הראשי לשם המוצג. בתשובת השרת האמיתית הוא נמצא בתוך המכירה:
+        //    sale.parent.week (למשל "וישלח תשפ״ז"), ולכן נבדק לפני parent.week שישירות בהזמנה.
+        String[][] paths={{"sale","parent","week"},{"parent","week"},
+                {"sale","week"},{"sale","name"},{"sale","title"},{"sale","custom_name"},
+                {"sale","parent","name"},{"sale","parent","title"},{"parent","name"},{"parent","title"}};
+        for(String[] path:paths)
             for(JSONObject candidate:candidates) {
-                String value=first(candidate==null?null:candidate.optJSONObject(step[0]),step[1]);
+                String value=path(candidate,path);
                 if(!value.isEmpty())return value;
             }
         String[] directKeys={"week","parasha","parasha_name","sale_name","order_name","name","title"};
@@ -105,6 +107,13 @@ final class OrderHistoryPage {
             if(!first(candidate,"cancelled_at","canceled_at").isEmpty())return true;
         }
         return false;
+    }
+
+    /** ערך טקסט בנתיב מקונן, למשל sale → parent → week. */
+    private static String path(JSONObject root,String[] keys) {
+        JSONObject current=root;
+        for(int i=0;i<keys.length-1&&current!=null;i++)current=current.optJSONObject(keys[i]);
+        return first(current,keys[keys.length-1]);
     }
 
     /** ההזמנה עצמה ואחריה העטיפות המקוננות הנפוצות שלה. */
