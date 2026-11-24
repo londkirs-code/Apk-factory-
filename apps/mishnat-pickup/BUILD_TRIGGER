@@ -28,3 +28,6 @@ requested_at=2026-11-24T07:42:00+02:00
 
 Fix GridLayout/ViewGroup child insertion and rerun signed release build.
 requested_at=2026-11-24T08:15:00+02:00
+
+Final signed build: include saved-list login access, owner-isolated archive IDs and progress archival before account reset.
+requested_at=2026-11-24T08:24:00+02:00
