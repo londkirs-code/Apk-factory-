@@ -1,10 +1,10 @@
 app=mishnat-pickup
-workflow_run_id=45426188064
-run_number=87
-version_code=71
-version_name=1.71
-source_sha=9bacc4e45601920b72901f56553cf1956d9c5c7f
-published_utc=2026-11-24T15:31:05Z
-sha256=9e87c0fe5ef6b482a6492f37064f61417b7683b50c8edae2e3cca972fb2a4774
+workflow_run_id=45426237762
+run_number=88
+version_code=72
+version_name=1.72
+source_sha=e876a7844558e100f58cbba9a74ef209a3d67a96
+published_utc=2026-11-24T15:32:48Z
+sha256=136194b62a7c7c2106ef1e7646cfed9b57d5eea705ae57ad87f59237bacb3939
 signing_certificate_sha256=5c5356162c0240e5c8b33c53d249dedec33c25aef17bdeee011c2c3f836ee871
 apk_path=downloads/mishnat-pickup/app.apk
