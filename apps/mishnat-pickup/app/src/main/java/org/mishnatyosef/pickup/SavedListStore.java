@@ -117,6 +117,17 @@ final class SavedListStore {
             long orderId=data.optLong("order_id",-1);
             JSONArray products=data.optJSONArray("products");
             if(orderId<=0||products==null)return false;
+            for(int i=0;i<products.length();i++) {
+                JSONObject product=products.optJSONObject(i);
+                if(product==null)continue;
+                String imagePath=product.optString("image_file","");
+                if(!imagePath.isEmpty()) {
+                    File image=new File(imagePath);
+                    if(!image.isAbsolute())image=new File(imageRoot,imagePath);
+                    String cached=cacheImage(image);
+                    if(!cached.isEmpty())product.put("image_file",cached);
+                }
+            }
             String owner=data.optString("owner","");
             String ownerKey=owner.isEmpty()?"noowner":owner.substring(0,Math.min(12,owner.length()));
             String id=sourceId+"_"+ownerKey+"_"+orderId;
