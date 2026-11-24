@@ -1725,7 +1725,7 @@ public class MainActivity extends Activity {
             + "• לחיצה על שם הרשימה בכותרת מציגה מיד את כל הרשימות לבחירה, עם כפתור לפעולות לרשימה ולהגדרות.\n"
             + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
             + "• בכל חלון קופץ יש X בפינה השמאלית העליונה במקום כפתורי סגירה וביטול.\n"
-            + "• ״פעולות לרשימה״ מהכותרת כוללות את כל פעולות הרשימות השמורות (שם, מיזוג, ייצוא, מחיקה, רשימה חדשה, הזמנות קודמות, איחוד).\n"
+            + "• לחיצה על שם הרשימה בכותרת: הרשימה המוצגת עם כל הפעולות שלה, כל הרשימות השמורות עם כפתור ⋮ לפעולות, ופעולות כלליות.\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
             + "• איחוד כמה רשימות לרשימה חדשה.\n"
             + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
@@ -2626,73 +2626,105 @@ public class MainActivity extends Activity {
         if (first != null) first.requestFocus(); else cancel.requestFocus();
     }
 
-    /** לחיצה על שם הרשימה בכותרת: הרשימות השמורות מוצגות מיד, לגלילה ובחירה. */
+    /**
+     * לחיצה על שם הרשימה בכותרת. בחלון אחד:
+     * 1. הרשימה המוצגת, עם הפעולות שלה (שינוי שם, מיזוג, ייצוא, מחיקה).
+     * 2. כל הרשימות השמורות לגלילה: לחיצה פותחת, וכפתור ⋮ לידה פותח את כל הפעולות שלה.
+     * 3. פעולות כלליות: ההזמנה העדכנית, הזמנות קודמות, רשימה חדשה, איחוד והגדרות.
+     */
     private void showListSwitcher() {
         List<SavedListStore.Entry> entries = savedListStore.list();
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "בחירת רשימה", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "רשימות", Ui.T_NAME, Ui.P900, true));
         LinearLayout body = Ui.column(this);
-        Button focus = null;
-        if (showingSavedList && !connectedAccounts().isEmpty()) {
-            Button latest = Ui.button(this, "ההזמנה העדכנית מהאתר", Ui.Kind.SOFT);
-            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
-            body.addView(latest, Ui.row(this, Ui.S1, Ui.S1));
-        }
-        for (SavedListStore.Entry entry : entries) {
-            boolean current = isDisplayedList(entry);
-            Button choose = Ui.button(this, displayTitle(entry) + "\n" + entry.itemCount + " פריטים"
-                    + (current ? " · מוצגת עכשיו" : ""), current ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
-            choose.setOnClickListener(v -> { dialog.dismiss(); if (!isDisplayedList(entry)) openSavedList(entry); });
-            body.addView(choose, Ui.row(this, Ui.S1, Ui.S1));
-            if (focus == null || current) focus = choose;
-        }
-        if (entries.isEmpty())
-            body.addView(Ui.text(this, "אין עדיין רשימות שמורות.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, Ui.S2));
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        Button options = Ui.button(this, "פעולות לרשימה", Ui.Kind.SOFT);
-        options.setOnClickListener(v -> { dialog.dismiss(); showListOptions(); });
-        Button settings = Ui.button(this, "הגדרות", Ui.Kind.SOFT);
-        settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
-        panel.addView(buttonPair(options, settings), Ui.row(this, Ui.S3, 0));
-        dialog.setContentView(panel);
-        dialog.show();
-        styleConfirmWindow(dialog);
-        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
-                (int) (getResources().getDisplayMetrics().heightPixels * 0.85f));
-        if (focus != null) focus.requestFocus(); else options.requestFocus();
-    }
+        View focus = null;
 
-    /** פעולות לרשימה המוצגת: שינוי שם, איחוד רשימות, חזרה להזמנה העדכנית. */
-    private void showListOptions() {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, homeDisplayTitle(), Ui.T_NAME, Ui.P900, true));
-        LinearLayout body = Ui.column(this);
+        // 1. הרשימה המוצגת
         SavedListStore.Entry current = null;
         if (!combinedView && !currentOrderId.isEmpty()) {
             archiveCurrentSnapshot(activeSourceId);
             current = findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
         }
         if (current != null) {
-            body.addView(Ui.section(this, "הרשימה הזו"));
-            addListEntryActions(body, dialog, current, this::refreshHomeTitle, false);
+            final SavedListStore.Entry shown = current;
+            LinearLayout card = Ui.column(this);
+            card.setBackground(Ui.shape(this, Ui.P100, Ui.R_CARD, 1, Ui.P300));
+            card.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2));
+            card.addView(Ui.text(this, "מוצגת עכשיו", Ui.T_NOTE, Ui.P600, true));
+            card.addView(Ui.text(this, homeDisplayTitle(), Ui.T_NAME, Ui.P900, true), Ui.row(this, 2, 0));
+            card.addView(Ui.text(this, shown.itemCount + " פריטים", Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, 2, Ui.S2));
+            Button rename = smallAction(dialog, "שינוי שם", () -> showRenameDialog(shown.owner, shown.orderId,
+                    displayTitle(shown), shown.title, this::refreshHomeTitle));
+            Button export = smallAction(dialog, "ייצוא TXT", () -> exportSavedList(shown));
+            Button merge = smallAction(dialog, "מיזוג לרשימה אחרת", () -> showMergeTargetDialog(shown));
+            Button delete = smallAction(dialog, "מחיקה", () -> showModernConfirm("מחיקת רשימה שמורה",
+                    "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
+                    () -> deleteSavedListEntry(shown)));
+            card.addView(buttonPair(rename, export), Ui.row(this, Ui.S1, 0));
+            card.addView(buttonPair(merge, delete), Ui.row(this, Ui.S1, Ui.S1));
+            body.addView(card, Ui.row(this, Ui.S2, Ui.S1));
+            focus = rename;
         }
-        body.addView(Ui.section(this, "רשימות"));
-        addGeneralListActions(body, dialog);
+
+        // 2. כל הרשימות השמורות
+        body.addView(Ui.section(this, "רשימות שמורות" + (entries.isEmpty() ? "" : " · " + entries.size())));
+        if (showingSavedList && !connectedAccounts().isEmpty()) {
+            Button latest = Ui.button(this, "ההזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
+            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
+            body.addView(latest, Ui.row(this, Ui.S1, Ui.S1));
+        }
+        for (SavedListStore.Entry entry : entries) {
+            if (isDisplayedList(entry)) continue;
+            Button open = Ui.button(this, displayTitle(entry) + "\n" + entry.itemCount + " פריטים", Ui.Kind.SOFT);
+            open.setContentDescription("פתיחת " + displayTitle(entry));
+            open.setOnClickListener(v -> { dialog.dismiss(); openSavedList(entry); });
+            Button more = Ui.iconButton(this, Ui.IC_MORE, "פעולות ל" + displayTitle(entry), false);
+            more.setOnClickListener(v -> { dialog.dismiss(); showSavedListActions(entry); });
+            LinearLayout line = new LinearLayout(this);
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            line.addView(open, new LinearLayout.LayoutParams(0, -2, 1f));
+            int size = Ui.dp(this, Ui.iconButtonDp(this));
+            LinearLayout.LayoutParams moreLp = new LinearLayout.LayoutParams(size, size);
+            moreLp.setMarginStart(Ui.dp(this, Ui.S2));
+            line.addView(more, moreLp);
+            body.addView(line, Ui.row(this, Ui.S1, Ui.S1));
+            if (focus == null) focus = open;
+        }
+        if (entries.isEmpty() || (entries.size() == 1 && current != null))
+            body.addView(Ui.text(this, "אין רשימות שמורות נוספות.", Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S1));
+
+        // 3. פעולות כלליות
+        body.addView(Ui.section(this, "עוד"));
+        Button history = smallAction(dialog, "הזמנות קודמות", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
+        history.setEnabled(!connectedAccounts().isEmpty());
+        Button create = smallAction(dialog, "רשימה חדשה", this::createNewSavedList);
+        Button mergeLists = smallAction(dialog, "איחוד רשימות", this::showMergeListsDialog);
+        mergeLists.setEnabled(entries.size() >= 2);
+        Button settings = smallAction(dialog, "הגדרות", this::showSettingsScreen);
+        body.addView(buttonPair(history, create), Ui.row(this, Ui.S1, 0));
+        body.addView(buttonPair(mergeLists, settings), Ui.row(this, Ui.S1, Ui.S1));
+
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        panel.addView(scroll, new LinearLayout.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
-        for (int i = 0; i < body.getChildCount(); i++)
-            if (body.getChildAt(i) instanceof Button && body.getChildAt(i).requestFocus()) break;
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.9f));
+        if (focus != null) focus.requestFocus(); else history.requestFocus();
     }
+
+    /** כפתור פעולה קטן בחלון: סוגר את החלון ומבצע. */
+    private Button smallAction(Dialog dialog, String label, Runnable action) {
+        Button button = Ui.button(this, label, Ui.Kind.SOFT);
+        button.setOnClickListener(v -> { dialog.dismiss(); action.run(); });
+        return button;
+    }
+
 
     /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */
     private void returnToLatestOrder() {

@@ -222,7 +222,7 @@ final class Ui {
 
     static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
             IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
-            IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13;
+            IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13, IC_MORE=14;
 
     static final class IconDrawable extends Drawable {
         private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -279,6 +279,9 @@ final class Ui {
                     path.cubicTo(15.9f,2.8f,19f,5.6f,19f,9.5f);
                     path.cubicTo(19f,12.5f,17f,15.5f,12f,21f);
                     canvas.drawPath(path,stroke); canvas.drawCircle(12f,9.5f,2.4f,stroke); break;
+                case IC_MORE:
+                    canvas.drawCircle(12f,5.5f,1.9f,fill); canvas.drawCircle(12f,12f,1.9f,fill);
+                    canvas.drawCircle(12f,18.5f,1.9f,fill); break;
                 case IC_CHEVRON_DOWN:
                     path.reset(); path.moveTo(6f,9.5f); path.lineTo(12f,15.5f); path.lineTo(18f,9.5f);
                     stroke.setStrokeWidth(2.4f); canvas.drawPath(path,stroke); break;
