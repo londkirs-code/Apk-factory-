@@ -1160,7 +1160,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "גרסה 1.54 · חיפוש, איסוף חלקי, שש רמות תצוגה, צליל ורטט לבחירה ורשימות ותמונות שנשמרות בנפרד."),
+                "גרסה 1.55 · חיפוש, איסוף חלקי, שש רמות תצוגה, צליל ורטט ורשימות ותמונות שנשמרות בנפרד."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
