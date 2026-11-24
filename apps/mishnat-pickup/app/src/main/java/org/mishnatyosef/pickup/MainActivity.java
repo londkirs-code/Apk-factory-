@@ -1454,7 +1454,7 @@ public class MainActivity extends Activity {
             else if(quantity>0)partialCollected.put(key,quantity);else partialCollected.remove(key);saveCollectedState();}
         ProductCard card=productCards.get(key);if(card!=null){boolean done=collected.contains(key);bindProductCard(card,product,done);
             ViewGroup target=done?collectedList:pendingList;ViewGroup parent=(ViewGroup)card.row.getParent();
-            if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,productLayoutParams(target),insertionIndex(target,product,done));}}
+            if(parent!=target){if(parent!=null)parent.removeView(card.row);target.addView(card.row,insertionIndex(target,product,done),productLayoutParams(target));}}
         updateProgress();wireFocusOrder();checkCelebration();if(wasAll||!isAllCollected())performFeedback(false);
     }
     private void showSavedListsScreen() {
@@ -2383,13 +2383,13 @@ public class MainActivity extends Activity {
             ViewGroup parent = (ViewGroup) card.row.getParent();
             if (parent != target) {
                 if (parent != null) parent.removeView(card.row);
-                target.addView(card.row, productLayoutParams(target), insertionIndex(target, product, done));
+                target.addView(card.row, insertionIndex(target, product, done), productLayoutParams(target));
             } else {
                 int wanted = insertionIndex(target, product, done);
                 int current = target.indexOfChild(card.row);
                 if (current != wanted) {
                     target.removeView(card.row);
-                    target.addView(card.row, productLayoutParams(target), Math.min(wanted, target.getChildCount()));
+                    target.addView(card.row, Math.min(wanted, target.getChildCount()), productLayoutParams(target));
                 }
             }
         }
@@ -2406,7 +2406,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private int insertionIndex(LinearLayout target, ProductRow product, boolean done) {
+    private int insertionIndex(ViewGroup target, ProductRow product, boolean done) {
         int index = 0;
         for (ProductRow candidate : products) {
             if (candidate.key.equals(product.key)) break;
@@ -2767,7 +2767,7 @@ public class MainActivity extends Activity {
         ViewGroup parent = (ViewGroup) moving.row.getParent();
         if (parent != null) parent.removeView(moving.row);
         bindProductCard(moving, product, !wasCollected);
-        target.addView(moving.row, productLayoutParams(target), insertionIndex(target, product, !wasCollected));
+        target.addView(moving.row, insertionIndex(target, product, !wasCollected), productLayoutParams(target));
         updateProgress();
         wireFocusOrder();
         if (neighbor == null) moving.row.requestFocus();
