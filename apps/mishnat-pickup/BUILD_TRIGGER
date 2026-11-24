@@ -1,3 +1,3 @@
-requested_at=2026-11-24T20:06:00+02:00
+requested_at=2026-11-24T20:30:00+02:00
 
-Release 1.80: replace unified-order display icon with one purple document; replace per-user display icon with a purple stack of documents; redraw the reset action as a clear centered circular reset arrow. Preserve all behavior and signing continuity.
+Release 1.80: purple single-document and stacked-document view icons; clear centered vector reset arrow; validated plain-text list import; atomic saved-list merge foundation; paginated order-history response parser and architecture documentation. Build from canonical source, increment version automatically, validate APK Factory signing certificate continuity, publish standalone APK and metadata.
