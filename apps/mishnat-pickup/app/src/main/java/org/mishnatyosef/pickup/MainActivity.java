@@ -1494,6 +1494,7 @@ public class MainActivity extends Activity {
     }
 
     private void deleteSavedListEntry(SavedListStore.Entry entry) {
+        final boolean returnToLogin=savedListsReturnToLogin;
         savedListStore.delete(entry.id);
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
         if(source!=null){
@@ -1507,7 +1508,7 @@ public class MainActivity extends Activity {
                     DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
                     mainHandler.post(()->{
                         if(entry.sourceId.equals(activeSourceId)){cacheTrusted=false;activeOwner="";clearOrderMemory();showHomeScreen(false);}
-                        showSavedListsScreen(savedListsReturnToLogin);
+                        showSavedListsScreen(returnToLogin);
                     });
                 });
                 if(entry.sourceId.equals(activeSourceId))clear.run();
@@ -1518,7 +1519,7 @@ public class MainActivity extends Activity {
                 return;
             }
         }
-        showSavedListsScreen();
+        showSavedListsScreen(returnToLogin)
     }
 
     private void openSavedList(SavedListStore.Entry entry) {
