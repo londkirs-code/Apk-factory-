@@ -1728,6 +1728,8 @@ public class MainActivity extends Activity {
             + "• בכל חלון קופץ יש X בפינה השמאלית העליונה במקום כפתורי סגירה וביטול.\n"
             + "• חלון הרשימות (לחיצה על השם בכותרת) ומסך הרשימות השמורות: פעולות קבועות למעלה כאריחים, והרשימות נגללות מתחת, עם ⋮ לפעולות.\n"
             + "• בחלון הפעולות של רשימה יש חץ חזרה (וגם מקש חזרה) לחלון הקודם.\n"
+            + "• רשימות צפופות פחות: כרטיסי רשימה נמוכים בשורה אחת, אריחים קטנים יותר - רואים הרבה יותר רשימות בלי לגלול.\n"
+            + "• אימוג׳י מתאים בכל כפתור טקסט.\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
             + "• איחוד כמה רשימות לרשימה חדשה.\n"
             + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
@@ -2316,7 +2318,7 @@ public class MainActivity extends Activity {
         LinearLayout top=Ui.column(this);
         int pad=Ui.dp(this,Ui.screenPad(this));
         top.setPadding(pad,Ui.dp(this,Ui.S3),pad,Ui.dp(this,Ui.S2));
-        top.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S2));
+        top.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S1));
         List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
         Button history=Ui.tile(this,Ui.IC_HISTORY,"הזמנות קודמות");
         history.setEnabled(!connectedAccounts().isEmpty());
@@ -2332,13 +2334,13 @@ public class MainActivity extends Activity {
         LinearLayout content=Ui.column(this);
         content.setPadding(pad,0,pad,Ui.dp(this,Ui.S8));
         if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."),Ui.row(this,Ui.S2,0));
-        else content.addView(Ui.section(this,entries.size()+" רשימות במכשיר"));
+        else content.addView(compactSection(entries.size()+" רשימות במכשיר"));
         View firstOpen=null;
         for(SavedListStore.Entry entry:entries){
-            String details=entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt);
+            String details=entry.itemCount+" פריטים · "+entry.sourceLabel;
             LinearLayout line=buildListLine(displayTitle(entry),details,isDisplayedList(entry),
                     ()->openSavedList(entry),()->showSavedListActions(entry));
-            content.addView(line,Ui.row(this,0,Ui.S2));
+            content.addView(line,Ui.row(this,0,Ui.S1));
             if(firstOpen==null)firstOpen=line.getChildAt(0);
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
@@ -2573,7 +2575,7 @@ public class MainActivity extends Activity {
         for(JSONObject row:historyOrders) {
             long id=extractOrderId(row);if(id<=0)continue;String title=OrderHistoryPage.title(row);
             // בהיסטוריה מוצג שם המכירה בלבד, ולידו כפתור מידע איסוף להזמנה.
-            Button item=Ui.button(this,title,Ui.Kind.SOFT);
+            Button item=Ui.button(this,"🧾  "+title,Ui.Kind.SOFT);
             item.setContentDescription("הוספת ההזמנה "+title);
             item.setOnClickListener(v->{
                 if(historyTarget!=null)saveHistoricalOrder(id,title,row,historyTarget);
@@ -2681,7 +2683,7 @@ public class MainActivity extends Activity {
         merge.setOnClickListener(v -> { dialog.dismiss(); showMergeListsDialog(); });
         Button settings = Ui.tile(this, Ui.IC_SETTINGS, "הגדרות");
         settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
-        panel.addView(tileRow(history, create, merge, settings), Ui.row(this, Ui.S3, 0));
+        panel.addView(tileRow(history, create, merge, settings), Ui.row(this, Ui.S2, 0));
 
         if (showingSavedList && !connectedAccounts().isEmpty()) {
             Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
@@ -2697,7 +2699,7 @@ public class MainActivity extends Activity {
         View focus = null;
         if (current != null) {
             final SavedListStore.Entry shown = current;
-            panel.addView(Ui.section(this, "מוצגת עכשיו"));
+            panel.addView(compactSection("מוצגת עכשיו"));
             LinearLayout line = buildListLine(homeDisplayTitle(), shown.itemCount + " פריטים", true,
                     () -> { dialog.dismiss(); showSavedListActions(shown, reopen); },
                     () -> { dialog.dismiss(); showSavedListActions(shown, reopen); });
@@ -2713,10 +2715,10 @@ public class MainActivity extends Activity {
             LinearLayout line = buildListLine(displayTitle(entry), entry.itemCount + " פריטים", false,
                     () -> { dialog.dismiss(); openSavedList(entry); },
                     () -> { dialog.dismiss(); showSavedListActions(entry, reopen); });
-            body.addView(line, Ui.row(this, 0, Ui.S2));
+            body.addView(line, Ui.row(this, 0, Ui.S1));
             if (focus == null) focus = line.getChildAt(0);
         }
-        panel.addView(Ui.section(this, others == 0 ? "אין רשימות שמורות נוספות" : "רשימות שמורות · " + others));
+        panel.addView(compactSection(others == 0 ? "אין רשימות שמורות נוספות" : "רשימות שמורות · " + others));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -2726,6 +2728,13 @@ public class MainActivity extends Activity {
         if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
                 (int) (getResources().getDisplayMetrics().heightPixels * 0.9f));
         if (focus != null) focus.requestFocus(); else history.requestFocus();
+    }
+
+    /** כותרת קטע קומפקטית לחלונות ולרשימות. */
+    private TextView compactSection(String text) {
+        TextView t = Ui.text(this, text, Ui.T_NOTE, Ui.P700, true);
+        t.setLayoutParams(Ui.row(this, Ui.S3, Ui.S1));
+        return t;
     }
 
     /** שורה של אריחים ברוחב שווה; במסך צר מאוד - שתי שורות של שניים. */
@@ -2756,9 +2765,9 @@ public class MainActivity extends Activity {
         line.setGravity(Gravity.CENTER_VERTICAL);
         line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         line.addView(row, new LinearLayout.LayoutParams(0, -2, 1f));
-        int size = Ui.dp(this, Ui.iconButtonDp(this));
+        int size = Ui.dp(this, 40);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-        lp.setMarginStart(Ui.dp(this, Ui.S2));
+        lp.setMarginStart(Ui.dp(this, Ui.S1));
         line.addView(actions, lp);
         return line;
     }

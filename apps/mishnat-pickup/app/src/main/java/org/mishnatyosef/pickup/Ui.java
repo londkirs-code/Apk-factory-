@@ -179,7 +179,37 @@ final class Ui {
     enum Kind { PRIMARY, SOFT, STRONG }
 
     static Button button(Context c,String label,Kind kind) {
-        return styleButton(c,new Button(c),label,kind);
+        return styleButton(c,new Button(c),withEmoji(label),kind);
+    }
+
+    /**
+     * אימוג׳י שמתאים לטקסט הכפתור, לפי מילות מפתח (הכלל הראשון שמתאים קובע).
+     * "סגירה" ו"ביטול" נשארים בלי אימוג׳י, כי הם מוחלפים אוטומטית בכפתור X.
+     */
+    private static final String[][] BUTTON_EMOJI = {
+            {"חזרה להזמנה העדכנית", "🛒"}, {"ההזמנה העדכנית", "🛒"}, {"חזרה להגדרות", "⚙️"},
+            {"ייבוא הזמנה", "🕘"}, {"הזמנות קודמות", "🕘"}, {"הוספת ההזמנה", "🧾"},
+            {"התחבר מחדש", "🔑"}, {"התנתק", "🚪"}, {"התחבר", "🔐"}, {"ניהול חיבורים", "👥"},
+            {"הפוך לחשבון הפעיל", "⭐"}, {"הוספת חשבון", "👤"}, {"הוסף חשבון", "👤"},
+            {"סנכרן", "🔄"}, {"סנכרון", "🔄"}, {"לנסות שוב", "🔁"}, {"החלפה", "🔁"}, {"טוען", "⏳"},
+            {"רשימות שמורות", "📚"}, {"כל הרשימות", "📚"}, {"הצגת הרשימה השמורה", "📋"},
+            {"רשימה חדשה", "➕"}, {"יצירת", "➕"}, {"איחוד", "🔗"}, {"מיזוג", "🔀"}, {"מזג", "🔀"},
+            {"ייצוא", "📤"}, {"מתיקיית", "📁"}, {"ייבוא", "📥"}, {"ייבא", "📥"},
+            {"מחיקה", "🗑"}, {"מחק", "🗑"}, {"הסר", "🗑"}, {"שינוי שם", "✏️"},
+            {"פתיחת המיקום", "📍"}, {"חיוג", "📞"}, {"פתיחה", "📂"}, {"פתיחת", "📂"},
+            {"שמירה", "💾"}, {"שמור", "💾"}, {"אישור", "✅"}, {"איפוס", "♻️"},
+            {"הוסף", "➕"}, {"הוספה", "➕"}, {"עדכן", "🔄"}, {"פעולות", "⋯"},
+            {"הגדרות", "⚙️"}, {"מה חדש", "✨"}, {"מנותק", "👤"}, {"מחובר", "👤"}, {"פעיל", "👤"},
+            {"מיובאת", "📄"}};
+
+    static String withEmoji(String label) {
+        if (label == null) return "";
+        String clean = label.trim();
+        if (clean.isEmpty() || "סגירה".equals(clean) || "ביטול".equals(clean)) return label;
+        // כבר מתחיל באימוג׳י או בסמל - לא מוסיפים שוב.
+        if (Character.isSurrogate(clean.charAt(0)) || clean.charAt(0) > 0x2000 && clean.charAt(0) < 0x2BFF) return label;
+        for (String[] rule : BUTTON_EMOJI) if (clean.contains(rule[0])) return rule[1] + "  " + clean;
+        return label;
     }
 
     private static Button styleButton(Context c,Button b,String label,Kind kind) {
@@ -420,28 +450,29 @@ final class Ui {
 
     /** אריח פעולה: אייקון ומתחתיו תווית קצרה. כמה אריחים בשורה אחת מקבצים פעולות קבועות בראש מסך. */
     static Button tile(Context c,int icon,String label) {
-        Button b=button(c,label,Kind.SOFT);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,14*textScale(c));
-        IconDrawable glyph=new IconDrawable(c,icon,P700,22,1f);
-        glyph.setBounds(0,0,dp(c,22),dp(c,22));
+        Button b=styleButton(c,new Button(c),label,Kind.SOFT);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,13*textScale(c));
+        IconDrawable glyph=new IconDrawable(c,icon,P700,20,1f);
+        glyph.setBounds(0,0,dp(c,20),dp(c,20));
         b.setCompoundDrawables(null,glyph,null,null);
-        b.setCompoundDrawablePadding(dp(c,2));
-        b.setPadding(dp(c,S1),dp(c,S2),dp(c,S1),dp(c,S2));
-        b.setMinHeight(dp(c,64)); b.setMinimumHeight(dp(c,64));
+        b.setCompoundDrawablePadding(dp(c,1));
+        b.setPadding(dp(c,2),dp(c,S1),dp(c,2),dp(c,S1));
+        b.setMinHeight(dp(c,52)); b.setMinimumHeight(dp(c,52));
         b.setContentDescription(label);
         return b;
     }
 
     /** שורת רשימה: שם בולט ומתחתיו פרטים בגופן קטן יותר, על כרטיס לבן. */
     static Button listRow(Context c,String name,String details,boolean highlighted) {
-        Button b=button(c,"",Kind.SOFT);
+        Button b=styleButton(c,new Button(c),"",Kind.SOFT);
         android.text.SpannableStringBuilder text=new android.text.SpannableStringBuilder(name);
         text.setSpan(new android.text.style.StyleSpan(Typeface.BOLD),0,name.length(),0);
         text.setSpan(new android.text.style.ForegroundColorSpan(P900),0,name.length(),0);
         if(details!=null&&!details.isEmpty()){
             int start=text.length()+1;
-            text.append("\n").append(details);
-            text.setSpan(new android.text.style.RelativeSizeSpan(0.82f),start,text.length(),0);
+            // הפרטים באותה שורה עם השם (יורדים שורה רק כשאין מקום) - כרטיס נמוך יותר.
+            text.append("  ").append(details);
+            text.setSpan(new android.text.style.RelativeSizeSpan(0.8f),start,text.length(),0);
             text.setSpan(new android.text.style.ForegroundColorSpan(MUTED),start,text.length(),0);
         }
         b.setText(text);
@@ -449,8 +480,9 @@ final class Ui {
         b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
         b.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
         b.setBackground(interactive(c,highlighted?P100:SURFACE,highlighted?P400:LINE,P100,FOCUS,R_CARD));
-        b.setPadding(dp(c,S4),dp(c,S3),dp(c,S4),dp(c,S3));
-        b.setMinHeight(dp(c,60)); b.setMinimumHeight(dp(c,60));
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,16*textScale(c));
+        b.setPadding(dp(c,S3),dp(c,6),dp(c,S3),dp(c,6));
+        b.setMinHeight(dp(c,44)); b.setMinimumHeight(dp(c,44));
         b.setContentDescription(name);
         return b;
     }

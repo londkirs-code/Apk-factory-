@@ -11,8 +11,8 @@ android {
         applicationId 'org.mishnatyosef.pickup'
         minSdk 19
         targetSdk 35
-        versionCode 97
-        versionName '1.97'
+        versionCode 98
+        versionName '1.98'
     }
 }
 
