@@ -2221,7 +2221,12 @@ public class MainActivity extends Activity {
         Button button = Ui.button(this, "", Ui.Kind.SOFT);
         button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22);
         button.setGravity(Gravity.CENTER);
-        button.setCompoundDrawables(null, new UserIconDrawable(this, "👥".equals(symbol), active), null, null);
+        Drawable modeIcon = new UserIconDrawable(this, "👥".equals(symbol), active);
+        int iconSize = Ui.dp(this, 26);
+        // Compound drawables need explicit bounds; without them Android draws nothing.
+        modeIcon.setBounds(0, 0, iconSize, iconSize);
+        button.setCompoundDrawables(null, modeIcon, null, null);
+        button.setCompoundDrawablePadding(Ui.dp(this, 1));
         button.setContentDescription(description);
         button.setEnabled(!syncAllRunning);
         // Use the same focus/pressed treatment as every other action button.
