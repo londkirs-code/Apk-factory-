@@ -104,6 +104,11 @@ final class SavedListStore {
             data.remove("_archived_at");
             data.remove("_collected_ticks");
             data.remove("_partial_quantities");
+            JSONArray items=data.optJSONArray("products");
+            if(items!=null)for(int i=0;i<items.length();i++){
+                JSONObject item=items.optJSONObject(i);
+                if(item!=null)item.put("image_file","");
+            }
             if (!cacheRoot.exists() && !cacheRoot.mkdirs()) return false;
             File temp = new File(cacheRoot, "order.json.tmp");
             File target = new File(cacheRoot, "order.json");
