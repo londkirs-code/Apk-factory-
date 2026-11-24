@@ -1215,7 +1215,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · בורר הכמות מציג יחידות שלמות ואפשר לאשר ב־Enter; שינוי גודל התצוגה שומר על הפוקוס; רשת של שלושה כרטיסים אחידים עם ניווט מקשים בין הכרטיסים ויישור מימין לשמאל."),
+                "בעדכון החדש · איסוף חלקי מחושב לפי הכמות שנותרה, ואם נשארה יחידה אחת היא נאספת מיד; שורה חלקית ברשת מוצמדת לימין ומשאירה מקום פנוי משמאל."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
