@@ -48,7 +48,9 @@ final class SavedListStore {
                 JSONObject product=products.optJSONObject(i);
                 if(product!=null)product.put("image_file","");
             }
-            String id = sourceId + "_" + orderId;
+            String owner=data.optString("owner","");
+            String ownerKey=owner.isEmpty()?"noowner":owner.substring(0,Math.min(12,owner.length()));
+            String id = sourceId + "_" + ownerKey + "_" + orderId;
             data.put("_saved_list_id", id);
             data.put("_source_id", sourceId);
             data.put("_source_label", sourceLabel == null ? "רשימה שמורה" : sourceLabel);
