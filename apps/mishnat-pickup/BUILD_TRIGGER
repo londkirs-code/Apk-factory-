@@ -9,3 +9,7 @@ retry_requested_at=2026-11-23T17:42:00+02:00
 
 UI spacing and RTL progress bar refinement.
 requested_at=2026-11-24T02:49:00+02:00
+
+
+Settings screen consolidation, home view-mode icons, and RTL progress text alignment.
+requested_at=2026-11-24T03:00:00+02:00
