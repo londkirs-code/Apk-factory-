@@ -134,6 +134,27 @@ final class SavedListStore {
         } catch (Exception e) { return false; }
     }
 
+    synchronized String rebindSource(String id,String sourceId,String sourceLabel) {
+        try {
+            JSONObject data=readEntry(id);
+            String orderId=String.valueOf(data.optLong("order_id",-1));
+            String owner=data.optString("owner","");
+            String ownerKey=owner.isEmpty()?"noowner":owner.substring(0,Math.min(12,owner.length()));
+            String newId=sourceId+"_"+ownerKey+"_"+orderId;
+            data.put("_saved_list_id",newId);
+            data.put("_source_id",sourceId);
+            data.put("_source_label",sourceLabel==null?"רשימה שמורה":sourceLabel);
+            File target=fileFor(newId),temp=new File(root,target.getName()+".tmp");
+            try(FileOutputStream out=new FileOutputStream(temp)){
+                out.write(data.toString().getBytes(StandardCharsets.UTF_8));out.getFD().sync();
+            }
+            if(target.exists()&&!target.delete()){temp.delete();return "";}
+            if(!temp.renameTo(target)){temp.delete();return "";}
+            if(!newId.equals(id))fileFor(id).delete();
+            return newId;
+        }catch(Exception e){return "";}
+    }
+
     synchronized boolean delete(String id) {
         File file = fileFor(id);
         return !file.exists() || file.delete();
