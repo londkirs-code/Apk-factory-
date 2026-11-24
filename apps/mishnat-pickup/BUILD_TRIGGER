@@ -95,3 +95,8 @@ final_build_requested_at=2026-11-24T17:13:00+02:00
 
 Build kick via Contents API: rebuild exact committed source and publish signed standalone APK.
 api_triggered_at=2026-11-24T17:16:00+02:00
+
+
+Release 1.70 refinement: map keypad 1 to the same six-position display-size SeekBar and persisted preference used by Settings; replace the two list-mode glyphs with centered single-user and multiple-user icons; replace the misleading NES completion audio with Kenney Interface Sounds win.ogg (CC0).
+requested_at=2026-11-24T18:00:00+02:00
+final_build_requested_at=2026-11-24T18:01:00+02:00

@@ -172,6 +172,7 @@ public class MainActivity extends Activity {
     private boolean savedListsReturnToLogin = false;
     private boolean sourceMergeInProgress = false;
     private Button viewModeButton;
+    private SeekBar displaySizeSlider;
     private boolean combinedView = false;
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
@@ -1015,13 +1016,23 @@ public class MainActivity extends Activity {
         } else if (focused != null) focused.performClick();
     }
 
+    private void setDisplayModeFromSlider(int mode) {
+        int normalized = Math.max(0, Math.min(5, mode));
+        displayMode = normalized;
+        uiPreferences.edit().putInt("display_mode", normalized).apply();
+    }
+
     private void cycleDisplayMode() {
         final String[] labels = {"צ׳ק ליסט צפוף", "70%", "85%", "100%", "115%", "רשת · 3 כרטיסים בשורה"};
-        displayMode = (displayMode + 1) % labels.length;
-        uiPreferences.edit().putInt("display_mode", displayMode).apply();
+        int current = displaySizeSlider != null
+                ? displaySizeSlider.getProgress() : displayMode;
+        int next = (current + 1) % labels.length;
+        // Key 1 changes the very same SeekBar value used in Settings.
+        if (displaySizeSlider != null) displaySizeSlider.setProgress(next);
+        setDisplayModeFromSlider(next);
         renderProducts(false);
         wireFocusOrder();
-        showActionToast("גודל התצוגה הוגדר ל־" + labels[displayMode]);
+        showActionToast("גודל התצוגה: " + labels[next]);
     }
 
     private void focusSearch() {
@@ -1673,15 +1684,11 @@ public class MainActivity extends Activity {
         final String[] labels={"צ׳ק ליסט צפוף","70%","85%","100%","115%","רשת · 3 כרטיסים בשורה"};
         final TextView current=Ui.text(this,labels[displayMode],Ui.T_BODY,Ui.P800,true);current.setGravity(Gravity.CENTER);
         SeekBar slider=new SeekBar(this);slider.setMax(5);slider.setProgress(displayMode);
+        displaySizeSlider = slider;
         if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
         // Persist only the selected setting while the slider is moving. Rebuilding the home
         // screen here used to destroy the settings view, steal focus and jump to the top.
-        Runnable apply=()->{
-            int mode=slider.getProgress();
-            if(mode==displayMode)return;
-            displayMode=mode;
-            uiPreferences.edit().putInt("display_mode",mode).apply();
-        };
+        Runnable apply=()->setDisplayModeFromSlider(slider.getProgress());
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){current.setText(labels[progress]);}
             @Override public void onStartTrackingTouch(SeekBar bar){}
@@ -2054,9 +2061,9 @@ public class MainActivity extends Activity {
         row.addView(title, titleParams);
 
         String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
-        Button unified = buildViewModeIcon("COMBINED_SUM", "▤", "רשימה מאוחדת",
+        Button unified = buildViewModeIcon("COMBINED_SUM", "👤", "רשימה מאוחדת",
                 "COMBINED_SUM".equals(mode));
-        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "▥", "רשימה לפי חשבון",
+        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "👥", "רשימה לפי חשבון",
                 "COMBINED_BY_SOURCE".equals(mode));
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
                 Ui.dp(this, 48), Ui.dp(this, 44));
@@ -2127,6 +2134,7 @@ public class MainActivity extends Activity {
     private Button buildViewModeIcon(String mode, String symbol, String description, boolean active) {
         Button button = Ui.button(this, symbol, Ui.Kind.SOFT);
         button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22);
+        button.setGravity(Gravity.CENTER);
         button.setContentDescription(description);
         button.setEnabled(!syncAllRunning);
         // Use the same focus/pressed treatment as every other action button.
