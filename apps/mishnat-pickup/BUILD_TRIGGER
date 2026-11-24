@@ -112,3 +112,7 @@ final_build_requested_at=2026-11-24T18:20:00+02:00
 
 Retry signed 1.73 release after compile-compatibility correction in MainActivity.java (no ViewParent import required). Build latest main and publish exact current source.
 retry_requested_at=2026-11-24T18:23:00+02:00
+
+
+Release 1.75: rebuild actual pending/collected list containers whenever shortcut key 1 changes display mode, preserving focused product; reflow both GridLayouts after every full collect/undo to recompute explicit row/column specs and remove gaps. Keep collection, partial quantities, account data and archive behavior unchanged.
+requested_at=2026-11-24T19:10:00+02:00
