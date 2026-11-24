@@ -69,3 +69,5 @@ requested_at=2026-11-24T12:25:00+02:00
 FINAL BUILD: compile and publish the exact latest MainActivity source blob d6f8bcf1cefc69876349a89e3f92903786b4f390.
 
 Latest source for signed 1.58 release: 6748af0dce54fcd422e0bcca66eef0f4c8cce7ab (partial card ordering and full-collection transition verified).
+
+FINAL RELEASE: build exact current source fb4b2febd5b283c5c9b9249093c94672234636b9 with the current in-app release note and final changelog.
