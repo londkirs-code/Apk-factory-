@@ -1537,6 +1537,7 @@ public class MainActivity extends Activity {
                 archiveId=savedListStore.rebindSource(entry.id,source.id,source.label);
             }else if(source.ownerKey.isEmpty()&&!entry.owner.isEmpty()){
                 sourceRegistry.updateOwner(source.id,entry.owner);
+                archiveId=savedListStore.rebindSource(entry.id,source.id,source.label);
             }
             if(archiveId.isEmpty()){showSyncMessage("לא ניתן לשייך את הרשימה לחיבור המקומי.",false);return;}
         }catch(Exception e){showSyncMessage(e.getMessage(),false);return;}
