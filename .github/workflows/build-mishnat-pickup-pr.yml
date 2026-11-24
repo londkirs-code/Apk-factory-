@@ -109,7 +109,8 @@ jobs:
             NEXT=$((PUBLISHED + 1))
             # Only for this build; the source file in the branch is not committed with this change.
             sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT/" "$BUILD_FILE"
-            sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '1.$NEXT'/" "$BUILD_FILE"
+            if (( NEXT >= 101 )); then NEXT_NAME="2.$((NEXT - 101))"; else NEXT_NAME="1.$NEXT"; fi
+            sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
             echo "Bumped test build to $NEXT (published $PUBLISHED, source $SOURCE_CODE)."
           else
             echo "Source versionCode $SOURCE_CODE is above published ${PUBLISHED:-none}."

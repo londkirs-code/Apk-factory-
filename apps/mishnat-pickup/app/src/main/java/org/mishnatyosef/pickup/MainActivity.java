@@ -423,9 +423,22 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(true);
         LinearLayout root = Ui.screen(this);
         scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
-        root.addView(Ui.title(this, "משנת אוסף"));
-        root.addView(Ui.text(this, "התחברות מאובטחת לחשבון משנת יוסף",
-                Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S3));
+        // הלוגו של האפליקציה בראש מסך ההתחברות.
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.app_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("משנת אוסף");
+        int logoSize = Ui.dp(this, getResources().getConfiguration().screenWidthDp < 330 ? 72 : 96);
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(logoSize, logoSize);
+        logoLp.gravity = Gravity.CENTER_HORIZONTAL;
+        logoLp.topMargin = Ui.dp(this, Ui.S2);
+        root.addView(logo, logoLp);
+        TextView appTitle = Ui.title(this, "משנת אוסף");
+        appTitle.setGravity(Gravity.CENTER);
+        root.addView(appTitle);
+        TextView loginSubtitle = Ui.text(this, "התחברות מאובטחת לחשבון משנת יוסף", Ui.T_BODY, Ui.MUTED, false);
+        loginSubtitle.setGravity(Gravity.CENTER);
+        root.addView(loginSubtitle, Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildNativeLoginForm());
         if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S2));
         Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.PRIMARY);
@@ -440,7 +453,7 @@ public class MainActivity extends Activity {
             root.addView(connections, Ui.row(this, Ui.S2, Ui.S2));
         }
         // ההודעה מוצגת מעל הטופס, כדי שתיראה בלי גלילה.
-        if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice), 2);
+        if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice), 3);
         presentScreen(scroll, Screen.LOGIN);
         if (loginEmailInput != null) loginEmailInput.requestFocus();
     }

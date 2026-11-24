@@ -7,7 +7,7 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
         android:label="משנת אוסף"
-        android:icon="@drawable/ic_app_launcher" android:roundIcon="@drawable/ic_app_launcher"
+        android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/AppTheme">
         <activity
             android:name="org.mishnatyosef.pickup.MainActivity"

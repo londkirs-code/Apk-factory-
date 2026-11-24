@@ -6,7 +6,7 @@
 - מאגר: `londkirs-code/Apk-factory-` (ענף ברירת המחדל: `main`).
 - קוד המקור הקבוע: `apps/mishnat-pickup/` בלבד. אין לערוך קבצים בתיקיות אחרות לצורך האפליקציה הזו.
 - חבילת Android: `org.mishnatyosef.pickup`. יש לשמור על השם.
-- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 100`, `versionName 1.100`, `minSdk 19`, `targetSdk 35`).
+- Gradle: `app/build.gradle` (גרסה נוכחית: `versionCode 101`, `versionName 2.0`, `minSdk 19`, `targetSdk 35`).
 - קוד Java: `app/src/main/java/org/mishnatyosef/pickup/` (13 קבצים, כ־5,900 שורות).
 - ממשק המשתמש, עיצוב ואייקונים: `Ui.java` (אייקונים וקטוריים ב-`Ui.IconDrawable`, כפתורי אייקון ב-`Ui.iconButton`). מחרוזות "מה חדש" (`showSettingsScreen`) מתעדכנות יחד עם כל שינוי שנראה למשתמש.
 - ניווט: `MainActivity.screen` (enum `Screen`) הוא מקור האמת למסך הנוכחי. כל מסך מוצג דרך `presentScreen`. מקש חזרה מטופל ב-`onBackPressed` לפי המסך.
@@ -15,6 +15,8 @@
 - Skill הבנייה הקיים: `apps/mishnat-pickup/skills/build-mishnat-pickup-apk/SKILL.md`.
 
 ## כללים לעבודה
+- מספור גרסאות: מגרסה 2.0 (versionCode 101) - 2.1 = 102, 2.2 = 103 וכן הלאה (שם = 2.(קוד-101)). אסור להשתמש בשמות כמו 1.100.
+- אייקון: מקור ב-`app/src/main/icon-source/app_icon_source.png`. אייקון מסתגל (Android 8+) ב-`mipmap-anydpi-v26`: רקע מטושטש מהאייקון + האייקון המלא ב-56dp מתוך 108dp, כך שכולו (כולל תג ה-2) נראה גם במסכה עגולה. לגרסאות ישנות: `mipmap-*/ic_launcher.png` ו-`ic_launcher_round.png`.
 - לקבל קוד מלא לקובץ שמשתנה, ולא רק diff או קטע, כפי שהוגדר בהעדפות.
 - כל שינוי שנראה למשתמש: רשומה חדשה בראש `CHANGELOG.md` בעברית, עם מספר גרסה מעודכן, ועדכון "מה חדש" באפליקציה.
 - לא ליצור ולא להחליף keystore. לא לחשוף סודות חתימה.

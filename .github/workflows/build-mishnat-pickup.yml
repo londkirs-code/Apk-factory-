@@ -66,7 +66,8 @@ jobs:
           test -s "$APP_DIR/app/build.gradle"
           test -s "$APP_DIR/app/src/main/AndroidManifest.xml"
           test -s "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
-          test -s "$APP_DIR/app/src/main/res/drawable-nodpi/ic_app_launcher.webp"
+          test -s "$APP_DIR/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+          test -s "$APP_DIR/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
           grep -q 'targetSdk 35' "$APP_DIR/app/build.gradle"
           grep -q 'confirmResetCollection' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
           grep -q 'confirmLogout' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
@@ -132,8 +133,15 @@ jobs:
           if [[ "$PREVIOUS_CODE" =~ ^[0-9]+$ ]] && (( PREVIOUS_CODE > BASE_CODE )); then
             BASE_CODE="$PREVIOUS_CODE"
           fi
-          NEXT_CODE=$((BASE_CODE + 1))
-          NEXT_NAME="1.$NEXT_CODE"
+          # מספור גרסאות: 2.0 = קוד 101, ומכאן 2.1, 2.2... אם הקוד במקור כבר גבוה מהגרסה שפורסמה,
+          # בונים בדיוק את הגרסה שבמקור (קוד ושם); אחרת מעלים את הקוד באחד.
+          SOURCE_NAME="$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'.*$/\1/p" "$BUILD_FILE" | head -n1)"
+          if [[ "$PREVIOUS_CODE" =~ ^[0-9]+$ ]] && (( SOURCE_CODE > PREVIOUS_CODE )); then
+            NEXT_CODE="$SOURCE_CODE"; NEXT_NAME="$SOURCE_NAME"
+          else
+            NEXT_CODE=$((BASE_CODE + 1))
+            if (( NEXT_CODE >= 101 )); then NEXT_NAME="2.$((NEXT_CODE - 101))"; else NEXT_NAME="1.$NEXT_CODE"; fi
+          fi
           sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT_CODE/" "$BUILD_FILE"
           sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
           echo "version_code=$NEXT_CODE" >> "$GITHUB_OUTPUT"
