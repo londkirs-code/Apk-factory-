@@ -2212,8 +2212,11 @@ public class MainActivity extends Activity {
             canvas.translate(b.left, b.top);
             canvas.scale(b.width()/24f, b.height()/24f);
             if (multiple) {
-                document(canvas, 7.0f, 2.0f, 20.5f, 19.0f);
-                document(canvas, 3.5f, 5.0f, 17.0f, 22.0f);
+                // Three clearly separated page silhouettes; the front sheet stays
+                // large enough to read at the 26dp toolbar size.
+                document(canvas, 7.0f, 1.5f, 21.5f, 18.5f);
+                document(canvas, 5.0f, 3.5f, 19.5f, 20.5f);
+                document(canvas, 2.5f, 5.5f, 17.5f, 22.5f);
             } else {
                 document(canvas, 5.0f, 2.0f, 19.0f, 22.0f);
             }
