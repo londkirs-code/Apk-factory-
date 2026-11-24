@@ -6,3 +6,6 @@ requested_at=2026-11-23T17:34:00+02:00
 
 Build retry: restored per-source cache invalidation helper after first compiler check.
 retry_requested_at=2026-11-23T17:42:00+02:00
+
+UI spacing and RTL progress bar refinement.
+requested_at=2026-11-24T02:49:00+02:00
