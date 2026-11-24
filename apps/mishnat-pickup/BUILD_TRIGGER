@@ -65,3 +65,5 @@ requested_at=2026-11-24T12:20:00+02:00
 
 Final release build after focus restoration on partial-card actions.
 requested_at=2026-11-24T12:25:00+02:00
+
+FINAL BUILD: compile and publish the exact latest MainActivity source blob d6f8bcf1cefc69876349a89e3f92903786b4f390.
