@@ -1238,7 +1238,7 @@ public class MainActivity extends Activity {
         }
         addSourceAction(panel, dialog, SourceRegistry.KIND_IMPORTED.equals(source.kind)
                         ? "הסר רשימה מהמכשיר" : "הסר חיבור ורשימה מהמכשיר",
-                () -> showModernConfirm("הסרת מקור", "הטוקן (אם קיים), הרשימה וסימוני הליקוט של המקור יימחקו מהמכשיר. הפעולה אינה דורשת אינטרנט.", "הסר", () -> removeSource(source.id)));
+                () -> showModernConfirm("הסרת מקור", "החיבור והעותק הפעיל יוסרו מהמכשיר. רשימות שכבר נשמרו בארכיון יישארו במסך רשימות שמורות עד למחיקה ידנית.", "הסר", () -> removeSource(source.id)));
         Button cancel = Ui.button(this, "סגירה", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
         panel.addView(cancel, Ui.row(this, Ui.S2, 0));
@@ -1838,7 +1838,7 @@ public class MainActivity extends Activity {
     }
 
     private void confirmClearSavedData() {
-        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק מהמכשיר את ההזמנה, התמונות ואת סימוני האיסוף? הנתונים בחשבון המקוון לא יימחקו.", "מחיקה", this::clearAllSavedData);
+        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק את המטמון הפעיל, התמונות וסימוני האיסוף? הרשימות שבארכיון יישארו עד למחיקה ידנית במסך רשימות שמורות.", "מחיקה", this::clearAllSavedData);
     }
 
     private void clearAllSavedData() {
