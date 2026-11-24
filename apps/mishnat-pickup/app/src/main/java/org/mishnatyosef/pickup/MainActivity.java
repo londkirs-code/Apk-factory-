@@ -1527,11 +1527,18 @@ public class MainActivity extends Activity {
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
         String archiveId=entry.id;
         try{
-            if(source==null){
-                source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,entry.sourceLabel,entry.owner);
+            if(source!=null&&!entry.owner.isEmpty()&&!source.ownerKey.equals(entry.owner)){
+                source=sourceRegistry.findByOwner(entry.owner);
+                if(source==null)source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,entry.sourceLabel,entry.owner);
                 archiveId=savedListStore.rebindSource(entry.id,source.id,source.label);
-                if(archiveId.isEmpty()){showSyncMessage("לא ניתן לשייך את הרשימה לחיבור המקומי.",false);return;}
+            }else if(source==null){
+                source=!entry.owner.isEmpty()?sourceRegistry.findByOwner(entry.owner):null;
+                if(source==null)source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,entry.sourceLabel,entry.owner);
+                archiveId=savedListStore.rebindSource(entry.id,source.id,source.label);
+            }else if(source.ownerKey.isEmpty()&&!entry.owner.isEmpty()){
+                sourceRegistry.updateOwner(source.id,entry.owner);
             }
+            if(archiveId.isEmpty()){showSyncMessage("לא ניתן לשייך את הרשימה לחיבור המקומי.",false);return;}
         }catch(Exception e){showSyncMessage(e.getMessage(),false);return;}
         final String sourceId=source.id;
         final String savedArchiveId=archiveId;
