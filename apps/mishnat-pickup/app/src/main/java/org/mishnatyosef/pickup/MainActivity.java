@@ -1008,6 +1008,7 @@ public class MainActivity extends Activity {
                     prepared.add(item);targetIds.add(source.id);
                 }
                 for(PreparedImport item:prepared) {
+                    archiveCurrentSnapshot(item.source.id);
                     File root=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache");
                     File temp=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_tmp");
                     File backup=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_backup");
@@ -1027,6 +1028,7 @@ public class MainActivity extends Activity {
                     if(!edit.commit())throw new Exception("לא ניתן לשמור סימוני ליקוט.");
                     DataGuard.saveMeta(prefs,item.owner,item.orderIdLong,item.fingerprint,"");
                     if(SourceRegistry.KIND_IMPORTED.equals(item.source.kind))sourceRegistry.markImported(item.source.id);
+                    archiveCurrentSnapshot(item.source.id);
                 }
                 for(File[] pair:committed)ImportParser.delete(pair[1]);
                 ImportParser.delete(bundle.workDir);
