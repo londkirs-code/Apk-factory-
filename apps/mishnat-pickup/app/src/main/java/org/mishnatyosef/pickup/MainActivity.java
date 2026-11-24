@@ -246,7 +246,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (pendingList != null && !loading && !syncAllRunning
+        if (!showingSavedList && pendingList != null && !loading && !syncAllRunning
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) {
             if (combinedView || sourceRegistry != null && sourceRegistry.all().size() > 1) syncAllAccounts();
             else if (!accessToken.isEmpty()) loadLatestOrder();
@@ -2055,6 +2055,7 @@ public class MainActivity extends Activity {
         String fingerprint = DataGuard.fingerprint(rows);
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
         Set<String> retainedTicks = new HashSet<>();
+        Map<String,Double> retainedPartials = new HashMap<>();
         if (verdict != DataGuard.Verdict.SAME) {
             setImageMode(false);
             if (imageViewer != null) imageViewer.reset();
@@ -2064,8 +2065,12 @@ public class MainActivity extends Activity {
             // A just-tapped item may still be queued on cacheWorker; include the live in-memory
             // state so a server edit cannot discard the latest user action.
             for (ProductRow previous : products) {
-                if (collected.contains(previous.key))
-                    retainedTicks.add(DataGuard.tick(previous));
+                if (collected.contains(previous.key)) retainedTicks.add(DataGuard.tick(previous));
+                Double partial = partialCollected.get(previous.key);
+                if (partial != null && partial > 0) {
+                    for (ProductRow current : rows) if (current.key.equals(previous.key)
+                            && current.amount.equals(previous.amount)) retainedPartials.put(current.key, partial);
+                }
             }
         }
         if (verdict == DataGuard.Verdict.NEW_ACCOUNT || verdict == DataGuard.Verdict.NEW_ORDER) {
@@ -2083,12 +2088,14 @@ public class MainActivity extends Activity {
         currentOrderId = String.valueOf(orderId);
         products.clear();
         products.addAll(rows);
-        collected.clear();
+        collected.clear(); partialCollected.clear();
         if (verdict == DataGuard.Verdict.SAME) {
             loadCollectedState();
         } else if (verdict == DataGuard.Verdict.CONTENT_CHANGED) {
-            for (ProductRow row : rows)
+            for (ProductRow row : rows) {
                 if (retainedTicks.contains(DataGuard.tick(row))) collected.add(row.key);
+                else if (retainedPartials.containsKey(row.key)) partialCollected.put(row.key, retainedPartials.get(row.key));
+            }
         }
         syncCompletionState();
         renderProducts(false);
@@ -2098,10 +2105,13 @@ public class MainActivity extends Activity {
         boolean rewrite = verdict != DataGuard.Verdict.SAME || !isCacheManifestValid(stableOwner);
         if (!rewrite) {
             saveCollectedState();
+            final String sourceForArchive = activeSourceId;
             cacheWorker.execute(() -> {
-                if (generation == authGeneration && requestToken.equals(accessToken))
+                if (generation == authGeneration && requestToken.equals(accessToken)) {
                     DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint,
                             DataGuard.tokenFingerprint(requestToken));
+                    archiveCurrentSnapshot(sourceForArchive);
+                }
                 mainHandler.post(this::advanceSyncQueue);
             });
             return;
@@ -2110,17 +2120,24 @@ public class MainActivity extends Activity {
         final String tokenFingerprint = DataGuard.tokenFingerprint(requestToken);
         final String orderKey = String.valueOf(orderId);
         final JSONArray ticks = collectedTicksJson();
+        final String partialState = partialQuantitiesJson().toString();
+        final String sourceForArchive = activeSourceId;
         final DataGuard.Verdict decision = verdict;
         cacheWorker.execute(() -> {
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
-            if (decision != DataGuard.Verdict.SAME) wipeOrderData();
+            if (decision != DataGuard.Verdict.SAME) {
+                archiveCurrentSnapshot(sourceForArchive);
+                wipeOrderData();
+            }
             if (generation != authGeneration || !requestToken.equals(accessToken)) return;
             writeCollectedState(orderKey, ticks);
+            preferences.edit().putString("partial_" + orderKey, partialState).commit();
             try {
                 cacheOrderIfComplete(generation, requestToken, stableOwner, orderId,
                         order, rows, fingerprint);
                 if (generation != authGeneration || !requestToken.equals(accessToken)) return;
                 DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint, tokenFingerprint);
+                archiveCurrentSnapshot(sourceForArchive);
             } catch (Exception cacheError) {
                 android.util.Log.w("MishnatPickup",
                         "Offline cache update failed; stale snapshot was not retained", cacheError);
@@ -2265,13 +2282,32 @@ public class MainActivity extends Activity {
     }
 
     private void loadCollectedState() {
-        collected.clear();
+        collected.clear(); partialCollected.clear();
         if (currentOrderId.isEmpty()) { syncCompletionState(); return; }
         Set<String> saved = readCollectedTicks(currentOrderId);
-        for (ProductRow row : products)
+        JSONObject partial = new JSONObject();
+        try { partial = new JSONObject(preferences.getString("partial_" + currentOrderId, "{}")); }
+        catch (Exception ignored) { }
+        for (ProductRow row : products) {
             if (saved.contains(DataGuard.tick(row))) collected.add(row.key);
+            else {
+                double value = partial.optDouble(row.key, 0);
+                if (value > 0) {
+                    if (value >= parseQuantity(row.amount) - 0.000001) collected.add(row.key);
+                    else partialCollected.put(row.key, value);
+                }
+            }
+        }
         saveCollectedState();
         syncCompletionState();
+    }
+
+    private JSONObject partialQuantitiesJson() {
+        JSONObject saved = new JSONObject();
+        try { for (Map.Entry<String,Double> entry : partialCollected.entrySet())
+            if (entry.getValue() != null && entry.getValue() > 0) saved.put(entry.getKey(), entry.getValue()); }
+        catch (Exception ignored) { }
+        return saved;
     }
 
     private void saveCollectedState() {
@@ -2279,8 +2315,12 @@ public class MainActivity extends Activity {
         final String orderId = currentOrderId;
         final int generation = authGeneration;
         final JSONArray ticks = collectedTicksJson();
+        final String partial = partialQuantitiesJson().toString();
         cacheWorker.execute(() -> {
-            if (generation == authGeneration) writeCollectedState(orderId, ticks);
+            if (generation == authGeneration) {
+                writeCollectedState(orderId, ticks);
+                preferences.edit().putString("partial_" + orderId, partial).commit();
+            }
         });
     }
 
