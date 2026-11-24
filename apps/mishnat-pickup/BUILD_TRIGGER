@@ -49,3 +49,6 @@ requested_at=2026-11-24T09:18:00+02:00
 
 Final account-safety fix: restore archived lists using the matching owner source, avoiding duplicate accounts or overwriting another account's active cache.
 requested_at=2026-11-24T09:26:00+02:00
+
+Fix intermittent product taps: explicitly route clicks from name/note/amount, keep image zoom tap, prevent touch from shifting keyboard focus, and allow long-press partial collection only when product quantity exceeds 1.
+requested_at=2026-11-24T09:45:00+02:00
