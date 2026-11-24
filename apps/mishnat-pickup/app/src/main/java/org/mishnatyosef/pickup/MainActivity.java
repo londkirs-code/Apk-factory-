@@ -1525,12 +1525,20 @@ public class MainActivity extends Activity {
 
     private void openSavedList(SavedListStore.Entry entry) {
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
-        try{if(source==null)source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,entry.sourceLabel,entry.owner);}
-        catch(Exception e){showSyncMessage(e.getMessage(),false);return;}
-        final String sourceId=source.id;Runnable activate=()->cacheWorker.execute(()->{
-            boolean installed=savedListStore.install(entry.id,new File(sourceRegistry.sourceDir(sourceId),"pickup_order_cache"));
-            boolean restored=installed&&savedListStore.restoreProgress(entry.id,sourceRegistry.prefs(sourceId));
-            JSONObject snapshot=null;try{snapshot=savedListStore.readEntry(entry.id);}catch(Exception ignored){}
+        String archiveId=entry.id;
+        try{
+            if(source==null){
+                source=sourceRegistry.create(SourceRegistry.KIND_IMPORTED,entry.sourceLabel,entry.owner);
+                archiveId=savedListStore.rebindSource(entry.id,source.id,source.label);
+                if(archiveId.isEmpty()){showSyncMessage("לא ניתן לשייך את הרשימה לחיבור המקומי.",false);return;}
+            }
+        }catch(Exception e){showSyncMessage(e.getMessage(),false);return;}
+        final String sourceId=source.id;
+        final String savedArchiveId=archiveId;
+        Runnable activate=()->cacheWorker.execute(()->{
+            boolean installed=savedListStore.install(savedArchiveId,new File(sourceRegistry.sourceDir(sourceId),"pickup_order_cache"));
+            boolean restored=installed&&savedListStore.restoreProgress(savedArchiveId,sourceRegistry.prefs(sourceId));
+            JSONObject snapshot=null;try{snapshot=savedListStore.readEntry(savedArchiveId);}catch(Exception ignored){}
             final JSONObject saved=snapshot;
             mainHandler.post(()->{if(!installed||!restored||saved==null){showSyncMessage("לא ניתן לפתוח את הרשימה השמורה.",false);return;}
                 activeOwner=saved.optString("owner",entry.owner);String print=saved.optString("fingerprint","");long orderId=saved.optLong("order_id",-1);
