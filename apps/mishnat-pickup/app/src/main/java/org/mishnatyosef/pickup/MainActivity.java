@@ -2934,9 +2934,8 @@ public class MainActivity extends Activity {
             if (!matchesSearch(product)) continue;
             ProductCard full = productCards.get(product.key);
             if (full != null) {
-                ViewParent parent = full.row.getParent();
-                if (parent == pendingList) pendingOrder.add(full);
-                else if (parent == collectedList) collectedOrder.add(full);
+                if (full.row.getParent() == pendingList) pendingOrder.add(full);
+                else if (full.row.getParent() == collectedList) collectedOrder.add(full);
             }
             ProductCard partial = partialCards.get(product.key);
             if (partial != null && partial.row.getParent() == collectedList)
