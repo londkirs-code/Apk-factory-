@@ -64,7 +64,10 @@ final class ImportParser {
                 try {
                     double amount=Double.parseDouble(quantity.replace(',','.'));
                     if(Double.isNaN(amount)||Double.isInfinite(amount)||amount<=0)throw new NumberFormatException();
-                    quantity=String.valueOf(amount);
+                    // "3" נשאר "3" ולא הופך ל-"3.0" בתצוגה.
+                    quantity=amount==Math.rint(amount)&&amount<1e15
+                            ?String.valueOf((long)amount)
+                            :java.math.BigDecimal.valueOf(amount).stripTrailingZeros().toPlainString();
                 } catch(Exception e) { throw new Exception("שורה "+(i+1)+": הכמות חייבת להיות מספר חיובי."); }
             }
             if(columns.length>2)unit=clean(columns[2]);
@@ -131,7 +134,7 @@ final class ImportParser {
                 item.name=required(o,"name","רשימה "+ln+", מוצר "+ix);if(item.name.length()>200)throw new Exception("רשימה "+ln+", מוצר "+ix+": name ארוך מ־200 תווים.");
                 Object q=o.opt("quantity");if(!(q instanceof Number))throw new Exception("רשימה "+ln+", מוצר "+ix+": חסר או לא תקין quantity.");double n=((Number)q).doubleValue();
                 if(Double.isNaN(n)||Double.isInfinite(n)||n<=0)throw new Exception("רשימה "+ln+", מוצר "+ix+": quantity חייב להיות מספר חיובי.");
-                item.quantity=String.valueOf(q);item.unit=optional(o,"unit",40);item.note=optional(o,"note",300);item.category=optional(o,"category",100);item.image=optional(o,"image",160);item.imageUrl=optional(o,"imageUrl",2048);
+                item.quantity=n==Math.rint(n)&&n<1e15?String.valueOf((long)n):java.math.BigDecimal.valueOf(n).stripTrailingZeros().toPlainString();item.unit=optional(o,"unit",40);item.note=optional(o,"note",300);item.category=optional(o,"category",100);item.image=optional(o,"image",160);item.imageUrl=optional(o,"imageUrl",2048);
                 if(!item.image.isEmpty()&&!validImagePath(item.image))throw new Exception("רשימה "+ln+", מוצר "+ix+": נתיב תמונה לא בטוח.");
                 if(!item.imageUrl.isEmpty()&&!item.imageUrl.toLowerCase(Locale.ROOT).startsWith("https://"))throw new Exception("רשימה "+ln+", מוצר "+ix+": imageUrl חייב להתחיל ב־https://.");
                 list.items.add(item);

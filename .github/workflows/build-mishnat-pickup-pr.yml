@@ -80,6 +80,26 @@ jobs:
           } >> "$GITHUB_ENV"
           keytool -list -keystore "$HOME/.android/apk-factory-release.jks" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
 
+      - name: Ensure versionCode installs over the published APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_FILE="apps/mishnat-pickup/app/build.gradle"
+          SOURCE_CODE="$(sed -nE "s/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p" "$BUILD_FILE" | head -n1)"
+          PUBLISHED=""
+          if git show origin/main:downloads/mishnat-pickup/build-info.txt > "$RUNNER_TEMP/published-info.txt" 2>/dev/null; then
+            PUBLISHED="$(sed -n 's/^version_code=//p' "$RUNNER_TEMP/published-info.txt" | head -n1)"
+          fi
+          if [[ "$PUBLISHED" =~ ^[0-9]+$ ]] && (( SOURCE_CODE <= PUBLISHED )); then
+            NEXT=$((PUBLISHED + 1))
+            # Only for this build; the source file in the branch is not committed with this change.
+            sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT/" "$BUILD_FILE"
+            sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '1.$NEXT'/" "$BUILD_FILE"
+            echo "Bumped test build to $NEXT (published $PUBLISHED, source $SOURCE_CODE)."
+          else
+            echo "Source versionCode $SOURCE_CODE is above published ${PUBLISHED:-none}."
+          fi
+
       - name: Build signed Release APK
         shell: bash
         run: |
@@ -141,6 +161,8 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Never commit the temporary versionCode bump made for this build.
+          git checkout -- apps/mishnat-pickup/app/build.gradle
           git add downloads/mishnat-pickup-pr/
           if git diff --cached --quiet; then
             echo "APK unchanged; nothing to commit."

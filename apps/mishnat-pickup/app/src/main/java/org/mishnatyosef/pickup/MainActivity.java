@@ -2,19 +2,13 @@ package org.mishnatyosef.pickup;
 
 import android.app.Activity;
 import android.app.Dialog;
-import android.graphics.drawable.StateListDrawable;
 import android.view.KeyEvent;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -74,9 +68,7 @@ import java.security.KeyStore;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.HashMap;
@@ -198,6 +190,40 @@ public class MainActivity extends Activity {
     private ViewTreeObserver.OnGlobalFocusChangeListener imageFocusListener;
     private final Runnable dismissCelebrationTask = this::dismissCelebration;
 
+    /** המסך המוצג כרגע. מקור אמת יחיד לניווט, לקיצורי המקשים ולמקש חזרה. */
+    private enum Screen { NONE, LOGIN, HOME, SETTINGS, SAVED_LISTS, HISTORY }
+    private Screen screen = Screen.NONE;
+    /** לאן חוזרים ממסך רשימות שמורות, מהיסטוריית ההזמנות וממסך ההתחברות. */
+    private Screen savedListsReturn = Screen.HOME, historyReturn = Screen.SAVED_LISTS;
+    private boolean loginReturnToSettings = false;
+    /** הפריט שהיה בפוקוס לפני שעזבנו את מסך הרשימה, כדי לחזור אליו ולא לראש הרשימה. */
+    private String homeFocusKey = null;
+    /** כפתורי הכותרת במסך הרשימה, לפי סדר הקריאה מימין לשמאל. */
+    private final List<View> headerButtons = new ArrayList<>();
+    private int homeScrollY = 0;
+
+    /** מחליף את תוכן המסך, מעדכן את מצב הניווט ומוסיף מעבר רך. */
+    private void presentScreen(View root, Screen next) {
+        if (screen == Screen.HOME) rememberHomePosition();
+        if (next != Screen.HOME) {
+            // רכיבי מסך הרשימה הקודם כבר אינם מוצגים; אסור להמשיך לכתוב אליהם הודעות.
+            messageText = null;
+            searchEmptyText = null;
+            retryButton = null;
+            searchInput = null;
+        }
+        screen = next;
+        setContentView(root);
+        Ui.systemBars(this);
+        Ui.fadeIn(root);
+    }
+
+    private void rememberHomePosition() {
+        ProductCard focused = findProductCard(getCurrentFocus());
+        homeFocusKey = focused == null || focused.row.getTag() == null ? null : String.valueOf(focused.row.getTag());
+        homeScrollY = pageScroll == null ? 0 : pageScroll.getScrollY();
+    }
+
     @Override public void onContentChanged() {
         super.onContentChanged();
         getWindow().getDecorView().post(() -> installActionToasts(getWindow().getDecorView()));
@@ -226,7 +252,7 @@ public class MainActivity extends Activity {
         String message;
         String action = description == null ? "" : description.toString().trim();
         if ("הגדרות".equals(action)) message = "פתיחת מסך ההגדרות";
-        else if ("איפוס ליקוט".equals(action)) message = "פתיחת אישור לאיפוס סימוני האיסוף";
+        else if ("איפוס ליקוט".equals(action)) return; // הפעולה עצמה מציגה אישור או הודעה מתאימה
         else if ("רשימה מאוחדת".equals(action)) message = "מעבר לתצוגה המאוחדת של כל החשבונות";
         else if ("רשימה לפי חשבון".equals(action)) message = "הצגת הרשימות בנפרד לפי חשבון";
         else if ("חזרה".equals(action)) message = "חזרה למסך הקודם";
@@ -354,7 +380,10 @@ public class MainActivity extends Activity {
     // Native login using the Mishnat Yosef JSON API.
     // ---------------------------------------------------------------------
 
-    private void showLoginScreen(String notice) {
+    private void showLoginScreen(String notice) { showLoginScreen(notice, false); }
+
+    private void showLoginScreen(String notice, boolean returnToSettings) {
+        loginReturnToSettings = returnToSettings;
         setImageMode(false);
         if (imageViewer != null) imageViewer.reset();
         dismissCelebration();
@@ -383,13 +412,14 @@ public class MainActivity extends Activity {
         importOffline.setOnClickListener(v -> openImportPicker());
         root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
         if (sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
-            Button connections = Ui.button(this, "ניהול חיבורים", Ui.Kind.SOFT);
-            connections.setOnClickListener(v -> showAccountsScreen());
+            Button connections = Ui.button(this, returnToSettings ? "חזרה להגדרות" : "ניהול חיבורים", Ui.Kind.SOFT);
+            connections.setOnClickListener(v -> { loginReturnToSettings = false; showAccountsScreen(); });
             root.addView(connections, Ui.row(this, Ui.S2, Ui.S2));
         }
-        if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
-        setContentView(scroll);
-        Ui.systemBars(this);
+        // ההודעה מוצגת מעל הטופס, כדי שתיראה בלי גלילה.
+        if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice), 2);
+        presentScreen(scroll, Screen.LOGIN);
+        if (loginEmailInput != null) loginEmailInput.requestFocus();
     }
 
     private LinearLayout buildNativeLoginForm() {
@@ -411,6 +441,22 @@ public class MainActivity extends Activity {
                 | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         loginPasswordInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         card.addView(loginPasswordInput, Ui.row(this, 0, Ui.S3));
+        // Enter במקלדת: מהאימייל עוברים לסיסמה, ומהסיסמה שולחים את הטופס.
+        loginEmailInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT || isEnterKey(event)) {
+                if (loginPasswordInput != null) loginPasswordInput.requestFocus();
+                return true;
+            }
+            return false;
+        });
+        loginPasswordInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE || isEnterKey(event)) {
+                hideKeyboard(v);
+                submitLogin();
+                return true;
+            }
+            return false;
+        });
 
         loginErrorText = Ui.banner(this, "");
         loginErrorText.setVisibility(View.GONE);
@@ -441,7 +487,7 @@ public class MainActivity extends Activity {
         input.setInputType(inputType);
         input.setPadding(Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3),
                 Ui.dp(this, Ui.S4), Ui.dp(this, Ui.S3));
-        input.setBackground(Ui.shape(this, Ui.P25, Ui.R_BUTTON, 1, Ui.P300));
+        input.setBackground(Ui.inputBackground(this));
         input.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         input.setTextDirection(View.TEXT_DIRECTION_LTR);
         input.setSelectAllOnFocus(false);
@@ -888,6 +934,8 @@ public class MainActivity extends Activity {
             if (column > 0) target = index - 1;
         } else if (key == KeyEvent.KEYCODE_DPAD_DOWN) {
             if (index + 3 < count) target = index + 3;
+            // שורה אחרונה חלקית: ממשיכים לכרטיס האחרון בה במקום להיתקע.
+            else if (index / 3 < (count - 1) / 3) target = count - 1;
             else if (container == pendingList && collectedList != null
                     && collectedList.getChildCount() > 0) {
                 return focusGridCard(collectedList, Math.min(column, collectedList.getChildCount() - 1));
@@ -902,8 +950,10 @@ public class MainActivity extends Activity {
             }
         }
         if (target >= 0) return focusGridCard(container, target);
-        // Every card in the first grid row can move focus to the fixed header.
-        if (key == KeyEvent.KEYCODE_DPAD_UP && container == pendingList && index < 3)
+        // Every card in the first grid row can move focus to the fixed header
+        // (also when every item is already collected and the pending grid is empty).
+        if (key == KeyEvent.KEYCODE_DPAD_UP && index < 3 && (container == pendingList
+                || (container == collectedList && (pendingList == null || pendingList.getChildCount() == 0))))
             return moveFocusToHomeTop();
         // Do not let focus escape from the card grid to images, labels or other controls.
         return true;
@@ -911,16 +961,16 @@ public class MainActivity extends Activity {
 
     private boolean moveFocusToHomeTop() {
         if (pageScroll != null) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
-        View topButton = getWindow().getDecorView().findViewWithTag("home_settings_button");
+        View topButton = getWindow().getDecorView().findViewWithTag("home_first_header_button");
         if (topButton != null) topButton.post(() -> topButton.requestFocus());
         return true;
     }
 
     private boolean handleFirstListItemUp(KeyEvent event) {
         if (event.getAction() != KeyEvent.ACTION_DOWN || event.getKeyCode() != KeyEvent.KEYCODE_DPAD_UP) return false;
+        if (displayMode == 5) return false; // במצב רשת הטיפול נעשה בניווט הרשת
         ProductCard focused = findProductCard(getCurrentFocus());
-        if (focused == null || focused.row == null || focused.row.getParent() != pendingList) return false;
-        if (pendingList.indexOfChild(focused.row) != 0) return false;
+        if (focused == null || focused.row == null || focused.row != firstCard()) return false;
         return moveFocusToHomeTop();
     }
 
@@ -934,7 +984,22 @@ public class MainActivity extends Activity {
     }
 
     private boolean isHomeShortcutScreen() {
-        return pageScroll != null && !accountsScreenVisible && !savedListsScreenVisible;
+        // קיצורי הספרות פעילים רק במסך הרשימה עצמו. בעבר הם נשארו פעילים גם במסך
+        // ההתחברות ובהיסטוריה (למשל # היה מקפיץ מההתחברות לרשימה).
+        return screen == Screen.HOME && pageScroll != null;
+    }
+
+    private static boolean isEnterKey(KeyEvent event) {
+        if (event == null || event.getAction() != KeyEvent.ACTION_DOWN) return false;
+        int key = event.getKeyCode();
+        return key == KeyEvent.KEYCODE_ENTER || key == KeyEvent.KEYCODE_NUMPAD_ENTER
+                || key == KeyEvent.KEYCODE_DPAD_CENTER;
+    }
+
+    private void hideKeyboard(View view) {
+        if (view == null) return;
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
     private boolean isTextEntryFocused() {
@@ -993,16 +1058,19 @@ public class MainActivity extends Activity {
             case KeyEvent.KEYCODE_3: case KeyEvent.KEYCODE_NUMPAD_3:
                 focusSearch(); return true;
             case KeyEvent.KEYCODE_0: case KeyEvent.KEYCODE_NUMPAD_0:
-                confirmResetCollection();
-                showActionToast("נפתחה בקשת אישור לאיפוס הליקוט");
+                if (confirmResetCollection()) showActionToast("נפתחה בקשת אישור לאיפוס הליקוט");
+                else showActionToast("אין סימוני איסוף לאיפוס");
                 return true;
             case KeyEvent.KEYCODE_7: case KeyEvent.KEYCODE_NUMPAD_7:
+                // גם הפוקוס עובר לראש הרשימה; אחרת המקש הבא היה מקפיץ חזרה לפריט הקודם.
                 if (pageScroll != null) pageScroll.scrollTo(0, 0);
+                focusFirstPending();
                 showActionToast("הועברת לראש רשימת האיסוף");
                 return true;
             case KeyEvent.KEYCODE_9: case KeyEvent.KEYCODE_NUMPAD_9:
                 if (pageScroll != null && page != null)
                     pageScroll.scrollTo(0, Math.max(0, page.getHeight() - pageScroll.getHeight()));
+                focusLastCard();
                 showActionToast("הועברת לסוף רשימת האיסוף");
                 return true;
             case KeyEvent.KEYCODE_STAR: case KeyEvent.KEYCODE_NUMPAD_MULTIPLY:
@@ -1104,6 +1172,7 @@ public class MainActivity extends Activity {
 
     private void toggleListViewMode() {
         if (sourceRegistry == null) return;
+        if (syncAllRunning) { showActionToast("אפשר להחליף תצוגה בסיום הסנכרון"); return; }
         String next = "COMBINED_SUM".equals(sourceRegistry.viewMode())
                 ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
         sourceRegistry.setViewMode(next);
@@ -1115,6 +1184,17 @@ public class MainActivity extends Activity {
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (imageViewer != null && imageViewer.onKey(event)) return true;
+        // במסכי ההגדרות, הרשימות השמורות, ההיסטוריה וההתחברות: 2/4/6/8 מנווטים ו-5 בוחר,
+        // בדיוק כמו במסך הרשימה, כל עוד הפוקוס אינו בשדה טקסט.
+        if (screen != Screen.HOME && screen != Screen.NONE && !isTextEntryFocused()) {
+            int code = event.getKeyCode();
+            int mapped = navigationKeyForShortcut(code);
+            if (code == KeyEvent.KEYCODE_5 || code == KeyEvent.KEYCODE_NUMPAD_5) mapped = KeyEvent.KEYCODE_DPAD_CENTER;
+            if (mapped != KeyEvent.KEYCODE_UNKNOWN) {
+                return dispatchKeyEvent(new KeyEvent(event.getDownTime(), event.getEventTime(),
+                        event.getAction(), mapped, event.getRepeatCount(), event.getMetaState()));
+            }
+        }
         if (isHomeShortcutScreen() && event.getKeyCode() != KeyEvent.KEYCODE_MENU) {
             int navigationKey = isTextEntryFocused() ? KeyEvent.KEYCODE_UNKNOWN
                     : navigationKeyForShortcut(event.getKeyCode());
@@ -1124,11 +1204,12 @@ public class MainActivity extends Activity {
                 return dispatchKeyEvent(mapped);
             }
             if (handleHomeShortcut(event)) return true;
-        } else if (event.getKeyCode() == KeyEvent.KEYCODE_MENU
-                && event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
-                && !accountsScreenVisible && !savedListsScreenVisible) {
-            showSettingsScreen();
-            showActionToast("פתיחת מסך ההגדרות");
+        } else if (event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
+            // Menu פותח את ההגדרות מהרשימה, וסוגר אותן כשהן פתוחות. בשאר המסכים אין לו פעולה.
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                if (screen == Screen.HOME) { showSettingsScreen(); showActionToast("פתיחת מסך ההגדרות"); }
+                else if (screen == Screen.SETTINGS) { closeSettings(); showActionToast("סגירת מסך ההגדרות"); }
+            }
             return true;
         }
         if (handleFirstListItemUp(event)) return true;
@@ -1150,10 +1231,46 @@ public class MainActivity extends Activity {
         return super.dispatchKeyEvent(event);
     }
 
-        @Override public void onBackPressed() {
-        if (savedListsScreenVisible) { leaveSavedListsScreen(); }
-        else if (accountsScreenVisible) { accountsScreenVisible=false; showHomeScreen(false); }
-        else super.onBackPressed();
+    @Override public void onBackPressed() {
+        if (imageViewer != null && imageViewer.isOpen()) { imageViewer.reset(); return; }
+        if (celebration != null) { dismissCelebration(); return; }
+        switch (screen) {
+            case SETTINGS: closeSettings(); return;
+            case SAVED_LISTS: leaveSavedListsScreen(); return;
+            case HISTORY: leaveHistoryScreen(); return;
+            case LOGIN:
+                // מסך התחברות שנפתח מההגדרות (הוספת חשבון / התחברות מחדש) חוזר להגדרות.
+                if (loginReturnToSettings && sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
+                    loginReturnToSettings = false;
+                    showSettingsScreen();
+                    return;
+                }
+                break;
+            case HOME:
+                // חזרה מהחיפוש: קודם מנקים את החיפוש ומחזירים את הפוקוס לרשימה.
+                if (searchInput != null && (searchInput.hasFocus() || searchQuery.trim().length() > 0)) {
+                    boolean hadText = searchQuery.trim().length() > 0;
+                    hideKeyboard(searchInput);
+                    if (hadText) searchInput.setText("");
+                    searchInput.clearFocus();
+                    focusFirstPending();
+                    if (hadText) showActionToast("החיפוש נוקה");
+                    return;
+                }
+                break;
+            default: break;
+        }
+        super.onBackPressed();
+    }
+
+    private void closeSettings() {
+        accountsScreenVisible = false;
+        showHomeScreen(false);
+    }
+
+    private void leaveHistoryScreen() {
+        if (historyReturn == Screen.SETTINGS) showSettingsScreen();
+        else showSavedListsScreen(savedListsReturn);
     }
 
     // ---------------------------------------------------------------------
@@ -1167,22 +1284,43 @@ public class MainActivity extends Activity {
         logoutButton = null;
         resetButton = null;
         retryButton = null;
+        loginReturnToSettings = false;
+        // הפריט שהיה בפוקוס נשמר לפני בניית המסך מחדש (גם במעבר מרשימה לרשימה).
+        if (screen == Screen.HOME) rememberHomePosition();
+        final String restoreKey = homeFocusKey;
+        final int restoreScroll = homeScrollY;
+        homeFocusKey = null;
+        homeScrollY = 0;
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
         LinearLayout header = buildHomeHeader();
         pageScroll = buildProductScroll();
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
         root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        setContentView(root);
-        Ui.systemBars(this);
+        screen = Screen.NONE; // presentScreen לא ידרוס את המיקום שנשמר כבר
+        presentScreen(root, Screen.HOME);
         combinedView = !showingSavedList && sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning;
         if (combinedView) loadCombinedSnapshot();
         else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
-        if (combinedView && retryButton != null) { retryButton.setText("סנכרן את כל החיבורים"); retryButton.setVisibility(View.VISIBLE); }
+        if (products.isEmpty() && !loadData && (messageText == null || messageText.getVisibility() != View.VISIBLE))
+            showSyncMessage(accessToken.isEmpty()
+                    ? "אין עדיין רשימה להצגה. אפשר להתחבר לחשבון או לייבא רשימה דרך ההגדרות."
+                    : "אין עדיין רשימה להצגה. אפשר לסנכרן דרך ההגדרות.", false);
         renderProducts(false);
         wireFocusOrder();
-        pageScroll.post(this::updateImageModeHint);
+        pageScroll.post(() -> restoreHomePosition(restoreKey, restoreScroll));
         if (loadData && !accessToken.isEmpty()) loadLatestOrder();
+    }
+
+    /** מחזיר את הפוקוס לפריט שהיה בחור לפני היציאה מהרשימה, או לפריט הראשון. */
+    private void restoreHomePosition(String key, int scrollY) {
+        if (screen != Screen.HOME || pageScroll == null) return;
+        ProductCard card = null;
+        if (key != null) card = key.startsWith("partial:")
+                ? partialCards.get(key.substring(8)) : productCards.get(key);
+        if (card != null && card.row.getParent() != null && card.row.requestFocus()) return;
+        if (scrollY > 0) pageScroll.scrollTo(0, scrollY);
+        else focusFirstPending();
     }
 
     private void openImportPicker() {
@@ -1295,7 +1433,10 @@ public class MainActivity extends Activity {
         panel.addView(saveSeparate,Ui.row(this,Ui.S3,Ui.S1));
         panel.addView(addCurrent,Ui.row(this,0,Ui.S1));
         panel.addView(apply,Ui.row(this,Ui.S3,Ui.S1));panel.addView(cancel);
+        // סגירה במקש חזרה או בנגיעה מחוץ לחלון מנקה את קובצי הייבוא הזמניים.
+        dialog.setOnCancelListener(d->ImportParser.delete(bundle.workDir));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+        saveSeparate.requestFocus();
     }
 
     private void archiveImportedBundle(ImportParser.Bundle bundle,boolean mergeCurrent) {
@@ -1384,6 +1525,7 @@ public class MainActivity extends Activity {
         separate.setOnClickListener(v->{dialog.dismiss();commitImport(bundle,true);});
         cancel.setOnClickListener(v->{dialog.dismiss();ImportParser.delete(bundle.workDir);});
         panel.addView(update);panel.addView(separate,Ui.row(this,Ui.S2,0));panel.addView(cancel,Ui.row(this,Ui.S2,0));
+        dialog.setOnCancelListener(d->ImportParser.delete(bundle.workDir));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
     }
 
@@ -1553,18 +1695,15 @@ public class MainActivity extends Activity {
         settingsHeader.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         TextView settingsTitle = Ui.text(this, "הגדרות", Ui.T_TITLE, Ui.P900, true);
         settingsTitle.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        Button closeSettings = Ui.button(this, "×", Ui.Kind.SOFT);
-        closeSettings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 27);
-        closeSettings.setContentDescription("סגירת ההגדרות");
-        closeSettings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
-        closeSettings.setOnClickListener(v -> { accountsScreenVisible = false; showHomeScreen(false); });
+        Button closeSettings = Ui.iconButton(this, Ui.IC_CLOSE, "סגירת ההגדרות", false);
+        closeSettings.setOnClickListener(v -> closeSettings());
         settingsHeader.addView(closeSettings);
         settingsHeader.addView(settingsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
         content.addView(settingsHeader, Ui.row(this, 0, Ui.S2));
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · אייקון איפוס פשוט 🔄, ערימת מסמכים סגולה לתצוגה לפי משתמשים וניווט משופר במצב רשת. אפשר לטעון הזמנות קודמות, לשמור אותן כרשימות עצמאיות, ליצור רשימה חדשה, למזג רשימות, לייבא קבצים כרשימות נפרדות או להוסיף אותם לרשימה הנוכחית, ולייצא רשימה לקובץ TXT."),
+                "בעדכון החדש · אייקונים חדשים וחדים בכל המסכים, ניווט מקלדת מתוקן (Menu פותח וסוגר הגדרות, חזרה מחזירה למסך הקודם ולא סוגרת את האפליקציה, 7/9 מעבירים את הבחירה לראש ולסוף הרשימה), חזרה לאותו פריט אחרי יציאה מההגדרות, מעבר רך בין מסכים, Enter בסיסמה מתחבר, ומסך רשימות שמורות מסודר יותר."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -1573,16 +1712,17 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "סנכרון"));
         Button sync = Ui.button(this, "סנכרן את כל החשבונות", Ui.Kind.PRIMARY);
-        sync.setOnClickListener(v -> syncAllAccounts());
-        retryButton = sync;
+        // הסנכרון מתבצע מול מסך הרשימה, כדי שההתקדמות וההודעות יוצגו למשתמש.
+        sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
         content.addView(sync);
 
         content.addView(Ui.section(this, "רשימות ופעולות"));
         Button history = Ui.button(this, "הזמנות קודמות מהאתר", Ui.Kind.SOFT);
-        history.setOnClickListener(v -> showOrderHistoryScreen());
+        history.setEnabled(!accessToken.isEmpty());
+        history.setOnClickListener(v -> showOrderHistoryScreen(Screen.SETTINGS));
         content.addView(history);
         Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.SOFT);
-        savedLists.setOnClickListener(v -> showSavedListsScreen());
+        savedLists.setOnClickListener(v -> showSavedListsScreen(Screen.SETTINGS));
         content.addView(savedLists);
         content.addView(buildHomeActions());
         Button importFile = Ui.button(this, "ייבוא קובץ (ZIP / JSON / TXT)", Ui.Kind.SOFT);
@@ -1627,9 +1767,9 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
-        setContentView(scroll);
-        Ui.systemBars(this);
-        if (content.getChildCount() > 1) content.getChildAt(1).requestFocus();
+        presentScreen(scroll, Screen.SETTINGS);
+        // מקלדת: הפוקוס מתחיל בכפתור הסגירה שבראש המסך.
+        closeSettings.requestFocus();
     }
 
     private void showSourceActions(SourceRegistry.Source source) {
@@ -1670,9 +1810,10 @@ public class MainActivity extends Activity {
 
     private void beginReconnectSource(String sourceId) {
         accountsScreenVisible = false;
+        // מקש חזרה ממסך ההתחברות הזה מחזיר להגדרות ולא סוגר את האפליקציה.
         showLoginScreen(sourceId == null || sourceId.isEmpty()
                 ? "התחברו לחיבור נוסף. החיבורים הקיימים והרשימות השמורות יישארו ללא שינוי."
-                : "התחברו מחדש. הטוקן החדש יעודכן בחיבור הקיים לפי מזהה הלקוח; הרשימה וסימוני האיסוף יישמרו.");
+                : "התחברו מחדש. הטוקן החדש יעודכן בחיבור הקיים לפי מזהה הלקוח; הרשימה וסימוני האיסוף יישמרו.", true);
     }
 
     private void disconnectSource(String id) {
@@ -1802,8 +1943,19 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 24)
             input.setImeHintLocales(new android.os.LocaleList(new Locale("he")));
         input.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S2));
-        input.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_BUTTON,1,Ui.P200));input.setText(searchQuery);
+        input.setBackground(Ui.inputBackground(this));input.setText(searchQuery);
         input.setSelection(input.getText().length());
+        Drawable searchIcon=new Ui.IconDrawable(this,Ui.IC_SEARCH,Ui.P600,20,1f);
+        searchIcon.setBounds(0,0,Ui.dp(this,20),Ui.dp(this,20));
+        input.setCompoundDrawablesRelative(searchIcon,null,null,null);
+        input.setCompoundDrawablePadding(Ui.dp(this,Ui.S2));
+        input.setContentDescription("חיפוש פריט ברשימה (מקש 3)");
+        // אישור החיפוש במקלדת סוגר אותה ומעביר את הבחירה לתוצאה הראשונה.
+        input.setOnEditorActionListener((v,actionId,event)->{
+            if(actionId==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH||isEnterKey(event)){
+                hideKeyboard(v);v.clearFocus();focusFirstPending();return true;}
+            return false;
+        });
         row.addView(input,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1f));
         input.addTextChangedListener(new TextWatcher(){
             @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
@@ -1817,6 +1969,10 @@ public class MainActivity extends Activity {
         final TextView current=Ui.text(this,labels[displayMode],Ui.T_BODY,Ui.P800,true);current.setGravity(Gravity.CENTER);
         SeekBar slider=new SeekBar(this);slider.setMax(5);slider.setProgress(displayMode);
         displaySizeSlider = slider;
+        // מסגרת פוקוס גלויה כשהמחוון נבחר במקלדת.
+        slider.setBackground(Ui.focusFrame(this));
+        slider.setPadding(Ui.dp(this,Ui.S5),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S5),Ui.dp(this,Ui.S3));
+        slider.setContentDescription("גודל התצוגה");
         if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
         // Persist only the selected setting while the slider is moving. Rebuilding the home
         // screen here used to destroy the settings view, steal focus and jump to the top.
@@ -1860,6 +2016,11 @@ public class MainActivity extends Activity {
         option.setTextColor(Ui.INK);
         option.setChecked(uiPreferences.getBoolean(key, legacyDefault));
         if (Build.VERSION.SDK_INT >= 21) option.setButtonTintList(Ui.tint(Ui.P600));
+        // מסגרת פוקוס גלויה ומרווח לחיצה נוח, כמו בשאר רכיבי המסך.
+        option.setBackground(Ui.focusFrame(this));
+        option.setPadding(Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2));
+        option.setMinHeight(Ui.dp(this, 48));
+        option.setFocusable(true);
         option.setOnCheckedChangeListener((button, checked) -> {
             uiPreferences.edit().putBoolean(key, checked).apply();
             Toast.makeText(this, label + (checked ? " הופעל" : " כובה"), Toast.LENGTH_SHORT).show();
@@ -2030,59 +2191,91 @@ public class MainActivity extends Activity {
         if(hadPartialFocus){ProductCard mainCard=productCards.get(key);if(mainCard!=null)mainCard.row.requestFocus();}
         performFeedback(false, quantity > 0);checkCelebration();
     }
-    private void showSavedListsScreen() { showSavedListsScreen(false); }
+    private void showSavedListsScreen() { showSavedListsScreen(savedListsReturn); }
+    private void showSavedListsScreen(boolean fromLogin) { showSavedListsScreen(fromLogin ? Screen.LOGIN : Screen.HOME); }
+    /** רענון מסך הרשימות השמורות בלי לשנות את המסך שאליו חוזרים ממנו. */
+    private void refreshSavedListsScreen() { showSavedListsScreen(savedListsReturn); }
 
-    private void showSavedListsScreen(boolean fromLogin) {
-        savedListsScreenVisible=true;
-        savedListsReturnToLogin=fromLogin;
-        LinearLayout content=Ui.screen(this);content.setGravity(Gravity.TOP);
+    /** כותרת אחידה למסכי משנה: כפתור חזרה (חץ ימינה) ושם המסך. */
+    private LinearLayout buildSubScreenHeader(String titleText, Runnable onBack) {
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        Button back=Ui.button(this,"→",Ui.Kind.SOFT);back.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,26);
-        back.setContentDescription("חזרה");back.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
-        back.setOnClickListener(v->leaveSavedListsScreen());header.addView(back);
-        TextView title=Ui.text(this,"רשימות שמורות",Ui.T_TITLE,Ui.P900,true);
-        LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(0,-2,1f);titleLp.setMargins(Ui.dp(this,Ui.S2),0,0,0);
-        header.addView(title,titleLp);content.addView(header,Ui.row(this,0,Ui.S2));
+        Button back=Ui.iconButton(this,Ui.IC_BACK,"חזרה",false);
+        back.setTag("screen_back_button");
+        back.setOnClickListener(v->onBack.run());header.addView(back);
+        TextView title=Ui.text(this,titleText,Ui.T_TITLE,Ui.P900,true);
+        LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(0,-2,1f);titleLp.setMarginStart(Ui.dp(this,Ui.S3));
+        header.addView(title,titleLp);
+        return header;
+    }
+
+    private void showSavedListsScreen(Screen returnTo) {
+        savedListsScreenVisible=true;
+        savedListsReturn=returnTo==null?Screen.HOME:returnTo;
+        savedListsReturnToLogin=savedListsReturn==Screen.LOGIN;
+        LinearLayout content=Ui.screen(this);content.setGravity(Gravity.TOP);
+        content.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S2));
         Button history=Ui.button(this,"הזמנות קודמות מהאתר",Ui.Kind.PRIMARY);
         history.setEnabled(!accessToken.isEmpty());
-        history.setOnClickListener(v->showOrderHistoryScreen());
+        history.setOnClickListener(v->showOrderHistoryScreen(Screen.SAVED_LISTS));
         content.addView(history,Ui.row(this,0,Ui.S2));
         Button create=Ui.button(this,"יצירת רשימה חדשה",Ui.Kind.SOFT);
         create.setOnClickListener(v->createNewSavedList());
         content.addView(create,Ui.row(this,0,Ui.S2));
         List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
         if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."));
+        else content.addView(Ui.section(this,entries.size()+" רשימות במכשיר"));
+        Button firstOpen=null;
         for(SavedListStore.Entry entry:entries){LinearLayout card=Ui.column(this);
             card.setBackground(Ui.shape(this,Ui.SURFACE,Ui.R_CARD,1,Ui.P200));card.setPadding(Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3),Ui.dp(this,Ui.S3));
             card.addView(Ui.text(this,entry.title,Ui.T_NAME,Ui.P900,true));
             card.addView(Ui.text(this,entry.sourceLabel+" · "+entry.itemCount+" פריטים"+(entry.updatedAt.isEmpty()?"":" · "+entry.updatedAt),Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
-            Button open=Ui.button(this,"פתיחת הרשימה",Ui.Kind.PRIMARY);open.setOnClickListener(v->openSavedList(entry));
-            Button merge=Ui.button(this,"מיזוג לתוך רשימה אחרת",Ui.Kind.SOFT);
-            merge.setOnClickListener(v->showMergeTargetDialog(entry));
-            Button export=Ui.button(this,"ייצוא לקובץ TXT",Ui.Kind.SOFT);
-            export.setOnClickListener(v->exportSavedList(entry));
-            Button delete=Ui.button(this,"מחיקה מהרשימות השמורות",Ui.Kind.SOFT);
-            delete.setOnClickListener(v->showModernConfirm("מחיקת רשימה שמורה","הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.","מחק רשימה",()->deleteSavedListEntry(entry)));
-            card.addView(open);card.addView(merge);card.addView(export);card.addView(delete);content.addView(card,Ui.row(this,0,Ui.S2));
+            // שני כפתורים בשורה במקום ארבעה כפתורים זה מתחת לזה: פחות גלילה ופחות לחיצות מקלדת.
+            LinearLayout actions=new LinearLayout(this);actions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            Button open=Ui.button(this,"פתיחה",Ui.Kind.PRIMARY);open.setOnClickListener(v->openSavedList(entry));
+            Button more=Ui.button(this,"פעולות נוספות",Ui.Kind.SOFT);more.setOnClickListener(v->showSavedListActions(entry));
+            LinearLayout.LayoutParams openLp=new LinearLayout.LayoutParams(0,-2,1f);openLp.setMarginEnd(Ui.dp(this,Ui.S1));
+            LinearLayout.LayoutParams moreLp=new LinearLayout.LayoutParams(0,-2,1f);moreLp.setMarginStart(Ui.dp(this,Ui.S1));
+            actions.addView(open,openLp);actions.addView(more,moreLp);
+            card.addView(actions,Ui.row(this,0,0));
+            content.addView(card,Ui.row(this,0,Ui.S2));
+            if(firstOpen==null)firstOpen=open;
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(content,new ScrollView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT));
-        setContentView(scroll);Ui.systemBars(this);
+        presentScreen(scroll,Screen.SAVED_LISTS);
+        // מקלדת: הפוקוס מתחיל ברשימה הראשונה, ואם אין רשימות - בכפתור יצירת רשימה.
+        if(firstOpen!=null)firstOpen.requestFocus();else if(history.isEnabled())history.requestFocus();else create.requestFocus();
     }
-    private void showOrderHistoryScreen() {
+
+    private void showSavedListActions(SavedListStore.Entry entry) {
+        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel=Ui.dialogPanel(this);
+        panel.addView(Ui.text(this,entry.title,Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,entry.itemCount+" פריטים",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
+        addSourceAction(panel,dialog,"מיזוג לתוך רשימה אחרת",()->showMergeTargetDialog(entry));
+        addSourceAction(panel,dialog,"ייצוא לקובץ TXT",()->exportSavedList(entry));
+        addSourceAction(panel,dialog,"מחיקה מהרשימות השמורות",()->showModernConfirm("מחיקת רשימה שמורה","הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.","מחק רשימה",()->deleteSavedListEntry(entry)));
+        Button close=Ui.button(this,"סגירה",Ui.Kind.SOFT);close.setOnClickListener(v->dialog.dismiss());
+        panel.addView(close,Ui.row(this,Ui.S3,0));
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+    }
+
+    private void showOrderHistoryScreen() { showOrderHistoryScreen(Screen.SAVED_LISTS); }
+
+    private void showOrderHistoryScreen(Screen returnTo) {
         if(accessToken.isEmpty()){Toast.makeText(this,"יש להתחבר כדי לטעון הזמנות קודמות.",Toast.LENGTH_LONG).show();return;}
-        savedListsScreenVisible=false;historyPage=0;historyLastPage=1;historyOrders.clear();historyLoading=false;
+        historyReturn=returnTo==Screen.SETTINGS?Screen.SETTINGS:Screen.SAVED_LISTS;
+        savedListsScreenVisible=false;accountsScreenVisible=false;
+        historyPage=0;historyLastPage=1;historyOrders.clear();historyLoading=false;
         LinearLayout content=Ui.screen(this);
-        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        Button back=Ui.button(this,"→",Ui.Kind.SOFT);back.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,26);
-        back.setContentDescription("חזרה");back.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
-        back.setOnClickListener(v->showSavedListsScreen(false));header.addView(back);
-        header.addView(Ui.text(this,"הזמנות קודמות",Ui.T_TITLE,Ui.P900,true),new LinearLayout.LayoutParams(0,-2,1f));
-        content.addView(header,Ui.row(this,0,Ui.S2));
+        content.addView(buildSubScreenHeader("הזמנות קודמות",this::leaveHistoryScreen),Ui.row(this,0,Ui.S2));
         content.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה עצמאית במכשיר. ההזמנה הפעילה לא תוחלף.",Ui.T_BODY,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
         historyContent=content;historyMoreButton=null;
+        content.addView(Ui.banner(this,"טוען הזמנות קודמות…"));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
-        setContentView(scroll);Ui.systemBars(this);loadOrderHistoryPage(1);
+        presentScreen(scroll,Screen.HISTORY);
+        View back=content.findViewWithTag("screen_back_button");if(back!=null)back.requestFocus();
+        loadOrderHistoryPage(1);
     }
     private void loadOrderHistoryPage(int requestedPage) {
         if(historyLoading||accessToken.isEmpty())return;
@@ -2094,27 +2287,59 @@ public class MainActivity extends Activity {
                 OrderHistoryPage parsed=OrderHistoryPage.parse(response.body,requestedPage);
                 List<JSONObject> rows=new ArrayList<>();
                 for(int i=0;i<parsed.orders.length();i++){JSONObject row=parsed.orders.optJSONObject(i);if(row!=null&&!OrderHistoryPage.isCancelled(row))rows.add(row);}
-                if(!session.isCurrent(this))return;
                 mainHandler.post(()->{
-                    historyLoading=false;Set<String> seen=new HashSet<>();for(JSONObject old:historyOrders)seen.add(String.valueOf(extractOrderId(old)));
+                    historyLoading=false;
+                    if(!session.isCurrent(this)||screen!=Screen.HISTORY)return;
+                    Set<String> seen=new HashSet<>();for(JSONObject old:historyOrders)seen.add(String.valueOf(extractOrderId(old)));
                     for(JSONObject row:rows)if(seen.add(String.valueOf(extractOrderId(row))))historyOrders.add(row);
-                    historyPage=parsed.currentPage;historyLastPage=parsed.lastPage;renderOrderHistory();
+                    historyPage=parsed.currentPage;historyLastPage=parsed.lastPage;
+                    boolean firstPage=requestedPage<=1;
+                    renderOrderHistory();
+                    if(firstPage)focusFirstHistoryItem();
                 });
             } catch(Exception e) {
-                String error=safeError(e);mainHandler.post(()->{historyLoading=false;if(historyContent!=null)historyContent.addView(Ui.banner(this,"טעינת ההיסטוריה נכשלה: "+error),Ui.row(this,0,Ui.S2));if(historyMoreButton!=null){historyMoreButton.setEnabled(true);historyMoreButton.setText("לנסות שוב");}});
+                String error=safeError(e);
+                mainHandler.post(()->{
+                    historyLoading=false;
+                    if(screen!=Screen.HISTORY||historyContent==null)return;
+                    while(historyContent.getChildCount()>2)historyContent.removeViewAt(2);
+                    historyContent.addView(Ui.banner(this,"טעינת ההיסטוריה נכשלה: "+error),Ui.row(this,0,Ui.S2));
+                    // תמיד יש דרך לנסות שוב, גם כשהעמוד הראשון נכשל.
+                    Button retry=Ui.button(this,"לנסות שוב",Ui.Kind.PRIMARY);
+                    retry.setOnClickListener(v->{
+                        while(historyContent.getChildCount()>2)historyContent.removeViewAt(2);
+                        if(historyOrders.isEmpty()){historyContent.addView(Ui.banner(this,"טוען הזמנות קודמות…"));loadOrderHistoryPage(1);}
+                        else{renderOrderHistory();loadOrderHistoryPage(historyPage+1);}
+                    });
+                    historyContent.addView(retry,Ui.row(this,0,Ui.S2));
+                    retry.requestFocus();
+                });
             }
         });
     }
+    private void focusFirstHistoryItem() {
+        if(historyContent==null)return;
+        for(int i=2;i<historyContent.getChildCount();i++){View child=historyContent.getChildAt(i);
+            if(child instanceof Button&&child.isFocusable()){child.requestFocus();return;}}
+    }
     private void renderOrderHistory() {
-        if(historyContent==null)return;while(historyContent.getChildCount()>2)historyContent.removeViewAt(2);
+        if(historyContent==null)return;
+        View focused=getCurrentFocus();boolean moreHadFocus=focused!=null&&focused==historyMoreButton;
+        while(historyContent.getChildCount()>2)historyContent.removeViewAt(2);
         if(historyOrders.isEmpty())historyContent.addView(Ui.banner(this,"לא נמצאו הזמנות קודמות פעילות."));
         for(JSONObject row:historyOrders) {
             long id=extractOrderId(row);if(id<=0)continue;String title=OrderHistoryPage.title(row);
             String date=first(row,"created_at","updated_at","date","order_date");
+            if(date.length()>10&&date.charAt(4)=='-')date=date.substring(0,10);
             Button item=Ui.button(this,title+(date.isEmpty()?"":" · "+date),Ui.Kind.SOFT);
             item.setOnClickListener(v->saveHistoricalOrder(id,title));historyContent.addView(item,Ui.row(this,0,Ui.S2));
         }
         if(historyPage<historyLastPage){historyMoreButton=Ui.button(this,"טען הזמנות ישנות יותר",Ui.Kind.PRIMARY);historyMoreButton.setOnClickListener(v->loadOrderHistoryPage(historyPage+1));historyContent.addView(historyMoreButton,Ui.row(this,0,Ui.S3));}else historyMoreButton=null;
+        // אחרי "טען עוד" הפוקוס נשאר במקום הגיוני: על כפתור טען עוד החדש או על הפריט האחרון.
+        if(moreHadFocus){
+            if(historyMoreButton!=null)historyMoreButton.requestFocus();
+            else if(historyContent.getChildCount()>2)historyContent.getChildAt(historyContent.getChildCount()-1).requestFocus();
+        }
     }
     private void saveHistoricalOrder(long id,String title) {
         if(accessToken.isEmpty()||activeSourceId.isEmpty()){Toast.makeText(this,"אין חיבור פעיל לשמירת ההזמנה.",Toast.LENGTH_LONG).show();return;}
@@ -2131,7 +2356,7 @@ public class MainActivity extends Activity {
                 SourceRegistry.Source source=sourceRegistry.find(activeSourceId);if(source==null)throw new Exception("החיבור הפעיל אינו קיים.");
                 if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
                 if(!session.isCurrent(this))return;
-                mainHandler.post(()->{showSavedListsScreen(false);Toast.makeText(this,"ההזמנה נשמרה כרשימה עצמאית.",Toast.LENGTH_LONG).show();});
+                mainHandler.post(()->{if(screen==Screen.HISTORY)leaveHistoryScreen();Toast.makeText(this,"ההזמנה נשמרה כרשימה עצמאית במסך רשימות שמורות.",Toast.LENGTH_LONG).show();});
             } catch(Exception e) {String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"שמירת ההזמנה נכשלה: "+error,Toast.LENGTH_LONG).show());}
         });
     }
@@ -2142,7 +2367,7 @@ public class MainActivity extends Activity {
             long id=System.currentTimeMillis();
             JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",activeOwner).put("order_name","רשימה חדשה").put("imported",true).put("products",new JSONArray());
             if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת הרשימה נכשלה.");
-            showSavedListsScreen(false);Toast.makeText(this,"נוצרה רשימה חדשה.",Toast.LENGTH_LONG).show();
+            refreshSavedListsScreen();Toast.makeText(this,"נוצרה רשימה חדשה.",Toast.LENGTH_LONG).show();
         } catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();}
     }
     private void exportSavedList(SavedListStore.Entry entry) {
@@ -2181,7 +2406,7 @@ public class MainActivity extends Activity {
         for(SavedListStore.Entry target:savedListStore.list()) {
             if(target.id.equals(source.id))continue;choices++;
             Button choose=Ui.button(this,target.title+" · "+target.itemCount+" פריטים",Ui.Kind.SOFT);
-            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+source.title+"' יצורפו ל '"+target.title+"'. כמויות של פריטים זהים יסוכמו; רשימת המקור תישאר שמורה.","מזג רשימות",()->{boolean ok=savedListStore.mergeEntries(target.id,source.id);showSavedListsScreen(false);Toast.makeText(this,ok?"הרשימות מוזגו בהצלחה.":"המיזוג נכשל; הרשימות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
+            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+source.title+"' יצורפו ל '"+target.title+"'. כמויות של פריטים זהים יסוכמו; רשימת המקור תישאר שמורה.","מזג רשימות",()->{boolean ok=savedListStore.mergeEntries(target.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"הרשימות מוזגו בהצלחה.":"המיזוג נכשל; הרשימות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
             panel.addView(choose,Ui.row(this,Ui.S2,0));
         }
         if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי רשימות שמורות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
@@ -2190,12 +2415,15 @@ public class MainActivity extends Activity {
     }
 
     private void leaveSavedListsScreen() {
-        boolean toLogin=savedListsReturnToLogin;        savedListsScreenVisible=false;savedListsReturnToLogin=false;
-        if(toLogin)showLoginScreen("");else showHomeScreen(false);
+        Screen target=savedListsReturn;
+        savedListsScreenVisible=false;savedListsReturnToLogin=false;savedListsReturn=Screen.HOME;
+        if(target==Screen.LOGIN)showLoginScreen("");
+        else if(target==Screen.SETTINGS)showSettingsScreen();
+        else showHomeScreen(false);
     }
 
     private void deleteSavedListEntry(SavedListStore.Entry entry) {
-        final boolean returnToLogin=savedListsReturnToLogin;
+        final Screen returnTo=savedListsReturn;
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
         if(source!=null){
             File manifest=new File(new File(sourceRegistry.sourceDir(entry.sourceId),"pickup_order_cache"),"order.json");
@@ -2208,21 +2436,21 @@ public class MainActivity extends Activity {
                     DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
                     savedListStore.delete(entry.id);
                     mainHandler.post(()->{
-                        if(entry.sourceId.equals(activeSourceId)){cacheTrusted=false;activeOwner="";clearOrderMemory();showHomeScreen(false);}
-                        showSavedListsScreen(returnToLogin);
+                        if(entry.sourceId.equals(activeSourceId)){cacheTrusted=false;activeOwner="";clearOrderMemory();}
+                        showSavedListsScreen(returnTo);
                     });
                 });
                 if(entry.sourceId.equals(activeSourceId))clear.run();
                 else cacheWorker.execute(()->{
                     DataGuard.wipeOrderData(sourceRegistry.sourceDir(entry.sourceId),sourceRegistry.prefs(entry.sourceId));
                     savedListStore.delete(entry.id);
-                    mainHandler.post(()->showSavedListsScreen(returnToLogin));
+                    mainHandler.post(()->showSavedListsScreen(returnTo));
                 });
                 return;
             }
         }
         savedListStore.delete(entry.id);
-        showSavedListsScreen(returnToLogin);
+        showSavedListsScreen(returnTo);
     }
 
     private void openSavedList(SavedListStore.Entry entry) {
@@ -2292,58 +2520,49 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeTitleRow() {
+        // שורת כותרת: השם מימין, ומשמאל קבוצת אייקונים אחידה בגודל ובעיצוב:
+        // שתי אפשרויות התצוגה צמודות (מאוחדת / לפי חשבון), ואחריהן איפוס והגדרות.
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
-        Button settings = Ui.button(this, "⚙", Ui.Kind.SOFT);
-        settings.setContentDescription("הגדרות");
-        settings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
-        settings.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        settings.getPaint().setStyle(Paint.Style.FILL_AND_STROKE);
-        settings.getPaint().setStrokeWidth(Ui.dp(this, 1));
-        settings.setTag("home_settings_button");
-        settings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
-        settings.setOnClickListener(v -> showSettingsScreen());
-        row.addView(settings);
-
-        resetButton = Ui.button(this, "", Ui.Kind.SOFT);
-        resetButton.setContentDescription("איפוס ליקוט");
-        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 1);
-        resetButton.setGravity(Gravity.CENTER);
-        resetButton.setPadding(0, 0, 0, 0);
-        resetButton.setMinWidth(0);
-        resetButton.setMinimumWidth(0);
-        resetButton.setText("🔄");
-        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
-        resetButton.setCompoundDrawables(null, null, null, null);
-        resetButton.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
-        resetButton.setOnClickListener(v -> confirmResetCollection());
-        LinearLayout.LayoutParams resetParams = (LinearLayout.LayoutParams) resetButton.getLayoutParams();
-        resetParams.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
-        resetButton.setLayoutParams(resetParams);
-        row.addView(resetButton);
-
         TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
+        title.setSingleLine(true);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
-        titleParams.setMargins(Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2), 0);
+        titleParams.setMarginEnd(Ui.dp(this, Ui.S2));
         row.addView(title, titleParams);
 
         String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
-        Button unified = buildViewModeIcon("COMBINED_SUM", "📄", "רשימה מאוחדת",
+        Button unified = buildViewModeIcon("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת",
                 "COMBINED_SUM".equals(mode));
-        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "📑", "רשימה לפי חשבון",
+        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון",
                 "COMBINED_BY_SOURCE".equals(mode));
-        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
-                Ui.dp(this, 48), Ui.dp(this, 44));
-        iconParams.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
-        row.addView(unified, iconParams);
-        LinearLayout.LayoutParams secondIconParams = new LinearLayout.LayoutParams(
-                Ui.dp(this, 48), Ui.dp(this, 44));
-        secondIconParams.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
-        row.addView(byAccount, secondIconParams);
+        unified.setTag("home_first_header_button");
+        headerButtons.clear();
+        row.addView(unified);
+        addHeaderSpacing(row, byAccount, Ui.S1);
 
+        resetButton = Ui.iconButton(this, Ui.IC_RESET, "איפוס ליקוט", false);
+        resetButton.setOnClickListener(v -> {
+            if (!confirmResetCollection()) showActionToast("אין סימוני איסוף לאיפוס");
+        });
+        addHeaderSpacing(row, resetButton, Ui.S3);
+
+        Button settings = Ui.iconButton(this, Ui.IC_SETTINGS, "הגדרות", false);
+        settings.setTag("home_settings_button");
+        settings.setOnClickListener(v -> showSettingsScreen());
+        addHeaderSpacing(row, settings, Ui.S1);
+        headerButtons.add(unified); headerButtons.add(byAccount);
+        headerButtons.add(resetButton); headerButtons.add(settings);
         return row;
+    }
+
+    private void addHeaderSpacing(LinearLayout row, View button, int startMarginDp) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                Ui.dp(this, Ui.ICON_BUTTON), Ui.dp(this, Ui.ICON_BUTTON));
+        lp.setMarginStart(Ui.dp(this, startMarginDp));
+        row.addView(button, lp);
     }
 
     private String appVersionName() {
@@ -2400,108 +2619,12 @@ public class MainActivity extends Activity {
         parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
     }
 
-    /** אייקון מסמך יחיד או ערימת מסמכים, לציון סוג תצוגת ההזמנה. */
-    private static final class UserIconDrawable extends Drawable {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final boolean multiple;
-        private final int size;
-        UserIconDrawable(android.content.Context context, boolean multiple, boolean active) {
-            this.multiple = multiple; this.size = Ui.dp(context, 28);
-            paint.setColor(active ? Ui.P800 : Ui.P600);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Ui.dp(context, 2));
-            paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setStrokeJoin(Paint.Join.ROUND);
-        }
-        private void document(Canvas canvas, float left, float top, float right, float bottom) {
-            android.graphics.RectF rect = new android.graphics.RectF(left, top, right, bottom);
-            canvas.drawRoundRect(rect, 1.8f, 1.8f, paint);
-            float x = left + 3.5f, width = right - left - 7f;
-            canvas.drawLine(x, top + 7f, x + width, top + 7f, paint);
-            canvas.drawLine(x, top + 11f, x + width, top + 11f, paint);
-            canvas.drawLine(x, top + 15f, x + width * .72f, top + 15f, paint);
-        }
-        @Override public void draw(Canvas canvas) {
-            android.graphics.Rect b = getBounds();
-            if (b.isEmpty()) return;
-            int save = canvas.save();
-            canvas.translate(b.left, b.top);
-            canvas.scale(b.width()/24f, b.height()/24f);
-            if (multiple) {
-                // Three clearly separated page silhouettes; the front sheet stays
-                // large enough to read at the 26dp toolbar size.
-                document(canvas, 7.0f, 1.5f, 21.5f, 18.5f);
-                document(canvas, 5.0f, 3.5f, 19.5f, 20.5f);
-                document(canvas, 2.5f, 5.5f, 17.5f, 22.5f);
-            } else {
-                document(canvas, 5.0f, 2.0f, 19.0f, 22.0f);
-            }
-            canvas.restoreToCount(save);
-        }
-        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
-        @Override public void setColorFilter(android.graphics.ColorFilter filter) { paint.setColorFilter(filter); invalidateSelf(); }
-        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
-        @Override public int getIntrinsicWidth() { return size; }
-        @Override public int getIntrinsicHeight() { return size; }
-    }
-
-    /** חץ איפוס עגול, מצויר כווקטור כדי שיהיה חד וברור בכל גודל וגופן. */
-    private static final class ResetIconDrawable extends Drawable {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path path = new Path();
-        private final int size;
-        ResetIconDrawable(android.content.Context context) {
-            size = Ui.dp(context, 25);
-            paint.setColor(Ui.P800);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Ui.dp(context, 3));
-            paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setStrokeJoin(Paint.Join.ROUND);
-        }
-        @Override public void draw(Canvas canvas) {
-            android.graphics.Rect b = getBounds();
-            if (b.isEmpty()) return;
-            int save = canvas.save();
-            canvas.translate(b.left, b.top);
-            canvas.scale(b.width()/24f, b.height()/24f);
-            canvas.drawArc(4.0f, 4.0f, 20.0f, 20.0f, 48.0f, 285.0f, false, paint);
-            path.reset();
-            path.moveTo(14.5f, 3.2f);
-            path.lineTo(20.2f, 3.5f);
-            path.lineTo(19.7f, 9.1f);
-            canvas.drawPath(path, paint);
-            canvas.restoreToCount(save);
-        }
-        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
-        @Override public void setColorFilter(android.graphics.ColorFilter filter) { paint.setColorFilter(filter); invalidateSelf(); }
-        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
-        @Override public int getIntrinsicWidth() { return size; }
-        @Override public int getIntrinsicHeight() { return size; }
-    }
-
-    private Button buildViewModeIcon(String mode, String symbol, String description, boolean active) {
-        Button button = Ui.button(this, "", Ui.Kind.SOFT);
-        button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22);
-        button.setGravity(Gravity.CENTER);
-        Drawable modeIcon = new UserIconDrawable(this, "📑".equals(symbol), active);
-        int iconSize = Ui.dp(this, 26);
-        // Compound drawables need explicit bounds; without them Android draws nothing.
-        modeIcon.setBounds(0, 0, iconSize, iconSize);
-        button.setCompoundDrawables(null, modeIcon, null, null);
-        button.setCompoundDrawablePadding(Ui.dp(this, 1));
-        button.setContentDescription(description);
+    private Button buildViewModeIcon(String mode, int icon, String description, boolean active) {
+        Button button = Ui.iconButton(this, icon, description, active);
         button.setEnabled(!syncAllRunning);
-        // Use the same focus/pressed treatment as every other action button.
-        // This prevents the platform's default dark focus rectangle during keyboard navigation.
-        button.setBackground(Ui.interactive(this,
-                active ? Ui.P200 : Ui.SURFACE,
-                active ? Ui.P600 : Ui.P200,
-                active ? Ui.P200 : Ui.P100,
-                active ? Ui.P900 : Ui.P700,
-                Ui.R_BUTTON));
-        button.setTextColor(active ? Ui.P800 : Ui.MUTED);
         button.setOnClickListener(v -> {
             if (syncAllRunning) return;
+            if (active) return;
             sourceRegistry.setViewMode(mode);
             showingSavedList=false;
             showHomeScreen(false);
@@ -2574,6 +2697,8 @@ public class MainActivity extends Activity {
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
         page.addView(messageText);
+        // כפתור "לנסות שוב" מוצג רק אחרי כשל סנכרון. בעבר הוא נוצר אך מעולם לא נוסף למסך.
+        page.addView(buildRetryButton(), Ui.row(this, 0, Ui.S2));
         searchEmptyText = Ui.banner(this, "לא נמצאו פריטים שמתאימים לחיפוש.");
         searchEmptyText.setVisibility(View.GONE);
         page.addView(searchEmptyText);
@@ -2596,24 +2721,29 @@ public class MainActivity extends Activity {
     }
 
     private void showSyncMessage(String value, boolean canRetry) {
-        if (messageText != null) {
-            messageText.setText(value == null ? "" : value);
-            messageText.setVisibility(value == null || value.isEmpty() ? View.GONE : View.VISIBLE);
+        String text = value == null ? "" : value.trim();
+        if (screen != Screen.HOME || messageText == null) {
+            // מחוץ למסך הרשימה אין שורת הודעות; הודעה חשובה מוצגת כ-Toast במקום להיעלם.
+            if (!text.isEmpty()) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+            return;
         }
+        messageText.setText(text);
+        messageText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
         if (retryButton != null) {
-            boolean combinedSync = combinedView && !syncAllRunning;
-            if (combinedSync) retryButton.setText("סנכרן את כל החיבורים");
-            retryButton.setVisibility(canRetry || combinedSync ? View.VISIBLE : View.GONE);
+            retryButton.setText(combinedView || (sourceRegistry != null && sourceRegistry.all().size() > 1)
+                    ? "סנכרן את כל החיבורים שוב" : "לנסות לסנכרן שוב");
+            retryButton.setVisibility(canRetry && !syncAllRunning ? View.VISIBLE : View.GONE);
         }
     }
 
-    private void confirmResetCollection() {
+    /** פותח אישור איפוס. מחזיר false כשאין מה לאפס, כדי שהמסך יציג הודעה במקום לשתוק. */
+    private boolean confirmResetCollection() {
         boolean hasTicks = !collected.isEmpty() || !partialCollected.isEmpty();
         if (combinedView) {
             for (java.util.List<SourcePart> parts : combinedParts.values())
                 for (SourcePart part : parts) if (part.collected || part.partialQuantity > 0) hasTicks = true;
         }
-        if (!hasTicks) return;
+        if (!hasTicks) return false;
         showModernConfirm("איפוס האיסוף", "להחזיר את כל המוצרים לרשימת הממתינים?", "איפוס", () -> {
             if (combinedView) {
                 for (String key : new ArrayList<>(combinedParts.keySet())) {
@@ -2634,7 +2764,9 @@ public class MainActivity extends Activity {
             syncCompletionState();
             renderProducts(false);
             pageScroll.post(this::focusFirstPending);
+            showActionToast("כל המוצרים הוחזרו לרשימת הממתינים");
         });
+        return true;
     }
 
     private void confirmLogout() {
@@ -3323,7 +3455,7 @@ public class MainActivity extends Activity {
         if (displayMode != 0) {
             if (!product.imagePath.isEmpty()) loadLegacyProductImage(product, views.image);
             else if (!product.imageUrl.isEmpty()) loadProductImage(product.imageUrl, views.image);
-            else views.image.setImageResource(android.R.drawable.ic_menu_gallery);
+            else views.image.setImageDrawable(Ui.photoPlaceholder(this));
         }
         // Every text/amount touch target explicitly routes taps to collection and long presses
         // to partial collection. This avoids child long-click listeners swallowing short taps.
@@ -3511,7 +3643,7 @@ public class MainActivity extends Activity {
         views.root.setFocusable(true);views.root.setFocusableInTouchMode(false);views.root.setTag("partial:"+product.key);
         views.root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         if(displayMode!=0){if(!product.imagePath.isEmpty())loadLegacyProductImage(product,views.image);
-            else if(!product.imageUrl.isEmpty())loadProductImage(product.imageUrl,views.image);else views.image.setImageResource(android.R.drawable.ic_menu_gallery);}
+            else if(!product.imageUrl.isEmpty())loadProductImage(product.imageUrl,views.image);else views.image.setImageDrawable(Ui.photoPlaceholder(this));}
         View.OnClickListener undo=v->applyPartialCollection(product.key,0);
         views.root.setOnClickListener(undo);views.name.setOnClickListener(undo);views.note.setOnClickListener(undo);views.amount.setOnClickListener(undo);
         View.OnLongClickListener edit=v->{showPartialCollectionDialog(product.key);return true;};
@@ -3748,20 +3880,37 @@ public class MainActivity extends Activity {
 
     private void wireFocusOrder() {
         if (pendingList == null || collectedList == null) return;
-        View first = pendingList.getChildCount() > 0 ? pendingList.getChildAt(0)
-                : (collectedList.getChildCount() > 0 ? collectedList.getChildAt(0) : null);
-        if (first != null) first.setNextFocusUpId(resetButton == null ? View.NO_ID : resetButton.getId());
-        View last = collectedList.getChildCount() > 0 ? collectedList.getChildAt(collectedList.getChildCount() - 1)
-                : (pendingList.getChildCount() > 0 ? pendingList.getChildAt(pendingList.getChildCount() - 1) : null);
-        if (last != null && logoutButton != null) last.setNextFocusDownId(logoutButton.getId());
-        if (resetButton != null && first != null) resetButton.setNextFocusDownId(first.getId());
-        if (logoutButton != null && last != null) logoutButton.setNextFocusUpId(last.getId());
+        View first = firstCard();
+        int firstId = first == null ? View.NO_ID : first.getId();
+        // מכפתורי הכותרת, מטה מוביל ישירות לפריט הראשון ולא לשדה החיפוש
+        // (שם מקשי הספרות היו מוקלדים כטקסט). לחיפוש מגיעים במקש 3.
+        for (View button : headerButtons) button.setNextFocusDownId(firstId);
+        if (searchInput != null) {
+            searchInput.setNextFocusDownId(firstId);
+            View top = headerButtons.isEmpty() ? null : headerButtons.get(0);
+            if (top != null) searchInput.setNextFocusUpId(top.getId());
+        }
+        if (retryButton != null && retryButton.getVisibility() == View.VISIBLE) retryButton.setNextFocusDownId(firstId);
+        if (first != null && !headerButtons.isEmpty()) first.setNextFocusUpId(headerButtons.get(0).getId());
+    }
+
+    private View firstCard() {
+        if (pendingList != null && pendingList.getChildCount() > 0) return pendingList.getChildAt(0);
+        if (collectedList != null && collectedList.getChildCount() > 0) return collectedList.getChildAt(0);
+        return null;
     }
 
     private void focusFirstPending() {
-        if (pendingList != null && pendingList.getChildCount() > 0) pendingList.getChildAt(0).requestFocus();
-        else if (collectedList != null && collectedList.getChildCount() > 0) collectedList.getChildAt(0).requestFocus();
-        else if (resetButton != null) resetButton.requestFocus();
+        View first = firstCard();
+        if (first != null) first.requestFocus();
+        else if (!headerButtons.isEmpty()) headerButtons.get(0).requestFocus();
+    }
+
+    private void focusLastCard() {
+        if (collectedList != null && collectedList.getChildCount() > 0)
+            collectedList.getChildAt(collectedList.getChildCount() - 1).requestFocus();
+        else if (pendingList != null && pendingList.getChildCount() > 0)
+            pendingList.getChildAt(pendingList.getChildCount() - 1).requestFocus();
     }
 
     private void loadLegacyProductImage(ProductRow product, ImageView target) {
@@ -3782,7 +3931,7 @@ public class MainActivity extends Activity {
                 return;
             }
         }
-        target.setImageResource(android.R.drawable.ic_menu_gallery);
+        target.setImageDrawable(Ui.photoPlaceholder(this));
         target.setTag(viewTag);
         imageLoader.execute(() -> {
             File source = new File(product.imagePath);
@@ -3844,13 +3993,13 @@ public class MainActivity extends Activity {
 
     private void loadProductImage(String imageUrl, ImageView target) {
         if (imageUrl == null || imageUrl.isEmpty()) {
-            target.setImageResource(android.R.drawable.ic_menu_gallery);
+            target.setImageDrawable(Ui.photoPlaceholder(this));
             return;
         }
         target.setTag(imageUrl);
         Bitmap cached = imageCache.get(imageUrl);
         if (cached != null) { target.setImageBitmap(cached); return; }
-        target.setImageResource(android.R.drawable.ic_menu_gallery);
+        target.setImageDrawable(Ui.photoPlaceholder(this));
 
         // Deduplicate both disk decoding and network downloads by URL. Repeated
         // renders attach their ImageView to the same in-flight cache operation.

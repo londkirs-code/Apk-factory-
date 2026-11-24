@@ -3,15 +3,22 @@ package org.mishnatyosef.pickup;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Color;
+import android.graphics.Path;
+import android.graphics.PixelFormat;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.ClipDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
+import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -24,7 +31,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-/** ריכוז מלא של צבעים, מידות ורכיבי ממשק. */
+/** ריכוז מלא של צבעים, מידות, אייקונים ורכיבי ממשק. */
 final class Ui {
     private Ui() {}
 
@@ -42,6 +49,8 @@ final class Ui {
             T_NOTE=15, T_BUTTON=18;
     static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=360,
             DIALOG_SIDE_MARGIN=40, IMAGE_SAMPLE_MIN=78, MAX_NAME_LINES=3, MAX_NOTE_LINES=2;
+    /** גודל אחיד לכל כפתורי האייקון בכותרות. */
+    static final int ICON_BUTTON=48, ICON_GLYPH=24;
 
     static int dp(Context c, int v) {
         return Math.round(v*c.getResources().getDisplayMetrics().density);
@@ -63,7 +72,25 @@ final class Ui {
         StateListDrawable s=new StateListDrawable();
         s.addState(new int[]{android.R.attr.state_focused},shape(c,fillFocus,radiusDp,6,borderFocus));
         s.addState(new int[]{android.R.attr.state_pressed},shape(c,fillFocus,radiusDp,6,borderFocus));
+        s.addState(new int[]{-android.R.attr.state_enabled},shape(c,P50,radiusDp,1,P200));
         s.addState(new int[]{},shape(c,fill,radiusDp,1,border));
+        return s;
+    }
+
+    /** רקע לשדות טקסט: מסגרת דקה במנוחה, מסגרת סגולה עבה כשהשדה בפוקוס. */
+    static StateListDrawable inputBackground(Context c) {
+        StateListDrawable s=new StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_focused},shape(c,SURFACE,R_BUTTON,3,P700));
+        s.addState(new int[]{},shape(c,SURFACE,R_BUTTON,1,P300));
+        return s;
+    }
+
+    /** מסגרת פוקוס לרכיבים שאינם כפתורים (מתגים ומחוונים), כדי שיהיה ברור איפה המקלדת נמצאת. */
+    static StateListDrawable focusFrame(Context c) {
+        StateListDrawable s=new StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_focused},shape(c,P100,R_BUTTON,3,P700));
+        s.addState(new int[]{android.R.attr.state_pressed},shape(c,P100,R_BUTTON,0,0));
+        s.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));
         return s;
     }
 
@@ -118,19 +145,23 @@ final class Ui {
     enum Kind { PRIMARY, SOFT, STRONG }
 
     static Button button(Context c,String label,Kind kind) {
+        return styleButton(c,new Button(c),label,kind);
+    }
+
+    private static Button styleButton(Context c,Button b,String label,Kind kind) {
         int fill,border,focusFill,focusBorder,color;
         switch(kind) {
             case PRIMARY: fill=P600;border=P600;focusFill=P700;focusBorder=P900;color=ON_DARK;break;
             case STRONG: fill=P900;border=P900;focusFill=P800;focusBorder=P400;color=ON_DARK;break;
             default: fill=P100;border=P300;focusFill=P200;focusBorder=P700;color=P800;break;
         }
-        Button b=new Button(c); b.setId(View.generateViewId()); b.setText(label);
+        b.setId(View.generateViewId()); b.setText(label);
         b.setAllCaps(false); b.setTextSize(TypedValue.COMPLEX_UNIT_SP,T_BUTTON);
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL)); b.setTextColor(color);
         if(Build.VERSION.SDK_INT>=21) b.setStateListAnimator(null);
         b.setFocusable(true); b.setFocusableInTouchMode(false);
         b.setBackground(interactive(c,fill,border,focusFill,focusBorder,R_BUTTON));
-        // Compact control dimensions while preserving the original 20sp label size.
+        // Compact control dimensions while preserving the original label size.
         b.setMinHeight(dp(c,44)); b.setMinimumHeight(dp(c,44));
         // Default breathing room for every vertically stacked action button.
         // Call sites in horizontal button groups provide their own side margins.
@@ -138,6 +169,194 @@ final class Ui {
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(c,S3),dp(c,S1),dp(c,S3),dp(c,S1));
         return b;
+    }
+
+    // ---------------------------------------------------------------------
+    // אייקונים וקטוריים. כל האייקונים מצוירים על משטח 24×24 עם עובי קו אחיד,
+    // ולכן הם חדים בכל גודל ובכל צפיפות מסך, ואינם תלויים בגופן האימוג׳י של המכשיר.
+    // ---------------------------------------------------------------------
+
+    static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
+            IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9;
+
+    static final class IconDrawable extends Drawable {
+        private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint fill=new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path=new Path();
+        private final RectF box=new RectF();
+        private final int icon, intrinsic;
+        private final float fraction;
+
+        /** sizeDp&lt;=0 יוצר אייקון ללא גודל טבעי, שממלא את הגבולות שהוא מקבל. */
+        IconDrawable(Context c,int icon,int color,int sizeDp,float fraction) {
+            this.icon=icon; this.intrinsic=sizeDp<=0?-1:dp(c,sizeDp);
+            this.fraction=fraction<=0?1f:fraction;
+            stroke.setStyle(Paint.Style.STROKE); stroke.setStrokeCap(Paint.Cap.ROUND);
+            stroke.setStrokeJoin(Paint.Join.ROUND); stroke.setColor(color);
+            fill.setStyle(Paint.Style.FILL); fill.setColor(color);
+        }
+
+        void setColor(int color) { stroke.setColor(color); fill.setColor(color); invalidateSelf(); }
+
+        @Override public void draw(Canvas canvas) {
+            Rect b=getBounds();
+            if(b.isEmpty()) return;
+            float side=Math.min(b.width(),b.height())*fraction;
+            int save=canvas.save();
+            canvas.translate(b.exactCenterX()-side/2f,b.exactCenterY()-side/2f);
+            canvas.scale(side/24f,side/24f);
+            stroke.setStrokeWidth(2f);
+            switch(icon) {
+                case IC_SETTINGS: drawGear(canvas); break;
+                case IC_RESET: drawReset(canvas); break;
+                case IC_LIST_SINGLE: drawSingleList(canvas); break;
+                case IC_LIST_STACK: drawStackedLists(canvas); break;
+                case IC_BACK:
+                    canvas.drawLine(5f,12f,19f,12f,stroke);
+                    path.reset(); path.moveTo(13f,6f); path.lineTo(19f,12f); path.lineTo(13f,18f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_CLOSE:
+                    canvas.drawLine(6.5f,6.5f,17.5f,17.5f,stroke);
+                    canvas.drawLine(17.5f,6.5f,6.5f,17.5f,stroke); break;
+                case IC_SEARCH:
+                    canvas.drawCircle(10.5f,10.5f,6.2f,stroke);
+                    canvas.drawLine(15.2f,15.2f,20f,20f,stroke); break;
+                case IC_PHOTO: drawPhoto(canvas); break;
+                case IC_HISTORY: drawHistory(canvas); break;
+                default: break;
+            }
+            canvas.restoreToCount(save);
+        }
+
+        private void drawGear(Canvas canvas) {
+            stroke.setStrokeWidth(1.8f);
+            path.reset();
+            for(int k=0;k<8;k++) {
+                double a=Math.toRadians(k*45-90);
+                double[] angles={a-Math.toRadians(17),a-Math.toRadians(9),a+Math.toRadians(9),a+Math.toRadians(17)};
+                double[] radii={7.3,9.8,9.8,7.3};
+                for(int j=0;j<4;j++) {
+                    float x=(float)(12+radii[j]*Math.cos(angles[j]));
+                    float y=(float)(12+radii[j]*Math.sin(angles[j]));
+                    if(k==0&&j==0) path.moveTo(x,y); else path.lineTo(x,y);
+                }
+            }
+            path.close();
+            canvas.drawPath(path,stroke);
+            canvas.drawCircle(12f,12f,3.1f,stroke);
+        }
+
+        private void drawReset(Canvas canvas) {
+            float r=7.6f, start=-25f, sweep=285f;
+            box.set(12-r,12-r,12+r,12+r);
+            canvas.drawArc(box,start,sweep,false,stroke);
+            double end=Math.toRadians(start+sweep);
+            float px=(float)(12+r*Math.cos(end)), py=(float)(12+r*Math.sin(end));
+            float tx=(float)-Math.sin(end), ty=(float)Math.cos(end);   // כיוון התנועה
+            float nx=(float)Math.cos(end), ny=(float)Math.sin(end);    // כיוון רדיאלי
+            path.reset();
+            path.moveTo(px+tx*3.4f,py+ty*3.4f);
+            path.lineTo(px+nx*3.1f-tx*0.6f,py+ny*3.1f-ty*0.6f);
+            path.lineTo(px-nx*3.1f-tx*0.6f,py-ny*3.1f-ty*0.6f);
+            path.close();
+            canvas.drawPath(path,fill);
+        }
+
+        private void drawSingleList(Canvas canvas) {
+            stroke.setStrokeWidth(1.8f);
+            box.set(5.5f,3f,18.5f,21f);
+            canvas.drawRoundRect(box,2.2f,2.2f,stroke);
+            canvas.drawLine(9f,8.5f,15f,8.5f,stroke);
+            canvas.drawLine(9f,12f,15f,12f,stroke);
+            canvas.drawLine(11f,15.5f,15f,15.5f,stroke);
+        }
+
+        private void drawStackedLists(Canvas canvas) {
+            stroke.setStrokeWidth(1.7f);
+            box.set(3f,8.5f,14.5f,21.5f);
+            canvas.drawRoundRect(box,1.8f,1.8f,stroke);
+            canvas.drawLine(6f,12.8f,11.5f,12.8f,stroke);
+            canvas.drawLine(6f,16.3f,11.5f,16.3f,stroke);
+            path.reset();
+            path.moveTo(7f,8.5f); path.lineTo(7f,5.5f); path.lineTo(18f,5.5f);
+            path.lineTo(18f,18f); path.lineTo(14.5f,18f);
+            path.moveTo(11f,5.5f); path.lineTo(11f,2.5f); path.lineTo(21.5f,2.5f);
+            path.lineTo(21.5f,14.5f); path.lineTo(18f,14.5f);
+            canvas.drawPath(path,stroke);
+        }
+
+        private void drawPhoto(Canvas canvas) {
+            stroke.setStrokeWidth(1.6f);
+            box.set(3f,5f,21f,19f);
+            canvas.drawRoundRect(box,2.5f,2.5f,stroke);
+            canvas.drawCircle(8.5f,10f,1.7f,stroke);
+            path.reset();
+            path.moveTo(4f,17.5f); path.lineTo(9.5f,12.5f); path.lineTo(13.5f,16f);
+            path.lineTo(16.5f,13.5f); path.lineTo(20f,16.5f);
+            canvas.drawPath(path,stroke);
+        }
+
+        private void drawHistory(Canvas canvas) {
+            stroke.setStrokeWidth(1.8f);
+            canvas.drawCircle(12f,12f,8.5f,stroke);
+            path.reset(); path.moveTo(12f,7.5f); path.lineTo(12f,12f); path.lineTo(15.5f,14f);
+            canvas.drawPath(path,stroke);
+        }
+
+        @Override public void setAlpha(int alpha) { stroke.setAlpha(alpha); fill.setAlpha(alpha); invalidateSelf(); }
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) {
+            stroke.setColorFilter(filter); fill.setColorFilter(filter); invalidateSelf();
+        }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+        @Override public int getIntrinsicWidth() { return intrinsic; }
+        @Override public int getIntrinsicHeight() { return intrinsic; }
+    }
+
+    /** כפתור שמצייר אייקון וקטורי במרכזו, עם אותו רקע, פוקוס והודעת פעולה כמו שאר הכפתורים. */
+    static final class IconButton extends Button {
+        private final IconDrawable icon;
+        private final int iconPx;
+        IconButton(Context c,IconDrawable icon,int iconDp) {
+            super(c); this.icon=icon; this.iconPx=dp(c,iconDp); icon.setCallback(this);
+        }
+        IconDrawable icon() { return icon; }
+        @Override protected boolean verifyDrawable(Drawable who) { return who==icon||super.verifyDrawable(who); }
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int l=(getWidth()-iconPx)/2, t=(getHeight()-iconPx)/2;
+            icon.setBounds(l,t,l+iconPx,t+iconPx);
+            icon.setAlpha(isEnabled()?255:110);
+            icon.draw(canvas);
+        }
+    }
+
+    /** כפתור אייקון בגודל אחיד. active מסמן מצב בחירה (למשל מצב התצוגה הפעיל). */
+    static Button iconButton(Context c,int icon,String description,boolean active) {
+        IconButton b=new IconButton(c,new IconDrawable(c,icon,active?P900:P700,ICON_GLYPH,1f),ICON_GLYPH);
+        styleButton(c,b,"",Kind.SOFT);
+        b.setPadding(0,0,0,0);
+        b.setMinWidth(0); b.setMinimumWidth(0);
+        b.setContentDescription(description);
+        b.setBackground(interactive(c,active?P200:SURFACE,active?P600:P200,
+                active?P300:P100,active?P900:P700,R_BUTTON));
+        b.setLayoutParams(new LinearLayout.LayoutParams(dp(c,ICON_BUTTON),dp(c,ICON_BUTTON)));
+        return b;
+    }
+
+    /** תמונת מקום למוצר שאין לו תמונה: מסגרת תמונה עדינה בגוון סגול בהיר. */
+    static Drawable photoPlaceholder(Context c) {
+        return new IconDrawable(c,IC_PHOTO,P400,0,0.55f);
+    }
+
+    /** כניסה רכה למסך חדש. מכבדת את ביטול האנימציות בהגדרות המכשיר. */
+    static void fadeIn(View view) {
+        if(view==null) return;
+        float scale=1f;
+        try { scale=Settings.Global.getFloat(view.getContext().getContentResolver(),
+                Settings.Global.ANIMATOR_DURATION_SCALE,1f); } catch(Exception ignored) { }
+        if(scale<=0f) { view.setAlpha(1f); return; }
+        view.setAlpha(0f);
+        view.animate().alpha(1f).setDuration(170L).start();
     }
 
     static final class CardViews {
@@ -157,6 +376,7 @@ final class Ui {
         boolean grid = mode == 5;
         float scale = mode == 1 ? .70f : mode == 2 ? .85f : mode == 4 ? 1.15f : 1f;
         LinearLayout root=new LinearLayout(c);
+        root.setId(View.generateViewId());
         root.setOrientation(grid ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         root.setGravity(Gravity.CENTER_VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); root.setFocusable(true);
@@ -172,9 +392,7 @@ final class Ui {
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
         image.setBackground(shape(c,P100,R_IMAGE,0,0));
         int size = compact ? 0 : grid ? dp(c,48) : Math.max(dp(c,28),Math.round(imageSize(c)*scale));
-        image.setLayoutParams(grid
-                ? new LinearLayout.LayoutParams(size,size)
-                : new LinearLayout.LayoutParams(size,size));
+        image.setLayoutParams(new LinearLayout.LayoutParams(size,size));
         if (compact) image.setVisibility(View.GONE);
 
         LinearLayout details=column(c);
@@ -191,8 +409,12 @@ final class Ui {
         details.setLayoutParams(detailsLp);
         TextView name=text(c,"",compact?14:T_NAME*scale,INK,true);
         name.setMaxLines(grid?2:(compact?1:MAX_NAME_LINES));
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        if (grid) name.setGravity(Gravity.CENTER);
         TextView note=text(c,"",compact?12:T_NOTE*scale,MUTED,false);
         note.setMaxLines(grid?2:MAX_NOTE_LINES);
+        note.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        if (grid) note.setGravity(Gravity.CENTER);
         note.setLayoutParams(row(c,1,0));
         details.addView(name); details.addView(note);
 
@@ -206,7 +428,10 @@ final class Ui {
             LinearLayout.LayoutParams imageLp=(LinearLayout.LayoutParams)image.getLayoutParams();
             imageLp.gravity=Gravity.CENTER_HORIZONTAL;
             image.setLayoutParams(imageLp);
-            amount.setLayoutParams(row(c,S1,0));
+            LinearLayout.LayoutParams amountLp=new LinearLayout.LayoutParams(-2,-2);
+            amountLp.topMargin=dp(c,S1); amountLp.gravity=Gravity.CENTER_HORIZONTAL;
+            amount.setMinWidth(dp(c,36));
+            amount.setLayoutParams(amountLp);
         }
         root.addView(image); root.addView(details); root.addView(amount);
         return new CardViews(root,image,name,note,amount);
