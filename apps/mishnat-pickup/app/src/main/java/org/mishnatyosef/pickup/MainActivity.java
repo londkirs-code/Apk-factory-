@@ -397,8 +397,7 @@ public class MainActivity extends Activity {
 
     private void submitLogin() {
         if (loginBusy || authHandled || loginEmailInput == null || loginPasswordInput == null) return;
-        final String email = loginEmailInput.getText().toString().trim();        final String password = loginPasswordInput.getText().toString();
-        if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        final String email = loginEmailInput.getText().toString().trim();        final String password = loginPasswordInput.getText().toString();        if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             showLoginError("כתובת האימייל חסרה או אינה תקינה. בדקו את הכתובת ונסו שוב.");
             loginEmailInput.requestFocus();
             return;
@@ -797,8 +796,7 @@ public class MainActivity extends Activity {
             }
         }
         if (layer.getParent() instanceof ViewGroup) {            ((ViewGroup) layer.getParent()).removeView(layer);
-        }
-    }
+        }    }
 
     /** Grid mode has card-only navigation; images and text children never receive DPAD focus. */
     private boolean handleGridNavigationKey(KeyEvent event) {
@@ -1197,7 +1195,6 @@ public class MainActivity extends Activity {
 
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
-
     private void showSettingsScreen() {
         if (sourceMergeInProgress) { showSyncMessage("המקור מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו.", false); return; }
@@ -1218,7 +1215,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · הכמות שנאספה מופיעה גם ב׳נאספו׳; בחירת הכמות וגודל התצוגה בסרגל הזזה; תוקנה רשת של שלושה כרטיסים."),
+                "בעדכון החדש · בורר הכמות מציג יחידות שלמות ואפשר לאשר ב־Enter; שינוי גודל התצוגה שומר על הפוקוס; רשת של שלושה כרטיסים אחידים עם ניווט מקשים בין הכרטיסים ויישור מימין לשמאל."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -1597,8 +1594,7 @@ public class MainActivity extends Activity {
         setContentView(scroll);Ui.systemBars(this);
     }
     private void leaveSavedListsScreen() {
-        boolean toLogin=savedListsReturnToLogin;
-        savedListsScreenVisible=false;savedListsReturnToLogin=false;
+        boolean toLogin=savedListsReturnToLogin;        savedListsScreenVisible=false;savedListsReturnToLogin=false;
         if(toLogin)showLoginScreen("");else showHomeScreen(false);
     }
 
@@ -1997,8 +1993,7 @@ public class MainActivity extends Activity {
         buttons.setGravity(Gravity.CENTER_VERTICAL);
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         Button approve = Ui.button(this, positive, Ui.Kind.STRONG);
-        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);
-        first.setMargins(0, 0, Ui.dp(this, Ui.S2), 0);
+        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, -2, 1f);        first.setMargins(0, 0, Ui.dp(this, Ui.S2), 0);
         LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, -2, 1f);
         second.setMargins(Ui.dp(this, Ui.S2), 0, 0, 0);
         buttons.addView(cancel, first);
@@ -2397,8 +2392,7 @@ public class MainActivity extends Activity {
             // Store list data immediately. Image downloads are independent background work.
             // The URL-keyed image cache persists across orders and account switches.
             imageFile = "";
-            JSONObject item = new JSONObject();
-            item.put("key", row.key);
+            JSONObject item = new JSONObject();            item.put("key", row.key);
             item.put("name", row.name);
             item.put("image_url", row.imageUrl);
             item.put("amount", row.amount);
@@ -2797,8 +2791,7 @@ public class MainActivity extends Activity {
         card.product=product;String detail=(product.note==null||product.note.isEmpty()?"":product.note+" · ")+"נאספו חלקית · הקשה להחזרה";
         Ui.bindProduct(card.views,product.name,detail,formatQuantity(quantity),true);
         card.views.name.setPaintFlags(card.views.name.getPaintFlags()&~Paint.STRIKE_THRU_TEXT_FLAG);
-        card.views.name.setTextColor(Ui.INK);card.views.amount.setTextColor(Ui.P800);card.views.image.setAlpha(1f);
-    }
+        card.views.name.setTextColor(Ui.INK);card.views.amount.setTextColor(Ui.P800);card.views.image.setAlpha(1f);    }
     private int partialInsertionIndex(ProductRow product){
         int index=0;for(ProductRow candidate:products){if(candidate.key.equals(product.key))break;
             if(matchesSearch(candidate)&&(collected.contains(candidate.key)||collectedQuantity(candidate)>0))index++;}
@@ -3197,7 +3190,6 @@ public class MainActivity extends Activity {
             }
         });
     }
-
     private void logout() {
         if (sourceMergeInProgress) { showSyncMessage("החשבון מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("המתינו לסיום הסנכרון לפני התנתקות.", false); return; }
@@ -3597,8 +3589,7 @@ public class MainActivity extends Activity {
         if (message == null || message.trim().isEmpty()) return "אירעה שגיאה לא צפויה.";
         if (exception instanceof java.net.UnknownHostException || exception instanceof java.net.ConnectException) return "אין חיבור לאינטרנט או לשרת משנת יוסף.";
         if (exception instanceof java.net.SocketTimeoutException) return "השרת לא הגיב בזמן. אפשר לנסות שוב.";
-        return message;
-    }
+        return message;    }
 
     private boolean isAuthError(String message) { return message != null && message.startsWith("AUTH_REQUIRED:"); }
 
