@@ -1018,17 +1018,18 @@ public class MainActivity extends Activity {
 
     private void setDisplayModeFromSlider(int mode) {
         int normalized = Math.max(0, Math.min(5, mode));
+        // displayMode is the single source of truth for the shortcut and Settings slider.
         displayMode = normalized;
+        if (displaySizeSlider != null && displaySizeSlider.getProgress() != normalized)
+            displaySizeSlider.setProgress(normalized);
         uiPreferences.edit().putInt("display_mode", normalized).apply();
     }
 
     private void cycleDisplayMode() {
         final String[] labels = {"צ׳ק ליסט צפוף", "70%", "85%", "100%", "115%", "רשת · 3 כרטיסים בשורה"};
-        int current = displaySizeSlider != null
-                ? displaySizeSlider.getProgress() : displayMode;
-        int next = (current + 1) % labels.length;
-        // Key 1 changes the very same SeekBar value used in Settings.
-        if (displaySizeSlider != null) displaySizeSlider.setProgress(next);
+        // Never read from a possibly stale SeekBar: key 1 advances the exact persisted
+        // setting that Settings displays when it is opened.
+        int next = (displayMode + 1) % labels.length;
         setDisplayModeFromSlider(next);
         renderProducts(false);
         wireFocusOrder();
@@ -1435,7 +1436,7 @@ public class MainActivity extends Activity {
 
         content.addView(Ui.section(this, "מה חדש"));
         content.addView(Ui.banner(this,
-                "בעדכון החדש · רטט משופר עם דפוסי משוב ברורים, מנגינת ניצחון בסיום האיסוף, קיצורי מקשים מלאים, חיפוש בעברית ואייקונים מחודשים למצבי הרשימה."),
+                "בעדכון החדש · מקש 1 ומחוון גודל התצוגה משתמשים באותה הגדרה בדיוק; תצוגת הרשת נשארת מסודרת לפי סדר הפריטים גם בזמן סימון, והשורה האחרונה מיושרת לימין עם מקום ריק משמאל."),
                 Ui.row(this, 0, Ui.S2));
         content.addView(Ui.section(this, "סיכום מהיר"));
         content.addView(buildSettingsStats(), Ui.row(this, 0, Ui.S2));
@@ -2901,6 +2902,10 @@ public class MainActivity extends Activity {
                 }else if(partialCard.row.getParent() instanceof ViewGroup)((ViewGroup)partialCard.row.getParent()).removeView(partialCard.row);
             }
         }
+        // Grid positions are rebuilt from the original product order after every state
+        // change. This keeps both sections stable when cards move between pending and
+        // collected, and explicitly leaves any incomplete row's empty cells on the left.
+        reflowGridListsInProductOrder();
         lastRenderedDisplayMode = displayMode;
         int visibleCount = 0; for(ProductRow p:products) if(matchesSearch(p)) visibleCount++;
         if (searchEmptyText != null) searchEmptyText.setVisibility(!searchQuery.trim().isEmpty() && visibleCount==0 ? View.VISIBLE : View.GONE);
@@ -2917,6 +2922,33 @@ public class MainActivity extends Activity {
                 if (restore == null || !restore.row.requestFocus()) focusFirstPending();
             });
         }
+    }
+
+    private void reflowGridListsInProductOrder() {
+        if (displayMode != 5 || !(pendingList instanceof GridLayout)
+                || !(collectedList instanceof GridLayout)) return;
+
+        ArrayList<ProductCard> pendingOrder = new ArrayList<>();
+        ArrayList<ProductCard> collectedOrder = new ArrayList<>();
+        for (ProductRow product : products) {
+            if (!matchesSearch(product)) continue;
+            ProductCard full = productCards.get(product.key);
+            if (full != null) {
+                ViewParent parent = full.row.getParent();
+                if (parent == pendingList) pendingOrder.add(full);
+                else if (parent == collectedList) collectedOrder.add(full);
+            }
+            ProductCard partial = partialCards.get(product.key);
+            if (partial != null && partial.row.getParent() == collectedList)
+                collectedOrder.add(partial);
+        }
+
+        pendingList.removeAllViews();
+        collectedList.removeAllViews();
+        for (int i = 0; i < pendingOrder.size(); i++)
+            pendingList.addView(pendingOrder.get(i).row, productLayoutParams(pendingList, i));
+        for (int i = 0; i < collectedOrder.size(); i++)
+            collectedList.addView(collectedOrder.get(i).row, productLayoutParams(collectedList, i));
     }
 
     private int insertionIndex(ViewGroup target, ProductRow product, boolean done) {
