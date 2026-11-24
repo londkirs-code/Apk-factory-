@@ -56,3 +56,6 @@ requested_at=2026-11-24T09:45:00+02:00
 
 Release 1.58: partial quantities displayed as separate collected cards; SeekBar quantity selection; display scale slider; saved-list top alignment and compact arrow back; weighted three-column card grid.
 requested_at=2026-11-24T12:00:00+02:00
+
+Final source sync for release 1.58 after compatibility and lazy-render checks.
+requested_at=2026-11-24T12:15:00+02:00
