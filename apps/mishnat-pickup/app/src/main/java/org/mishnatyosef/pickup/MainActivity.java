@@ -184,6 +184,7 @@ public class MainActivity extends Activity {
     private final List<JSONObject> historyOrders=new ArrayList<>();
     private LinearLayout historyContent;
     private Button historyMoreButton;
+    private ScrollView historyScroll;
     private Button viewModeButton;
     private SeekBar displaySizeSlider;
     private String focusRestoreKey;
@@ -1721,7 +1722,8 @@ public class MainActivity extends Activity {
     private static final String WHATS_NEW =
             "• עיצוב חדש לכל האפליקציה: גווני סגול נקיים, טקסט גדול וברור שלא נחתך, ושוליים מסודרים גם במסכים קטנים.\n"
             + "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
-            + "• שם הרשימה בכותרת הוא כפתור: מעבר לרשימה שמורה אחרת, שינוי שם, איחוד רשימות וחזרה להזמנה העדכנית.\n"
+            + "• לחיצה על שם הרשימה בכותרת מציגה מיד את כל הרשימות לבחירה, עם כפתור לפעולות לרשימה ולהגדרות.\n"
+            + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
             + "• איחוד כמה רשימות לרשימה חדשה.\n"
             + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
@@ -2425,6 +2427,9 @@ public class MainActivity extends Activity {
         historyContent=content;historyMoreButton=null;
         content.addView(Ui.banner(this,"טוען הזמנות קודמות…"));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+        historyScroll=scroll;
+        // גלילה (או מעבר במקשים) קרוב לתחתית טוענת אוטומטית את ההזמנות הישנות הבאות.
+        scroll.getViewTreeObserver().addOnScrollChangedListener(this::maybeLoadMoreHistory);
         presentScreen(scroll,Screen.HISTORY);
         View back=content.findViewWithTag("screen_back_button");if(back!=null)back.requestFocus();
         loadOrderHistoryPage(1);
@@ -2469,6 +2474,15 @@ public class MainActivity extends Activity {
             }
         });
     }
+    private void maybeLoadMoreHistory() {
+        ScrollView scroll=historyScroll;
+        if(screen!=Screen.HISTORY||scroll==null||historyLoading||historyPage<1||historyPage>=historyLastPage)return;
+        View child=scroll.getChildAt(0);
+        if(child==null)return;
+        int remaining=child.getHeight()-(scroll.getScrollY()+scroll.getHeight());
+        if(remaining<=Ui.dp(this,320))loadOrderHistoryPage(historyPage+1);
+    }
+
     private void focusFirstHistoryItem() {
         if(historyContent==null)return;
         for(int i=2;i<historyContent.getChildCount();i++){View child=historyContent.getChildAt(i);
@@ -2498,7 +2512,9 @@ public class MainActivity extends Activity {
             line.addView(info,infoLp);
             historyContent.addView(line,Ui.row(this,0,Ui.S2));
         }
-        if(historyPage<historyLastPage){historyMoreButton=Ui.button(this,"טען הזמנות ישנות יותר",Ui.Kind.PRIMARY);historyMoreButton.setOnClickListener(v->loadOrderHistoryPage(historyPage+1));historyContent.addView(historyMoreButton,Ui.row(this,0,Ui.S3));}else historyMoreButton=null;
+        // אם יש עוד עמודים והמסך עדיין לא מלא, ממשיכים לטעון בלי לחכות לגלילה.
+        if(historyScroll!=null)historyScroll.post(this::maybeLoadMoreHistory);
+        if(historyPage<historyLastPage){historyMoreButton=Ui.button(this,"טוען הזמנות ישנות יותר…",Ui.Kind.SOFT);historyMoreButton.setOnClickListener(v->loadOrderHistoryPage(historyPage+1));historyContent.addView(historyMoreButton,Ui.row(this,0,Ui.S3));}else historyMoreButton=null;
         // אחרי "טען עוד" הפוקוס נשאר במקום הגיוני: על כפתור טען עוד החדש או על הפריט האחרון.
         if(moreHadFocus){
             if(historyMoreButton!=null)historyMoreButton.requestFocus();
@@ -2560,18 +2576,53 @@ public class MainActivity extends Activity {
         if (first != null) first.requestFocus(); else cancel.requestFocus();
     }
 
-    /** לחיצה על שם הרשימה בכותרת: מעבר לרשימה אחרת, שינוי שם, איחוד, או חזרה להזמנה העדכנית. */
+    /** לחיצה על שם הרשימה בכותרת: הרשימות השמורות מוצגות מיד, לגלילה ובחירה. */
     private void showListSwitcher() {
+        List<SavedListStore.Entry> entries = savedListStore.list();
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "בחירת רשימה", Ui.T_NAME, Ui.P900, true));
+        LinearLayout body = Ui.column(this);
+        Button focus = null;
+        if (showingSavedList && !connectedAccounts().isEmpty()) {
+            Button latest = Ui.button(this, "ההזמנה העדכנית מהאתר", Ui.Kind.SOFT);
+            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
+            body.addView(latest, Ui.row(this, Ui.S1, Ui.S1));
+        }
+        for (SavedListStore.Entry entry : entries) {
+            boolean current = isDisplayedList(entry);
+            Button choose = Ui.button(this, displayTitle(entry) + "\n" + entry.itemCount + " פריטים"
+                    + (current ? " · מוצגת עכשיו" : ""), current ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+            choose.setOnClickListener(v -> { dialog.dismiss(); if (!isDisplayedList(entry)) openSavedList(entry); });
+            body.addView(choose, Ui.row(this, Ui.S1, Ui.S1));
+            if (focus == null || current) focus = choose;
+        }
+        if (entries.isEmpty())
+            body.addView(Ui.text(this, "אין עדיין רשימות שמורות.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, Ui.S2));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button options = Ui.button(this, "פעולות לרשימה", Ui.Kind.SOFT);
+        options.setOnClickListener(v -> { dialog.dismiss(); showListOptions(); });
+        Button settings = Ui.button(this, "הגדרות", Ui.Kind.SOFT);
+        settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
+        panel.addView(buttonPair(options, settings), Ui.row(this, Ui.S3, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.85f));
+        if (focus != null) focus.requestFocus(); else options.requestFocus();
+    }
+
+    /** פעולות לרשימה המוצגת: שינוי שם, איחוד רשימות, חזרה להזמנה העדכנית. */
+    private void showListOptions() {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, homeDisplayTitle(), Ui.T_NAME, Ui.P900, true));
         List<SavedListStore.Entry> entries = savedListStore.list();
-        Button openOther = Ui.button(this, "מעבר לרשימה שמורה אחרת", Ui.Kind.PRIMARY);
-        openOther.setEnabled(!entries.isEmpty());
-        openOther.setOnClickListener(v -> { dialog.dismiss();
-            pickSavedList("מעבר לרשימה", "", entry -> { if (!isDisplayedList(entry)) openSavedList(entry); }); });
-        panel.addView(openOther, Ui.row(this, Ui.S3, Ui.S1));
         if (showingSavedList) {
             Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.SOFT);
             latest.setEnabled(!connectedAccounts().isEmpty());
@@ -2594,7 +2645,8 @@ public class MainActivity extends Activity {
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
-        if (openOther.isEnabled()) openOther.requestFocus(); else close.requestFocus();
+        View firstAction = panel.getChildCount() > 1 ? panel.getChildAt(1) : close;
+        if (!firstAction.isEnabled() || !firstAction.requestFocus()) close.requestFocus();
     }
 
     /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */

@@ -202,7 +202,16 @@ final class Ui {
         // Call sites in horizontal button groups provide their own side margins.
         b.setLayoutParams(row(c,S2,S2));
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(c,S4),dp(c,S2),dp(c,S4),dp(c,S2));
+        // טקסט בכפתור לעולם לא נחתך: אין מגבלת שורות ואין קיצור, רוחב מינימלי של ערכת המערכת
+        // מבוטל (הוא דחף כפתורים צמודים מעבר לשטח), והריפוד הצדדי קטן יותר במסכים צרים.
+        b.setSingleLine(false);
+        b.setMaxLines(Integer.MAX_VALUE);
+        b.setEllipsize(null);
+        b.setHorizontallyScrolling(false);
+        b.setMinWidth(0); b.setMinimumWidth(0);
+        if(Build.VERSION.SDK_INT>=23) b.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_BALANCED);
+        int side=c.getResources().getConfiguration().screenWidthDp<360?S2+2:S4;
+        b.setPadding(dp(c,side),dp(c,S2),dp(c,side),dp(c,S2));
         return b;
     }
 
