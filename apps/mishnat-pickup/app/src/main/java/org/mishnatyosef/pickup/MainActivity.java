@@ -2573,10 +2573,12 @@ public class MainActivity extends Activity {
                 JSONArray rows = snapshot.optJSONArray("products");
                 if (rows == null || "-1".equals(orderId)) continue;
                 Set<String> ticks = new HashSet<>();
+                JSONObject partials = new JSONObject();
                 try {
-                    JSONArray saved = new JSONArray(sourceRegistry.prefs(source.id)
-                            .getString(DataGuard.COLLECTED_PREFIX + orderId, "[]"));
+                    SharedPreferences sourcePrefs=sourceRegistry.prefs(source.id);
+                    JSONArray saved = new JSONArray(sourcePrefs.getString(DataGuard.COLLECTED_PREFIX + orderId, "[]"));
                     for (int i=0;i<saved.length();i++) ticks.add(saved.optString(i,""));
+                    partials = new JSONObject(sourcePrefs.getString("partial_" + orderId, "{}"));
                 } catch (Exception ignored) { }
                 for (int i=0;i<rows.length();i++) {
                     JSONObject o=rows.optJSONObject(i); if(o==null) continue;
@@ -2590,7 +2592,8 @@ public class MainActivity extends Activity {
                             first(o,"image_url"),first(o,"amount"),first(o,"note"),imagePath);
                     if(original.key.isEmpty()||original.name.isEmpty())continue;
                     boolean done=ticks.contains(DataGuard.tick(original));
-                    SourcePart part=new SourcePart(source.id,orderId,original,done,source.label);
+                    double partial=done?parseQuantity(original.amount):Math.max(0,partials.optDouble(original.key,0));
+                    SourcePart part=new SourcePart(source.id,orderId,original,done,partial,source.label);
                     String displayKey="COMBINED_SUM".equals(sourceRegistry.viewMode())
                             ? original.key : source.id+"__"+original.key;
                     java.util.List<SourcePart> list=grouped.get(displayKey);
@@ -2613,9 +2616,12 @@ public class MainActivity extends Activity {
             ProductRow base=first.product;
             products.add(new ProductRow(entry.getKey(),base.name,base.imageUrl,amount,note,base.imagePath));
             combinedParts.put(entry.getKey(),parts);
-            boolean all=true;
-            for(SourcePart part:parts)if(!part.collected){all=false;break;}
+            boolean all=true;double collectedAmount=0;
+            for(SourcePart part:parts){double q=parseQuantity(part.product.amount);
+                if(!part.collected)all=false;
+                collectedAmount+=part.collected?q:Math.min(q,part.partialQuantity);}
             if(all)collected.add(entry.getKey());
+            else if(collectedAmount>0)partialCollected.put(entry.getKey(),collectedAmount);
         }
         syncCompletionState();
         if(products.isEmpty()) showSyncMessage("אין רשימות שמורות להצגה בתצוגה המאוחדת.", false);
@@ -2627,7 +2633,7 @@ public class MainActivity extends Activity {
         boolean any=false,all=true;
         StringBuilder detail=new StringBuilder();
         for(SourcePart part:parts) {
-            any|=part.collected; all&=part.collected;
+            any|=part.collected || part.partialQuantity>0; all&=part.collected;
             if(detail.length()>0)detail.append(" · ");
             detail.append(part.sourceLabel).append(" ").append(part.product.amount);
             if(part.product.note!=null&&!part.product.note.isEmpty())detail.append(" (").append(part.product.note).append(")");
@@ -2639,22 +2645,52 @@ public class MainActivity extends Activity {
     private void updateCombinedParts(String key, boolean done) {
         java.util.List<SourcePart> parts=combinedParts.get(key);
         if(parts==null)return;
-        for(SourcePart part:parts)part.collected=done;
+        for(SourcePart part:parts){part.collected=done;part.partialQuantity=done?parseQuantity(part.product.amount):0;}
+        partialCollected.remove(key);
         final java.util.List<SourcePart> copy=new ArrayList<>(parts);
         cacheWorker.execute(() -> {
             for(SourcePart part:copy) {
                 if(sourceRegistry.find(part.sourceId)==null)continue;
                 SharedPreferences prefs=sourceRegistry.prefs(part.sourceId);
-                Set<String> values=new HashSet<>();
+                Set<String> values=new HashSet<>();JSONObject partials=new JSONObject();
                 try {
                     JSONArray a=new JSONArray(prefs.getString(DataGuard.COLLECTED_PREFIX+part.orderId,"[]"));
                     for(int i=0;i<a.length();i++)values.add(a.optString(i,""));
+                    partials=new JSONObject(prefs.getString("partial_"+part.orderId,"{}"));
                 } catch(Exception ignored) { }
                 String tick=DataGuard.tick(part.product);
-                if(done)values.add(tick);else values.remove(tick);
-                JSONArray saved=new JSONArray();
-                for(String value:values)saved.put(value);
-                prefs.edit().putString(DataGuard.COLLECTED_PREFIX+part.orderId,saved.toString()).commit();
+                if(done){values.add(tick);partials.remove(part.product.key);}
+                else{values.remove(tick);partials.remove(part.product.key);}
+                JSONArray saved=new JSONArray();for(String value:values)saved.put(value);
+                prefs.edit().putString(DataGuard.COLLECTED_PREFIX+part.orderId,saved.toString())
+                        .putString("partial_"+part.orderId,partials.toString()).commit();
+            }
+        });
+    }
+
+    private void updateCombinedPartial(String key,double quantity) {
+        java.util.List<SourcePart> parts=combinedParts.get(key);if(parts==null)return;
+        double remaining=quantity,total=0;
+        for(SourcePart part:parts){double partTotal=parseQuantity(part.product.amount);total+=partTotal;
+            part.partialQuantity=Math.min(partTotal,Math.max(0,remaining));remaining-=part.partialQuantity;
+            part.collected=part.partialQuantity>=partTotal-0.000001;}
+        if(quantity>=total-0.000001){collected.add(key);partialCollected.remove(key);}
+        else{collected.remove(key);if(quantity>0)partialCollected.put(key,quantity);else partialCollected.remove(key);}
+        final java.util.List<SourcePart> copy=new ArrayList<>(parts);
+        cacheWorker.execute(()->{
+            for(SourcePart part:copy){if(sourceRegistry.find(part.sourceId)==null)continue;
+                SharedPreferences prefs=sourceRegistry.prefs(part.sourceId);Set<String> ticks=new HashSet<>();JSONObject partials=new JSONObject();
+                try{JSONArray a=new JSONArray(prefs.getString(DataGuard.COLLECTED_PREFIX+part.orderId,"[]"));
+                    for(int i=0;i<a.length();i++)ticks.add(a.optString(i,""));
+                    partials=new JSONObject(prefs.getString("partial_"+part.orderId,"{}"));
+                }catch(Exception ignored){}
+                String tick=DataGuard.tick(part.product);
+                if(part.collected){ticks.add(tick);partials.remove(part.product.key);}
+                else{ticks.remove(tick);if(part.partialQuantity>0)try{partials.put(part.product.key,part.partialQuantity);}catch(Exception ignored){}
+                    else partials.remove(part.product.key);}
+                JSONArray saved=new JSONArray();for(String value:ticks)saved.put(value);
+                prefs.edit().putString(DataGuard.COLLECTED_PREFIX+part.orderId,saved.toString())
+                        .putString("partial_"+part.orderId,partials.toString()).commit();
             }
         });
     }
@@ -3334,9 +3370,11 @@ public class MainActivity extends Activity {
         final String sourceId, orderId, sourceLabel;
         final ProductRow product;
         boolean collected;
-        SourcePart(String sourceId,String orderId,ProductRow product,boolean collected,String sourceLabel) {
+        double partialQuantity;
+        SourcePart(String sourceId,String orderId,ProductRow product,boolean collected,double partialQuantity,String sourceLabel) {
             this.sourceId=sourceId;this.orderId=orderId;this.product=product;
-            this.collected=collected;this.sourceLabel=sourceLabel==null?"חשבון":sourceLabel;
+            this.collected=collected;this.partialQuantity=partialQuantity;
+            this.sourceLabel=sourceLabel==null?"חשבון":sourceLabel;
         }
     }
 
