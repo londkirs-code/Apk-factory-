@@ -19,3 +19,6 @@ requested_at=2026-11-24T03:03:00+02:00
 
 Settings header position, close control, compact order/account statistics, and version 1.47.
 requested_at=2026-11-24T03:20:00+02:00
+
+Keyboard focus styling for both home view-mode buttons now matches the app's standard focused action buttons.
+requested_at=2026-11-24T06:50:00+02:00
