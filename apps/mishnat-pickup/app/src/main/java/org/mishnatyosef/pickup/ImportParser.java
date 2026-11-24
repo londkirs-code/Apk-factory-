@@ -28,7 +28,8 @@ final class ImportParser {
                     ? readZip(new LimitInputStream(in,MAX_ZIP),workDir)
                     : readLimited(in,MAX_JSON,"קובץ גדול מ־10MB.");
             int first=0;
-            while(first<raw.length&&(raw[first]==' '||raw[first]=='\\n'||raw[first]=='\\r'||raw[first]=='\\t'||(first==0&&(raw[first]&0xff)==0xef)))first++;
+            if(raw.length>=3&&(raw[0]&0xff)==0xef&&(raw[1]&0xff)==0xbb&&(raw[2]&0xff)==0xbf)first=3;
+            while(first<raw.length&&(raw[first]==' '||raw[first]=='\\n'||raw[first]=='\\r'||raw[first]=='\\t'))first++;
             if(first<raw.length&&raw[first]=='{')return parseJson(raw,workDir);
             return parseText(raw,workDir);
         } catch(Exception e){delete(workDir);throw e;}
