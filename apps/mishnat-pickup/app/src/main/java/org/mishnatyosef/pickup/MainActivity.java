@@ -786,6 +786,10 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showHomeScreen(boolean loadData) {
+        accountsScreenVisible = false;
+        logoutButton = null;
+        resetButton = null;
+        retryButton = null;
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
         LinearLayout header = buildHomeHeader();
@@ -1088,41 +1092,72 @@ public class MainActivity extends Activity {
         PreparedImport(SourceRegistry.Source s,File r,String o,long id,String f,JSONArray t){source=s;ready=r;owner=o;orderIdLong=id;orderId=String.valueOf(id);fingerprint=f;ticks=t;}
     }
 
-    private void showAccountsScreen() {
+    /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
+    private void showAccountsScreen() { showSettingsScreen(); }
+
+    private void showSettingsScreen() {
         if (sourceMergeInProgress) { showSyncMessage("המקור מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו.", false); return; }
         accountsScreenVisible = true;
-        LinearLayout root = Ui.screen(this);
-        root.addView(Ui.title(this, "חיבורים ורשימות"));
-        root.addView(Ui.banner(this, "כל הטוקנים הפעילים נסרקים ומסונכרנים בשווה. אין חיבור מועדף; כל רשימה וסימוני האיסוף נשמרים בנפרד. שמות החיבורים מוצגים לפי lname בלבד."));
+        LinearLayout content = Ui.screen(this);
+        content.addView(Ui.title(this, "הגדרות"));
+        content.addView(Ui.text(this, "כל הפעולות והניהול במקום אחד", Ui.T_NOTE, Ui.MUTED, false),
+                Ui.row(this, 0, Ui.S3));
+
+        content.addView(Ui.section(this, "סנכרון"));
+        Button sync = Ui.button(this, "סנכרן את כל החשבונות", Ui.Kind.PRIMARY);
+        sync.setOnClickListener(v -> syncAllAccounts());
+        content.addView(sync);
+        retryButton = buildRetryButton();
+        content.addView(retryButton);
+
+        content.addView(Ui.section(this, "פעולות ברשימה"));
+        content.addView(buildHomeActions());
+        Button importFile = Ui.button(this, "ייבוא קובץ (ZIP / JSON / TXT)", Ui.Kind.SOFT);
+        importFile.setOnClickListener(v -> openImportPicker());
+        content.addView(importFile);
+        Button importFolder = Ui.button(this, "ייבוא מתיקיית import", Ui.Kind.SOFT);
+        importFolder.setOnClickListener(v -> showImportFolder());
+        content.addView(importFolder);
+        File importDir = getExternalFilesDir("import");
+        content.addView(Ui.text(this, "אפשר להעתיק קבצים גם לתיקייה: "
+                + (importDir == null ? "לא זמינה" : importDir.getAbsolutePath()),
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S2, Ui.S3));
+
+        content.addView(Ui.section(this, "חשבונות ורשימות"));
+        content.addView(Ui.banner(this, "כל הטוקנים הפעילים מסונכרנים בשווה. כל רשימה וסימוני האיסוף נשמרים בנפרד. שמות החיבורים מוצגים לפי שם המשפחה בלבד."));
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             boolean imported = SourceRegistry.KIND_IMPORTED.equals(source.kind);
             boolean connected = !imported && secretStore.get(source.id) != null;
-            String status = imported ? "רשימה מיובאת" : (connected ? "טוקן פעיל" : "ממתין להתחברות");
-            String label = source.label == null || source.label.trim().isEmpty() ? "חיבור ללא שם" : source.label;
-            Button item = Ui.button(this, label + " · " + status, Ui.Kind.SOFT);
-            item.setLayoutParams(Ui.row(this, Ui.S2, Ui.S2));
+            String status = imported ? "רשימה מיובאת" : (connected ? "מחובר" : "ממתין להתחברות");
+            String label = source.label == null || source.label.trim().isEmpty()
+                    ? "חיבור ללא שם" : source.label;
+            Button item = Ui.button(this, label + "  ·  " + status, Ui.Kind.SOFT);
             item.setOnClickListener(v -> showSourceActions(source));
-            root.addView(item);
+            content.addView(item);
         }
-        Button add = Ui.button(this, "הוסף טוקן / התחבר לחשבון נוסף", Ui.Kind.PRIMARY);
-        add.setLayoutParams(Ui.row(this, Ui.S3, Ui.S2));
+        Button add = Ui.button(this, "הוסף חשבון או חיבור", Ui.Kind.PRIMARY);
         add.setOnClickListener(v -> beginAddAccount());
-        root.addView(add);
-        Button importFile = Ui.button(this, "ייבוא קובץ (ZIP / JSON / TXT)", Ui.Kind.SOFT);
-        importFile.setOnClickListener(v -> openImportPicker());
-        root.addView(importFile, Ui.row(this, Ui.S2, 0));
-        Button importFolder = Ui.button(this, "ייבוא מתיקיית import", Ui.Kind.SOFT);
-        importFolder.setOnClickListener(v -> showImportFolder());
-        root.addView(importFolder, Ui.row(this, Ui.S2, 0));
-        File importDir = getExternalFilesDir("import");
-        root.addView(Ui.text(this, "אפשר להעתיק קבצים גם לתיקייה: " + (importDir == null ? "לא זמינה" : importDir.getAbsolutePath()), Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S2, Ui.S2));
-        Button back = Ui.button(this, "חזרה לרשימה", Ui.Kind.SOFT);
-        back.setOnClickListener(v -> { accountsScreenVisible=false; showHomeScreen(false); });
-        root.addView(back);
-        setContentView(root);
+        content.addView(add);
+
+        content.addView(Ui.section(this, "חשבון פעיל"));
+        logoutButton = Ui.button(this, accessToken.isEmpty() ? "התחברות לחשבון" : "התנתקות", Ui.Kind.SOFT);
+        logoutButton.setOnClickListener(v -> {
+            if (accessToken.isEmpty()) beginAddAccount();
+            else confirmLogout();
+        });
+        content.addView(logoutButton);
+
+        Button back = Ui.button(this, "חזרה לרשימת האיסוף", Ui.Kind.SOFT);
+        back.setOnClickListener(v -> { accountsScreenVisible = false; showHomeScreen(false); });
+        content.addView(back, Ui.row(this, Ui.S3, 0));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+        setContentView(scroll);
         Ui.systemBars(this);
-        if (root.getChildCount() > 1) root.getChildAt(1).requestFocus();
+        if (content.getChildCount() > 1) content.getChildAt(1).requestFocus();
     }
 
     private void showSourceActions(SourceRegistry.Source source) {
@@ -1257,14 +1292,12 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeHeader() {
-        // Keep the title and the collected/progress bar fixed; all controls stay scrollable.
+        // כותרת ומד ההתקדמות נשארים קבועים; פעולות הניהול נמצאות בהגדרות.
         LinearLayout header = Ui.column(this);
         header.setPadding(Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S4),
                 Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S2));
         header.addView(buildHomeTitleRow());
-        imageModeHint = Ui.text(this, imageHintText(true), Ui.T_NOTE, Ui.MUTED, false);
-        imageModeHint.setLayoutParams(Ui.row(this, Ui.S1, 0));
-        header.addView(imageModeHint);
+        imageModeHint = null;
         header.addView(buildProgressCard(), Ui.row(this, Ui.S2, 0));
         return header;
     }
@@ -1273,47 +1306,57 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        logoutButton = Ui.button(this, accessToken.isEmpty() ? "התחברות" : "התנתקות", Ui.Kind.SOFT);
-        LinearLayout.LayoutParams logoutParams = new LinearLayout.LayoutParams(-2, -2);
-        logoutParams.setMargins(Ui.dp(this, Ui.S1), 0, Ui.dp(this, Ui.S1), 0);
-        logoutButton.setLayoutParams(logoutParams);
-        logoutButton.setOnClickListener(v -> {
-            if (accessToken.isEmpty()) showLoginScreen("");
-            else confirmLogout();
-        });
-        Button accounts = Ui.button(this, "חשבונות (" + (sourceRegistry == null ? 0 : sourceRegistry.all().size()) + ")", Ui.Kind.SOFT);
-        LinearLayout.LayoutParams accountsParams = new LinearLayout.LayoutParams(-2, -2);
-        accountsParams.setMargins(Ui.dp(this, Ui.S1), 0, Ui.dp(this, Ui.S1), 0);
-        accounts.setLayoutParams(accountsParams);
-        accounts.setOnClickListener(v -> showAccountsScreen());
         TextView title = Ui.text(this, "רשימת איסוף", Ui.T_TITLE, Ui.P900, true);
-        row.addView(logoutButton);
-        row.addView(accounts);
         row.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
+        Button unified = buildViewModeIcon("COMBINED_SUM", "▦", "רשימה מאוחדת",
+                "COMBINED_SUM".equals(mode));
+        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "☷", "רשימה לפי חשבון",
+                "COMBINED_BY_SOURCE".equals(mode));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
+                Ui.dp(this, 48), Ui.dp(this, 44));
+        iconParams.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
+        row.addView(unified, iconParams);
+        LinearLayout.LayoutParams secondIconParams = new LinearLayout.LayoutParams(
+                Ui.dp(this, 48), Ui.dp(this, 44));
+        secondIconParams.setMargins(Ui.dp(this, Ui.S1), 0, 0, 0);
+        row.addView(byAccount, secondIconParams);
+
+        Button settings = Ui.button(this, "⚙", Ui.Kind.SOFT);
+        settings.setContentDescription("הגדרות");
+        settings.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
+        settings.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
+        settings.setOnClickListener(v -> showSettingsScreen());
+        row.addView(settings);
         return row;
+    }
+
+    private Button buildViewModeIcon(String mode, String symbol, String description, boolean active) {
+        Button button = Ui.button(this, symbol, Ui.Kind.SOFT);
+        button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22);
+        button.setContentDescription(description);
+        button.setEnabled(!syncAllRunning);
+        button.setBackground(Ui.shape(this, active ? Ui.P200 : Ui.SURFACE,
+                Ui.R_BUTTON, active ? 2 : 1, active ? Ui.P600 : Ui.P200));
+        button.setTextColor(active ? Ui.P800 : Ui.MUTED);
+        button.setOnClickListener(v -> {
+            if (syncAllRunning) return;
+            sourceRegistry.setViewMode(mode);
+            showHomeScreen(false);
+        });
+        return button;
     }
 
     private Button buildRetryButton() {
         retryButton = Ui.button(this, "לנסות לסנכרן שוב", Ui.Kind.SOFT);
         retryButton.setVisibility(View.GONE);
-        retryButton.setOnClickListener(v -> loadLatestOrder());
-        return retryButton;
-    }
-
-    private Button buildViewModeButton() {
-        String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
-        String label = "COMBINED_SUM".equals(mode)
-                ? "תצוגה: רשימה מאוחדת" : "תצוגה: לפי חשבונות";
-        Button b = Ui.button(this, label, Ui.Kind.SOFT);
-        viewModeButton = b;
-        b.setEnabled(!syncAllRunning);
-        b.setOnClickListener(v -> {
-            String current = sourceRegistry.viewMode();
-            String next = "COMBINED_SUM".equals(current) ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
-            sourceRegistry.setViewMode(next);
-            showHomeScreen(false);
+        retryButton.setOnClickListener(v -> {
+            if (combinedView || sourceRegistry != null && sourceRegistry.all().size() > 1)
+                syncAllAccounts();
+            else loadLatestOrder();
         });
-        return b;
+        return retryButton;
     }
 
     private LinearLayout buildHomeActions() {
@@ -1350,7 +1393,7 @@ public class MainActivity extends Activity {
         percent.leftMargin = Ui.dp(this, Ui.S3);
         head.addView(progressPercent, percent);
         progressText = Ui.text(this, "נאספו 0 מתוך 0", Ui.T_BODY, Ui.P800, true);
-        progressText.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        progressText.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         head.addView(progressText, new LinearLayout.LayoutParams(0, -2, 1f));
         card.addView(head);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -1373,19 +1416,13 @@ public class MainActivity extends Activity {
                 Ui.dp(this, Ui.S5), Ui.dp(this, Ui.S6));
         page.setFocusable(false);
 
-        // Secondary controls and notices belong to the scrolling content, not the sticky header.
+        // מסך הבית נשאר ממוקד ברשימת האיסוף; כל פעולות הניהול נמצאות בהגדרות.
         page.addView(Ui.text(this,
-                "מה חדש: מסך התחברות מקורי דרך API עם הצגת שגיאות מפורטת; כל הטוקנים הפעילים מסונכרנים בשווה, ניהול חיבורים ושמירת תמונות משותפת.",
+                "מה חדש: תצוגה מאוחדת או לפי חשבון, עם שמירת רשימות וסימוני איסוף בנפרד לכל מקור.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         messageText = Ui.banner(this, "");
         messageText.setVisibility(View.GONE);
         page.addView(messageText);
-        page.addView(buildRetryButton());
-        page.addView(buildViewModeButton());
-        Button importFile = Ui.button(this, "ייבוא קובץ (ZIP / JSON / TXT)", Ui.Kind.SOFT);
-        importFile.setOnClickListener(v -> openImportPicker());
-        page.addView(importFile, Ui.row(this, Ui.S2, Ui.S2));
-        page.addView(buildHomeActions());
 
         pendingList = Ui.column(this);
         collectedList = Ui.column(this);
@@ -2374,7 +2411,7 @@ public class MainActivity extends Activity {
         if (first != null) first.setNextFocusUpId(resetButton == null ? View.NO_ID : resetButton.getId());
         View last = collectedList.getChildCount() > 0 ? collectedList.getChildAt(collectedList.getChildCount() - 1)
                 : (pendingList.getChildCount() > 0 ? pendingList.getChildAt(pendingList.getChildCount() - 1) : null);
-        if (last != null) last.setNextFocusDownId(logoutButton == null ? View.NO_ID : logoutButton.getId());
+        if (last != null && logoutButton != null) last.setNextFocusDownId(logoutButton.getId());
         if (resetButton != null && first != null) resetButton.setNextFocusDownId(first.getId());
         if (logoutButton != null && last != null) logoutButton.setNextFocusUpId(last.getId());
     }
