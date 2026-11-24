@@ -1,3 +1,5 @@
-requested_at=2026-11-24T19:10:00+02:00
+requested_at=2026-11-24T19:22:00+02:00
 
 Release 1.77: bolder settings/reset icons; purple vector user/account icons; move settings close X to opposite side; enable long completion haptic by default unless explicitly disabled and use a one-second pulse; make DPAD_UP and keypad 2 return to the top from the first pending item.
+
+Release 1.79: restore visible purple single-user and group icons in display-mode buttons by assigning explicit drawable bounds; preserve existing buttons and behavior.
