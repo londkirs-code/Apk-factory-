@@ -397,8 +397,7 @@ public class MainActivity extends Activity {
 
     private void submitLogin() {
         if (loginBusy || authHandled || loginEmailInput == null || loginPasswordInput == null) return;
-        final String email = loginEmailInput.getText().toString().trim();
-        final String password = loginPasswordInput.getText().toString();
+        final String email = loginEmailInput.getText().toString().trim();        final String password = loginPasswordInput.getText().toString();
         if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             showLoginError("כתובת האימייל חסרה או אינה תקינה. בדקו את הכתובת ונסו שוב.");
             loginEmailInput.requestFocus();
@@ -797,13 +796,65 @@ public class MainActivity extends Activity {
                 if (child instanceof ConfettiView) ((ConfettiView) child).stop();
             }
         }
-        if (layer.getParent() instanceof ViewGroup) {
-            ((ViewGroup) layer.getParent()).removeView(layer);
+        if (layer.getParent() instanceof ViewGroup) {            ((ViewGroup) layer.getParent()).removeView(layer);
         }
+    }
+
+    /** Grid mode has card-only navigation; images and text children never receive DPAD focus. */
+    private boolean handleGridNavigationKey(KeyEvent event) {
+        if (displayMode != 5 || event.getAction() != KeyEvent.ACTION_DOWN) return false;
+        int key = event.getKeyCode();
+        if (key != KeyEvent.KEYCODE_DPAD_LEFT && key != KeyEvent.KEYCODE_DPAD_RIGHT
+                && key != KeyEvent.KEYCODE_DPAD_UP && key != KeyEvent.KEYCODE_DPAD_DOWN) return false;
+
+        ProductCard focused = findProductCard(getCurrentFocus());
+        if (focused == null || focused.row == null) return false;
+        if (!(focused.row.getParent() instanceof ViewGroup)) return true;
+
+        ViewGroup container = (ViewGroup) focused.row.getParent();
+        int index = container.indexOfChild(focused.row);
+        int count = container.getChildCount();
+        if (index < 0 || count == 0) return true;
+
+        int column = index % 3;
+        int target = -1;
+        if (key == KeyEvent.KEYCODE_DPAD_LEFT) {
+            // In RTL, the next item in row order is visually to the left.
+            if (column < 2 && index + 1 < count) target = index + 1;
+        } else if (key == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            if (column > 0) target = index - 1;
+        } else if (key == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (index + 3 < count) target = index + 3;
+            else if (container == pendingList && collectedList != null
+                    && collectedList.getChildCount() > 0) {
+                return focusGridCard(collectedList, Math.min(column, collectedList.getChildCount() - 1));
+            }
+        } else if (key == KeyEvent.KEYCODE_DPAD_UP) {
+            if (index >= 3) target = index - 3;
+            else if (container == collectedList && pendingList != null
+                    && pendingList.getChildCount() > 0) {
+                int lastRowStart = ((pendingList.getChildCount() - 1) / 3) * 3;
+                return focusGridCard(pendingList,
+                        Math.min(lastRowStart + column, pendingList.getChildCount() - 1));
+            }
+        }
+        if (target >= 0) return focusGridCard(container, target);
+        // Do not let focus escape from the card grid to images, labels or other controls.
+        return true;
+    }
+
+    private boolean focusGridCard(ViewGroup container, int index) {
+        if (container == null || index < 0 || index >= container.getChildCount()) return true;
+        View target = container.getChildAt(index);
+        ProductCard card = findProductCard(target);
+        if (card != null) card.row.requestFocus();
+        else target.requestFocus();
+        return true;
     }
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (imageViewer != null && imageViewer.onKey(event)) return true;
+        if (handleGridNavigationKey(event)) return true;
         if (handleImageModeKey(event)) return true;
         if (celebration != null && event.getAction() == KeyEvent.ACTION_DOWN) dismissCelebration();
         if (!imageMode && !accountsScreenVisible && event.getKeyCode() == KeyEvent.KEYCODE_5) {
@@ -1197,8 +1248,7 @@ public class MainActivity extends Activity {
         content.addView(Ui.banner(this, "כל הטוקנים הפעילים מסונכרנים בשווה. כל רשימה וסימוני האיסוף נשמרים בנפרד. שמות החיבורים מוצגים לפי שם המשפחה בלבד."));
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             boolean imported = SourceRegistry.KIND_IMPORTED.equals(source.kind);
-            boolean connected = !imported && secretStore.get(source.id) != null;
-            String status = imported ? "רשימה מיובאת" : (connected ? "מחובר" : "ממתין להתחברות");
+            boolean connected = !imported && secretStore.get(source.id) != null;            String status = imported ? "רשימה מיובאת" : (connected ? "מחובר" : "ממתין להתחברות");
             String label = source.label == null || source.label.trim().isEmpty()
                     ? "חיבור ללא שם" : source.label;
             Button item = Ui.button(this, label + "  ·  " + status, Ui.Kind.SOFT);
@@ -1374,7 +1424,9 @@ public class MainActivity extends Activity {
         if (parent instanceof GridLayout) {
             GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
                     GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f));
-            lp.width=0;lp.height=ViewGroup.LayoutParams.WRAP_CONTENT;
+            lp.width=0;
+            // Fixed cell height keeps every card in the three-column grid visually identical.
+            lp.height=Ui.dp(this,176);
             lp.setMargins(Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2),Ui.dp(this,2));return lp;
         }
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
@@ -1410,9 +1462,14 @@ public class MainActivity extends Activity {
         final TextView current=Ui.text(this,labels[displayMode],Ui.T_BODY,Ui.P800,true);current.setGravity(Gravity.CENTER);
         SeekBar slider=new SeekBar(this);slider.setMax(5);slider.setProgress(displayMode);
         if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
-        Runnable apply=()->{int mode=slider.getProgress();if(mode==displayMode)return;
-            displayMode=mode;uiPreferences.edit().putInt("display_mode",mode).apply();
-            if(searchInput!=null)searchQuery=searchInput.getText().toString();showHomeScreen(false);showSettingsScreen();};
+        // Persist only the selected setting while the slider is moving. Rebuilding the home
+        // screen here used to destroy the settings view, steal focus and jump to the top.
+        Runnable apply=()->{
+            int mode=slider.getProgress();
+            if(mode==displayMode)return;
+            displayMode=mode;
+            uiPreferences.edit().putInt("display_mode",mode).apply();
+        };
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){current.setText(labels[progress]);}
             @Override public void onStartTrackingTouch(SeekBar bar){}
@@ -1462,16 +1519,19 @@ public class MainActivity extends Activity {
         ProductRow product=findProduct(key);
         if(product==null||parseQuantity(product.amount)<=1.000001)return;
         final double total=parseQuantity(product.amount);
-        final int steps=1000;
+        // The picker represents item units, never fractional quantities.
+        final int totalUnits=Math.max(1,(int)Math.floor(total+0.000001));
         final TextView selected=Ui.text(this,"",Ui.T_TITLE,Ui.P800,true);
         selected.setGravity(Gravity.CENTER);
-        SeekBar slider=new SeekBar(this);slider.setMax(steps);
+        SeekBar slider=new SeekBar(this);slider.setMax(Math.max(0,totalUnits-1));
         if(Build.VERSION.SDK_INT>=21){slider.setProgressTintList(Ui.tint(Ui.P600));slider.setThumbTintList(Ui.tint(Ui.P700));slider.setProgressBackgroundTintList(Ui.tint(Ui.P200));}
-        double initial=Math.max(1,Math.min(total,collectedQuantity(product)));
-        slider.setProgress((int)Math.round((initial-1.0)/(total-1.0)*steps));
-        selected.setText(formatQuantity(1.0+(total-1.0)*slider.getProgress()/steps)+" מתוך "+formatQuantity(total));
+        int initialUnits=Math.max(1,Math.min(totalUnits,(int)Math.round(collectedQuantity(product))));
+        slider.setProgress(initialUnits-1);
+        selected.setText((slider.getProgress()+1)+" מתוך "+totalUnits);
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){selected.setText(formatQuantity(1.0+(total-1.0)*progress/steps)+" מתוך "+formatQuantity(total));}
+            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){
+                selected.setText((progress+1)+" מתוך "+totalUnits);
+            }
             @Override public void onStartTrackingTouch(SeekBar bar){}
             @Override public void onStopTrackingTouch(SeekBar bar){}
         });
@@ -1482,7 +1542,16 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this,"הזיזו את הסרגל לבחירת הכמות שנאספה",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,0,Ui.S2));
         panel.addView(selected,Ui.row(this,Ui.S1,Ui.S1));panel.addView(slider,Ui.row(this,0,Ui.S4));
         Button save=Ui.button(this,"אישור הכמות",Ui.Kind.PRIMARY),cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
-        save.setOnClickListener(v->{dialog.dismiss();applyPartialCollection(key,1.0+(total-1.0)*slider.getProgress()/steps);});
+        save.setOnClickListener(v->{dialog.dismiss();applyPartialCollection(key,slider.getProgress()+1);});
+        // Enter / OK confirms directly from the quantity slider; no focus hop to the button.
+        slider.setOnKeyListener((v,keyCode,event)->{
+            if(event.getAction()==KeyEvent.ACTION_DOWN&&(keyCode==KeyEvent.KEYCODE_ENTER
+                    ||keyCode==KeyEvent.KEYCODE_NUMPAD_ENTER||keyCode==KeyEvent.KEYCODE_DPAD_CENTER)){
+                save.performClick();
+                return true;
+            }
+            return false;
+        });
         cancel.setOnClickListener(v->dialog.dismiss());panel.addView(save);panel.addView(cancel,Ui.row(this,Ui.S2,0));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
         slider.setFocusable(true);slider.setFocusableInTouchMode(true);slider.requestFocus();
@@ -1597,8 +1666,7 @@ public class MainActivity extends Activity {
         });
         if(!sourceId.equals(activeSourceId))switchSource(sourceId,activate);else activate.run();
     }
-    private String savedListFingerprint(JSONObject saved) {
-        String fingerprint=saved.optString("fingerprint","");
+    private String savedListFingerprint(JSONObject saved) {        String fingerprint=saved.optString("fingerprint","");
         if(!fingerprint.isEmpty())return fingerprint;
         JSONArray rows=saved.optJSONArray("products");
         if(rows==null)return "";
@@ -1997,8 +2065,7 @@ public class MainActivity extends Activity {
         else finish.run();
     }
 
-    private void loadLatestOrder() {
-        if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
+    private void loadLatestOrder() {        if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
         if (loading || accessToken.isEmpty()) return;
         final RequestSession session = new RequestSession(authGeneration, accessToken);
         final String requestSourceId = activeSourceId;
@@ -2397,8 +2464,7 @@ public class MainActivity extends Activity {
                 out.getFD().sync();
             }
             Bitmap bitmap = BitmapFactory.decodeFile(destination.getAbsolutePath());
-            if (bitmap == null) return false;
-            bitmap.recycle();
+            if (bitmap == null) return false;            bitmap.recycle();
             return destination.length() > 0;
         } catch (Exception e) { return false; }
         finally { if (connection != null) connection.disconnect(); }
@@ -2505,7 +2571,12 @@ public class MainActivity extends Activity {
         wireFocusOrder();
         if (!sameKeys) {
             pageScroll.post(() -> {
-                ProductCard restore = focusedKey == null ? null : productCards.get(focusedKey);
+                ProductCard restore = null;
+                if (focusedKey != null) {
+                    restore = focusedKey.startsWith("partial:")
+                            ? partialCards.get(focusedKey.substring(8))
+                            : productCards.get(focusedKey);
+                }
                 if (restore == null || !restore.row.requestFocus()) focusFirstPending();
             });
         }
@@ -2631,7 +2702,10 @@ public class MainActivity extends Activity {
     }
 
     private boolean handleImageModeKey(KeyEvent event) {
-        if (displayMode == 0 || event.getAction() != KeyEvent.ACTION_DOWN) return false;
+        if (displayMode == 0 || displayMode == 5 || event.getAction() != KeyEvent.ACTION_DOWN) {
+            if (displayMode == 5 && imageMode) setImageMode(false);
+            return false;
+        }
         ProductCard focused = findProductCard(getCurrentFocus());
         int key = event.getKeyCode();
         if (!imageMode) {
@@ -2797,8 +2871,7 @@ public class MainActivity extends Activity {
                 if(!part.collected)all=false;
                 collectedAmount+=part.collected?q:Math.min(q,part.partialQuantity);}
             if(all)collected.add(entry.getKey());
-            else if(collectedAmount>0)partialCollected.put(entry.getKey(),collectedAmount);
-        }
+            else if(collectedAmount>0)partialCollected.put(entry.getKey(),collectedAmount);        }
         syncCompletionState();
         if(products.isEmpty()) showSyncMessage("אין רשימות שמורות להצגה בתצוגה המאוחדת.", false);
         else showSyncMessage("", false);
@@ -3197,8 +3270,7 @@ public class MainActivity extends Activity {
                 if (array == null) array = nested.optJSONArray("data");
             }
             if (array == null) throw new Exception("השרת החזיר רשימת הזמנות במבנה לא מוכר.");
-            return array;
-        }
+            return array;        }
         throw new Exception("השרת לא החזיר רשימת הזמנות תקינה.");
     }
 
