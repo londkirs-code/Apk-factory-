@@ -892,16 +892,17 @@ public class MainActivity extends Activity {
             }
         }
         if (target >= 0) return focusGridCard(container, target);
-        if (key == KeyEvent.KEYCODE_DPAD_UP && index == 0 && container == pendingList)
+        // Every card in the first grid row can move focus to the fixed header.
+        if (key == KeyEvent.KEYCODE_DPAD_UP && container == pendingList && index < 3)
             return moveFocusToHomeTop();
         // Do not let focus escape from the card grid to images, labels or other controls.
         return true;
     }
 
     private boolean moveFocusToHomeTop() {
-        if (pageScroll != null) pageScroll.smoothScrollTo(0, 0);
+        if (pageScroll != null) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
         View topButton = getWindow().getDecorView().findViewWithTag("home_settings_button");
-        if (topButton != null) topButton.requestFocus();
+        if (topButton != null) topButton.post(() -> topButton.requestFocus());
         return true;
     }
 
@@ -2097,10 +2098,9 @@ public class MainActivity extends Activity {
         resetButton.setPadding(0, 0, 0, 0);
         resetButton.setMinWidth(0);
         resetButton.setMinimumWidth(0);
-        Drawable resetIcon = new ResetIconDrawable(this);
-        int resetIconSize = Ui.dp(this, 27);
-        resetIcon.setBounds(0, 0, resetIconSize, resetIconSize);
-        resetButton.setCompoundDrawables(null, resetIcon, null, null);
+        resetButton.setText("🔄");
+        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 23);
+        resetButton.setCompoundDrawables(null, null, null, null);
         resetButton.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
         resetButton.setOnClickListener(v -> confirmResetCollection());
         LinearLayout.LayoutParams resetParams = (LinearLayout.LayoutParams) resetButton.getLayoutParams();
