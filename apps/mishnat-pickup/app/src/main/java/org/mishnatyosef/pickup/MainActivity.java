@@ -2090,18 +2090,17 @@ public class MainActivity extends Activity {
         settings.setOnClickListener(v -> showSettingsScreen());
         row.addView(settings);
 
-        resetButton = Ui.button(this, "↻", Ui.Kind.SOFT);
+        resetButton = Ui.button(this, "", Ui.Kind.SOFT);
         resetButton.setContentDescription("איפוס ליקוט");
-        resetButton.setText("⟳");
-        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 26);
-        resetButton.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        resetButton.getPaint().setStyle(Paint.Style.FILL_AND_STROKE);
-        resetButton.getPaint().setStrokeWidth(Ui.dp(this, 1));
-        resetButton.setIncludeFontPadding(false);
+        resetButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 1);
         resetButton.setGravity(Gravity.CENTER);
         resetButton.setPadding(0, 0, 0, 0);
         resetButton.setMinWidth(0);
         resetButton.setMinimumWidth(0);
+        Drawable resetIcon = new ResetIconDrawable(this);
+        int resetIconSize = Ui.dp(this, 27);
+        resetIcon.setBounds(0, 0, resetIconSize, resetIconSize);
+        resetButton.setCompoundDrawables(null, resetIcon, null, null);
         resetButton.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 44)));
         resetButton.setOnClickListener(v -> confirmResetCollection());
         LinearLayout.LayoutParams resetParams = (LinearLayout.LayoutParams) resetButton.getLayoutParams();
@@ -2115,9 +2114,9 @@ public class MainActivity extends Activity {
         row.addView(title, titleParams);
 
         String mode = sourceRegistry == null ? "COMBINED_BY_SOURCE" : sourceRegistry.viewMode();
-        Button unified = buildViewModeIcon("COMBINED_SUM", "👤", "רשימה מאוחדת",
+        Button unified = buildViewModeIcon("COMBINED_SUM", "📄", "רשימה מאוחדת",
                 "COMBINED_SUM".equals(mode));
-        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "👥", "רשימה לפי חשבון",
+        Button byAccount = buildViewModeIcon("COMBINED_BY_SOURCE", "📑", "רשימה לפי חשבון",
                 "COMBINED_BY_SOURCE".equals(mode));
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
                 Ui.dp(this, 48), Ui.dp(this, 44));
@@ -2185,29 +2184,73 @@ public class MainActivity extends Activity {
         parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
     }
 
+    /** אייקון מסמך יחיד או ערימת מסמכים, לציון סוג תצוגת ההזמנה. */
     private static final class UserIconDrawable extends Drawable {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path path = new Path();
-        private final boolean group;
+        private final boolean multiple;
         private final int size;
-        UserIconDrawable(android.content.Context context, boolean group, boolean active) {
-            this.group = group; this.size = Ui.dp(context, 26);
+        UserIconDrawable(android.content.Context context, boolean multiple, boolean active) {
+            this.multiple = multiple; this.size = Ui.dp(context, 28);
             paint.setColor(active ? Ui.P800 : Ui.P600);
-            paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(Ui.dp(context, 2));
-            paint.setStrokeCap(Paint.Cap.ROUND); paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Ui.dp(context, 1.9f));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+        }
+        private void document(Canvas canvas, float left, float top, float right, float bottom) {
+            android.graphics.RectF rect = new android.graphics.RectF(left, top, right, bottom);
+            canvas.drawRoundRect(rect, 1.8f, 1.8f, paint);
+            float x = left + 3.5f, width = right - left - 7f;
+            canvas.drawLine(x, top + 7f, x + width, top + 7f, paint);
+            canvas.drawLine(x, top + 11f, x + width, top + 11f, paint);
+            canvas.drawLine(x, top + 15f, x + width * .72f, top + 15f, paint);
         }
         @Override public void draw(Canvas canvas) {
-            android.graphics.Rect b = getBounds(); if (b.isEmpty()) return;
-            int save = canvas.save(); canvas.translate(b.left, b.top);
+            android.graphics.Rect b = getBounds();
+            if (b.isEmpty()) return;
+            int save = canvas.save();
+            canvas.translate(b.left, b.top);
             canvas.scale(b.width()/24f, b.height()/24f);
-            if (group) {
-                canvas.drawCircle(8, 7, 2.8f, paint); canvas.drawCircle(16, 7, 2.8f, paint);
-                path.reset(); path.moveTo(1.5f,20.5f); path.cubicTo(2,15.5f,9.5f,14.8f,11.2f,20.5f); canvas.drawPath(path,paint);
-                path.reset(); path.moveTo(12.8f,20.5f); path.cubicTo(14.5f,14.8f,22,15.5f,22.5f,20.5f); canvas.drawPath(path,paint);
+            if (multiple) {
+                document(canvas, 7.0f, 2.0f, 20.5f, 19.0f);
+                document(canvas, 3.5f, 5.0f, 17.0f, 22.0f);
             } else {
-                canvas.drawCircle(12,7,3.2f,paint);
-                path.reset(); path.moveTo(4,21); path.cubicTo(4.5f,14.5f,19.5f,14.5f,20,21); canvas.drawPath(path,paint);
+                document(canvas, 5.0f, 2.0f, 19.0f, 22.0f);
             }
+            canvas.restoreToCount(save);
+        }
+        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) { paint.setColorFilter(filter); invalidateSelf(); }
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        @Override public int getIntrinsicWidth() { return size; }
+        @Override public int getIntrinsicHeight() { return size; }
+    }
+
+    /** חץ איפוס עגול, מצויר כווקטור כדי שיהיה חד וברור בכל גודל וגופן. */
+    private static final class ResetIconDrawable extends Drawable {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final int size;
+        ResetIconDrawable(android.content.Context context) {
+            size = Ui.dp(context, 25);
+            paint.setColor(Ui.P800);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Ui.dp(context, 2.5f));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+        }
+        @Override public void draw(Canvas canvas) {
+            android.graphics.Rect b = getBounds();
+            if (b.isEmpty()) return;
+            int save = canvas.save();
+            canvas.translate(b.left, b.top);
+            canvas.scale(b.width()/24f, b.height()/24f);
+            canvas.drawArc(4.0f, 4.0f, 20.0f, 20.0f, 48.0f, 285.0f, false, paint);
+            path.reset();
+            path.moveTo(14.5f, 3.2f);
+            path.lineTo(20.2f, 3.5f);
+            path.lineTo(19.7f, 9.1f);
+            canvas.drawPath(path, paint);
             canvas.restoreToCount(save);
         }
         @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
@@ -2221,7 +2264,7 @@ public class MainActivity extends Activity {
         Button button = Ui.button(this, "", Ui.Kind.SOFT);
         button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22);
         button.setGravity(Gravity.CENTER);
-        Drawable modeIcon = new UserIconDrawable(this, "👥".equals(symbol), active);
+        Drawable modeIcon = new UserIconDrawable(this, "📑".equals(symbol), active);
         int iconSize = Ui.dp(this, 26);
         // Compound drawables need explicit bounds; without them Android draws nothing.
         modeIcon.setBounds(0, 0, iconSize, iconSize);
