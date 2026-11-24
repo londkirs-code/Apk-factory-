@@ -1,3 +1,3 @@
-requested_at=2026-11-24T21:45:00+02:00
+requested_at=2026-11-24T21:55:00+02:00
 
-UI hotfix: replace reset vector with standard 🔄 emoji; fix DPAD_UP from every first-row grid card to header. Build latest main, compile/lint and verify package/version/signature continuity.
+Release 1.81: paginated order history, archive selected order independently, create blank saved lists, merge saved lists with confirmation, standard 🔄 reset emoji, grid top-row DPAD_UP to header. Build latest main; compile/lint and verify signing continuity.
