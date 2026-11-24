@@ -173,6 +173,9 @@ final class Ui {
         LayerDrawable layers=new LayerDrawable(new Drawable[]{track,fill});
         layers.setId(0,android.R.id.background); layers.setId(1,android.R.id.progress);
         p.setProgressDrawable(layers);
+        // בממשק מימין לשמאל אנדרואיד הופך את הפס ואז הוא מתמלא משמאל. נועלים את הכיוון,
+        // כך שהמילוי צמוד לימין ומתקדם שמאלה בכל המכשירים.
+        if(android.os.Build.VERSION.SDK_INT>=17)p.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         p.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(c,10)));
     }
 

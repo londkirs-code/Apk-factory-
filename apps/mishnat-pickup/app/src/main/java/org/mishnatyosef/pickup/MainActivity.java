@@ -1796,7 +1796,10 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• אפליקציה קלה יותר: האייקון החדש שוקל כ-19KB בלבד.\n"
+            "• פס התקדמות האיסוף מתמלא מימין לשמאל.\n"
+            + "• רשימת \"נאספו\" פשוטה: לפי א-ב, בלי כותרות מחלקה.\n"
+            + "• בהגדרות אפשר לבטל את כותרות המחלקה. המוצרים נשארים מסודרים לפי מחלקות ועם הצבעים, ברצף אחד.\n"
+            + "• אפליקציה קלה יותר: האייקון החדש שוקל כ-19KB בלבד.\n"
             + "• בהגדרות: מחיקת מטמון התמונות (עם הגודל שלו), ואפשרות להסתיר את הכמות לפי משפחה בתצוגה המאוחדת.\n"
             + "• עיצוב חדש לכל האפליקציה: גווני סגול נקיים, טקסט גדול וברור שלא נחתך, ושוליים מסודרים גם במסכים קטנים.\n"
             + "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
@@ -1890,6 +1893,8 @@ public class MainActivity extends Activity {
         LinearLayout display = settingsCard(content, "תצוגה ומשוב");
         addDisplaySettings(display);
         addFeedbackSettings(display);
+        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות מחלקה (כבוי: רצף אחד לפי מחלקות, עם הצבעים בלבד)",
+                true, Ui.S1, Ui.S1);
         display.addView(Ui.text(this, "תצוגה מאוחדת", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
         addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "הצגת כמות לפי משפחה (שם וכמות של כל חשבון)",
                 true, Ui.S1, Ui.S1);
@@ -4312,6 +4317,7 @@ public class MainActivity extends Activity {
         if (pendingList == null || collectedList == null) return;
         // כותרות המחלקות מוסרות לפני כל חישוב מיקום, ומוחזרות בסוף (decorateLists).
         removeCategoryHeaders();
+        collectedOrderCache = null;
         View focused = getCurrentFocus();
         Object focusedTag = focused == null ? null : focused.getTag();
         String focusedKey = focusRestoreKey != null ? focusRestoreKey
@@ -4393,8 +4399,33 @@ public class MainActivity extends Activity {
             reflowGridListsInProductOrder();
             return;
         }
-        addListHeaders(pendingList);
-        addListHeaders(collectedList);
+        // כותרות רק ברשימת "לאיסוף", ורק אם לא בוטלו בהגדרות. "נאספו" היא רשימה פשוטה.
+        if (categoryHeadersEnabled()) addListHeaders(pendingList);
+    }
+
+    private static final String PREF_CATEGORY_HEADERS = "show_category_headers";
+
+    private boolean categoryHeadersEnabled() {
+        return uiPreferences == null || uiPreferences.getBoolean(PREF_CATEGORY_HEADERS, true);
+    }
+
+    /**
+     * סדר רשימת "נאספו": לפי שם המוצר (א-ב), בלי חלוקה למחלקות.
+     * נשמר בזיכרון עד הרינדור הבא, כדי לא למיין מחדש לכל כרטיס.
+     */
+    private List<ProductRow> collectedOrderCache;
+
+    private List<ProductRow> collectedOrder() {
+        if (collectedOrderCache == null || collectedOrderCache.size() != products.size()) {
+            ArrayList<ProductRow> sorted = new ArrayList<>(products);
+            final java.text.Collator collator = java.text.Collator.getInstance(new java.util.Locale("he"));
+            java.util.Collections.sort(sorted, (a, b) -> {
+                int byName = collator.compare(a.name == null ? "" : a.name, b.name == null ? "" : b.name);
+                return byName != 0 ? byName : a.key.compareTo(b.key);
+            });
+            collectedOrderCache = sorted;
+        }
+        return collectedOrderCache;
     }
 
     private boolean hasCategories() {
@@ -4438,10 +4469,12 @@ public class MainActivity extends Activity {
         for (ProductRow product : products) {
             if (!matchesSearch(product)) continue;
             ProductCard full = productCards.get(product.key);
-            if (full != null) {
-                if (full.row.getParent() == pendingList) pendingOrder.add(full);
-                else if (full.row.getParent() == collectedList) collectedOrder.add(full);
-            }
+            if (full != null && full.row.getParent() == pendingList) pendingOrder.add(full);
+        }
+        for (ProductRow product : collectedOrder()) {
+            if (!matchesSearch(product)) continue;
+            ProductCard full = productCards.get(product.key);
+            if (full != null && full.row.getParent() == collectedList) collectedOrder.add(full);
             ProductCard partial = partialCards.get(product.key);
             if (partial != null && partial.row.getParent() == collectedList)
                 collectedOrder.add(partial);
@@ -4458,8 +4491,8 @@ public class MainActivity extends Activity {
         pendingList.removeAllViews();
         collectedList.removeAllViews();
         gridPositions.clear();
-        layoutGrid((GridLayout) pendingList, pendingOrder);
-        layoutGrid((GridLayout) collectedList, collectedOrder);
+        layoutGrid((GridLayout) pendingList, pendingOrder, categoryHeadersEnabled());
+        layoutGrid((GridLayout) collectedList, collectedOrder, false);
         if (blockFocus) pageScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         if (focusedCard != null && focusedCard.row.getParent() != null) focusedCard.row.requestFocus();
         if (pageScroll != null) {
@@ -4473,8 +4506,8 @@ public class MainActivity extends Activity {
     }
 
     /** פריסת רשת של שלושה כרטיסים בשורה. כל מחלקה מתחילה בשורה חדשה עם כותרת ברוחב מלא. */
-    private void layoutGrid(GridLayout grid, List<ProductCard> cards) {
-        boolean headers = hasCategories();
+    private void layoutGrid(GridLayout grid, List<ProductCard> cards, boolean withHeaders) {
+        boolean headers = withHeaders && hasCategories();
         int row = 0, column = 0;
         String previous = null;
         for (int i = 0; i < cards.size(); i++) {
@@ -4544,7 +4577,7 @@ public class MainActivity extends Activity {
 
     private int insertionIndex(ViewGroup target, ProductRow product, boolean done) {
         int index = 0;
-        for (ProductRow candidate : products) {
+        for (ProductRow candidate : done ? collectedOrder() : products) {
             if (candidate.key.equals(product.key)) break;
             if (matchesSearch(candidate) && (done ? (collected.contains(candidate.key) || collectedQuantity(candidate) > 0) : !collected.contains(candidate.key))) index++;
         }
@@ -4763,7 +4796,7 @@ public class MainActivity extends Activity {
         card.views.name.setPaintFlags(card.views.name.getPaintFlags()&~Paint.STRIKE_THRU_TEXT_FLAG);
         card.views.name.setTextColor(Ui.INK);card.views.amount.setTextColor(Ui.P800);card.views.image.setAlpha(1f);    }
     private int partialInsertionIndex(ProductRow product){
-        int index=0;for(ProductRow candidate:products){if(candidate.key.equals(product.key))break;
+        int index=0;for(ProductRow candidate:collectedOrder()){if(candidate.key.equals(product.key))break;
             if(matchesSearch(candidate)&&(collected.contains(candidate.key)||collectedQuantity(candidate)>0))index++;}
         return Math.min(index,collectedList.getChildCount());
     }
