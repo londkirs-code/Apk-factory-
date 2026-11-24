@@ -977,28 +977,79 @@ public class MainActivity extends Activity {
         int key = event.getKeyCode();
         if (key != KeyEvent.KEYCODE_DPAD_UP && key != KeyEvent.KEYCODE_DPAD_DOWN) return false;
         View current = getCurrentFocus();
-        if (current == null || current instanceof EditText) return false;
-        int explicit = key == KeyEvent.KEYCODE_DPAD_UP ? current.getNextFocusUpId() : current.getNextFocusDownId();
-        if (explicit != View.NO_ID) return false;
+        // מצב רשת נשאר עם הניווט לפי עמודות.
+        if (screen == Screen.HOME && displayMode == 5 && findProductCard(current) != null) return false;
         if (!(getWindow().getDecorView() instanceof ViewGroup)) return false;
-        View next = android.view.FocusFinder.getInstance().findNextFocus((ViewGroup) getWindow().getDecorView(),
-                current, key == KeyEvent.KEYCODE_DPAD_UP ? View.FOCUS_UP : View.FOCUS_DOWN);
-        if (next == null || !(next.getParent() instanceof LinearLayout)) return false;
-        LinearLayout row = (LinearLayout) next.getParent();
-        if (row.getOrientation() != LinearLayout.HORIZONTAL) return false;
+        return moveToRowStart((ViewGroup) getWindow().getDecorView(), current,
+                key == KeyEvent.KEYCODE_DPAD_UP ? View.FOCUS_UP : View.FOCUS_DOWN);
+    }
+
+    /**
+     * מעבר למעלה/למטה: אם היעד נמצא בשורה של כמה רכיבים, הפוקוס עובר תמיד לרכיב הימני בה
+     * (תחילת השורה בעברית). פועל בכל המסכים ובכל החלונות הקופצים, חוץ ממצב רשת.
+     */
+    private boolean moveToRowStart(ViewGroup root, View current, int direction) {
+        if (current == null || current instanceof EditText) return false;
+        int explicit = direction == View.FOCUS_UP ? current.getNextFocusUpId() : current.getNextFocusDownId();
+        if (explicit != View.NO_ID) return false;
+        View next = android.view.FocusFinder.getInstance().findNextFocus(root, current, direction);
+        if (next == null) return false;
+        // מחפשים את השורה האופקית הקרובה שמכילה את היעד (גם כשהוא עטוף ברכיב נוסף).
+        LinearLayout row = null;
+        for (ViewParent p = next.getParent(); p instanceof ViewGroup && p != root; p = p.getParent()) {
+            if (p instanceof LinearLayout && ((LinearLayout) p).getOrientation() == LinearLayout.HORIZONTAL
+                    && focusableChildren((LinearLayout) p) >= 2) { row = (LinearLayout) p; break; }
+            if (p instanceof ScrollView || p instanceof GridLayout) break;
+        }
+        if (row == null) return false;
         for (ViewParent p = current.getParent(); p != null; p = p.getParent()) if (p == row) return false;
-        View start = null;
-        int count = 0;
         boolean rtl = row.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
         for (int i = 0; i < row.getChildCount(); i++) {
-            View child = row.getChildAt(rtl ? i : row.getChildCount() - 1 - i);
-            if (child.getVisibility() != View.VISIBLE || !child.isFocusable() || !child.isEnabled()) continue;
-            count++;
-            if (start == null) start = child;
+            View candidate = row.getChildAt(rtl ? i : row.getChildCount() - 1 - i);
+            if (candidate.getVisibility() != View.VISIBLE || !candidate.isEnabled()) continue;
+            if (candidate.isFocusable()) return candidate == next ? false : candidate.requestFocus();
+            if (candidate instanceof ViewGroup && candidate.requestFocus()) return true;
         }
-        if (count < 2 || start == null || start == next) return false;
-        return start.requestFocus();
+        return false;
     }
+
+    private int focusableChildren(LinearLayout row) {
+        int count = 0;
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View child = row.getChildAt(i);
+            if (child.getVisibility() != View.VISIBLE || !child.isEnabled()) continue;
+            if (child.isFocusable()) count++;
+            else if (child instanceof ViewGroup && child.hasFocusable()) count++;
+        }
+        return count;
+    }
+
+    /** מקשים בחלונות קופצים: 2/4/6/8 מנווטים, 5 בוחר, ומעבר למעלה/למטה מתחיל בכפתור הימני. */
+    private boolean handleDialogKey(Dialog dialog, KeyEvent event) {
+        if (dialog.getWindow() == null || !(dialog.getWindow().getDecorView() instanceof ViewGroup)) return false;
+        ViewGroup root = (ViewGroup) dialog.getWindow().getDecorView();
+        View current = dialog.getCurrentFocus();
+        if (current instanceof EditText) return false;
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_5 || code == KeyEvent.KEYCODE_NUMPAD_5) {
+            if (event.getAction() == KeyEvent.ACTION_UP && current != null) current.performClick();
+            return true;
+        }
+        int direction = 0;
+        if (code == KeyEvent.KEYCODE_2 || code == KeyEvent.KEYCODE_NUMPAD_2 || code == KeyEvent.KEYCODE_DPAD_UP) direction = View.FOCUS_UP;
+        else if (code == KeyEvent.KEYCODE_8 || code == KeyEvent.KEYCODE_NUMPAD_8 || code == KeyEvent.KEYCODE_DPAD_DOWN) direction = View.FOCUS_DOWN;
+        else if (code == KeyEvent.KEYCODE_4 || code == KeyEvent.KEYCODE_NUMPAD_4) direction = View.FOCUS_LEFT;
+        else if (code == KeyEvent.KEYCODE_6 || code == KeyEvent.KEYCODE_NUMPAD_6) direction = View.FOCUS_RIGHT;
+        if (direction == 0) return false;
+        boolean digit = code != KeyEvent.KEYCODE_DPAD_UP && code != KeyEvent.KEYCODE_DPAD_DOWN;
+        if (event.getAction() != KeyEvent.ACTION_DOWN) return digit;
+        if ((direction == View.FOCUS_UP || direction == View.FOCUS_DOWN) && moveToRowStart(root, current, direction)) return true;
+        if (!digit) return false; // חץ רגיל: Android ממשיך כרגיל (כולל גלילה)
+        View next = current == null ? null : current.focusSearch(direction);
+        if (next != null) next.requestFocus();
+        return true;
+    }
+
 
     private boolean handleFirstListItemUp(KeyEvent event) {
         if (event.getAction() != KeyEvent.ACTION_DOWN || event.getKeyCode() != KeyEvent.KEYCODE_DPAD_UP) return false;
@@ -1730,6 +1781,7 @@ public class MainActivity extends Activity {
             + "• בחלון הפעולות של רשימה יש חץ חזרה (וגם מקש חזרה) לחלון הקודם.\n"
             + "• רשימות צפופות פחות: כרטיסי רשימה נמוכים בשורה אחת, אריחים קטנים יותר - רואים הרבה יותר רשימות בלי לגלול.\n"
             + "• אימוג׳י מתאים בכל כפתור טקסט.\n"
+            + "• ניווט במקשים: מעבר למעלה או למטה לשורה של כמה כפתורים נוחת תמיד על הכפתור הימני, בכל המסכים ובחלונות (חוץ ממצב רשת).\n"
             + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
             + "• איחוד כמה רשימות לרשימה חדשה.\n"
             + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
@@ -3486,6 +3538,7 @@ public class MainActivity extends Activity {
     private void styleConfirmWindow(Dialog dialog) {
         if (dialog.getWindow() == null) return;
         addDialogCloseButton(dialog);
+        dialog.setOnKeyListener((d, keyCode, event) -> handleDialogKey(dialog, event));
         dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         int width = Math.min(getResources().getDisplayMetrics().widthPixels
                 - Ui.dp(this, Ui.DIALOG_SIDE_MARGIN), Ui.dp(this, Ui.DIALOG_MAX_WIDTH));
