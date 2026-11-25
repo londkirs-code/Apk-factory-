@@ -145,6 +145,10 @@ class SettingsActivity : Activity() {
         }, matchWrap(0))
         wirelessState = note("")
         pair.addView(wirelessState, matchWrap(12))
+        pair.addView(checkBox("ADB קבוע — לעבוד גם כש־Wi‑Fi כבוי (פורט 5555, עד הפעלה מחדש, מתחדש אוטומטית)", Bridge.keepAdbWithoutWifi) {
+            if (it) Bridge.enableKeepAdb() else Bridge.disableKeepAdb()
+        }, matchWrap(0))
+        pair.addView(note("ההפעלה דורשת חיבור ADB פעיל. בפעם הראשונה סמן \"אפשר תמיד\" בחלון \"לאפשר ניפוי באגים?\"."), matchWrap(12))
         pair.addView(button("אפס פורט חיבור שמור", false) {
             Bridge.savedConnectPort = 0
             toast("הפורט נמחק; הוא יאותר מחדש בחיבור הבא.")

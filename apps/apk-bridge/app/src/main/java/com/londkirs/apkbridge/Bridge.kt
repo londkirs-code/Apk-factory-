@@ -84,6 +84,7 @@ object Bridge {
     private const val PREFS = "bridge"
     private const val PLAY_STORE = "com.android.vending"
     private const val INSTALL_CHANNEL = "installs"
+    const val LEGACY_PORT = 5555
     const val WIFI_HELPER_PKG = "com.londkirs.apkbridge.wifihelper"
     private const val WIFI_HELPER_ACTION = "com.londkirs.apkbridge.wifihelper.ENABLE_WIFI"
     private const val WIFI_HELPER_ASSET = "wifi-helper.apk"
@@ -147,6 +148,11 @@ object Bridge {
         set(value) = prefs.edit().putBoolean("a11y_auto_pair", value).apply()
 
     /** Open Android's Wi‑Fi panel and wait for Wi‑Fi whenever a connection is needed and Wi‑Fi is off. */
+    /** Keep a plain-TCP adbd on 127.0.0.1:5555 so ADB keeps working without Wi‑Fi (until reboot). */
+    var keepAdbWithoutWifi: Boolean
+        get() = prefs.getBoolean("keep_adb_without_wifi", false)
+        set(value) = prefs.edit().putBoolean("keep_adb_without_wifi", value).apply()
+
     var autoWifi: Boolean
         get() = prefs.getBoolean("auto_wifi", true)
         set(value) = prefs.edit().putBoolean("auto_wifi", value).apply()
@@ -527,6 +533,26 @@ object Bridge {
 
     /** Connects (re-discovering the port if needed), runs [block], then closes. */
     suspend fun <T> withClient(block: suspend (AdbClient) -> T): T {
+        // 1. Persistent mode: adbd in TCP mode on loopback works even with Wi‑Fi off.
+        if (keepAdbWithoutWifi && isLocalTarget(targetHost) && isLocalPortOpen(LEGACY_PORT)) {
+            log("מתחבר דרך ADB קבוע (127.0.0.1:$LEGACY_PORT) — לא נדרש Wi‑Fi…")
+            val legacy = try {
+                connectLegacy(30_000)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                if (e is kotlinx.coroutines.TimeoutCancellationException) null else throw e
+            } catch (e: Throwable) {
+                log("החיבור הקבוע נכשל: ${explain(e)}")
+                null
+            }
+            if (legacy != null) {
+                return try {
+                    log("מחובר (ADB קבוע).")
+                    block(legacy)
+                } finally {
+                    runCatching { legacy.close() }
+                }
+            }
+        }
         ensureWifi()
         ensureWirelessDebugging()
         val host = targetHost
@@ -599,12 +625,66 @@ object Bridge {
             error("לא ניתן להתחבר ל־ADB. $hint")
         }
         val connected: AdbClient = client
-        return try {
+        var result: Result<T>? = null
+        try {
             log("מחובר.")
-            block(connected)
+            result = Result.success(block(connected))
         } finally {
+            // After a reboot the TCP mode is gone; renew it while we have a working connection.
+            if (result != null && keepAdbWithoutWifi && isLocalTarget(host) && !isLocalPortOpen(LEGACY_PORT)) {
+                log("מחדש את ADB הקבוע (פורט $LEGACY_PORT) — נדרש אחרי הפעלה מחדש של המכשיר.")
+                runCatching {
+                    connected.shell("settings put global adb_enabled 1")
+                    connected.tcpip(LEGACY_PORT)
+                }
+            }
             runCatching { connected.close() }
         }
+        return result!!.getOrThrow()
+    }
+
+    private fun isLocalPortOpen(port: Int): Boolean = runCatching {
+        Socket().use { it.connect(InetSocketAddress(LOCAL_HOST, port), 400); true }
+    }.getOrDefault(false)
+
+    /** Plain-TCP ADB with RSA auth. The first time Android may ask "Allow debugging?" — tick "Always allow". */
+    private suspend fun connectLegacy(handshakeMs: Long): AdbClient = withContext(Dispatchers.IO) {
+        withTimeout(handshakeMs + 5_000) {
+            AdbClient.connectTcp(LOCAL_HOST, LEGACY_PORT, keyProvider(), handshakeMs)
+        }
+    }
+
+    /** Switches adbd to TCP mode on 5555 and authorizes this app on it, so ADB survives Wi‑Fi off. */
+    fun enableKeepAdb() = runJob("הפעלת ADB קבוע") {
+        keepAdbWithoutWifi = true
+        if (!isLocalPortOpen(LEGACY_PORT)) {
+            status("מעביר את ADB למצב קבוע (פורט $LEGACY_PORT)…")
+            withClient { c ->
+                // adbd must stay alive after Wireless Debugging turns off with Wi‑Fi, so keep USB debugging on.
+                c.shell("settings put global adb_enabled 1")
+                log("ADB: ${c.tcpip(LEGACY_PORT)}")
+            }
+            delay(3_000)
+        }
+        status("מאשר את החיבור הקבוע… אם מופיע חלון \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד מהמחשב הזה\" ולחץ אישור.")
+        val c = connectLegacy(90_000)
+        try {
+            val model = c.shell("getprop ro.product.model").stdoutText.trim()
+            status("✔ ADB קבוע פעיל ($model): APK Bridge יעבוד גם כש־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר. אחרי הפעלה מחדש הוא יחודש אוטומטית בחיבור הראשון דרך Wi‑Fi.")
+        } finally {
+            runCatching { c.close() }
+        }
+    }
+
+    fun disableKeepAdb() = runJob("כיבוי ADB קבוע") {
+        keepAdbWithoutWifi = false
+        if (isLocalPortOpen(LEGACY_PORT)) {
+            runCatching {
+                val c = connectLegacy(20_000)
+                try { c.open("usb:").close() } finally { runCatching { c.close() } }
+            }
+        }
+        status("ADB קבוע כובה. הפורט $LEGACY_PORT ייסגר לכל המאוחר בהפעלה מחדש של המכשיר.")
     }
 
     private fun wifiIpv4Addresses(): List<String> = runCatching {

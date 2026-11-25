@@ -94,6 +94,22 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun confirmKeepAdb() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("ADB קבוע (גם בלי Wi‑Fi)")
+            .setMessage(
+                "APK Bridge יעביר את ADB למצב רשת רגיל בפורט 5555 (כמו adb tcpip 5555), ויתחבר אליו דרך הכתובת הפנימית של המכשיר — כך הוא עובד גם כשה־Wi‑Fi כבוי.\n\n" +
+                    "• בפעם הראשונה Android ישאל \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\" ואשר.\n" +
+                    "• ניפוי באגים ב־USB יודלק (נדרש כדי ש־ADB יישאר פעיל).\n" +
+                    "• המצב נמחק בהפעלה מחדש של המכשיר, ומתחדש אוטומטית בחיבור הבא דרך Wi‑Fi.\n" +
+                    "• כשה־Wi‑Fi דלוק, מכשירים אחרים ברשת יוכלו לנסות להתחבר לפורט 5555 — אבל כל חיבור חדש דורש אישור שלך במסך.\n\n" +
+                    "נדרש חיבור ADB פעיל עכשיו (Wi‑Fi וזיווג)."
+            )
+            .setPositiveButton("הפעל") { _, _ -> Bridge.enableKeepAdb() }
+            .setNegativeButton("ביטול", null)
+            .show()
+    }
+
     private fun openWifiPanel() {
         try {
             startActivity(Intent(Settings.Panel.ACTION_WIFI))
@@ -283,7 +299,9 @@ class MainActivity : Activity() {
             Bridge.uninstall(uninstallPkg.text.toString(), keepData.isChecked)
         }.busyAware(), matchWrap(12))
         tools.addView(body("הפעלה אוטומטית: APK Bridge יכול להדליק את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (למשל אחרי הפעלה מחדש), כך שלא צריך להיכנס להגדרות לפני כל התקנה."), matchWrap(6))
-        tools.addView(button("אפשר הפעלה אוטומטית של ניפוי באגים אלחוטי", primary = false) { Bridge.grantAutoEnable() }.busyAware(), matchWrap())
+        tools.addView(button("אפשר הפעלה אוטומטית של ניפוי באגים אלחוטי", primary = false) { Bridge.grantAutoEnable() }.busyAware(), matchWrap(12))
+        tools.addView(body("ADB קבוע: APK Bridge ימשיך לעבוד גם כשה־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר (ואז מתחדש אוטומטית בחיבור הראשון דרך Wi‑Fi)."), matchWrap(6))
+        tools.addView(button("שמור ADB גם בלי Wi‑Fi", primary = false) { confirmKeepAdb() }.busyAware(), matchWrap())
 
         page.addView(TextView(this).apply {
             text = "גרסה ${versionName()}"
@@ -470,6 +488,7 @@ class MainActivity : Activity() {
             null -> "• מצב ניפוי באגים אלחוטי לא ידוע"
         }
         if (Bridge.canWriteSecureSettings()) lines += "✔ הפעלה אוטומטית מאופשרת"
+        if (Bridge.keepAdbWithoutWifi) lines += "✔ ADB קבוע מופעל (עובד גם בלי Wi‑Fi עד הפעלה מחדש)"
         if (Bridge.savedConnectPort > 0) lines += "• פורט חיבור אחרון: ${Bridge.savedConnectPort}"
         connectionText.text = lines.joinToString("\n")
         val a11y = PairingAccessibilityService.isEnabled(this)
