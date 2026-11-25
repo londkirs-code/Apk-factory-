@@ -662,7 +662,8 @@ final class Ui {
         LinearLayout root=new LinearLayout(c);
         root.setId(View.generateViewId());
         root.setOrientation(grid ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        root.setGravity(Gravity.CENTER_VERTICAL);
+        // ברשת: הכל מתחיל מלמעלה, כך שפס הקטגוריה תמיד באותו מקום גם בכרטיס שנמתח.
+        root.setGravity(grid ? Gravity.TOP | Gravity.CENTER_HORIZONTAL : Gravity.CENTER_VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); root.setFocusable(true);
         root.setFocusableInTouchMode(false); root.setClickable(true);
         root.setBackground(interactive(c,SURFACE,LINE,P100,FOCUS,R_CARD));
@@ -681,11 +682,11 @@ final class Ui {
 
         LinearLayout details=column(c);
         LinearLayout.LayoutParams detailsLp = grid
-                ? new LinearLayout.LayoutParams(-1,-2)
+                ? new LinearLayout.LayoutParams(-1,0,1f)
                 : new LinearLayout.LayoutParams(0,-2,1f);
         if (grid) {
             detailsLp.topMargin = dp(c,S1);
-            details.setGravity(Gravity.CENTER);
+            details.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         } else {
             detailsLp.setMarginStart(dp(c,compact?S2:Math.round(S4*scale)));
             detailsLp.setMarginEnd(dp(c,compact?S2:Math.round(S4*scale)));
@@ -715,11 +716,11 @@ final class Ui {
             amount.setLayoutParams(amountLp);
         }
         View accent=new View(c);
-        accent.setVisibility(View.GONE);
+        accent.setVisibility(grid ? View.INVISIBLE : View.GONE);
         LinearLayout.LayoutParams accentLp=grid
                 ? new LinearLayout.LayoutParams(-1,dp(c,4))
                 : new LinearLayout.LayoutParams(dp(c,compact?4:5),-1);
-        if(grid) accentLp.bottomMargin=dp(c,S1); else accentLp.setMarginEnd(dp(c,compact?S2:S3));
+        if(grid) { accentLp.bottomMargin=dp(c,S1); accentLp.gravity=Gravity.TOP; } else accentLp.setMarginEnd(dp(c,compact?S2:S3));
         accent.setLayoutParams(accentLp);
         root.addView(accent); root.addView(image); root.addView(details); root.addView(amount);
         return new CardViews(root,image,name,note,amount,accent);
@@ -732,7 +733,9 @@ final class Ui {
     /** צובע את פס המחלקה של הכרטיס; מוסתר כשאין מחלקה. */
     static void bindCategory(CardViews v,String category) {
         int color=categoryColor(category);
-        if(color==0){v.accent.setVisibility(View.GONE);return;}
+        // ברשת הפס נשאר תופס מקום (שקוף) גם בלי קטגוריה, כדי שכל הכרטיסים יתחילו באותו גובה.
+        boolean gridCard=v.accent.getLayoutParams()!=null&&v.accent.getLayoutParams().width==-1;
+        if(color==0){v.accent.setVisibility(gridCard?View.INVISIBLE:View.GONE);return;}
         v.accent.setBackground(shape(v.root.getContext(),dark?lighten(color,0.25f):color,3,0,0));
         v.accent.setVisibility(View.VISIBLE);
     }

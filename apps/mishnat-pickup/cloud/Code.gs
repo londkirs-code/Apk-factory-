@@ -21,6 +21,7 @@ var CHUNK = 45000;                           // תווים לתא (מגבלת ת
 var CHUNK_COLUMNS = 4;                       // עמודות G..J לתוכן הרשימה
 var UPLOADS_PER_WINDOW = 15;                 // העלאות למכשיר...
 var WINDOW_SECONDS = 6 * 60 * 60;            // ...בכל 6 שעות
+var MAX_ACTIVE_PER_DEVICE = 3;               // רשימות פעילות (בתוקף) לכל משתמש
 var SHEET_NAME = 'lists';
 
 // עמודות: A מספר | B נוצר (ms) | C פג תוקף (ms) | D שם | E מוצרים | F מכשיר (גיבוב) | G..J תוכן
@@ -91,6 +92,11 @@ function upload_(body) {
       if (ex <= now) free.push(i + 1);
     }
     if (!free.length) return { ok: false, error: 'כל 1000 המספרים תפוסים כרגע. נסו שוב מאוחר יותר.' };
+    var devices = sheet.getRange(2, COL_DEVICE, SLOT_COUNT, 1).getValues(), active = 0;
+    for (var d = 0; d < SLOT_COUNT; d++)
+      if (String(devices[d][0]) === device && (Number(expires[d][0]) || 0) > now) active++;
+    if (active >= MAX_ACTIVE_PER_DEVICE)
+      return { ok: false, error: 'אפשר להחזיק עד ' + MAX_ACTIVE_PER_DEVICE + ' רשימות בענן בו-זמנית. מספר מתפנה אחרי 7 ימים.' };
     var number = free[Math.floor(Math.random() * free.length)];
 
     var row = [number, now, now + KEEP_MS, title, clean.lists[0].items.length, device];
