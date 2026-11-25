@@ -35,12 +35,37 @@ import android.widget.TextView;
 final class Ui {
     private Ui() {}
 
-    // פלטת סגול נקייה: רקע לבנדר בהיר מאוד, משטחים לבנים, סגול עמוק לפעולות ולכותרות.
-    static final int P25=0xFFFFFFFF, P50=0xFFF6F3FB, P100=0xFFEEE8F8, P200=0xFFE0D7F1,
-            P300=0xFFC8B8E8, P400=0xFFA488D8, P500=0xFF8662C7, P600=0xFF6B45AE,
-            P700=0xFF56348F, P800=0xFF412670, P900=0xFF2C1A4D;
-    static final int INK=0xFF1C1529, MUTED=0xFF4B4459;
-    static final int BG=P50, SURFACE=P25, LINE=P200, FOCUS=P700, ON_DARK=0xFFFFFFFF;
+    // ---------------------------------------------------------------------
+    // פלטות צבע. כל הממשק משתמש בתפקידים (P25 משטח ... P900 כותרות, INK טקסט, MUTED טקסט משני),
+    // ולכן מצב לילה הוא פשוט פלטה הפוכה: משטחים כהים, טקסט ואקצנטים בהירים.
+    //   בהיר: רקע לבנדר בהיר מאוד, משטחים לבנים, סגול עמוק לפעולות ולכותרות.
+    //   כהה: רקע סגול-שחור, משטחים כהים מעט יותר בהירים, לבנדר רך לפעולות (ניגודיות AA לפחות).
+    // ---------------------------------------------------------------------
+    private static final int[] LIGHT = {
+            0xFFFFFFFF, 0xFFF6F3FB, 0xFFEEE8F8, 0xFFE0D7F1, 0xFFC8B8E8, 0xFFA488D8,
+            0xFF8662C7, 0xFF6B45AE, 0xFF56348F, 0xFF412670, 0xFF2C1A4D,
+            /* INK */ 0xFF1C1529, /* MUTED */ 0xFF4B4459, /* ON_DARK */ 0xFFFFFFFF};
+    private static final int[] DARK = {
+            0xFF1C1828, 0xFF121019, 0xFF262036, 0xFF342C4A, 0xFF4A3F68, 0xFF6E5E9C,
+            0xFF8F7BC8, 0xFFA996E3, 0xFFC2B3F2, 0xFFD9CFFA, 0xFFEEE9FF,
+            /* INK */ 0xFFECE8F4, /* MUTED */ 0xFFADA4BF, /* ON_DARK */ 0xFF18122A};
+
+    static boolean dark = false;
+    static int P25, P50, P100, P200, P300, P400, P500, P600, P700, P800, P900;
+    static int INK, MUTED;
+    /** BG רקע מסך, SURFACE כרטיסים וחלונות, LINE קווים, FOCUS מסגרת פוקוס, ON_DARK טקסט על כפתור ראשי. */
+    static int BG, SURFACE, LINE, FOCUS, ON_DARK;
+    static { applyTheme(false); }
+
+    /** מחליף את הפלטה. מסכים שנבנים מעכשיו משתמשים בצבעים החדשים. */
+    static void applyTheme(boolean night) {
+        int[] p = night ? DARK : LIGHT;
+        dark = night;
+        P25 = p[0]; P50 = p[1]; P100 = p[2]; P200 = p[3]; P300 = p[4]; P400 = p[5];
+        P500 = p[6]; P600 = p[7]; P700 = p[8]; P800 = p[9]; P900 = p[10];
+        INK = p[11]; MUTED = p[12]; ON_DARK = p[13];
+        BG = P50; SURFACE = P25; LINE = P200; FOCUS = P700;
+    }
     static final int IMAGE_FOCUS_OUTER=2, IMAGE_FOCUS_INSET=4, IMAGE_FOCUS_INNER=1;
     static final int SCRIM=0xEB2A1D45;
 
@@ -214,6 +239,7 @@ final class Ui {
      */
     private static final String[][] BUTTON_EMOJI = {
             {"הזמנה קודמת", "🕘"}, {"רשימה ריקה", "📝"}, {"הוספה לרשימה קיימת", "📋"},
+            {"תצוגה וצליל", "🎨"}, {"איפוס לברירת המחדל", "♻️"}, {"בהיר", "☀️"}, {"כהה", "🌙"}, {"לפי המכשיר", "📱"},
             {"וואטסאפ", "💬"}, {"SMS", "📱"}, {"במייל", "📧"}, {"שמירה במכשיר", "💾"}, {"אפליקציה אחרת", "📤"},
             {"קובץ JSON", "🗂️"}, {"קובץ טקסט", "📄"}, {"קובץ ZIP", "🗜️"},
             {"בענן", "☁️"}, {"מהענן", "☁️"}, {"שרת הענן", "☁️"}, {"שליחת המספר", "📨"}, {"מדריך המקשים", "⌨️"},
@@ -597,8 +623,10 @@ final class Ui {
     /** כותרת מחלקה ברשימה: פס צבע, שם המחלקה ומספר המוצרים. */
     static TextView categoryHeader(Context c, String category, int count) {
         int color = categoryColor(category);
-        TextView t = text(c, category + (count > 0 ? "  ·  " + count : ""), T_SECTION + 1, darken(color, 0.15f), true);
-        GradientDrawable bg = shape(c, lighten(color, 0.86f), 10, 0, 0);
+        // במצב לילה: רקע כהה מגוון הקטגוריה וטקסט בהיר; ביום: רקע בהיר וטקסט כהה.
+        TextView t = text(c, category + (count > 0 ? "  ·  " + count : ""), T_SECTION + 1,
+                dark ? lighten(color, 0.55f) : darken(color, 0.15f), true);
+        GradientDrawable bg = shape(c, dark ? darken(color, 0.72f) : lighten(color, 0.86f), 10, 0, 0);
         t.setBackground(bg);
         t.setCompoundDrawablePadding(dp(c, S2));
         GradientDrawable bar = shape(c, color, 3, 0, 0);
@@ -703,7 +731,7 @@ final class Ui {
     static void bindCategory(CardViews v,String category) {
         int color=categoryColor(category);
         if(color==0){v.accent.setVisibility(View.GONE);return;}
-        v.accent.setBackground(shape(v.root.getContext(),color,3,0,0));
+        v.accent.setBackground(shape(v.root.getContext(),dark?lighten(color,0.25f):color,3,0,0));
         v.accent.setVisibility(View.VISIBLE);
     }
 
@@ -727,13 +755,15 @@ final class Ui {
     static void systemBars(Activity a) {
         Window w=a.getWindow();
         int flags=0;
+        w.setBackgroundDrawable(new ColorDrawable(BG));
         if(Build.VERSION.SDK_INT>=21){
-            w.setStatusBarColor(Build.VERSION.SDK_INT>=23?BG:P800);
-            w.setNavigationBarColor(Build.VERSION.SDK_INT>=26?BG:P800);
+            // גרסאות שלא תומכות בסמלים כהים בשורת המצב מקבלות צבע כהה, כדי שהסמלים הלבנים ייראו.
+            w.setStatusBarColor(dark||Build.VERSION.SDK_INT>=23?BG:P800);
+            w.setNavigationBarColor(dark||Build.VERSION.SDK_INT>=26?BG:P800);
         }
-        if(Build.VERSION.SDK_INT>=23)flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-        if(Build.VERSION.SDK_INT>=26)flags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-        if(flags!=0)w.getDecorView().setSystemUiVisibility(flags);
+        if(!dark&&Build.VERSION.SDK_INT>=23)flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if(!dark&&Build.VERSION.SDK_INT>=26)flags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        w.getDecorView().setSystemUiVisibility(flags);
     }
 
     /** בועת הצלחה שמופיעה מתחת לשכבת הקונפטי. */

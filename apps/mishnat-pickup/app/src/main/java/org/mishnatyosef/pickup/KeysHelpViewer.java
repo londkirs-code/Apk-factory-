@@ -73,7 +73,7 @@ final class KeysHelpViewer {
         LinearLayout bar = new LinearLayout(activity);
         bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(Ui.P900);
+        bar.setBackgroundColor(0xFF2C1A4D); // תמיד כהה, גם ביום
         int pad = Ui.dp(activity, Ui.S2);
         bar.setPadding(pad, pad, pad, pad);
         zoomLabel = Ui.text(activity, "", Ui.T_NOTE, Color.WHITE, true);
@@ -100,7 +100,7 @@ final class KeysHelpViewer {
         b.setText(label);
         b.setTextSize(22);
         b.setTextColor(Color.WHITE);
-        b.setBackground(Ui.shape(activity, Ui.P700, 12, 0, 0));
+        b.setBackground(Ui.shape(activity, 0xFF56348F, 12, 0, 0));
         b.setFocusable(false);
         b.setOnClickListener(click);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(activity, 56), Ui.dp(activity, 48));

@@ -303,6 +303,7 @@ public class MainActivity extends Activity {
         secretStore = new SecretStore(this);
         savedListStore = new SavedListStore(this);
         uiPreferences = getSharedPreferences("mishnat_pickup_ui", MODE_PRIVATE);
+        Ui.applyTheme(nightModeActive());
         displayMode = Math.max(0, Math.min(5, uiPreferences.getInt("display_mode", 3)));
         sourceRegistry.migrateLegacy(legacyPreferences);
         archiveExistingSnapshots();
@@ -1906,6 +1907,7 @@ public class MainActivity extends Activity {
             "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
+            + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
             + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
             + "• 🔄 ההזמנה העדכנית מהאתר מסומנת, עם הסבר על הסנכרון. הזמנה חדשה או שינוי באתר מוצגים בהודעה, והוספות שלך נשמרות בעותק ולא נמחקות.\n"
             + "• חזרה תמיד חוזרת שלב אחד אחורה, גם מחלונות שנפתחו מתוך חלונות.\n"
@@ -2012,11 +2014,9 @@ public class MainActivity extends Activity {
         Button sync = Ui.gridButton(this, "סנכרון עם האתר", Ui.Kind.SOFT);
         // הסנכרון מתבצע מול מסך הרשימה, כדי שההתקדמות וההודעות יוצגו למשתמש.
         sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
-        Button display = Ui.gridButton(this, "תצוגה וצליל", Ui.Kind.SOFT);
-        display.setOnClickListener(v -> showDisplaySettingsScreen());
         Button keysHelp = Ui.gridButton(this, "מדריך המקשים", Ui.Kind.SOFT);
         keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
-        addGridButtons(lists, savedLists, history, sync, display, keysHelp);
+        addGridButtons(lists, savedLists, history, sync, keysHelp);
 
         // 3. ייבוא ונתונים.
         LinearLayout data = settingsCard(content, "ייבוא ונתונים");
@@ -2041,6 +2041,10 @@ public class MainActivity extends Activity {
         Button whatsNew = Ui.button(this, "מה חדש · גרסה " + appVersionName(), Ui.Kind.SOFT);
         whatsNew.setOnClickListener(v -> showInfoDialog("מה חדש בגרסה " + appVersionName(), WHATS_NEW));
         content.addView(whatsNew, Ui.row(this, Ui.S5, 0));
+        // "תצוגה וצליל": כפתור נפרד בתחתית ההגדרות, שפותח מסך משלו.
+        Button displaySettings = Ui.button(this, "תצוגה וצליל", Ui.Kind.SOFT);
+        displaySettings.setOnClickListener(v -> showDisplaySettingsScreen());
+        content.addView(displaySettings, Ui.row(this, Ui.S2, 0));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -2050,21 +2054,76 @@ public class MainActivity extends Activity {
         if (!focusFirstButton(accounts)) savedLists.requestFocus();
     }
 
-    /** מסך "תצוגה וצליל": גודל תצוגה, צליל ורטט, כותרות קטגוריות ופירוט לפי משפחה. חזרה - להגדרות. */
+    private static final String PREF_THEME = "theme_mode"; // light / dark / system
+
+    /** האם להציג מצב לילה: לפי הבחירה, ו"לפי המכשיר" - לפי מצב הלילה של המערכת. */
+    private boolean nightModeActive() {
+        String mode = uiPreferences == null ? "light" : uiPreferences.getString(PREF_THEME, "light");
+        if ("dark".equals(mode)) return true;
+        if ("system".equals(mode))
+            return (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        return false;
+    }
+
+    private void setThemeMode(String mode) {
+        uiPreferences.edit().putString(PREF_THEME, mode).apply();
+        Ui.applyTheme(nightModeActive());
+        Ui.systemBars(this);
+        showDisplaySettingsScreen();
+        showActionToast("dark".equals(mode) ? "מצב לילה פועל" : "system".equals(mode) ? "המצב לפי המכשיר" : "מצב יום פועל");
+    }
+
+    /** מסך "תצוגה וצליל": ערכת צבעים, גודל תצוגה, קטגוריות, צליל ורטט, ואיפוס. חזרה - להגדרות. */
     private void showDisplaySettingsScreen() {
         LinearLayout content = Ui.screen(this);
-        content.addView(buildSubScreenHeader("תצוגה וצליל", this::showSettingsScreen), Ui.row(this, 0, Ui.S2));
-        LinearLayout display = settingsCard(content, "תצוגה");
+        content.addView(buildSubScreenHeader("🎨 תצוגה וצליל", this::showSettingsScreen), Ui.row(this, 0, Ui.S2));
+
+        // ערכת צבעים: יום / לילה / לפי המכשיר.
+        LinearLayout theme = settingsCard(content, "🌙 מצב לילה");
+        String mode = uiPreferences.getString(PREF_THEME, "light");
+        Button light = Ui.gridButton(this, "בהיר", "light".equals(mode) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+        light.setOnClickListener(v -> setThemeMode("light"));
+        Button night = Ui.gridButton(this, "כהה", "dark".equals(mode) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+        night.setOnClickListener(v -> setThemeMode("dark"));
+        Button system = Ui.gridButton(this, "לפי המכשיר", "system".equals(mode) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+        system.setOnClickListener(v -> setThemeMode("system"));
+        addGridButtons(theme, light, night, system);
+
+        LinearLayout display = settingsCard(content, "📏 תצוגה");
         addDisplaySettings(display);
-        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות הקטגוריות", true, Ui.S1, Ui.S1);
-        addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "הצגת כמות לפי משפחה (בתצוגה המאוחדת)", true, 0, Ui.S1);
-        LinearLayout sound = settingsCard(content, "צליל ורטט");
+        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "🏷️ כותרות הקטגוריות", true, Ui.S1, Ui.S1);
+        addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "👨‍👩‍👧 כמות לפי משפחה (בתצוגה המאוחדת)", true, 0, Ui.S1);
+
+        LinearLayout sound = settingsCard(content, "🔔 צליל ורטט");
         addFeedbackSettings(sound);
+
+        Button reset = Ui.button(this, "איפוס לברירת המחדל", Ui.Kind.SOFT);
+        reset.setOnClickListener(v -> showModernConfirm("איפוס תצוגה וצליל",
+                "להחזיר את ערכת הצבעים, גודל התצוגה, הקטגוריות, הצליל והרטט להגדרות ההתחלתיות? הרשימות והחשבונות לא ישתנו.",
+                "איפוס", this::resetDisplayDefaults));
+        content.addView(reset, Ui.row(this, Ui.S4, 0));
+
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
         presentScreen(scroll, Screen.DISPLAY_SETTINGS);
-        if (displaySizeSlider != null) displaySizeSlider.requestFocus();
+        focusFirstButton(theme);
+    }
+
+    /** איפוס כל הגדרות התצוגה והצליל לברירת המחדל (בלי לגעת ברשימות או בחשבונות). */
+    private void resetDisplayDefaults() {
+        uiPreferences.edit()
+                .remove(PREF_THEME).remove(PREF_CATEGORY_HEADERS).remove(PREF_FAMILY_BREAKDOWN)
+                .remove("feedback_item_vibration").remove("feedback_item_sound")
+                .remove("feedback_completion_vibration").remove("feedback_completion_sound")
+                .remove("feedback_sound").remove("feedback_vibration")
+                .apply();
+        setDisplayModeFromSlider(3);
+        Ui.applyTheme(nightModeActive());
+        Ui.systemBars(this);
+        showDisplaySettingsScreen();
+        showActionToast("תצוגה וצליל אופסו לברירת המחדל");
     }
 
     private static String formatBytes(long bytes) {
@@ -2171,7 +2230,7 @@ public class MainActivity extends Activity {
         SourceRegistry.Source source = sourceRegistry.find(entry.sourceId);
         String when = source != null && source.lastSyncAt > 0
                 ? new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(new Date(source.lastSyncAt)) : "עוד לא";
-        return "🔄 ההזמנה העדכנית מהאתר. מתעדכנת בכל סנכרון (אחרון: " + when + "). "
+        return "🔄 מסונכרן: ההזמנה העדכנית מהאתר. מתעדכנת בכל סנכרון (אחרון: " + when + "). "
                 + "אם ההזמנה באתר משתנה, המוצרים מתעדכנים וסימוני האיסוף נשמרים, ותופיע הודעה. "
                 + "הוספות שלך נשמרות בעותק נפרד, כדי שהסנכרון לא ימחק אותן.";
     }
@@ -2510,7 +2569,7 @@ public class MainActivity extends Activity {
         });return row;
     }
     private void addDisplaySettings(LinearLayout content) {
-        content.addView(Ui.text(this,"גודל התצוגה",Ui.T_NOTE,Ui.P600,true),Ui.row(this,Ui.S1,0));
+        content.addView(Ui.text(this,"🔍 גודל התצוגה",Ui.T_NOTE,Ui.P600,true),Ui.row(this,Ui.S1,0));
         final String[] labels={"צ׳ק ליסט צפוף","70%","85%","100%","115%","רשת · 3 כרטיסים בשורה"};
         final TextView current=Ui.text(this,labels[displayMode],Ui.T_BODY,Ui.P800,true);current.setGravity(Gravity.CENTER);
         SeekBar slider=new SeekBar(this);slider.setMax(5);slider.setProgress(displayMode);
@@ -2544,11 +2603,11 @@ public class MainActivity extends Activity {
         boolean legacyVibration = uiPreferences.getBoolean("feedback_vibration", false);
         // שתי אפשרויות בכל שורה: איסוף פריט, ואז סיום הרשימה.
         addFeedbackPair(content,
-                feedbackCheckbox("feedback_item_vibration", "רטט באיסוף", legacyVibration),
-                feedbackCheckbox("feedback_item_sound", "צליל באיסוף", legacySound), Ui.S1, 0);
+                feedbackCheckbox("feedback_item_vibration", "📳 רטט באיסוף", legacyVibration),
+                feedbackCheckbox("feedback_item_sound", "🔔 צליל באיסוף", legacySound), Ui.S1, 0);
         addFeedbackPair(content,
-                feedbackCheckbox("feedback_completion_vibration", "רטט בסיום", true),
-                feedbackCheckbox("feedback_completion_sound", "מנגינה בסיום", legacySound), 0, Ui.S1);
+                feedbackCheckbox("feedback_completion_vibration", "📳 רטט בסיום", true),
+                feedbackCheckbox("feedback_completion_sound", "🎵 מנגינה בסיום", legacySound), 0, Ui.S1);
     }
 
     private void addFeedbackPair(LinearLayout content, CheckBox first, CheckBox second, int top, int bottom) {
@@ -2800,7 +2859,7 @@ public class MainActivity extends Activity {
         else content.addView(compactSection(entries.size()+" רשימות במכשיר"));
         View firstOpen=null;
         for(SavedListStore.Entry entry:entries){
-            String details=withBadge(withBadge(entry.itemCount+" פריטים · "+entry.sourceLabel,cloudBadge(entry.id)),isSyncedEntry(entry)?"🔄 מהאתר":"");
+            String details=withBadge(withBadge(entry.itemCount+" פריטים · "+entry.sourceLabel,cloudBadge(entry.id)),isSyncedEntry(entry)?"🔄 מסונכרן":"");
             LinearLayout line=buildListLine(entry,displayTitle(entry),details,isDisplayedList(entry),
                     ()->openSavedList(entry),()->showSavedListActions(entry),()->{
                         if(savedListsDeleteTile!=null)savedListsDeleteTile.setVisibility(checkedEntries().size()>=2?View.VISIBLE:View.GONE);});
@@ -3202,7 +3261,7 @@ public class MainActivity extends Activity {
         if (current != null) {
             final SavedListStore.Entry shown = current;
             panel.addView(compactSection("מוצגת עכשיו"));
-            LinearLayout line = buildListLine(shown, homeDisplayTitle(), withBadge(withBadge(shown.itemCount + " פריטים", cloudBadge(shown.id)), isSyncedEntry(shown) ? "🔄 מהאתר" : ""), true,
+            LinearLayout line = buildListLine(shown, homeDisplayTitle(), withBadge(withBadge(shown.itemCount + " פריטים", cloudBadge(shown.id)), isSyncedEntry(shown) ? "🔄 מסונכרן" : ""), true,
                     () -> { dialog.dismiss(); showSavedListActions(shown, reopen); },
                     () -> { dialog.dismiss(); showSavedListActions(shown, reopen); }, groupChanged);
             panel.addView(line, Ui.row(this, 0, 0));
@@ -3214,7 +3273,7 @@ public class MainActivity extends Activity {
         for (SavedListStore.Entry entry : entries) {
             if (isDisplayedList(entry)) continue;
             others++;
-            LinearLayout line = buildListLine(entry, displayTitle(entry), withBadge(withBadge(entry.itemCount + " פריטים", cloudBadge(entry.id)), isSyncedEntry(entry) ? "🔄 מהאתר" : ""), false,
+            LinearLayout line = buildListLine(entry, displayTitle(entry), withBadge(withBadge(entry.itemCount + " פריטים", cloudBadge(entry.id)), isSyncedEntry(entry) ? "🔄 מסונכרן" : ""), false,
                     () -> { dialog.dismiss(); openSavedList(entry); },
                     () -> { dialog.dismiss(); showSavedListActions(entry, reopen); }, groupChanged);
             body.addView(line, Ui.row(this, 0, Ui.S1));
