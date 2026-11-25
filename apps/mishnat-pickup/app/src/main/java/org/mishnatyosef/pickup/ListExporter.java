@@ -38,7 +38,7 @@ final class ListExporter {
     }
 
     /** כותרת רשימה בטקסט: "## שם | משפחה". | בתוך השמות מוחלף ב-/. */
-    private static String header(JSONObject list) {
+    private static String header(JSONObject list) throws Exception {
         String name = cell(list.getJSONObject("order").optString("name", ""));
         String family = familyOf(list);
         return "## " + (name.isEmpty() ? "רשימה" : name) + (family.isEmpty() ? "" : " | " + cell(family));
