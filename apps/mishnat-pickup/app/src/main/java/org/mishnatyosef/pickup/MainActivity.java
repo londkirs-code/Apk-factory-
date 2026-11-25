@@ -1724,6 +1724,8 @@ public class MainActivity extends Activity {
                         String imagePath="";
                         File image=bundle.imageFile(item.image);
                         if(image!=null&&image.isFile())imagePath=image.getAbsolutePath();
+                        // תמונה מקובץ ZIP נשמרת גם במטמון הכללי לפי הכתובת, כדי שתוצג בכל רשימה גם בלי אינטרנט.
+                        if(!imagePath.isEmpty()&&item.imageUrl!=null&&!item.imageUrl.isEmpty())copyIntoImageCache(image,item.imageUrl);
                         products.put(new JSONObject().put("key",key).put("name",item.name)
                                 .put("amount",item.quantity==null||item.quantity.isEmpty()?"1":item.quantity)
                                 .put("note",note).put("category",item.category==null?"":item.category).put("image_url",item.imageUrl==null?"":item.imageUrl)
@@ -1945,6 +1947,7 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• ZIP עם תמונות: התמונות באמת נכנסות לקובץ (מהמטמון, ומה שחסר מורד), ובייבוא הן נשמרות לשימוש גם בלי אינטרנט.\n"
             + "• ענן: שם הרשימה כולל את הפרשה, ובהודעה וברשימה שהתקבלה רואים מתי הועלתה (יום ושעה).\n"
             + "• איסוף לפי רשימה (לחיצה ארוכה על 5 / אנטר) כבר לא נסגר מיד.\n"
             + "• שיתוף בכל הדרכים (טקסט, JSON, ZIP, QR) שולח גם את שם המשפחה, והייבוא שומר אותו. בענן השם לא נשמר בשרת, אבל מופיע בהודעה עם המספר.\n"
@@ -4174,6 +4177,36 @@ public class MainActivity extends Activity {
         return generic.contains(label) ? "" : label;
     }
 
+    /**
+     * ZIP עם תמונות: ברוב הרשימות התמונה שמורה במטמון הכללי לפי כתובת (ולא ב-image_file של הרשימה).
+     * לכל מוצר מוצאים את התמונה במטמון, ואם היא עוד לא הורדה - מורידים אותה עכשיו.
+     */
+    private void copyIntoImageCache(File image, String imageUrl) {
+        File target = images.cacheFile(imageUrl);
+        if (target == null || (target.isFile() && target.length() > 0)) return;
+        File dir = target.getParentFile();
+        if (dir != null && !dir.isDirectory() && !dir.mkdirs()) return;
+        try (java.io.FileInputStream in = new java.io.FileInputStream(image);
+             java.io.FileOutputStream out = new java.io.FileOutputStream(target)) {
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+        } catch (Exception e) { target.delete(); }
+    }
+
+    private void attachImages(List<ListExporter.Export> exports) {
+        for (ListExporter.Export export : exports) {
+            if (export.products == null) continue;
+            for (int i = 0; i < export.products.length(); i++) {
+                JSONObject p = export.products.optJSONObject(i);
+                if (p == null) continue;
+                File own = new File(p.optString("image_file", ""));
+                if (own.isFile() && own.length() > 0) continue;
+                File cached = images.cachedOrDownload(p.optString("image_url", ""));
+                try { if (cached != null) p.put("image_file", cached.getAbsolutePath()); } catch (Exception ignored) { }
+            }
+        }
+    }
+
     private void buildShareFile(List<SavedListStore.Entry> entries, String format, Runnable back) {
         final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " רשימות";
         showActionToast("מכין את הקובץ…");
@@ -4187,7 +4220,7 @@ public class MainActivity extends Activity {
                 if (safe.length() > 50) safe = safe.substring(0, 50);
                 File file = new File(dir, "משנת אוסף - " + safe + "." + format);
                 String inline = null;
-                if ("zip".equals(format)) ListExporter.zip(exports, file);
+                if ("zip".equals(format)) { attachImages(exports); ListExporter.zip(exports, file); }
                 else {
                     String content = "json".equals(format) ? ListExporter.json(exports, null).toString(2) : ListExporter.text(exports);
                     try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {

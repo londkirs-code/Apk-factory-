@@ -162,6 +162,24 @@ final class ProductImages {
         return new File(dir, DataGuard.sha256(imageUrl.trim()) + ".img");
     }
 
+    /**
+     * קובץ התמונה במטמון; אם עוד לא הורדה - מוריד עכשיו (לקריאה מחוט רקע בלבד, למשל בהכנת ZIP).
+     * מחזיר null כשאין תמונה או שההורדה נכשלה.
+     */
+    File cachedOrDownload(String imageUrl) {
+        File file = cacheFile(imageUrl);
+        if (file == null) return null;
+        if (file.isFile() && file.length() > 0) return file;
+        if (!imageUrl.trim().toLowerCase(java.util.Locale.ROOT).startsWith("https://")) return null;
+        File dir = file.getParentFile();
+        if (dir != null && !dir.isDirectory() && !dir.mkdirs()) return null;
+        File temp = new File(dir, file.getName() + ".zip.tmp");
+        if (!downloadImageToFile(imageUrl.trim(), temp)) { temp.delete(); return null; }
+        if (file.exists()) file.delete();
+        if (!temp.renameTo(file)) { temp.delete(); return null; }
+        return file;
+    }
+
     /** כתובות שההורדה שלהן נכשלה לאחרונה, כדי לא לנסות שוב בכל ציור מחדש של הרשימה. */
     private final Map<String, Long> failedImages = new java.util.concurrent.ConcurrentHashMap<>();
 
