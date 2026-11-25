@@ -244,22 +244,29 @@ class MainActivity : Activity() {
                     } ?: error("לא ניתן לקרוא את קובץ ה־APK")
                     out
                 }
+                val packageName = packageManager.getPackageArchiveInfo(temp!!.absolutePath, 0)?.packageName
+                    ?: error("הקובץ שנבחר אינו APK תקין או שלא ניתן לקרוא את שם החבילה")
                 status.text = "מתחבר למכשיר ומתקין…"
-                val result = withContext(Dispatchers.IO) {
+                val verification = withContext(Dispatchers.IO) {
                     AdbClient.connectTls(ip, port, keyProvider()).use { client ->
                         val source = RandomAccessSource.of(temp!!)
                         source.use {
-                            client.install.install(it, flags = listOf("-r")).collect { progress ->
+                            client.install.install(it, flags = listOf("-r", "-i", "com.android.vending")).collect { progress ->
                                 withContext(Dispatchers.Main) {
                                     status.text = "התקנה: ${progress.percentage}% — ${progress.statusText}"
                                 }
                             }
                         }
-                        client.shell("pm list packages -3").stdoutText
+                        client.shell("pm list packages -i ${packageName}").stdoutText.trim()
                     }
                 }
-                status.text = "ההתקנה הסתיימה. אפשר לפתוח את האפליקציה דרך מסך האפליקציות."
-                message("ההתקנה הסתיימה.")
+                val playListed = verification.contains("installer=com.android.vending")
+                status.text = if (playListed) {
+                    "ההתקנה הסתיימה בהצלחה. Android מציג את Google Play כמקור ההתקנה הרשום עבור ${packageName}.\n\n${verification}"
+                } else {
+                    "ההתקנה הסתיימה, אך Android לא אישר ש-Google Play הוא מקור ההתקנה.\n\nתוצאת הבדיקה: ${verification}"
+                }
+                message(if (playListed) "ההתקנה הסתיימה; מקור ההתקנה הרשום הוא Google Play." else "ההתקנה הסתיימה; זיהוי Google Play לא אומת.")
             } catch (e: Exception) {
                 status.text = "ההתקנה נכשלה: ${e.message ?: e.javaClass.simpleName}"
             } finally {
