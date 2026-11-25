@@ -48,17 +48,33 @@ final class ImportParser {
         List<ImportedList> lists=new ArrayList<>();
         ImportedList list=newTextList("רשימה מקובץ טקסט",0);
         Set<String> ids=new HashSet<>();
+        Map<ImportedList,Set<String>> idsByList=new HashMap<>();
+        idsByList.put(list,ids);
+        String currentCategory="";
         int total=0;
         for(int i=0;i<lines.length;i++) {
             String line=lines[i]==null?"":lines[i].trim();
+            if(line.startsWith("### ")) {
+                // קטגוריה למוצרים שאחריה (פורמט קומפקטי, למשל מקוד QR). "-" = בלי קטגוריה.
+                String category=clean(line.substring(4));
+                currentCategory="-".equals(category)?"":(category.length()>100?category.substring(0,100):category);
+                continue;
+            }
             if(line.startsWith("## ")) {
-                // רשימה חדשה באותו קובץ.
-                if(!list.items.isEmpty())lists.add(list);
-                if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
+                // רשימה חדשה באותו קובץ. רשימה באותו שם ממשיכה את הקודמת (למשל כמה קודי QR של אותה הזמנה).
                 String name=clean(line.substring(3));
                 if(name.length()>200)name=name.substring(0,200);
-                list=newTextList(name.isEmpty()?"רשימה מקובץ טקסט":name,lists.size());
+                if(name.isEmpty())name="רשימה מקובץ טקסט";
+                currentCategory="";
+                if(name.equals(list.orderName))continue;
+                ImportedList existing=null;
+                for(ImportedList previous:lists)if(name.equals(previous.orderName)){existing=previous;break;}
+                if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
+                if(existing!=null){list=existing;ids=idsByList.get(existing);continue;}
+                if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
+                list=newTextList(name,lists.size());
                 ids=new HashSet<>();
+                idsByList.put(list,ids);
                 continue;
             }
             if(line.isEmpty()||line.startsWith("#"))continue;
@@ -83,6 +99,7 @@ final class ImportParser {
             if(columns.length>2)unit=clean(columns[2]);
             if(columns.length>3)note=clean(columns[3]);
             if(columns.length>4)category=clean(columns[4]);
+            if(category.isEmpty())category=currentCategory;
             if(columns.length>5)throw new Exception("שורה "+(i+1)+": אפשר לכלול עד חמש עמודות.");
             if(unit.length()>40||note.length()>300||category.length()>100)
                 throw new Exception("שורה "+(i+1)+": אחד משדות הפריט ארוך מהמותר.");
@@ -93,7 +110,7 @@ final class ImportParser {
             item.unit=unit;item.note=note;item.category=category;
             list.items.add(item);
         }
-        if(!list.items.isEmpty())lists.add(list);
+        if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
         if(lists.isEmpty())throw new Exception("קובץ הטקסט אינו מכיל פריטים. כל שורה צריכה לכלול שם מוצר.");
         Bundle bundle=new Bundle(dir);bundle.lists.addAll(lists);return bundle;
     }

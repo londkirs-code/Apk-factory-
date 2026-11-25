@@ -26,7 +26,7 @@ const targets = {
   }
 };
 
-const files = ['core.js', 'content.js', 'background.js'];
+const files = ['vendor/qrcode.js', 'core.js', 'content.js', 'background.js'];
 const icons = readdirSync(join(here, 'icons')).filter((f) => f.endsWith('.png')).sort();
 mkdirSync(out, { recursive: true });
 
@@ -34,10 +34,11 @@ for (const [name, manifest] of Object.entries(targets)) {
   const dir = join(here, 'dist', name);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(dir, 'icons'), { recursive: true });
+  mkdirSync(join(dir, 'vendor'), { recursive: true });
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   for (const f of files) copyFileSync(join(here, 'src', f), join(dir, f));
   for (const f of icons) copyFileSync(join(here, 'icons', f), join(dir, 'icons', f));
-  const entries = [{ name: 'manifest.json', data: readFileSync(join(dir, 'manifest.json')) }];
+  const entries = [{ name: 'manifest.json', data: readFileSync(join(dir, 'manifest.json')) }, { name: 'vendor/', data: new Uint8Array(0) }];
   for (const f of files) entries.push({ name: f, data: readFileSync(join(dir, f)) });
   entries.push({ name: 'icons/', data: new Uint8Array(0) });
   for (const f of icons) entries.push({ name: 'icons/' + f, data: readFileSync(join(dir, 'icons', f)) });

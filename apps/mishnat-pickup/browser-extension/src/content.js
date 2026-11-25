@@ -73,7 +73,16 @@
       .order .meta { font-size: 12px; color: #7A6A99; }
       .order.cancelled { opacity: .55; }
       .more { margin: 6px 12px; background: transparent; border: 1px dashed #B9A6E2; color: #5E3FA3; border-radius: 10px; padding: 8px; cursor: pointer; }
-      .formats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 12px 18px; }
+      .formats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 18px; }
+      .qrview { display: none; flex-direction: column; align-items: center; gap: 10px; padding: 4px 18px 12px; overflow: auto; }
+      .showqr .qrview { display: flex; } .showqr .orders, .showqr .formats, .showqr .hint { display: none; }
+      .qrview img { width: min(380px, 80vw); height: auto; image-rendering: pixelated; background: #fff; border-radius: 12px; padding: 8px; }
+      .qrcount { font-size: 18px; font-weight: 700; }
+      .qrnav { display: flex; gap: 8px; width: 100%; }
+      .qrnav button { flex: 1; border: 0; border-radius: 12px; padding: 10px; background: #EFE9FA; color: #2C1A4D; font-size: 15px; font-weight: 700; cursor: pointer; }
+      .qrnav button:hover, .qrnav button:focus-visible { background: #5E3FA3; color: #fff; outline: none; }
+      .qrnav button:disabled { opacity: .45; cursor: default; }
+      .qrhelp { font-size: 13px; color: #6B5A8C; line-height: 1.55; margin: 0; }
       .formats button { border: 0; border-radius: 14px; padding: 12px 6px; background: #EFE9FA; color: #2C1A4D; cursor: pointer;
         font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 4px; }
       .formats button span { font-size: 24px; }
@@ -94,6 +103,19 @@
         <button type="button" data-format="txt"><span>📄</span>טקסט (TXT)</button>
         <button type="button" data-format="json"><span>🗂️</span>JSON</button>
         <button type="button" data-format="zip"><span>🗜️</span>ZIP עם תמונות</button>
+        <button type="button" data-format="qr"><span>📱</span>קוד QR לסריקה</button>
+      </div>
+      <div class="qrview" aria-live="polite">
+        <div class="qrcount"></div>
+        <img alt="קוד QR של רשימת האיסוף">
+        <div class="qrnav">
+          <button type="button" class="qrprev">→ הקודם</button>
+          <button type="button" class="qrnext">הבא ←</button>
+        </div>
+        <p class="qrhelp">סורקים את הקודים בטלפון, לפי הסדר. בלי אינטרנט: סורק ה-QR של המצלמה ← העתקה ←
+          באפליקציה "רשימה חדשה" ← "הדבקת טקסט". אפשר להדביק כמה קודים אחד אחרי השני באותו חלון,
+          והם יתחברו לרשימה אחת. תמונות לא עוברות ב-QR (הן ייטענו כשיהיה אינטרנט).</p>
+        <div class="qrnav"><button type="button" class="qrback">חזרה לבחירת הזמנות</button></div>
       </div>
       <div class="status" role="status" aria-live="polite"></div>
       <div class="disclaimer">תוסף לא רשמי. הקובץ מכיל רק מוצרים, כמויות וקטגוריות.</div>
@@ -214,6 +236,47 @@
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 30000);
   }
 
+  // ---------- QR ----------
+  let qrChunks = [], qrIndex = 0;
+
+  function renderQr() {
+    const text = qrChunks[qrIndex];
+    const qr = qrcode(0, 'L');
+    qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+    qr.addData(text, 'Byte');
+    qr.make();
+    const modules = qr.getModuleCount();
+    const cell = Math.max(3, Math.floor(400 / (modules + 8)));
+    $('.qrview img').src = qr.createDataURL(cell, 4);
+    $('.qrcount').textContent = qrChunks.length > 1 ? 'קוד ' + (qrIndex + 1) + ' מתוך ' + qrChunks.length : 'קוד אחד';
+    $('.qrprev').disabled = qrIndex === 0;
+    $('.qrnext').disabled = qrIndex >= qrChunks.length - 1;
+  }
+
+  function showQr(chunks) {
+    qrChunks = chunks; qrIndex = 0;
+    root.classList.add('showqr');
+    renderQr();
+    setStatus(chunks.length > 1 ? 'ההזמנות חולקו ל-' + chunks.length + ' קודים, כדי שיהיה קל לסרוק במצלמה פשוטה.' : '');
+    ($('.qrnext').disabled ? $('.qrback') : $('.qrnext')).focus();
+  }
+
+  function hideQr() {
+    root.classList.remove('showqr');
+    setStatus('');
+    const b = list.querySelector('input:checked') || list.querySelector('input');
+    if (b) b.focus();
+  }
+
+  $('.qrprev').addEventListener('click', () => { if (qrIndex > 0) { qrIndex--; renderQr(); } });
+  $('.qrnext').addEventListener('click', () => { if (qrIndex < qrChunks.length - 1) { qrIndex++; renderQr(); } });
+  $('.qrback').addEventListener('click', hideQr);
+  root.addEventListener('keydown', (e) => {
+    if (!root.classList.contains('showqr')) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); $('.qrnext').click(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); $('.qrprev').click(); }
+  });
+
   async function exportOrders(format) {
     if (busy) return;
     const ids = selectedIds();
@@ -231,6 +294,7 @@
         const title = core.saleName(order) || (listed ? core.orderTitle(listed.order) : 'הזמנה ' + ids[i]);
         exports.push({ title, products });
       }
+      if (format === 'qr') { showQr(core.toQrChunks(exports, 900)); return; }
       if (format === 'txt') download(fileName(ids, 'txt'), core.toText(exports), 'text/plain;charset=utf-8');
       else if (format === 'json') download(fileName(ids, 'json'), JSON.stringify(core.toJson(exports), null, 2), 'application/json');
       else {
@@ -251,6 +315,7 @@
   }
 
   function open() {
+    root.classList.remove('showqr');
     root.classList.add('open');
     if (rowsById.size === 0) loadPage();
     setTimeout(() => { const b = list.querySelector('input:checked') || list.querySelector('input') || $('.close'); b.focus(); }, 0);

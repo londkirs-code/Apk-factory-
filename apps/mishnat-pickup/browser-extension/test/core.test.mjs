@@ -58,6 +58,25 @@ test('ZIP: תקין, ותמונה שלא ירדה נשארת רק כקישור',
   assert.ok(!text.includes('img_0_1'));
 });
 
+test('QR: כל קוד קטן מהמגבלה, ממוספר, ונבנה בהצלחה', async () => {
+  const { createRequire } = await import('node:module');
+  const qrcode = createRequire(import.meta.url)('../src/vendor/qrcode.js');
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  const many = [];
+  for (let i = 0; i < 120; i++) many.push({ key: 'k' + i, name: 'מוצר בדיקה ארוך מספר ' + i, amount: String(1 + (i % 4)), category: 'קטגוריה ' + (i % 6) });
+  const chunks = core.toQrChunks([{ title: 'הזמנה גדולה', products: many }], 900);
+  assert.ok(chunks.length > 1);
+  chunks.forEach((c, i) => {
+    assert.ok(c.startsWith('#משנת אוסף ' + (i + 1) + '/' + chunks.length + '\n'));
+    assert.ok(Buffer.byteLength(c, 'utf8') <= 900 + 40, 'קוד ' + (i + 1) + ' גדול מדי');
+    assert.ok(c.includes('\n## הזמנה גדולה\n'));
+    const qr = qrcode(0, 'L'); qr.addData(c, 'Byte'); qr.make();
+    assert.ok(qr.getModuleCount() <= 105, 'קוד צפוף מדי למצלמה פשוטה');
+  });
+  const lines = chunks.join('\n').split('\n').filter((l) => l && !l.startsWith('#'));
+  assert.equal(lines.length, 120);
+});
+
 test('קובצי הדוגמה תואמים לפלט הנוכחי (אחרי שינוי מכוון: node test/fixtures.mjs --write)', async () => {
   for (const [name, data] of Object.entries(await build())) {
     assert.ok(readFileSync(join(dir, name)).equals(data), name + ' השתנה');

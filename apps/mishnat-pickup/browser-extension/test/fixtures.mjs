@@ -35,7 +35,9 @@ export async function build() {
   return {
     'export.txt': Buffer.from(core.toText(exports, { now: NOW }), 'utf8'),
     'export.json': Buffer.from(JSON.stringify(core.toJson(exports, { now: NOW }), null, 2), 'utf8'),
-    'export.zip': Buffer.from(await core.toZip(exports, fakeImage, { now: NOW }))
+    'export.zip': Buffer.from(await core.toZip(exports, fakeImage, { now: NOW })),
+    // קודי QR קטנים במיוחד (כדי שהדוגמה תתחלק לכמה קודים), מודבקים יחד כמו ב"הדבקת טקסט".
+    'export-qr.txt': Buffer.from(core.toQrChunks(exports, 160).join('\n'), 'utf8')
   };
 }
 

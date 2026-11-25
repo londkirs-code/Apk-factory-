@@ -1578,8 +1578,31 @@ public class MainActivity extends Activity {
         } catch(Exception e) { showSyncMessage("ייבוא הקובץ נכשל: "+safeError(e),false); }
     }
 
+    // ---- סריקת QR (בלי אינטרנט) ----
+
+    private static final int REQUEST_CAMERA = 4713;
+
+    private void startQrScan() {
+        if (!getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA)
+                && !(Build.VERSION.SDK_INT >= 17 && getPackageManager().hasSystemFeature("android.hardware.camera.any"))) {
+            showInfoDialog("אין מצלמה", "במכשיר הזה אין מצלמה. אפשר להעביר את הרשימה בקובץ, בבלוטות' או בהדבקת טקסט.");
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.CAMERA)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.CAMERA}, REQUEST_CAMERA);
+            return;
+        }
+        new QrScanner(this, text -> importInput(new java.io.ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8)))).show();
+    }
+
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == REQUEST_CAMERA) {
+            if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) startQrScan();
+            else showInfoDialog("אין הרשאת מצלמה", "בלי הרשאה למצלמה אי אפשר לסרוק קוד QR. אפשר לאשר אותה בהגדרות המכשיר.");
+            return;
+        }
         if (requestCode != REQUEST_READ_STORAGE) return;
         Uri uri = pendingStorageImport;
         pendingStorageImport = null;
@@ -1907,6 +1930,7 @@ public class MainActivity extends Activity {
             "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
+            + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
             + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
             + "• 🔄 ההזמנה העדכנית מהאתר מסומנת, עם הסבר על הסנכרון. הזמנה חדשה או שינוי באתר מוצגים בהודעה, והוספות שלך נשמרות בעותק ולא נמחקות.\n"
@@ -3646,13 +3670,15 @@ public class MainActivity extends Activity {
         cloud.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showCloudFetchDialog); });
         Button file = Ui.gridButton(this, "ייבוא מקובץ", Ui.Kind.SOFT);
         file.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::openImportPicker); });
+        Button qr = Ui.gridButton(this, "סריקת קוד QR", Ui.Kind.SOFT);
+        qr.setOnClickListener(v -> { dialog.dismiss(); startQrScan(); });
         Button bluetooth = Ui.gridButton(this, "קבלה בבלוטות'", Ui.Kind.SOFT);
         bluetooth.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showBluetoothReceive); });
         Button paste = Ui.gridButton(this, "הדבקת טקסט", Ui.Kind.SOFT);
         paste.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showPasteImport); });
         Button blank = Ui.gridButton(this, "רשימה ריקה", Ui.Kind.SOFT);
         blank.setOnClickListener(v -> { dialog.dismiss(); createBlankSavedList(); });
-        addGridButtons(panel, history, cloud, file, bluetooth, paste, blank);
+        addGridButtons(panel, history, qr, cloud, file, bluetooth, paste, blank);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);

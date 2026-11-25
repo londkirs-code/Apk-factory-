@@ -391,8 +391,53 @@
     return zip(files);
   }
 
+  // ---------- QR: טקסט קומפקטי בכמה קודים ----------
+
+  function utf8Length(text) { return new TextEncoder().encode(text).length; }
+
+  /**
+   * מחלק את ההזמנות לקודי QR. כל קוד הוא טקסט שהאפליקציה מייבאת ("הדבקת טקסט"):
+   *   #משנת אוסף 1/3          (הערה: מספר הקוד)
+   *   ## שם ההזמנה
+   *   ### קטגוריה            (חלה על המוצרים שאחריה)
+   *   שם | כמות | | הערה
+   * maxBytes: גודל מרבי לקוד (UTF-8). קוד קטן קל יותר לסריקה במצלמה פשוטה.
+   */
+  function toQrChunks(exports, maxBytes) {
+    const limitBytes = maxBytes || 900;
+    const json = toJson(exports, {});
+    const chunks = [];
+    let lines = [], size = 0;
+    const flush = () => { if (lines.length) chunks.push(lines.join('\n')); lines = []; size = 0; };
+    const push = (line) => { lines.push(line); size += utf8Length(line) + 1; };
+    for (const list of json.lists) {
+      const title = '## ' + oneLine(list.order.name || 'רשימה');
+      let category = null;
+      if (size + utf8Length(title) + 40 > limitBytes) flush();
+      push(title);
+      for (const item of list.items) {
+        const itemCategory = oneLine(item.category || '');
+        let line = cell(item.name) + ' | ' + formatQuantity(item.quantity);
+        if (item.note) line += ' | | ' + cell(item.note);
+        const catLineFor = (current) => itemCategory !== (current || '') ? '### ' + (itemCategory || '-') : null;
+        let catLine = catLineFor(category);
+        const need = utf8Length(line) + 1 + (catLine ? utf8Length(catLine) + 1 : 0);
+        if (size + need > limitBytes - 24) {
+          // קוד חדש: מתחיל בשם ההזמנה ובקטגוריה של המוצר הבא.
+          flush(); category = null; push(title);
+          catLine = catLineFor(null);
+        }
+        if (catLine) { category = itemCategory || null; push(catLine); }
+        push(line);
+      }
+    }
+    flush();
+    // כותרת מספור בראש כל קוד (שורת הערה, האפליקציה מדלגת עליה).
+    return chunks.map((c, i) => '#משנת אוסף ' + (i + 1) + '/' + chunks.length + '\n' + c);
+  }
+
   return {
-    FORMAT, VERSION, first, parseQuantity, formatQuantity, unwrapOrder, extractOrderId, parseProducts,
+    toQrChunks, FORMAT, VERSION, first, parseQuantity, formatQuantity, unwrapOrder, extractOrderId, parseProducts,
     sortByCategory, saleName, orderTitle, isCancelled, parseOrdersPage, toJson, toText, toZip, zip, crc32
   };
 });

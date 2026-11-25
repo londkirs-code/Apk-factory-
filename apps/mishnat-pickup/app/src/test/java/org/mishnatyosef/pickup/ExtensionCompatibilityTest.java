@@ -57,6 +57,14 @@ public class ExtensionCompatibilityTest {
         assertNotEquals(bundle.lists.get(0).accountId, bundle.lists.get(1).accountId);
     }
 
+    /** כמה קודי QR שהודבקו יחד: חלקים של אותה הזמנה מתחברים, והקטגוריות נלקחות משורות "###". */
+    @Test public void qrChunksFromExtensionImport() throws Exception {
+        ImportParser.Bundle bundle = parse("export-qr.txt");
+        assertOrders(bundle);
+        assertEquals("ביצים", bundle.lists.get(0).items.get(3).category);
+        assertEquals("קטניות ושימורים", bundle.lists.get(1).items.get(1).category);
+    }
+
     @Test public void zipFromExtensionImportsWithImages() throws Exception {
         ImportParser.Bundle bundle = parse("export.zip");
         assertOrders(bundle);
