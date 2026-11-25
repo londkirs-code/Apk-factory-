@@ -331,6 +331,40 @@ final class SavedListStore {
         return true;
     }
 
+    /** החלפת המוצרים של רשימה שמורה (סנכרון עם האתר). שאר השדות, כולל סימוני האיסוף, נשמרים. */
+    synchronized boolean replaceProducts(String id, JSONArray products, String serverPrint) {
+        try {
+            File file = fileFor(id);
+            if (!file.isFile()) return false;
+            JSONObject data = read(file);
+            data.put("products", products);
+            data.put("_server_print", serverPrint == null ? "" : serverPrint);
+            return writeAtomic(file, data);
+        } catch (Exception e) { return false; }
+    }
+
+    synchronized boolean setServerPrint(String id, String serverPrint) {
+        try {
+            File file = fileFor(id);
+            if (!file.isFile()) return false;
+            JSONObject data = read(file);
+            data.put("_server_print", serverPrint == null ? "" : serverPrint);
+            return writeAtomic(file, data);
+        } catch (Exception e) { return false; }
+    }
+
+    /** שמירת התקדמות האיסוף בתוך הרשימה השמורה (תצוגת כמה רשימות יחד). */
+    synchronized boolean setProgress(String id, String ticks, String partials) {
+        try {
+            File file = fileFor(id);
+            if (!file.isFile()) return false;
+            JSONObject data = read(file);
+            data.put("_collected_ticks", ticks == null ? "[]" : ticks);
+            data.put("_partial_quantities", partials == null ? "{}" : partials);
+            return writeAtomic(file, data);
+        } catch (Exception e) { return false; }
+    }
+
     synchronized boolean delete(String id) {
         File file = fileFor(id);
         return !file.exists() || file.delete();

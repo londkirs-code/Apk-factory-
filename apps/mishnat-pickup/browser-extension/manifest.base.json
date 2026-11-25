@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "משנת אוסף – הורדה לאפליקציה",
+  "short_name": "משנת אוסף",
+  "version": "1.2",
+  "description": "הורדת הזמנות מאתר משנת יוסף לקובץ TXT, JSON, ZIP עם תמונות או קוד QR לסריקה, לייבוא באפליקציית משנת אוסף גם בלי אינטרנט. תוסף לא רשמי.",
+  "permissions": [],
+  "host_permissions": [
+    "https://v2.mishnatyosef.org/*",
+    "https://images.mishnatyosef.org/*"
+  ],
+  "action": {
+    "default_title": "הורדה לאפליקציה משנת אוסף",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mishnatyosef.org/*",
+        "https://www.mishnatyosef.org/*",
+        "https://new.mishnatyosef.org/*",
+        "https://v2.mishnatyosef.org/*"
+      ],
+      "js": [
+        "core.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

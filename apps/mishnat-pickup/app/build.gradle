@@ -11,9 +11,26 @@ android {
         applicationId 'org.mishnatyosef.pickup'
         minSdk 19
         targetSdk 35
-        versionCode 84
-        versionName '1.84'
+        versionCode 125
+        versionName '2.24'
     }
+    // בדיקות יחידה רצות על המחשב (JVM). org.json האמיתי מחליף את הגרסה הריקה של android.jar.
+    testOptions { unitTests.returnDefaultValues = true }
+    // כיווץ קוד ומשאבים בגרסה החתומה: מסיר קוד שלא בשימוש (בעיקר מ-ZXing) ושומר על APK קטן.
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // סורק QR: רק הקורא של ZXing נשאר ב-APK (R8 מסיר את כל השאר).
+    implementation 'com.google.zxing:core:3.5.3'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
 }
 
 // APK Factory shared signing key: preserve install-over-update compatibility.
@@ -30,7 +47,6 @@ if (System.getenv('APK_SIGNING_STORE_FILE')) {
         buildTypes {
             release {
                 signingConfig signingConfigs.release
-                minifyEnabled false
             }
         }
     }
