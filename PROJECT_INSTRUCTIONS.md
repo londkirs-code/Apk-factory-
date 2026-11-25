@@ -35,6 +35,12 @@
 - קישור ישיר: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NotifAI.apk
 - טריגר חלופי: `/build-notifai` ב־issue #1.
 
+## APK Bridge
+- קוד: `apps/apk-bridge/`; יומן שינויים: `apps/apk-bridge/CHANGELOG.md`.
+- **בכל עדכון של APK Bridge חובה למסור למשתמש קישור ישיר להורדת APK חדש** — לא רק לדווח על שינוי קוד.
+- אחרי כל שינוי: להריץ את `.github/workflows/build-apk.yml` עם `app=apk-bridge` על הענף שבו נעשה השינוי, לחכות שהריצה תסתיים ב־`success`, ולוודא ש־`downloads/apk-bridge/README.md` מציין את ה־commit של השינוי ואת ה־versionCode החדש.
+- קישור ההורדה: `https://github.com/londkirs-code/Apk-factory-/raw/refs/heads/<branch>/downloads/apk-bridge/app.apk` (ב־main: `https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/apk-bridge/app.apk`). למסור אותו יחד עם קישור לריצה, ה־versionName וה־versionCode.
+
 ## חתימה ותאימות עדכון
 - תמיד להשתמש במפתח החתימה הקיים של APK Factory ובסודות Actions שהוגדרו עבורו. אין לייצר מפתח חדש, להחליף מפתח, או לחשוף ערכי secrets.
 - לשמור על package/application ID ולוודא שה־versionCode עולה.
