@@ -1,8 +1,8 @@
 app=mishnat-pickup
 pr=49
-workflow_run_id=45583744616
-version_code=122
-version_name=2.21
-source_sha=34eb3650ea93f22a5ce6947b379155e880df34cc
-sha256=69c6b646a66ec84ccbb9c407c66ad8d18c77d1aaa155edd42886e833b2bd0973
+workflow_run_id=45594173749
+version_code=123
+version_name=2.22
+source_sha=c8276fde6881e2c60b9e9bf5d40d4c25ba72b792
+sha256=d8e0836485476d6bbdf2964a9ef0ab72fb6e6e5e3bbb626c4e27916a7dd453a3
 signing_certificate_sha256=5c5356162c0240e5c8b33c53d249dedec33c25aef17bdeee011c2c3f836ee871
