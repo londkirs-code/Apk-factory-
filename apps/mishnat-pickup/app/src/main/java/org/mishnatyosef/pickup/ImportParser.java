@@ -62,6 +62,22 @@ final class ImportParser {
         int total=0;
         for(int i=0;i<lines.length;i++) {
             String line=lines[i]==null?"":lines[i].trim();
+            if(line.startsWith("#### ")) {
+                // שם המשפחה של הרשימה ("#### משפחה: כהן"). אותה רשימה עם משפחה אחרת = רשימה נפרדת.
+                String family=clean(line.substring(5));
+                if(family.startsWith("משפחה:"))family=clean(family.substring(6));
+                if(family.length()>200)family=family.substring(0,200);
+                if(family.isEmpty()||family.equals(list.accountName))continue;
+                if(TEXT_ACCOUNT.equals(list.accountName)&&list.items.isEmpty()){list.accountName=family;continue;}
+                ImportedList same=null;
+                for(ImportedList previous:lists)if(previous.orderName.equals(list.orderName)&&family.equals(previous.accountName)){same=previous;break;}
+                if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
+                if(same!=null){list=same;ids=idsByList.get(same);continue;}
+                if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
+                list=newTextList(list.orderName,lists.size());list.accountName=family;
+                ids=new HashSet<>();idsByList.put(list,ids);
+                continue;
+            }
             if(line.startsWith("### ")) {
                 // קטגוריה למוצרים שאחריה (פורמט קומפקטי, למשל מקוד QR). "-" = בלי קטגוריה.
                 String category=clean(line.substring(4));
@@ -123,10 +139,12 @@ final class ImportParser {
         Bundle bundle=new Bundle(dir);bundle.lists.addAll(lists);return bundle;
     }
 
+    private static final String TEXT_ACCOUNT="רשימה מקובץ טקסט";
+
     private static ImportedList newTextList(String name,int index) {
         ImportedList list=new ImportedList();
         list.accountId="text-"+java.util.UUID.randomUUID().toString();
-        list.accountName="רשימה מקובץ טקסט";
+        list.accountName=TEXT_ACCOUNT;
         list.orderId=String.valueOf(System.currentTimeMillis()+index);
         list.orderName=name;
         return list;

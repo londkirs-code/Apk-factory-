@@ -1945,6 +1945,8 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• שיתוף בכל הדרכים (טקסט, JSON, ZIP, QR) שולח גם את שם המשפחה, והייבוא שומר אותו. בענן השם לא נשמר בשרת, אבל מופיע בהודעה עם המספר.\n"
+            + "• בחלון השליחה תמיד יש גם \"העתקה ללוח\" ו\"שמירה במכשיר\".\n"
             + "• ענן: רשימה שכבר יש לה מספר נשלחת שוב עם אותו מספר (וואטסאפ, SMS, מייל ועוד). עד 3 רשימות בענן לכל משתמש. המספר מוצג גם במסך הראשי.\n"
             + "• בתצוגה המאוחדת: כמות לפי רשימה (שם הרשימה) בכל מוצר, ואיסוף חלקי לפי רשימה: לחיצה ארוכה על 5 ובוחרים כמה נאסף לכל רשימה.\n"
             + "• בלי הודעות קופצות מיותרות: רק הודעות חשובות והחלפת תצוגה.\n"
@@ -4078,7 +4080,7 @@ public class MainActivity extends Activity {
         LinearLayout panel = Ui.dialogPanel(this);
         String heading = entries.size() == 1 ? "שיתוף \"" + displayTitle(entries.get(0)) + "\"" : "שיתוף " + entries.size() + " רשימות";
         panel.addView(Ui.text(this, heading, Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה. שמות חשבונות לא נשלחים.", Ui.T_NOTE, Ui.MUTED, false),
+        panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה, עם שם הרשימה ושם המשפחה.", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, Ui.S2));
         boolean allInCloud = true;
         for (SavedListStore.Entry entry : entries) if (cloudNumber(entry.id) == null) allInCloud = false;
@@ -4141,9 +4143,17 @@ public class MainActivity extends Activity {
         List<ListExporter.Export> exports = new ArrayList<>();
         for (SavedListStore.Entry entry : entries) {
             JSONObject data = savedListStore.readEntry(entry.id);
-            exports.add(new ListExporter.Export(displayTitle(entry), data.optJSONArray("products")));
+            exports.add(new ListExporter.Export(displayTitle(entry), familyName(entry), data.optJSONArray("products")));
         }
         return exports;
+    }
+
+    /** שם המשפחה (שם החשבון) של רשימה, לשיתוף. ריק כשזה שם כללי ולא שם של משפחה. */
+    private String familyName(SavedListStore.Entry entry) {
+        String label = entry == null || entry.sourceLabel == null ? "" : entry.sourceLabel.trim();
+        java.util.List<String> generic = java.util.Arrays.asList("רשימה שמורה", "רשימה מיובאת", "רשימה מקובץ טקסט",
+                "רשימה מהענן", "רשימה משותפת", "הורדה מהאתר", "רשימות שלי");
+        return generic.contains(label) ? "" : label;
     }
 
     private void buildShareFile(List<SavedListStore.Entry> entries, String format, Runnable back) {
@@ -4214,8 +4224,12 @@ public class MainActivity extends Activity {
      */
     private void shareEntriesToCloud(List<SavedListStore.Entry> entries, Runnable back) {
         final String server = cloudUrl(), device = cloudDeviceId();
-        final List<String> titles = new ArrayList<>();
-        for (SavedListStore.Entry entry : entries) titles.add(displayTitle(entry));
+        final List<String> titles = new ArrayList<>(), labels = new ArrayList<>();
+        for (SavedListStore.Entry entry : entries) {
+            titles.add(displayTitle(entry));
+            String family = familyName(entry);
+            labels.add(family.isEmpty() ? displayTitle(entry) : displayTitle(entry) + " · " + family);
+        }
         final long[][] existing = new long[entries.size()][];
         int needed = 0;
         for (int i = 0; i < entries.size(); i++) {
@@ -4237,14 +4251,14 @@ public class MainActivity extends Activity {
                 SavedListStore.Entry entry = entries.get(i);
                 if (existing[i] != null) {
                     String until = existing[i][1] > 0 ? new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(existing[i][1])) : "";
-                    lines.append(titles.get(i)).append(": מספר ").append(existing[i][0])
+                    lines.append(labels.get(i)).append(": מספר ").append(existing[i][0])
                             .append(until.isEmpty() ? "" : " (עד " + until + ")").append('\n');
                     done++;
                     continue;
                 }
                 if (uploadedNow >= allowed) {
                     if (firstError.isEmpty()) firstError = "הגעת למגבלה של " + MAX_CLOUD_UPLOADS + " רשימות בענן.";
-                    lines.append(titles.get(i)).append(": לא הועלתה (מגבלת ").append(MAX_CLOUD_UPLOADS).append(" רשימות בענן)\n");
+                    lines.append(labels.get(i)).append(": לא הועלתה (מגבלת ").append(MAX_CLOUD_UPLOADS).append(" רשימות בענן)\n");
                     continue;
                 }
                 try {
@@ -4253,13 +4267,13 @@ public class MainActivity extends Activity {
                     CloudShare.Uploaded uploaded = CloudShare.upload(server, payload, device);
                     done++; uploadedNow++;
                     String until = uploaded.expiresAt > 0 ? new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(uploaded.expiresAt)) : "";
-                    lines.append(titles.get(i)).append(": מספר ").append(uploaded.number)
+                    lines.append(labels.get(i)).append(": מספר ").append(uploaded.number)
                             .append(until.isEmpty() ? "" : " (עד " + until + ")").append('\n');
                     final String id = entry.id;
                     mainHandler.post(() -> { setCloudNumber(id, uploaded.number, uploaded.expiresAt); recordCloudUpload(uploaded.number, uploaded.expiresAt); });
                 } catch (Exception e) {
                     if (firstError.isEmpty()) firstError = safeError(e);
-                    lines.append(titles.get(i)).append(": לא הועלתה\n");
+                    lines.append(labels.get(i)).append(": לא הועלתה\n");
                 }
             }
             final int ok = done;
@@ -4295,11 +4309,12 @@ public class MainActivity extends Activity {
         Button mail = Ui.gridButton(this, "במייל", Ui.Kind.SOFT);
         mail.setOnClickListener(v -> { dialog.dismiss(); sendShare("mail", attached, message); });
         addGridButtons(panel, whatsapp, sms, mail);
-        if (file != null) {
-            Button save = Ui.gridButton(this, "שמירה במכשיר", Ui.Kind.SOFT);
-            save.setOnClickListener(v -> { dialog.dismiss(); saveShareFile(file); });
-            addGridButton(panel, save);
-        }
+        Button copy = Ui.gridButton(this, "העתקה ללוח", Ui.Kind.SOFT);
+        copy.setOnClickListener(v -> { dialog.dismiss(); copyShareText(file, message, textOnly); });
+        addGridButton(panel, copy);
+        Button save = Ui.gridButton(this, "שמירה במכשיר", Ui.Kind.SOFT);
+        save.setOnClickListener(v -> { dialog.dismiss(); saveShareFile(file != null ? file : messageFile(heading, message)); });
+        addGridButton(panel, save);
         Button other = Ui.gridButton(this, "אפליקציה אחרת", Ui.Kind.SOFT);
         other.setOnClickListener(v -> { dialog.dismiss(); sendShare("other", file, textOnly && file != null ? "" : message); });
         addGridButton(panel, other);
@@ -4363,7 +4378,46 @@ public class MainActivity extends Activity {
     }
 
     /** שמירה במכשיר: המשתמש בוחר תיקייה ושם, ומשם אפשר להעביר את הקובץ ידנית לאן שרוצים. */
+    /** העתקה ללוח: הטקסט של הרשימה (בקובץ JSON/TXT - תוכן הקובץ, אחרת ההודעה). */
+    private void copyShareText(File file, String message, boolean textOnly) {
+        String text = message;
+        try {
+            if (!textOnly && file != null && (file.getName().endsWith(".json") || file.getName().endsWith(".txt"))
+                    && file.length() < 500000)
+                text = new String(readAll(file), StandardCharsets.UTF_8);
+            android.content.ClipboardManager clip = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clip == null) throw new Exception("אין לוח העתקה");
+            clip.setPrimaryClip(android.content.ClipData.newPlainText("משנת אוסף", text));
+            importantToast("הועתק ללוח");
+        } catch (Exception e) {
+            showInfoDialog("ההעתקה לא הצליחה", safeError(e));
+        }
+    }
+
+    private static byte[] readAll(File file) throws Exception {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+            return out.toByteArray();
+        }
+    }
+
+    /** הודעה (למשל מספרי ענן) כקובץ טקסט, כדי שאפשר לשמור אותה במכשיר. */
+    private File messageFile(String heading, String message) {
+        try {
+            String safe = (heading == null ? "שיתוף" : heading).replaceAll("[\\\\/:*?\"<>|\\n\\r]", "_").trim();
+            if (safe.length() > 50) safe = safe.substring(0, 50);
+            File file = new File(ShareFileProvider.shareDir(this), "משנת אוסף - " + safe + ".txt");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                out.write((message == null ? "" : message).getBytes(StandardCharsets.UTF_8));
+            }
+            return file;
+        } catch (Exception e) { return null; }
+    }
+
     private void saveShareFile(File file) {
+        if (file == null) { showInfoDialog("השמירה לא הצליחה", "לא ניתן להכין את הקובץ."); return; }
         try {
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
