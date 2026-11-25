@@ -180,6 +180,13 @@ class MainActivity : Activity() {
         }
 
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        top.addView(android.widget.ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher_art)
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            // The launcher bitmap has adaptive-icon padding (76 of 108dp); enlarge it to fill the header slot.
+            scaleX = 1.4f
+            scaleY = 1.4f
+        }, LinearLayout.LayoutParams(dp(56), dp(56)).apply { marginEnd = dp(8) })
         top.addView(TextView(this).apply {
             text = "APK Bridge"
             textSize = 28f
