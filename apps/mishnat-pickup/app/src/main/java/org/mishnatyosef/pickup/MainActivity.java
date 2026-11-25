@@ -1470,12 +1470,119 @@ public class MainActivity extends Activity {
         catch(Exception e){showSyncMessage("לא ניתן לפתוח את הקובץ: "+safeError(e),false);}
     }
 
+    private static final int REQUEST_READ_STORAGE = 4711;
+    private Uri pendingStorageImport;
+
     private void importFromUri(Uri uri) {
+        // קובץ שהתקבל בבלוטות' בגרסאות 6-9 נפתח לפעמים כ-file://, ואז צריך הרשאת קריאה.
+        if ("file".equals(uri.getScheme()) && Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT <= 28
+                && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            pendingStorageImport = uri;
+            requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQUEST_READ_STORAGE);
+            return;
+        }
         try {
             InputStream in=getContentResolver().openInputStream(uri);
             if(in==null)throw new Exception("לא ניתן לפתוח את הקובץ שנבחר.");
             importInput(in);
         } catch(Exception e) { showSyncMessage("ייבוא הקובץ נכשל: "+safeError(e),false); }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != REQUEST_READ_STORAGE) return;
+        Uri uri = pendingStorageImport;
+        pendingStorageImport = null;
+        if (uri == null) return;
+        if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) importFromUri(uri);
+        else showInfoDialog("אין הרשאה לקובץ", "בלי הרשאת קריאה אי אפשר לפתוח את הקובץ שהתקבל. אפשר לבחור אותו ב\"ייבוא מקובץ\".");
+    }
+
+    // ---- בלוטות': שליחה דרך אפליקציית הבלוטות' של המכשיר, וקבלה דרך פתיחת הקובץ שהתקבל ----
+
+    /** שולח רשימה כקובץ טקסט (JSON בתוכו) ישר לאפליקציית הבלוטות'. רק מוצרים: בלי שמות חשבונות. */
+    private void sendListBluetooth(SavedListStore.Entry entry) {
+        final String title = displayTitle(entry);
+        cacheWorker.execute(() -> {
+            try {
+                JSONObject data = savedListStore.readEntry(entry.id);
+                JSONObject payload = CloudShare.buildPayload(title, data.optJSONArray("products"));
+                JSONObject list = payload.getJSONArray("lists").getJSONObject(0);
+                String id = "bt-" + java.util.UUID.randomUUID();
+                list.put("account", new JSONObject().put("id", id).put("name", "רשימה שהתקבלה בבלוטות'"));
+                list.put("order", new JSONObject().put("id", id).put("name", title));
+                File dir = ShareFileProvider.shareDir(this);
+                File[] old = dir.listFiles();
+                if (old != null) for (File f : old) if (System.currentTimeMillis() - f.lastModified() > 24L * 60 * 60 * 1000) f.delete();
+                // שם קובץ באנגלית: יש מכשירים ישנים שהבלוטות' שלהם משבש שמות בעברית. שם הרשימה נמצא בתוך הקובץ.
+                File file = new File(dir, "mishnat-osef-list-" + new SimpleDateFormat("ddMM-HHmm", Locale.ROOT).format(new Date()) + ".txt");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                    out.write(payload.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                mainHandler.post(() -> launchBluetoothSend(file));
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("השליחה לא הצליחה", error));
+            }
+        });
+    }
+
+    private void launchBluetoothSend(File file) {
+        Uri uri = ShareFileProvider.uriFor(file);
+        Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        send.setClipData(android.content.ClipData.newRawUri(file.getName(), uri));
+        // מחפשים את אפליקציית הבלוטות' כדי לפתוח אותה ישר; אם אין, פותחים את חלון השיתוף הרגיל.
+        android.content.ComponentName bluetooth = null;
+        try {
+            for (android.content.pm.ResolveInfo info : getPackageManager().queryIntentActivities(send, 0)) {
+                String pkg = info.activityInfo.packageName.toLowerCase(Locale.ROOT);
+                String name = info.activityInfo.name.toLowerCase(Locale.ROOT);
+                if (pkg.contains("bluetooth") || name.contains("bluetooth")) {
+                    bluetooth = new android.content.ComponentName(info.activityInfo.packageName, info.activityInfo.name);
+                    break;
+                }
+            }
+        } catch (Exception ignored) { }
+        try {
+            if (bluetooth != null) {
+                send.setComponent(bluetooth);
+                startActivity(send);
+            } else {
+                Toast.makeText(this, "לא נמצאה אפליקציית בלוטות'. בחרו \"בלוטות'\" ברשימה.", Toast.LENGTH_LONG).show();
+                startActivity(Intent.createChooser(send, "שליחת הרשימה"));
+            }
+        } catch (Exception e) {
+            try { startActivity(Intent.createChooser(send.setComponent(null), "שליחת הרשימה")); }
+            catch (Exception again) { showInfoDialog("השליחה לא הצליחה", "לא נמצאה אפליקציה לשליחת קבצים."); }
+        }
+    }
+
+    /** הסבר קצר לקבלה, וכפתור לפתיחת הקובץ שהתקבל. */
+    private void showBluetoothReceive() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "קבלת רשימה בבלוטות'", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this,
+                "1. מדליקים בלוטות' בשני המכשירים.\n"
+                + "2. השולח בוחר ברשימה ⋮ ← \"שליחה בבלוטות'\" ובוחר את המכשיר הזה.\n"
+                + "3. כאן מאשרים את קבלת הקובץ.\n"
+                + "4. לוחצים על ההודעה \"הקובץ התקבל\" ובוחרים \"משנת אוסף\", או לוחצים למטה ובוחרים את הקובץ מתיקיית Bluetooth או ההורדות.",
+                Ui.T_BODY, Ui.INK, false), Ui.row(this, Ui.S2, Ui.S3));
+        Button enable = Ui.button(this, "הדלקת בלוטות'", Ui.Kind.SOFT);
+        enable.setOnClickListener(v -> {
+            try { startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); }
+            catch (Exception e) { showActionToast("לא ניתן לפתוח את הגדרות הבלוטות'"); }
+        });
+        Button open = Ui.button(this, "פתיחת הקובץ שהתקבל", Ui.Kind.PRIMARY);
+        open.setOnClickListener(v -> { dialog.dismiss(); openImportPicker(); });
+        panel.addView(open, Ui.row(this, 0, Ui.S1));
+        panel.addView(enable, Ui.row(this, 0, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        open.requestFocus();
     }
 
     private void importInput(InputStream input) {
@@ -1795,6 +1902,7 @@ public class MainActivity extends Activity {
             "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
+            + "• בלוטות': \"שליחה בבלוטות'\" בפעולות של כל רשימה, ו\"קבלה בבלוטות'\" ברשימה חדשה. בלי אינטרנט ובלי חשבון.\n"
             + "• \"רשימה חדשה\" שואל מאיפה: הזמנה קודמת באתר, הענן, קובץ או רשימה ריקה.\n"
             + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
             + "• רשימה ששותפה בענן מציגה את המספר שלה (☁️) ליד השם, בכותרת ובפעולות של הרשימה.\n"
@@ -2525,6 +2633,8 @@ public class MainActivity extends Activity {
                 displayTitle(entry), entry.title, afterRename));
         addSourceAction(panel, dialog, "מיזוג לתוך רשימה אחרת", () -> showMergeTargetDialog(entry));
         addSourceAction(panel, dialog, "שיתוף בענן (מספר לשבוע)", () -> shareListToCloud(entry));
+        addSourceAction(panel, dialog, "שליחה בבלוטות'", () -> sendListBluetooth(entry));
+        addSourceAction(panel, dialog, "קבלת רשימה בבלוטות'", this::showBluetoothReceive);
         addSourceAction(panel, dialog, "ייצוא לקובץ TXT", () -> exportSavedList(entry));
         addSourceAction(panel, dialog, "מחיקה מהרשימות השמורות", () -> showModernConfirm("מחיקת רשימה שמורה",
                 "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
@@ -3250,6 +3360,9 @@ public class MainActivity extends Activity {
         Button cloud = Ui.button(this, "מהענן לפי מספר", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); showCloudFetchDialog(); });
         panel.addView(cloud, Ui.row(this, 0, Ui.S1));
+        Button bluetooth = Ui.button(this, "קבלה בבלוטות'", Ui.Kind.SOFT);
+        bluetooth.setOnClickListener(v -> { dialog.dismiss(); showBluetoothReceive(); });
+        panel.addView(bluetooth, Ui.row(this, 0, Ui.S1));
         Button file = Ui.button(this, "ייבוא מקובץ", Ui.Kind.SOFT);
         file.setOnClickListener(v -> { dialog.dismiss(); openImportPicker(); });
         panel.addView(file, Ui.row(this, 0, Ui.S1));
