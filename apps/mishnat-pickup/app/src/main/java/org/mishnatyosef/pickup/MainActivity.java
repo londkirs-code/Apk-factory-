@@ -1917,7 +1917,7 @@ public class MainActivity extends Activity {
         Button keysHelp = Ui.button(this, "מדריך המקשים (תמונה)", Ui.Kind.SOFT);
         keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
         display.addView(keysHelp, Ui.row(this, Ui.S1, Ui.S1));
-        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות קטגוריות (כבוי: רצף אחד לפי קטגוריות, עם הצבעים בלבד)",
+        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות הקטגוריות",
                 true, Ui.S1, Ui.S1);
         display.addView(Ui.text(this, "תצוגה מאוחדת", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
         addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "הצגת כמות לפי משפחה (שם וכמות של כל חשבון)",
@@ -2244,18 +2244,32 @@ public class MainActivity extends Activity {
         content.addView(Ui.text(this, "צליל ורטט", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
         boolean legacySound = uiPreferences.getBoolean("feedback_sound", false);
         boolean legacyVibration = uiPreferences.getBoolean("feedback_vibration", false);
-        addFeedbackCheckbox(content, "feedback_item_vibration", "רטט באיסוף פריט",
-                legacyVibration, Ui.S1, 0);
-        addFeedbackCheckbox(content, "feedback_item_sound", "צליל באיסוף פריט",
-                legacySound, 0, 0);
-        addFeedbackCheckbox(content, "feedback_completion_vibration", "רטט בסיום הרשימה",
-                true, 0, 0);
-        addFeedbackCheckbox(content, "feedback_completion_sound", "מנגינה בסיום הרשימה",
-                legacySound, 0, Ui.S1);
+        // שתי אפשרויות בכל שורה: איסוף פריט, ואז סיום הרשימה.
+        addFeedbackPair(content,
+                feedbackCheckbox("feedback_item_vibration", "רטט באיסוף", legacyVibration),
+                feedbackCheckbox("feedback_item_sound", "צליל באיסוף", legacySound), Ui.S1, 0);
+        addFeedbackPair(content,
+                feedbackCheckbox("feedback_completion_vibration", "רטט בסיום", true),
+                feedbackCheckbox("feedback_completion_sound", "מנגינה בסיום", legacySound), 0, Ui.S1);
+    }
+
+    private void addFeedbackPair(LinearLayout content, CheckBox first, CheckBox second, int top, int bottom) {
+        LinearLayout pair = new LinearLayout(this);
+        pair.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        pair.setGravity(Gravity.CENTER_VERTICAL);
+        pair.addView(first, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+        lp.setMarginStart(Ui.dp(this, Ui.S1));
+        pair.addView(second, lp);
+        content.addView(pair, Ui.row(this, top, bottom));
     }
 
     private void addFeedbackCheckbox(LinearLayout content, String key, String label,
                                      boolean legacyDefault, int top, int bottom) {
+        content.addView(feedbackCheckbox(key, label, legacyDefault), Ui.row(this, top, bottom));
+    }
+
+    private CheckBox feedbackCheckbox(String key, String label, boolean legacyDefault) {
         CheckBox option = new CheckBox(this);
         option.setText(label);
         option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
@@ -2271,7 +2285,7 @@ public class MainActivity extends Activity {
             uiPreferences.edit().putBoolean(key, checked).apply();
             Toast.makeText(this, label + (checked ? " הופעל" : " כובה"), Toast.LENGTH_SHORT).show();
         });
-        content.addView(option, Ui.row(this, top, bottom));
+        return option;
     }
 
     private void performFeedback(boolean completed, boolean added) {
