@@ -100,7 +100,7 @@ class MainActivity : Activity() {
     private fun field(hintText: String) = EditText(this).apply {
         hint = hintText
         textSize = 15f
-        singleLine = true
+        setSingleLine(true)
         setTextColor(0xFF30251D.toInt())
         setHintTextColor(0xFF9B8D80.toInt())
         setPadding(dp(14), dp(12), dp(14), dp(12))
