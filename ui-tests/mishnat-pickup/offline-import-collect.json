@@ -1,0 +1,175 @@
+{
+  "name": "offline-import-collect",
+  "description": "Without an account: import a TXT list through the system file picker, collect every item, verify the progress counter and the completion celebration.",
+  "package": "org.mishnatyosef.pickup",
+  "stop_on_failure": true,
+  "steps": [
+    {
+      "action": "clear_data"
+    },
+    {
+      "action": "push",
+      "src": "fixtures/ui-test-list.txt",
+      "dest": "/sdcard/Download/ui-test-list.txt"
+    },
+    {
+      "action": "launch"
+    },
+    {
+      "action": "wait_for",
+      "text": "כניסה לחשבון",
+      "timeout": 30
+    },
+    {
+      "action": "screenshot",
+      "name": "login"
+    },
+    {
+      "action": "assert_text",
+      "text": "משנת אוסף"
+    },
+    {
+      "action": "assert_text",
+      "text": "רשימות שמורות"
+    },
+    {
+      "action": "scroll_to",
+      "text": "ייבוא רשימה מקובץ",
+      "max_swipes": 4
+    },
+    {
+      "action": "tap",
+      "text": "ייבוא רשימה מקובץ"
+    },
+    {
+      "action": "wait",
+      "seconds": 3
+    },
+    {
+      "action": "screenshot",
+      "name": "file-picker"
+    },
+    {
+      "action": "tap",
+      "text": "ui-test-list",
+      "timeout": 8,
+      "optional": true,
+      "note": "file shown directly (Recent)"
+    },
+    {
+      "action": "tap",
+      "desc": "Show roots",
+      "timeout": 3,
+      "optional": true,
+      "note": "otherwise open the picker drawer"
+    },
+    {
+      "action": "tap",
+      "text": "Downloads",
+      "timeout": 4,
+      "optional": true
+    },
+    {
+      "action": "tap",
+      "text": "ui-test-list",
+      "timeout": 8,
+      "optional": true
+    },
+    {
+      "action": "wait_for",
+      "text": "נמצאו 1 רשימות",
+      "timeout": 15
+    },
+    {
+      "action": "screenshot",
+      "name": "import-summary"
+    },
+    {
+      "action": "tap",
+      "text": "ייבא רשימות"
+    },
+    {
+      "action": "wait_for",
+      "text": "נאספו 0 מתוך 6",
+      "timeout": 10
+    },
+    {
+      "action": "assert_text",
+      "text": "2",
+      "exact": true,
+      "note": "TXT quantity shown as 2, not 2.0"
+    },
+    {
+      "action": "assert_not_visible",
+      "text": "2.0",
+      "exact": true
+    },
+    {
+      "action": "screenshot",
+      "name": "list-imported"
+    },
+    {
+      "action": "tap",
+      "text": "לחם",
+      "exact": true
+    },
+    {
+      "action": "assert_text",
+      "text": "נאספו 1 מתוך 6"
+    },
+    {
+      "action": "screenshot",
+      "name": "one-collected"
+    },
+    {
+      "action": "tap",
+      "text": "חלב",
+      "exact": true
+    },
+    {
+      "action": "assert_text",
+      "text": "נאספו 3 מתוך 6"
+    },
+    {
+      "action": "tap",
+      "text": "מלפפון",
+      "exact": true,
+      "settle": 0.6
+    },
+    {
+      "action": "screenshot",
+      "name": "celebration",
+      "note": "celebration animation lasts ~1.5s; uiautomator cannot read the screen while it animates, so capture it as an image"
+    },
+    {
+      "action": "screenshot",
+      "name": "celebration"
+    },
+    {
+      "action": "wait",
+      "seconds": 5
+    },
+    {
+      "action": "assert_text",
+      "text": "נאספו 6 מתוך 6"
+    },
+    {
+      "action": "screenshot",
+      "name": "all-collected"
+    },
+    {
+      "action": "tap",
+      "text": "לחם",
+      "exact": true,
+      "note": "tap again returns it to pending"
+    },
+    {
+      "action": "assert_text",
+      "text": "נאספו 5 מתוך 6"
+    },
+    {
+      "action": "screenshot",
+      "name": "one-returned"
+    }
+  ]
+}

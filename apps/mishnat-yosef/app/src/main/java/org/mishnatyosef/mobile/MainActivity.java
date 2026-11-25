@@ -418,6 +418,7 @@ public class MainActivity extends Activity {
     private void rethemeActiveUi(PaletteSnapshot old) {
         Set<View> visited = new HashSet<>();
         rethemeViewTree(currentScreen, old, visited);
+        if (actionsDialogPanel != null) rethemeViewTree(actionsDialogPanel, old, visited);
         // Dialogs/popups have separate window roots, so refresh all live bars independently of the
         // main screen tree. Weak references avoid keeping dismissed popup contents alive.
         // Snapshot the weak set before tinting: tintProgressControl registers controls, and
@@ -572,6 +573,9 @@ public class MainActivity extends Activity {
     private View productSearchClearButton;
     private android.app.Dialog imageViewerDialog;
     private SeekBar actionScaleBar;
+    // The open "פעולות" dialog lives in its own window, outside currentScreen, so a night-mode
+    // switch made from inside it must retheme it explicitly.
+    private View actionsDialogPanel;
     private TextView actionScaleValue;
     // Weak references keep sliders in dialogs/windows theme-aware without retaining closed screens.
     private final Set<ProgressBar> progressControls =
@@ -1998,12 +2002,14 @@ public class MainActivity extends Activity {
             }
         } else {
             showLogin();
+            restoreLoginFormState(state);
         }
         // Check for a newer release once per app launch; the setting defaults to enabled.
+        final boolean reopenActionsAfterRotation = state != null && state.getBoolean("actions_dialog_open", false);
         if (root != null) root.post(() -> {
             boolean showedUpdateSuccess = showPendingInAppUpdateSuccess();
             if (!showedUpdateSuccess) checkForUpdatesOnLaunch();
-            if (!showedUpdateSuccess && reopenActionsAfterScale && hasToken()) showActionsDialog();
+            if (!showedUpdateSuccess && ((reopenActionsAfterScale && hasToken()) || reopenActionsAfterRotation)) showActionsDialog();
         });
         else if (!showPendingInAppUpdateSuccess()) checkForUpdatesOnLaunch();
     }
@@ -2482,6 +2488,10 @@ public class MainActivity extends Activity {
                 .create();
         close.setOnClickListener(v -> dialog.dismiss());
         dialog.setCanceledOnTouchOutside(true);
+        actionsDialogPanel = panel;
+        dialog.setOnDismissListener(ignored -> {
+            if (actionsDialogPanel == panel) actionsDialogPanel = null;
+        });
         dialog.setOnShowListener(ignored -> {
             if (dialog.getWindow() != null) {
                 dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -3263,6 +3273,33 @@ public class MainActivity extends Activity {
         loginButton = btn("התחברות", PRIMARY);
         loginButton.setOnClickListener(v -> login());
         root.addView(loginButton, lp(-1, dp(52), 0, 8));
+    }
+
+    // Rotation recreates the activity and showLogin() rebuilds the form, so keep what the user
+    // typed in the email field and the visible validation/error message across the recreation.
+    // The password is intentionally not saved.
+    @Override protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        // The "פעולות" dialog is not restored by Android after rotation; remember to reopen it.
+        out.putBoolean("actions_dialog_open", actionsDialogPanel != null);
+        if (!hasToken() && emailField != null && emailField.isAttachedToWindow()) {
+            out.putString("login_email_draft", emailField.getText().toString());
+            if (statusView != null && statusView.getVisibility() == View.VISIBLE) {
+                out.putString("login_status_message", statusView.getText().toString());
+                out.putBoolean("login_status_error", statusView.getCurrentTextColor() == RED);
+            }
+        }
+    }
+
+    private void restoreLoginFormState(Bundle state) {
+        if (state == null) return;
+        String email = state.getString("login_email_draft");
+        if (email != null && emailField != null) {
+            emailField.setText(email);
+            emailField.setSelection(email.length());
+        }
+        String status = state.getString("login_status_message");
+        if (status != null && !status.isEmpty()) setStatus(status, state.getBoolean("login_status_error", false));
     }
 
     private void showAccount() {

@@ -4610,6 +4610,16 @@ public class MainActivity extends Activity {
         return section;
     }
 
+    private boolean isInCurrentContent(View view) {
+        View content = findViewById(android.R.id.content);
+        for (View v = view; v != null; ) {
+            if (v == content) return true;
+            android.view.ViewParent parent = v.getParent();
+            v = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
+
     private void showSyncMessage(String value, boolean canRetry) {
         String text = value == null ? "" : value.trim();
         if (screen != Screen.HOME || messageText == null) {

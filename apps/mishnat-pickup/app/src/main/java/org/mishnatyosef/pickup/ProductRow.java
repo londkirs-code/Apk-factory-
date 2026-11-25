@@ -19,8 +19,10 @@ final class ProductRow {
     }
     ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath,
                String category, int categoryOrder) {
-        this.key = key; this.name = name; this.imageUrl = imageUrl; this.amount = amount;
-        this.note = note; this.imagePath = imagePath == null ? "" : imagePath;
+        // null הופך לטקסט ריק, כדי שטביעת התוכן והתצוגה לא ייכשלו בנתונים חסרים.
+        this.key = key == null ? "" : key; this.name = name == null ? "" : name;
+        this.imageUrl = imageUrl == null ? "" : imageUrl; this.amount = amount == null ? "" : amount;
+        this.note = note == null ? "" : note; this.imagePath = imagePath == null ? "" : imagePath;
         this.category = category == null ? "" : category.trim();
         this.categoryOrder = Math.max(0, categoryOrder);
     }

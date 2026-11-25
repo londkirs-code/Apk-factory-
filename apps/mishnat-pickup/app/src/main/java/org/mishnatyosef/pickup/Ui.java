@@ -735,8 +735,17 @@ final class Ui {
         v.accent.setVisibility(View.VISIBLE);
     }
 
+    /**
+     * A name/note that starts with Latin letters (e.g. "Pasta") would get a left-to-right paragraph:
+     * left-aligned in the RTL card and with Hebrew parts ordered left-to-right. A leading invisible
+     * RIGHT-TO-LEFT MARK makes it an RTL paragraph like every Hebrew line. Display only; data is unchanged.
+     */
+    static String rtlParagraph(String text) {
+        return text == null || text.isEmpty() || text.charAt(0) == '\u200F' ? (text == null ? "" : text) : "\u200F" + text;
+    }
+
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {
-        Context c=v.root.getContext(); v.name.setText(name); v.note.setText(note);
+        Context c=v.root.getContext(); v.name.setText(rtlParagraph(name)); v.note.setText(rtlParagraph(note));
         v.note.setVisibility(note==null||note.isEmpty()?View.GONE:View.VISIBLE);
         v.amount.setText(amount);
         int flags=v.name.getPaintFlags();
