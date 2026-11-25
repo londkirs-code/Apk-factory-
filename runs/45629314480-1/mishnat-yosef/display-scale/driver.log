@@ -1,0 +1,40 @@
+[ok] 01 clear_data
+[ok] 02 shell cmd='pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[ok] 03 shell cmd='appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow', ignore_errors=True
+[ok] 04 launch
+[ok] 05 wait_for text='ברוכים הבאים'
+[ok] 06 tap desc='פתיחת הגדרות ופעולות'
+[ok] 07 wait_for text='פעולות מהירות'
+[ok] 08 swipe desc='גודל התצוגה'
+[ok] 09 wait seconds=3
+[ok] 10 screenshot name='scale-left-end'
+[ok] 11 assert_foreground
+[ok] 12 wait_for dialog reopens after the scale change
+[ok] 13 swipe desc='גודל התצוגה'
+[ok] 14 wait seconds=3
+[ok] 15 screenshot name='scale-right-end'
+[ok] 16 assert_foreground
+[ok] 17 back
+[ok] 18 screenshot name='login-at-changed-scale'
+[ok] 19 rotate to='landscape'
+[ok] 20 wait seconds=2
+[ok] 21 screenshot name='landscape-changed-scale'
+[ok] 22 rotate to='portrait'
+[ok] 23 wait seconds=2
+[ok] 24 tap desc='פתיחת הגדרות ופעולות'
+[ok] 25 wait_for text='פעולות מהירות'
+[ok] 26 rotate to='landscape'
+[ok] 27 wait seconds=2
+[ok] 28 wait_for dialog is reopened after rotation
+[ok] 29 screenshot name='dialog-landscape'
+[ok] 30 rotate to='portrait'
+[ok] 31 wait seconds=2
+[ok] 32 wait_for still open after rotating back
+[ok] 33 wait_for text='פעולות מהירות'
+[ok] 34 tap text='איפוס תצוגה'
+[ok] 35 wait seconds=3
+[ok] 36 screenshot name='after-reset'
+[ok] 37 assert_text text='100%'
+[ok] 38 assert_foreground
+
+Result: PASSED — 38 steps, 7 screenshots, 0 crashes
