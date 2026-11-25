@@ -76,6 +76,16 @@ class MainActivity : Activity() {
         logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
+    private val wifiPanelListener: () -> Unit = { openWifiPanel() }
+
+    private fun openWifiPanel() {
+        try {
+            startActivity(Intent(Settings.Panel.ACTION_WIFI))
+        } catch (_: ActivityNotFoundException) {
+            runCatching { startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }
+        }
+    }
+
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,12 +104,14 @@ class MainActivity : Activity() {
         super.onStart()
         Bridge.addStateListener(stateListener)
         Bridge.addLogListener(logListener)
+        Bridge.addWifiPanelListener(wifiPanelListener)
         refreshConnectionInfo()
     }
 
     override fun onStop() {
         Bridge.removeStateListener(stateListener)
         Bridge.removeLogListener(logListener)
+        Bridge.removeWifiPanelListener(wifiPanelListener)
         super.onStop()
     }
 
@@ -493,7 +505,14 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
             return
         }
-        if (!Bridge.isOnWifi()) toast("שים לב: ניפוי באגים אלחוטי דורש חיבור Wi‑Fi.")
+        if (!Bridge.isOnWifi()) {
+            if (Bridge.autoWifi) {
+                toast("ניפוי באגים אלחוטי דורש Wi‑Fi — הדלק אותו בחלונית, ואז לחץ שוב על הזיווג.")
+                openWifiPanel()
+                return
+            }
+            toast("שים לב: ניפוי באגים אלחוטי דורש חיבור Wi‑Fi.")
+        }
         PairingService.start(this)
         Bridge.log("זיווג דרך התראה: פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\" והזן את הקוד בהתראה.")
         toast("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\", והזן את הקוד בהתראה שתופיע.")

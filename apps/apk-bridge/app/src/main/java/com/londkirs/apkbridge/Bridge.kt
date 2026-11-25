@@ -143,6 +143,11 @@ object Bridge {
         get() = prefs.getBoolean("a11y_auto_pair", true)
         set(value) = prefs.edit().putBoolean("a11y_auto_pair", value).apply()
 
+    /** Open Android's Wi‑Fi panel and wait for Wi‑Fi whenever a connection is needed and Wi‑Fi is off. */
+    var autoWifi: Boolean
+        get() = prefs.getBoolean("auto_wifi", true)
+        set(value) = prefs.edit().putBoolean("auto_wifi", value).apply()
+
     var autoEnableWireless: Boolean
         get() = prefs.getBoolean("auto_enable_wireless", true)
         set(value) = prefs.edit().putBoolean("auto_enable_wireless", value).apply()
@@ -181,6 +186,38 @@ object Bridge {
     // endregion
 
     // region log + state
+
+    private val wifiPanelListeners = CopyOnWriteArraySet<() -> Unit>()
+    fun addWifiPanelListener(l: () -> Unit) { wifiPanelListeners += l }
+    fun removeWifiPanelListener(l: () -> Unit) { wifiPanelListeners -= l }
+
+    /**
+     * Android 10+ does not let regular apps switch Wi‑Fi on. The closest thing is the system
+     * Wi‑Fi panel (one tap), so open it — or post a notification when the app is not visible —
+     * and continue automatically once Wi‑Fi is connected.
+     */
+    suspend fun ensureWifi(): Boolean {
+        if (isOnWifi()) return true
+        if (!autoWifi) return false
+        log("אין חיבור Wi‑Fi — פותח את חלונית ה־Wi‑Fi של Android (אפליקציות לא רשאיות להדליק Wi‑Fi בעצמן).")
+        if (wifiPanelListeners.isEmpty()) {
+            notifyInfo("APK Bridge צריך Wi‑Fi", "הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", android.content.Intent(Settings.Panel.ACTION_WIFI))
+        } else {
+            main.post { wifiPanelListeners.forEach { it() } }
+        }
+        update { it.copy(status = "ממתין לחיבור Wi‑Fi… (הדלק Wi‑Fi בחלונית שנפתחה)", progress = -1) }
+        val connected = withTimeoutOrNull(120_000) {
+            while (!isOnWifi()) delay(1000)
+            true
+        } ?: false
+        if (connected) {
+            log("Wi‑Fi מחובר. ממשיך…")
+            delay(1500)
+        } else {
+            log("לא התקבל חיבור Wi‑Fi בתוך 2 דקות.")
+        }
+        return connected
+    }
 
     fun addLogListener(l: (String) -> Unit) { logListeners += l }
     fun removeLogListener(l: (String) -> Unit) { logListeners -= l }
@@ -438,6 +475,7 @@ object Bridge {
 
     /** Connects (re-discovering the port if needed), runs [block], then closes. */
     suspend fun <T> withClient(block: suspend (AdbClient) -> T): T {
+        ensureWifi()
         ensureWirelessDebugging()
         val host = targetHost
         val tried = mutableSetOf<Endpoint>()

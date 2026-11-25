@@ -115,6 +115,10 @@ class SettingsActivity : Activity() {
         pair.addView(button("הגדרות נגישות", false) {
             try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } catch (_: ActivityNotFoundException) {}
         }, matchWrap(12))
+        pair.addView(checkBox("להדליק Wi‑Fi כשצריך: לפתוח את חלונית ה־Wi‑Fi אוטומטית ולהמשיך כשהוא מתחבר", Bridge.autoWifi) {
+            Bridge.autoWifi = it
+        }, matchWrap(0))
+        pair.addView(note("Android לא מאפשר לאפליקציות רגילות להדליק Wi‑Fi לבד (מאז Android 10), לכן נדרשת הקשה אחת בחלונית."), matchWrap(8))
         pair.addView(checkBox("להדליק ניפוי באגים אלחוטי אוטומטית כשהוא כבוי", Bridge.autoEnableWireless) {
             Bridge.autoEnableWireless = it
             refresh()
