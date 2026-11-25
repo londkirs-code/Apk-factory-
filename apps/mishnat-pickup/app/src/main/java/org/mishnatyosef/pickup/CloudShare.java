@@ -89,12 +89,28 @@ final class CloudShare {
             throw new Exception("הרשימה שהתקבלה מהשרת אינה תקינה.");
         JSONObject entry = lists.getJSONObject(0);
         String uploadId = "cloud-" + fetched.number + "-" + fetched.createdAt;
-        String name = "רשימה " + fetched.number + " מהענן";
+        String when = uploadedLabel(fetched.createdAt);
+        String name = "רשימה " + fetched.number + " מהענן" + (when.isEmpty() ? "" : " · " + when);
         String title = fetched.title == null || fetched.title.isEmpty() ? name : fetched.title;
         entry.put("account", new JSONObject().put("id", uploadId).put("name", name));
         entry.put("order", new JSONObject().put("id", uploadId).put("name", title));
         return list;
     }
+
+    private static final String[] DAYS = {"א'", "ב'", "ג'", "ד'", "ה'", "ו'", "שבת"};
+
+    /** "הועלתה ביום ד' 25/11 בשעה 19:42", או ריק כשאין זמן. */
+    static String uploadedLabel(long createdAt) {
+        if (createdAt <= 0) return "";
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(createdAt);
+        String day = DAYS[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1];
+        return "הועלתה ב" + ("שבת".equals(day) ? "שבת" : "יום " + day) + " "
+                + new java.text.SimpleDateFormat("dd/MM", java.util.Locale.ROOT).format(new java.util.Date(createdAt))
+                + " בשעה " + new java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT).format(new java.util.Date(createdAt));
+    }
+
+    static final long KEEP_MS = 7L * 24 * 60 * 60 * 1000;
 
     static Uploaded upload(String serverUrl, JSONObject payload, String device) throws Exception {
         JSONObject body = new JSONObject().put("action", "upload").put("list", payload).put("device", device);

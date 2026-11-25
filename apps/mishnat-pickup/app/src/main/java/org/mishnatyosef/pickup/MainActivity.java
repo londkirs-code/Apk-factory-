@@ -1945,6 +1945,8 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• ענן: שם הרשימה כולל את הפרשה, ובהודעה וברשימה שהתקבלה רואים מתי הועלתה (יום ושעה).\n"
+            + "• איסוף לפי רשימה (לחיצה ארוכה על 5 / אנטר) כבר לא נסגר מיד.\n"
             + "• שיתוף בכל הדרכים (טקסט, JSON, ZIP, QR) שולח גם את שם המשפחה, והייבוא שומר אותו. בענן השם לא נשמר בשרת, אבל מופיע בהודעה עם המספר.\n"
             + "• בחלון השליחה תמיד יש גם \"העתקה ללוח\" ו\"שמירה במכשיר\".\n"
             + "• ענן: רשימה שכבר יש לה מספר נשלחת שוב עם אותו מספר (וואטסאפ, SMS, מייל ועוד). עד 3 רשימות בענן לכל משתמש. המספר מוצג גם במסך הראשי.\n"
@@ -2981,7 +2983,22 @@ public class MainActivity extends Activity {
         cancel.setOnClickListener(v->dialog.dismiss());
         panel.addView(buttonPair(save,cancel),Ui.row(this,Ui.S3,0));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
-        if(firstFocus!=null)firstFocus.requestFocus();
+        ignoreOpeningKeyRelease(dialog);
+        final Button focus=firstFocus;
+        if(focus!=null){focus.requestFocus();panel.post(focus::requestFocus);}
+    }
+
+    /**
+     * חלון שנפתח בלחיצה ארוכה (5 / אנטר): השחרור של אותה לחיצה מגיע לחלון ו"לוחץ" על מה שבפוקוס
+     * (למשל ה-X שסוגר). מתעלמים משחרורים עד הלחיצה הראשונה שמתחילה בתוך החלון.
+     */
+    private void ignoreOpeningKeyRelease(Dialog dialog) {
+        final boolean[] armed = {false};
+        dialog.setOnKeyListener((d, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) armed[0] = true;
+            if (!armed[0]) return true;   // עוד השחרור (או החזרות) של הלחיצה הארוכה שפתחה את החלון
+            return handleDialogKey(dialog, event);
+        });
     }
 
     private void applyPerListCollection(String key,java.util.List<SourcePart> parts,int[] values,int[] totals){
@@ -4153,6 +4170,7 @@ public class MainActivity extends Activity {
         String label = entry == null || entry.sourceLabel == null ? "" : entry.sourceLabel.trim();
         java.util.List<String> generic = java.util.Arrays.asList("רשימה שמורה", "רשימה מיובאת", "רשימה מקובץ טקסט",
                 "רשימה מהענן", "רשימה משותפת", "הורדה מהאתר", "רשימות שלי");
+        if (label.startsWith("רשימה ") && label.contains("מהענן")) return "";
         return generic.contains(label) ? "" : label;
     }
 
@@ -4251,8 +4269,10 @@ public class MainActivity extends Activity {
                 SavedListStore.Entry entry = entries.get(i);
                 if (existing[i] != null) {
                     String until = existing[i][1] > 0 ? new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(existing[i][1])) : "";
+                    String when = existing[i][1] > 0 ? CloudShare.uploadedLabel(existing[i][1] - CloudShare.KEEP_MS) : "";
                     lines.append(labels.get(i)).append(": מספר ").append(existing[i][0])
-                            .append(until.isEmpty() ? "" : " (עד " + until + ")").append('\n');
+                            .append(when.isEmpty() ? "" : " · " + when)
+                            .append(until.isEmpty() ? "" : " (בתוקף עד " + until + ")").append('\n');
                     done++;
                     continue;
                 }
@@ -4263,12 +4283,17 @@ public class MainActivity extends Activity {
                 }
                 try {
                     JSONObject data = savedListStore.readEntry(entry.id);
-                    JSONObject payload = CloudShare.buildPayload(titles.get(i), data.optJSONArray("products"));
+                    // שם הרשימה בענן כולל גם את הפרשה (שם המכירה), אם הוא לא כבר בשם.
+                    String parasha = data.optString("order_name", "").trim(), cloudTitle = titles.get(i);
+                    if (!parasha.isEmpty() && !cloudTitle.contains(parasha)) cloudTitle = cloudTitle + " · " + parasha;
+                    JSONObject payload = CloudShare.buildPayload(cloudTitle, data.optJSONArray("products"));
                     CloudShare.Uploaded uploaded = CloudShare.upload(server, payload, device);
                     done++; uploadedNow++;
                     String until = uploaded.expiresAt > 0 ? new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(uploaded.expiresAt)) : "";
+                    String when = CloudShare.uploadedLabel(uploaded.expiresAt > 0 ? uploaded.expiresAt - CloudShare.KEEP_MS : System.currentTimeMillis());
                     lines.append(labels.get(i)).append(": מספר ").append(uploaded.number)
-                            .append(until.isEmpty() ? "" : " (עד " + until + ")").append('\n');
+                            .append(" · ").append(when)
+                            .append(until.isEmpty() ? "" : " (בתוקף עד " + until + ")").append('\n');
                     final String id = entry.id;
                     mainHandler.post(() -> { setCloudNumber(id, uploaded.number, uploaded.expiresAt); recordCloudUpload(uploaded.number, uploaded.expiresAt); });
                 } catch (Exception e) {

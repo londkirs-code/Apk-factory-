@@ -58,7 +58,7 @@ public class CloudShareTest {
         assertEquals(1, bundle.lists.size());
         ImportParser.ImportedList list = bundle.lists.get(0);
         assertEquals("cloud-37-1700000000000", list.accountId);
-        assertEquals("רשימה 37 מהענן", list.accountName);
+        assertTrue(list.accountName.startsWith("רשימה 37 מהענן"));
         assertEquals("מכירת חנוכה", list.orderName);
         assertEquals(2, list.items.size());
         assertEquals("3", list.items.get(0).quantity);
