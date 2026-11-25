@@ -2595,7 +2595,23 @@ public class MainActivity extends Activity {
         return section;
     }
 
+    private boolean isInCurrentContent(View view) {
+        View content = findViewById(android.R.id.content);
+        for (View v = view; v != null; ) {
+            if (v == content) return true;
+            android.view.ViewParent parent = v.getParent();
+            v = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
+
     private void showSyncMessage(String value, boolean canRetry) {
+        // The login screen has no message banner (messageText may be null or belong to a
+        // screen that is no longer shown), so surface the message as a toast there; otherwise
+        // import errors started from the login screen were silently lost.
+        if (!isInCurrentContent(messageText) && value != null && !value.isEmpty()) {
+            Toast.makeText(this, value, Toast.LENGTH_LONG).show();
+        }
         if (messageText != null) {
             messageText.setText(value == null ? "" : value);
             messageText.setVisibility(value == null || value.isEmpty() ? View.GONE : View.VISIBLE);
@@ -4377,8 +4393,9 @@ public class MainActivity extends Activity {
             this(key, name, imageUrl, amount, note, "");
         }
         ProductRow(String key, String name, String imageUrl, String amount, String note, String imagePath) {
-            this.key = key; this.name = name; this.imageUrl = imageUrl; this.amount = amount;
-            this.note = note; this.imagePath = imagePath == null ? "" : imagePath;
+            this.key = key == null ? "" : key; this.name = name == null ? "" : name;
+            this.imageUrl = imageUrl == null ? "" : imageUrl; this.amount = amount == null ? "" : amount;
+            this.note = note == null ? "" : note; this.imagePath = imagePath == null ? "" : imagePath;
         }
     }
 }
