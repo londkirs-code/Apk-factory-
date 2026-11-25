@@ -19,6 +19,14 @@ final class ImportParser {
     static final class ImportedList {String accountId,accountName,orderId,orderName,pickupDate,updatedAt;final List<Item> items=new ArrayList<>();}
     static final class Bundle {final List<ImportedList> lists=new ArrayList<>();final File workDir;Bundle(File d){workDir=d;}File imageFile(String p){return p==null||p.isEmpty()?null:new File(workDir,p);}}
     private ImportParser(){}
+    /** Canonical quantity text: whole numbers without ".0" (2.0 -> "2"), otherwise up to 3 decimals. */
+    static String quantityText(double value) {
+        if(Math.abs(value-Math.rint(value))<0.000001)return String.valueOf((long)Math.rint(value));
+        String s=String.format(Locale.US,"%.3f",value);
+        while(s.contains(".")&&s.endsWith("0"))s=s.substring(0,s.length()-1);
+        if(s.endsWith("."))s=s.substring(0,s.length()-1);
+        return s;
+    }
     static Bundle parse(InputStream source,File workDir)throws Exception {
         if(source==null)throw new Exception("לא ניתן לפתוח את הקובץ.");
         if(workDir.exists())delete(workDir);if(!workDir.mkdirs())throw new Exception("לא ניתן ליצור תיקיית ייבוא זמנית.");
@@ -64,7 +72,7 @@ final class ImportParser {
                 try {
                     double amount=Double.parseDouble(quantity.replace(',','.'));
                     if(Double.isNaN(amount)||Double.isInfinite(amount)||amount<=0)throw new NumberFormatException();
-                    quantity=String.valueOf(amount);
+                    quantity=quantityText(amount);
                 } catch(Exception e) { throw new Exception("שורה "+(i+1)+": הכמות חייבת להיות מספר חיובי."); }
             }
             if(columns.length>2)unit=clean(columns[2]);

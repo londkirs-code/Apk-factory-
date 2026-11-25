@@ -94,6 +94,17 @@
       "timeout": 10
     },
     {
+      "action": "assert_text",
+      "text": "2",
+      "exact": true,
+      "note": "TXT quantity shown as 2, not 2.0"
+    },
+    {
+      "action": "assert_not_visible",
+      "text": "2.0",
+      "exact": true
+    },
+    {
       "action": "screenshot",
       "name": "list-imported"
     },
@@ -123,12 +134,12 @@
       "action": "tap",
       "text": "מלפפון",
       "exact": true,
-      "settle": 0.3
+      "settle": 0.6
     },
     {
-      "action": "wait_for",
-      "text": "הידד",
-      "timeout": 6
+      "action": "screenshot",
+      "name": "celebration",
+      "note": "celebration animation lasts ~1.5s; uiautomator cannot read the screen while it animates, so capture it as an image"
     },
     {
       "action": "screenshot",
