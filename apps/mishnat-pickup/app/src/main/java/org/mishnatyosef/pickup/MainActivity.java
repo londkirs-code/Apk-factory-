@@ -2595,11 +2595,6 @@ public class MainActivity extends Activity {
         return section;
     }
 
-    /** Wraps user text in a right-to-left isolate so mixed Hebrew/Latin notes keep their brackets and order. */
-    private static String rtlIsolate(String text) {
-        return text == null || text.isEmpty() ? "" : "\u2067" + text + "\u2069";
-    }
-
     private boolean isInCurrentContent(View view) {
         View content = findViewById(android.R.id.content);
         for (View v = view; v != null; ) {
@@ -3630,8 +3625,8 @@ public class MainActivity extends Activity {
         for(SourcePart part:parts) {
             any|=part.collected || part.partialQuantity>0; all&=part.collected;
             if(detail.length()>0)detail.append(" · ");
-            detail.append(rtlIsolate(part.sourceLabel)).append(" ").append(part.product.amount);
-            if(part.product.note!=null&&!part.product.note.isEmpty())detail.append(" (").append(rtlIsolate(part.product.note)).append(")");
+            detail.append(part.sourceLabel).append(" ").append(part.product.amount);
+            if(part.product.note!=null&&!part.product.note.isEmpty())detail.append(" (").append(part.product.note).append(")");
         }
         if(any&&!all)return "נאסף חלקית · "+detail;
         return detail.toString();
