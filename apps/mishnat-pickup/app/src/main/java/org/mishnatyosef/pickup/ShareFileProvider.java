@@ -13,7 +13,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
- * ספק קבצים זעיר לשיתוף (בלוטות' ואפליקציות אחרות), בלי ספריות חיצוניות.
+ * ספק קבצים זעיר לשיתוף (וואטסאפ, מייל, SMS ואפליקציות אחרות), בלי ספריות חיצוניות.
  * מגיש לקריאה בלבד קבצים מתיקיית cache/share, ורק לאפליקציה שקיבלה הרשאה זמנית לכתובת.
  */
 public final class ShareFileProvider extends ContentProvider {
@@ -41,7 +41,14 @@ public final class ShareFileProvider extends ContentProvider {
 
     @Override public boolean onCreate() { return true; }
 
-    @Override public String getType(Uri uri) { return "text/plain"; }
+    @Override public String getType(Uri uri) { return mimeFor(uri.getLastPathSegment()); }
+
+    static String mimeFor(String name) {
+        String n = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        if (n.endsWith(".json")) return "application/json";
+        if (n.endsWith(".zip")) return "application/zip";
+        return "text/plain";
+    }
 
     @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
         if (mode != null && !mode.equals("r")) throw new FileNotFoundException("קריאה בלבד");

@@ -190,6 +190,8 @@ final class Ui {
      * "סגירה" ו"ביטול" נשארים בלי אימוג׳י, כי הם מוחלפים אוטומטית בכפתור X.
      */
     private static final String[][] BUTTON_EMOJI = {
+            {"וואטסאפ", "💬"}, {"SMS", "📱"}, {"במייל", "📧"}, {"שמירה במכשיר", "💾"}, {"אפליקציה אחרת", "📤"},
+            {"קובץ JSON", "🗂️"}, {"קובץ טקסט", "📄"}, {"קובץ ZIP", "🗜️"},
             {"בענן", "☁️"}, {"מהענן", "☁️"}, {"שרת הענן", "☁️"}, {"שליחת המספר", "📨"}, {"מדריך המקשים", "⌨️"},
             {"חזרה להזמנה העדכנית", "🛒"}, {"ההזמנה העדכנית", "🛒"}, {"חזרה להגדרות", "⚙️"},
             {"ייבוא הזמנה", "🕘"}, {"הזמנות קודמות", "🕘"}, {"הוספת ההזמנה", "🧾"},
@@ -257,7 +259,7 @@ final class Ui {
     static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
             IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
             IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13, IC_MORE=14,
-            IC_PLUS=15, IC_MERGE=16, IC_CLOUD=17;
+            IC_PLUS=15, IC_MERGE=16, IC_CLOUD=17, IC_SHARE=18;
 
     static final class IconDrawable extends Drawable {
         private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -323,6 +325,9 @@ final class Ui {
                     canvas.drawPath(path,stroke);
                     path.reset(); path.moveTo(9f,18f); path.lineTo(12f,21f); path.lineTo(15f,18f);
                     canvas.drawPath(path,stroke); break;
+                case IC_SHARE:
+                    canvas.drawCircle(17.5f,5.5f,2.6f,stroke); canvas.drawCircle(6.5f,12f,2.6f,stroke); canvas.drawCircle(17.5f,18.5f,2.6f,stroke);
+                    canvas.drawLine(8.8f,10.7f,15.2f,6.8f,stroke); canvas.drawLine(8.8f,13.3f,15.2f,17.2f,stroke); break;
                 case IC_CLOUD:
                     path.reset();
                     path.moveTo(7f,18.5f); path.lineTo(17.5f,18.5f);

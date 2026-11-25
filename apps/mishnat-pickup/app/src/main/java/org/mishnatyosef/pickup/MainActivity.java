@@ -158,8 +158,6 @@ public class MainActivity extends Activity {
     private boolean loginBusy = false;
     private boolean accountsScreenVisible = false;
     private static final int REQUEST_IMPORT_FILE = 6101;
-    private static final int REQUEST_EXPORT_FILE = 6102;
-    private String pendingExportListId = "";
     private final List<String> syncQueue = new ArrayList<>();
     private int syncQueueIndex = 0;
     private int syncQueueTotal = 0;
@@ -362,9 +360,9 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_IMPORT_FILE && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) importFromUri(uri);
-        } else if (requestCode == REQUEST_EXPORT_FILE && resultCode == RESULT_OK && data != null) {
-            Uri uri=data.getData();String id=pendingExportListId;pendingExportListId="";
-            if(uri!=null&&!id.isEmpty())exportSavedListToUri(id,uri);
+        } else if (requestCode == REQUEST_SAVE_SHARE) {
+            File file = pendingSaveFile; pendingSaveFile = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && file != null) saveShareFileTo(file, data.getData());
         }
     }
 
@@ -1498,93 +1496,6 @@ public class MainActivity extends Activity {
         else showInfoDialog("אין הרשאה לקובץ", "בלי הרשאת קריאה אי אפשר לפתוח את הקובץ שהתקבל. אפשר לבחור אותו ב\"ייבוא מקובץ\".");
     }
 
-    // ---- בלוטות': שליחה דרך אפליקציית הבלוטות' של המכשיר, וקבלה דרך פתיחת הקובץ שהתקבל ----
-
-    /** שולח רשימה כקובץ טקסט (JSON בתוכו) ישר לאפליקציית הבלוטות'. רק מוצרים: בלי שמות חשבונות. */
-    private void sendListBluetooth(SavedListStore.Entry entry) {
-        final String title = displayTitle(entry);
-        cacheWorker.execute(() -> {
-            try {
-                JSONObject data = savedListStore.readEntry(entry.id);
-                JSONObject payload = CloudShare.buildPayload(title, data.optJSONArray("products"));
-                JSONObject list = payload.getJSONArray("lists").getJSONObject(0);
-                String id = "bt-" + java.util.UUID.randomUUID();
-                list.put("account", new JSONObject().put("id", id).put("name", "רשימה שהתקבלה בבלוטות'"));
-                list.put("order", new JSONObject().put("id", id).put("name", title));
-                File dir = ShareFileProvider.shareDir(this);
-                File[] old = dir.listFiles();
-                if (old != null) for (File f : old) if (System.currentTimeMillis() - f.lastModified() > 24L * 60 * 60 * 1000) f.delete();
-                // שם קובץ באנגלית: יש מכשירים ישנים שהבלוטות' שלהם משבש שמות בעברית. שם הרשימה נמצא בתוך הקובץ.
-                File file = new File(dir, "mishnat-osef-list-" + new SimpleDateFormat("ddMM-HHmm", Locale.ROOT).format(new Date()) + ".txt");
-                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
-                    out.write(payload.toString().getBytes(StandardCharsets.UTF_8));
-                }
-                mainHandler.post(() -> launchBluetoothSend(file));
-            } catch (Exception e) {
-                String error = safeError(e);
-                mainHandler.post(() -> showInfoDialog("השליחה לא הצליחה", error));
-            }
-        });
-    }
-
-    private void launchBluetoothSend(File file) {
-        Uri uri = ShareFileProvider.uriFor(file);
-        Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        send.setClipData(android.content.ClipData.newRawUri(file.getName(), uri));
-        // מחפשים את אפליקציית הבלוטות' כדי לפתוח אותה ישר; אם אין, פותחים את חלון השיתוף הרגיל.
-        android.content.ComponentName bluetooth = null;
-        try {
-            for (android.content.pm.ResolveInfo info : getPackageManager().queryIntentActivities(send, 0)) {
-                String pkg = info.activityInfo.packageName.toLowerCase(Locale.ROOT);
-                String name = info.activityInfo.name.toLowerCase(Locale.ROOT);
-                if (pkg.contains("bluetooth") || name.contains("bluetooth")) {
-                    bluetooth = new android.content.ComponentName(info.activityInfo.packageName, info.activityInfo.name);
-                    break;
-                }
-            }
-        } catch (Exception ignored) { }
-        try {
-            if (bluetooth != null) {
-                send.setComponent(bluetooth);
-                startActivity(send);
-            } else {
-                Toast.makeText(this, "לא נמצאה אפליקציית בלוטות'. בחרו \"בלוטות'\" ברשימה.", Toast.LENGTH_LONG).show();
-                startActivity(Intent.createChooser(send, "שליחת הרשימה"));
-            }
-        } catch (Exception e) {
-            try { startActivity(Intent.createChooser(send.setComponent(null), "שליחת הרשימה")); }
-            catch (Exception again) { showInfoDialog("השליחה לא הצליחה", "לא נמצאה אפליקציה לשליחת קבצים."); }
-        }
-    }
-
-    /** הסבר קצר לקבלה, וכפתור לפתיחת הקובץ שהתקבל. */
-    private void showBluetoothReceive() {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "קבלת רשימה בבלוטות'", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this,
-                "1. מדליקים בלוטות' בשני המכשירים.\n"
-                + "2. השולח בוחר ברשימה ⋮ ← \"שליחה בבלוטות'\" ובוחר את המכשיר הזה.\n"
-                + "3. כאן מאשרים את קבלת הקובץ.\n"
-                + "4. לוחצים על ההודעה \"הקובץ התקבל\" ובוחרים \"משנת אוסף\", או לוחצים למטה ובוחרים את הקובץ מתיקיית Bluetooth או ההורדות.",
-                Ui.T_BODY, Ui.INK, false), Ui.row(this, Ui.S2, Ui.S3));
-        Button enable = Ui.button(this, "הדלקת בלוטות'", Ui.Kind.SOFT);
-        enable.setOnClickListener(v -> {
-            try { startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); }
-            catch (Exception e) { showActionToast("לא ניתן לפתוח את הגדרות הבלוטות'"); }
-        });
-        Button open = Ui.button(this, "פתיחת הקובץ שהתקבל", Ui.Kind.PRIMARY);
-        open.setOnClickListener(v -> { dialog.dismiss(); openImportPicker(); });
-        panel.addView(open, Ui.row(this, 0, Ui.S1));
-        panel.addView(enable, Ui.row(this, 0, 0));
-        dialog.setContentView(panel);
-        dialog.show();
-        styleConfirmWindow(dialog);
-        open.requestFocus();
-    }
-
     private void importInput(InputStream input) {
         final File work=new File(getCacheDir(),"pickup_import_"+System.currentTimeMillis());
         showSyncMessage("בודק את קובץ הייבוא…",false);
@@ -1902,7 +1813,7 @@ public class MainActivity extends Activity {
             "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
-            + "• בלוטות': \"שליחה בבלוטות'\" בפעולות של כל רשימה, ו\"קבלה בבלוטות'\" ברשימה חדשה. בלי אינטרנט ובלי חשבון.\n"
+            + "• \"שיתוף\" בחלון הרשימות: ענן, JSON, TXT או ZIP עם תמונות, ואז וואטסאפ, SMS, מייל או שמירה במכשיר. משתף את המסומנות או את המוצגת, ואפשר לייבא הכול בחזרה.\n"
             + "• \"רשימה חדשה\" שואל מאיפה: הזמנה קודמת באתר, הענן, קובץ או רשימה ריקה.\n"
             + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
             + "• רשימה ששותפה בענן מציגה את המספר שלה (☁️) ליד השם, בכותרת ובפעולות של הרשימה.\n"
@@ -2580,7 +2491,9 @@ public class MainActivity extends Activity {
         deleteTile.setVisibility(checkedEntries().size()>=2?View.VISIBLE:View.GONE);
         deleteTile.setOnClickListener(v->confirmDeleteChecked());
         savedListsDeleteTile=deleteTile;
-        top.addView(tileRow(history,create,mergeLists,deleteTile),Ui.row(this,0,0));
+        Button shareTile=Ui.tile(this,Ui.IC_SHARE,"שיתוף");
+        shareTile.setOnClickListener(v->shareTileClicked(null));
+        top.addView(tileRow(history,create,shareTile,mergeLists,deleteTile),Ui.row(this,0,0));
         root.addView(top,new LinearLayout.LayoutParams(-1,-2));
 
         LinearLayout content=Ui.column(this);
@@ -2632,10 +2545,7 @@ public class MainActivity extends Activity {
         addSourceAction(panel, dialog, "שינוי שם", () -> showRenameDialog(entry.owner, entry.orderId,
                 displayTitle(entry), entry.title, afterRename));
         addSourceAction(panel, dialog, "מיזוג לתוך רשימה אחרת", () -> showMergeTargetDialog(entry));
-        addSourceAction(panel, dialog, "שיתוף בענן (מספר לשבוע)", () -> shareListToCloud(entry));
-        addSourceAction(panel, dialog, "שליחה בבלוטות'", () -> sendListBluetooth(entry));
-        addSourceAction(panel, dialog, "קבלת רשימה בבלוטות'", this::showBluetoothReceive);
-        addSourceAction(panel, dialog, "ייצוא לקובץ TXT", () -> exportSavedList(entry));
+
         addSourceAction(panel, dialog, "מחיקה מהרשימות השמורות", () -> showModernConfirm("מחיקת רשימה שמורה",
                 "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
                 () -> deleteSavedListEntry(entry)));
@@ -2958,7 +2868,11 @@ public class MainActivity extends Activity {
         deleteTile.setOnClickListener(v -> { dialog.dismiss(); confirmDeleteChecked(); });
         deleteRef[0] = deleteTile;
         mergeRef[0] = merge;
-        panel.addView(tileRow(history, create, merge, deleteTile), Ui.row(this, Ui.S2, 0));
+        // "שיתוף" תמיד מופיע: משתף את הרשימות המסומנות, ואם אין - את הרשימה המוצגת.
+        Button shareTile = Ui.tile(this, Ui.IC_SHARE, "שיתוף");
+        final SavedListStore.Entry shownForShare = combinedView ? null : findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
+        shareTile.setOnClickListener(v -> { dialog.dismiss(); shareTileClicked(shownForShare); });
+        panel.addView(tileRow(history, create, shareTile, merge, deleteTile), Ui.row(this, Ui.S2, 0));
 
         if (listGroupActive()) {
             Button leave = Ui.button(this, "ביטול כל הסימונים ויציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
@@ -3363,9 +3277,6 @@ public class MainActivity extends Activity {
         Button cloud = Ui.button(this, "מהענן לפי מספר", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); showCloudFetchDialog(); });
         panel.addView(cloud, Ui.row(this, 0, Ui.S1));
-        Button bluetooth = Ui.button(this, "קבלה בבלוטות'", Ui.Kind.SOFT);
-        bluetooth.setOnClickListener(v -> { dialog.dismiss(); showBluetoothReceive(); });
-        panel.addView(bluetooth, Ui.row(this, 0, Ui.S1));
         Button file = Ui.button(this, "ייבוא מקובץ", Ui.Kind.SOFT);
         file.setOnClickListener(v -> { dialog.dismiss(); openImportPicker(); });
         panel.addView(file, Ui.row(this, 0, Ui.S1));
@@ -3463,63 +3374,6 @@ public class MainActivity extends Activity {
         return badge.isEmpty() ? "" : "  " + badge;
     }
 
-    private void shareListToCloud(SavedListStore.Entry entry) {
-        final String title = displayTitle(entry), server = cloudUrl(), device = cloudDeviceId();
-        Toast.makeText(this, "מעלה את הרשימה לענן…", Toast.LENGTH_SHORT).show();
-        network.execute(() -> {
-            try {
-                JSONObject data = savedListStore.readEntry(entry.id);
-                JSONObject payload = CloudShare.buildPayload(title, data.optJSONArray("products"));
-                CloudShare.Uploaded uploaded = CloudShare.upload(server, payload, device);
-                mainHandler.post(() -> {
-                    setCloudNumber(entry.id, uploaded.number, uploaded.expiresAt);
-                    refreshHomeTitle();
-                    refreshSavedListsScreen();
-                    showCloudUploaded(uploaded, title);
-                });
-            } catch (Exception e) {
-                String error = safeError(e);
-                mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
-            }
-        });
-    }
-
-    private void showCloudUploaded(CloudShare.Uploaded uploaded, String title) {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "הרשימה שותפה בענן", Ui.T_NAME, Ui.P900, true));
-        TextView number = Ui.text(this, String.valueOf(uploaded.number), Ui.T_TITLE * 2, Ui.P700, true);
-        number.setGravity(Gravity.CENTER);
-        panel.addView(number, Ui.row(this, Ui.S3, 0));
-        String until = uploaded.expiresAt > 0
-                ? new SimpleDateFormat("dd/MM בשעה HH:mm", Locale.getDefault()).format(new Date(uploaded.expiresAt))
-                : "שבוע מהיום";
-        TextView details = Ui.text(this, "מספר הרשימה \"" + title + "\". בתוקף עד " + until
-                + ".\nכל מי שמקליד את המספר ב\"הבאה מהענן\" יקבל עותק של הרשימה. שמות החשבונות והמשפחות לא שותפו.",
-                Ui.T_BODY, Ui.INK, false);
-        details.setGravity(Gravity.CENTER);
-        panel.addView(details, Ui.row(this, Ui.S2, Ui.S3));
-        Button share = Ui.button(this, "שליחת המספר", Ui.Kind.PRIMARY);
-        share.setOnClickListener(v -> {
-            dialog.dismiss();
-            try {
-                Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, "רשימת האיסוף \"" + title + "\" במשנת אוסף: מספר "
-                                + uploaded.number + " (הבאה מהענן, בתוקף עד " + until + ")");
-                startActivity(Intent.createChooser(send, "שליחת מספר הרשימה"));
-            } catch (Exception e) { Toast.makeText(this, "לא נמצאה אפליקציה לשליחה.", Toast.LENGTH_LONG).show(); }
-        });
-        panel.addView(share);
-        Button close = Ui.button(this, "סגירה", Ui.Kind.SOFT);
-        close.setOnClickListener(v -> dialog.dismiss());
-        panel.addView(close, Ui.row(this, Ui.S1, 0));
-        dialog.setContentView(panel);
-        dialog.show();
-        styleConfirmWindow(dialog);
-        share.requestFocus();
-    }
-
     private void showCloudFetchDialog() {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
@@ -3605,33 +3459,232 @@ public class MainActivity extends Activity {
         input.requestFocus();
     }
 
-    private void exportSavedList(SavedListStore.Entry entry) {
-        try {
-            Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/plain");
-            String name=displayTitle(entry).replaceAll("[/:*?<>|]","_").replace("\\\\","_").replace("\"","_");
-            intent.putExtra(Intent.EXTRA_TITLE,name+".txt");pendingExportListId=entry.id;
-            startActivityForResult(intent,REQUEST_EXPORT_FILE);
-        } catch(Exception e) {pendingExportListId="";Toast.makeText(this,"לא ניתן לפתוח שמירת קובץ.",Toast.LENGTH_LONG).show();}
+    // ---- שיתוף: בחירת פורמט (ענן / JSON / TXT / ZIP), ואז בחירת דרך (וואטסאפ / SMS / מייל / שמירה / אחר) ----
+
+    private static final int REQUEST_SAVE_SHARE = 4712;
+    private File pendingSaveFile;
+
+    /** הרשימות לשיתוף: המסומנות (✓); אם אין - הרשימה המוצגת; אם גם אין - בחירה. */
+    private void shareTileClicked(SavedListStore.Entry shown) {
+        List<SavedListStore.Entry> chosen = checkedEntries();
+        if (chosen.isEmpty() && shown != null) chosen.add(shown);
+        if (!chosen.isEmpty()) { showShareFormats(chosen); return; }
+        if (savedListStore.list().isEmpty()) { showActionToast("אין רשימות לשיתוף"); return; }
+        pickSavedList("איזו רשימה לשתף?", "", entry -> {
+            List<SavedListStore.Entry> one = new ArrayList<>();
+            one.add(entry);
+            showShareFormats(one);
+        });
     }
-    private void exportSavedListToUri(String id,Uri uri) {
-        cacheWorker.execute(()->{
+
+    private void showShareFormats(List<SavedListStore.Entry> entries) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        String heading = entries.size() == 1 ? "שיתוף \"" + displayTitle(entries.get(0)) + "\"" : "שיתוף " + entries.size() + " רשימות";
+        panel.addView(Ui.text(this, heading, Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה. שמות חשבונות לא נשלחים.", Ui.T_NOTE, Ui.MUTED, false),
+                Ui.row(this, Ui.S1, Ui.S2));
+        Button cloud = Ui.button(this, entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל רשימה)", Ui.Kind.PRIMARY);
+        cloud.setOnClickListener(v -> { dialog.dismiss(); shareEntriesToCloud(entries); });
+        Button json = Ui.button(this, "קובץ JSON", Ui.Kind.SOFT);
+        json.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "json"); });
+        Button txt = Ui.button(this, "קובץ טקסט (TXT)", Ui.Kind.SOFT);
+        txt.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "txt"); });
+        Button zip = Ui.button(this, "קובץ ZIP עם תמונות", Ui.Kind.SOFT);
+        zip.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "zip"); });
+        panel.addView(cloud, Ui.row(this, Ui.S1, Ui.S1));
+        panel.addView(json, Ui.row(this, 0, Ui.S1));
+        panel.addView(txt, Ui.row(this, 0, Ui.S1));
+        panel.addView(zip, Ui.row(this, 0, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        cloud.requestFocus();
+    }
+
+    private List<ListExporter.Export> exportsFor(List<SavedListStore.Entry> entries) throws Exception {
+        List<ListExporter.Export> exports = new ArrayList<>();
+        for (SavedListStore.Entry entry : entries) {
+            JSONObject data = savedListStore.readEntry(entry.id);
+            exports.add(new ListExporter.Export(displayTitle(entry), data.optJSONArray("products")));
+        }
+        return exports;
+    }
+
+    private void buildShareFile(List<SavedListStore.Entry> entries, String format) {
+        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " רשימות";
+        showActionToast("מכין את הקובץ…");
+        cacheWorker.execute(() -> {
             try {
-                JSONObject data=savedListStore.readEntry(id);JSONArray rows=data.optJSONArray("products");
-                StringBuilder text=new StringBuilder("# משנת אוסף — ").append(data.optString("order_name","רשימה")).append("\n");
-                if(rows!=null)for(int i=0;i<rows.length();i++){
-                    JSONObject row=rows.optJSONObject(i);if(row==null)continue;
-                    String name=row.optString("name","").replace("|","/");
-                    String amount=row.optString("amount","1").replace("|","/");
-                    String note=row.optString("note","").replace("|","/");
-                    text.append(name).append(" | ").append(amount).append(" | | ").append(note).append("\n");
+                List<ListExporter.Export> exports = exportsFor(entries);
+                File dir = ShareFileProvider.shareDir(this);
+                File[] old = dir.listFiles();
+                if (old != null) for (File f : old) if (System.currentTimeMillis() - f.lastModified() > 24L * 60 * 60 * 1000) f.delete();
+                String safe = base.replaceAll("[\\\\/:*?\"<>|\\n\\r]", "_").trim();
+                if (safe.length() > 50) safe = safe.substring(0, 50);
+                File file = new File(dir, "משנת אוסף - " + safe + "." + format);
+                if ("zip".equals(format)) ListExporter.zip(exports, file);
+                else {
+                    String content = "json".equals(format) ? ListExporter.json(exports, null).toString(2) : ListExporter.text(exports);
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                        out.write(content.getBytes(StandardCharsets.UTF_8));
+                    }
                 }
-                try(OutputStream out=getContentResolver().openOutputStream(uri,"w")){
-                    if(out==null)throw new Exception("לא ניתן לפתוח את קובץ היעד.");
-                    out.write(text.toString().getBytes(StandardCharsets.UTF_8));out.flush();
+                String message = "רשימת איסוף ממשנת אוסף: " + base + ". לפתיחה: באפליקציה \"רשימה חדשה\" ← \"ייבוא מקובץ\".";
+                mainHandler.post(() -> showShareTargets("שליחת הקובץ", file, message));
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
+            }
+        });
+    }
+
+    /** העלאה לענן: מספר לכל רשימה, ואז אפשר לשלוח את המספרים. */
+    private void shareEntriesToCloud(List<SavedListStore.Entry> entries) {
+        final String server = cloudUrl(), device = cloudDeviceId();
+        final List<String> titles = new ArrayList<>();
+        for (SavedListStore.Entry entry : entries) titles.add(displayTitle(entry));
+        Toast.makeText(this, "מעלה לענן…", Toast.LENGTH_SHORT).show();
+        network.execute(() -> {
+            StringBuilder lines = new StringBuilder();
+            String firstError = "";
+            int done = 0;
+            for (int i = 0; i < entries.size(); i++) {
+                SavedListStore.Entry entry = entries.get(i);
+                try {
+                    JSONObject data = savedListStore.readEntry(entry.id);
+                    JSONObject payload = CloudShare.buildPayload(titles.get(i), data.optJSONArray("products"));
+                    CloudShare.Uploaded uploaded = CloudShare.upload(server, payload, device);
+                    done++;
+                    String until = uploaded.expiresAt > 0 ? new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(uploaded.expiresAt)) : "";
+                    lines.append(titles.get(i)).append(": מספר ").append(uploaded.number)
+                            .append(until.isEmpty() ? "" : " (עד " + until + ")").append('\n');
+                    final String id = entry.id;
+                    mainHandler.post(() -> setCloudNumber(id, uploaded.number, uploaded.expiresAt));
+                } catch (Exception e) {
+                    if (firstError.isEmpty()) firstError = safeError(e);
+                    lines.append(titles.get(i)).append(": לא הועלתה\n");
                 }
-                mainHandler.post(()->Toast.makeText(this,"הרשימה יוצאה לקובץ TXT.",Toast.LENGTH_LONG).show());
-            }catch(Exception e){String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"ייצוא הרשימה נכשל: "+error,Toast.LENGTH_LONG).show());}
+            }
+            final int ok = done;
+            final String error = firstError, summary = lines.toString().trim();
+            mainHandler.post(() -> {
+                refreshHomeTitle();
+                if (ok == 0) { showInfoDialog("השיתוף לא הצליח", error); return; }
+                String message = "רשימות איסוף במשנת אוסף (\"רשימה חדשה\" ← \"מהענן לפי מספר\"):\n" + summary;
+                showShareTargets(ok == 1 ? "הרשימה הועלתה לענן" : ok + " רשימות הועלו לענן", null, message);
+            });
+        });
+    }
+
+    /** איך לשלוח: וואטסאפ, SMS, מייל, שמירה במכשיר או אפליקציה אחרת. file ריק = שליחת טקסט בלבד. */
+    private void showShareTargets(String heading, File file, String message) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, heading, Ui.T_NAME, Ui.P900, true));
+        TextView details = Ui.text(this, file == null ? message : file.getName(), Ui.T_BODY, Ui.INK, file == null);
+        panel.addView(details, Ui.row(this, Ui.S1, Ui.S2));
+        Button whatsapp = Ui.button(this, "וואטסאפ", Ui.Kind.PRIMARY);
+        whatsapp.setOnClickListener(v -> { dialog.dismiss(); sendShare("whatsapp", file, message); });
+        Button sms = Ui.button(this, "SMS", Ui.Kind.SOFT);
+        sms.setOnClickListener(v -> { dialog.dismiss(); sendShare("sms", file, message); });
+        Button mail = Ui.button(this, "במייל", Ui.Kind.SOFT);
+        mail.setOnClickListener(v -> { dialog.dismiss(); sendShare("mail", file, message); });
+        panel.addView(buttonPair(whatsapp, sms), Ui.row(this, Ui.S1, Ui.S1));
+        if (file != null) {
+            Button save = Ui.button(this, "שמירה במכשיר", Ui.Kind.SOFT);
+            save.setOnClickListener(v -> { dialog.dismiss(); saveShareFile(file); });
+            panel.addView(buttonPair(mail, save), Ui.row(this, 0, Ui.S1));
+        } else panel.addView(mail, Ui.row(this, 0, Ui.S1));
+        Button other = Ui.button(this, "אפליקציה אחרת", Ui.Kind.SOFT);
+        other.setOnClickListener(v -> { dialog.dismiss(); sendShare("other", file, message); });
+        panel.addView(other, Ui.row(this, 0, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        whatsapp.requestFocus();
+    }
+
+    private void sendShare(String target, File file, String message) {
+        Intent send = new Intent(Intent.ACTION_SEND);
+        if (file != null) {
+            Uri uri = ShareFileProvider.uriFor(file);
+            send.setType(ShareFileProvider.mimeFor(file.getName()));
+            send.putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            send.setClipData(android.content.ClipData.newRawUri(file.getName(), uri));
+        } else send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, message);
+        send.putExtra(Intent.EXTRA_SUBJECT, "רשימת איסוף - משנת אוסף");
+        try {
+            switch (target) {
+                case "whatsapp": {
+                    String pkg = installed("com.whatsapp") ? "com.whatsapp" : installed("com.whatsapp.w4b") ? "com.whatsapp.w4b" : "";
+                    if (pkg.isEmpty()) { showActionToast("וואטסאפ לא מותקן במכשיר"); return; }
+                    startActivity(send.setPackage(pkg));
+                    return;
+                }
+                case "sms": {
+                    if (file == null) {
+                        Intent sms = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).putExtra("sms_body", message);
+                        startActivity(sms);
+                    } else {
+                        // קובץ נשלח כהודעת MMS דרך אפליקציית ההודעות הראשית.
+                        String pkg = Build.VERSION.SDK_INT >= 19 ? android.provider.Telephony.Sms.getDefaultSmsPackage(this) : null;
+                        if (pkg != null) send.setPackage(pkg);
+                        startActivity(pkg != null ? send : Intent.createChooser(send, "שליחה בהודעה"));
+                    }
+                    return;
+                }
+                case "mail": {
+                    // רק אפליקציות מייל.
+                    if (Build.VERSION.SDK_INT >= 15) send.setSelector(new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")));
+                    try { startActivity(send); }
+                    catch (android.content.ActivityNotFoundException e) {
+                        if (Build.VERSION.SDK_INT >= 15) send.setSelector(null);
+                        startActivity(Intent.createChooser(send, "שליחה במייל"));
+                    }
+                    return;
+                }
+                default:
+                    startActivity(Intent.createChooser(send, "שיתוף"));
+            }
+        } catch (Exception e) {
+            showInfoDialog("השליחה לא הצליחה", "לא נמצאה אפליקציה מתאימה במכשיר.");
+        }
+    }
+
+    private boolean installed(String pkg) {
+        try { getPackageManager().getPackageInfo(pkg, 0); return true; } catch (Exception e) { return false; }
+    }
+
+    /** שמירה במכשיר: המשתמש בוחר תיקייה ושם, ומשם אפשר להעביר את הקובץ ידנית לאן שרוצים. */
+    private void saveShareFile(File file) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType(ShareFileProvider.mimeFor(file.getName()));
+            intent.putExtra(Intent.EXTRA_TITLE, file.getName());
+            pendingSaveFile = file;
+            startActivityForResult(intent, REQUEST_SAVE_SHARE);
+        } catch (Exception e) {
+            pendingSaveFile = null;
+            showInfoDialog("השמירה לא הצליחה", "לא נמצא במכשיר בורר קבצים לשמירה.");
+        }
+    }
+
+    private void saveShareFileTo(File file, Uri uri) {
+        cacheWorker.execute(() -> {
+            try (InputStream in = new FileInputStream(file); OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
+                if (out == null) throw new Exception("לא ניתן לפתוח את קובץ היעד.");
+                byte[] buffer = new byte[8192]; int n;
+                while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                mainHandler.post(() -> showActionToast("הקובץ נשמר"));
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("השמירה לא הצליחה", error));
+            }
         });
     }
 

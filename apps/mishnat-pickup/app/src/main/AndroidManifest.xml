@@ -4,7 +4,7 @@
     <!-- קריאת קובץ שהתקבל בבלוטות' בגרסאות ישנות (שם הקובץ נפתח כ-file://). מ-Android 10 לא נדרש. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
-    <!-- כדי למצוא את אפליקציית הבלוטות' לשליחה ישירה (Android 11 ומעלה). -->
+    <!-- כדי לזהות אפליקציות שיתוף (Android 11 ומעלה). -->
     <queries>
         <intent>
             <action android:name="android.intent.action.SEND" />

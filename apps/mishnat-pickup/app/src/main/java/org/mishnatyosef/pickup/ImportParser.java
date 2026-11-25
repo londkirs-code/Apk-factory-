@@ -38,21 +38,31 @@ final class ImportParser {
     /**
      * Plain text format: one product per line. Optional columns are separated by |
      * name | quantity | unit | note | category. A line with only a name defaults to quantity 1.
-     * Empty lines and lines beginning with # are ignored.
+     * Empty lines and lines beginning with # are ignored, except "## name", which starts a new list
+     * (so one text file can hold several lists, as the app's export writes them).
      */
     private static Bundle parseText(byte[] raw,File dir)throws Exception {
         String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8);
         if(text.length()>0&&text.charAt(0)==0xFEFF)text=text.substring(1);
         String[] lines=text.split("\\r?\\n");
-        ImportedList list=new ImportedList();
-        list.accountId="text-"+java.util.UUID.randomUUID().toString();
-        list.accountName="רשימה מקובץ טקסט";
-        list.orderId=String.valueOf(System.currentTimeMillis());
-        list.orderName="רשימה מקובץ טקסט";
+        List<ImportedList> lists=new ArrayList<>();
+        ImportedList list=newTextList("רשימה מקובץ טקסט",0);
         Set<String> ids=new HashSet<>();
+        int total=0;
         for(int i=0;i<lines.length;i++) {
             String line=lines[i]==null?"":lines[i].trim();
+            if(line.startsWith("## ")) {
+                // רשימה חדשה באותו קובץ.
+                if(!list.items.isEmpty())lists.add(list);
+                if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
+                String name=clean(line.substring(3));
+                if(name.length()>200)name=name.substring(0,200);
+                list=newTextList(name.isEmpty()?"רשימה מקובץ טקסט":name,lists.size());
+                ids=new HashSet<>();
+                continue;
+            }
             if(line.isEmpty()||line.startsWith("#"))continue;
+            if(++total>MAX_ITEMS)throw new Exception("קובץ הטקסט מכיל יותר מ־5000 פריטים.");
             if(list.items.size()>=MAX_ITEMS)throw new Exception("קובץ הטקסט מכיל יותר מ־5000 פריטים.");
             String[] columns=line.split("\\|",-1);
             String name=clean(columns[0]);
@@ -83,8 +93,18 @@ final class ImportParser {
             item.unit=unit;item.note=note;item.category=category;
             list.items.add(item);
         }
-        if(list.items.isEmpty())throw new Exception("קובץ הטקסט אינו מכיל פריטים. כל שורה צריכה לכלול שם מוצר.");
-        Bundle bundle=new Bundle(dir);bundle.lists.add(list);return bundle;
+        if(!list.items.isEmpty())lists.add(list);
+        if(lists.isEmpty())throw new Exception("קובץ הטקסט אינו מכיל פריטים. כל שורה צריכה לכלול שם מוצר.");
+        Bundle bundle=new Bundle(dir);bundle.lists.addAll(lists);return bundle;
+    }
+
+    private static ImportedList newTextList(String name,int index) {
+        ImportedList list=new ImportedList();
+        list.accountId="text-"+java.util.UUID.randomUUID().toString();
+        list.accountName="רשימה מקובץ טקסט";
+        list.orderId=String.valueOf(System.currentTimeMillis()+index);
+        list.orderName=name;
+        return list;
     }
 
     private static byte[] readZip(InputStream input,File workDir)throws Exception {
