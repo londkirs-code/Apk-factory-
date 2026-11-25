@@ -1,48 +1,103 @@
 package com.londkirs.apkbridge
 
+import android.Manifest
 import android.app.Activity
+import android.app.Application
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
-import android.content.Context
-import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
+import android.content.pm.PackageManager
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import io.github.rhythmcache.adb.AdbClient
-import io.github.rhythmcache.adb.FileKeyProvider
-import io.github.rhythmcache.adb.io.RandomAccessSource
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.withContext
-import java.io.File
+
+class BridgeApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        Bridge.init(this)
+        PairingService.createChannel(this)
+    }
+}
 
 class MainActivity : Activity() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private lateinit var statusText: TextView
+    private lateinit var connectionText: TextView
+    private lateinit var progressBar: ProgressBar
+    private lateinit var filesText: TextView
+    private lateinit var logText: TextView
+    private lateinit var logScroll: ScrollView
+    private lateinit var manualBox: LinearLayout
     private lateinit var host: EditText
     private lateinit var pairPort: EditText
     private lateinit var pin: EditText
-    private lateinit var connectPort: EditText
-    private lateinit var status: TextView
-    private var selectedApk: Uri? = null
-    private var nsd: NsdManager? = null
-    private var discovery: NsdManager.DiscoveryListener? = null
+    private lateinit var uninstallPkg: EditText
+    private lateinit var keepData: CheckBox
+    private lateinit var installButton: Button
+    private lateinit var cancelButton: Button
+    private lateinit var openAppButton: Button
+    private val optionBoxes = mutableMapOf<String, CheckBox>()
+    private val busyViews = mutableListOf<View>()
 
+    private var selected: List<Uri> = emptyList()
+
+    private val stateListener: (BridgeState) -> Unit = { render(it) }
+    private val logListener: (String) -> Unit = { line ->
+        if (line.isEmpty()) logText.text = "" else {
+            if (logText.text.isNotEmpty()) logText.append("\n")
+            logText.append(line)
+        }
+        logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        nsd = getSystemService(Context.NSD_SERVICE) as NsdManager
+        Bridge.init(this)
+        selected = savedInstanceState?.getParcelableArrayList<Uri>(KEY_SELECTED).orEmpty()
         buildUi()
-        handleIncoming(intent)
+        logText.text = Bridge.logSnapshot()
+        if (savedInstanceState == null) handleIncoming(intent)
+        renderSelection()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Bridge.addStateListener(stateListener)
+        Bridge.addLogListener(logListener)
+        refreshConnectionInfo()
+    }
+
+    override fun onStop() {
+        Bridge.removeStateListener(stateListener)
+        Bridge.removeLogListener(logListener)
+        super.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshConnectionInfo()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putParcelableArrayList(KEY_SELECTED, ArrayList(selected))
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -51,251 +106,435 @@ class MainActivity : Activity() {
         handleIncoming(intent)
     }
 
+    // region UI construction
+
     private fun buildUi() {
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(24), dp(22), dp(24))
-            setBackgroundColor(0xFFFFF9F3.toInt())
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(16), dp(18), dp(16), dp(24))
         }
-        val title = TextView(this).apply {
+
+        page.addView(TextView(this).apply {
             text = "APK Bridge"
             textSize = 28f
-            setTextColor(0xFF30251D.toInt())
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(INK)
             gravity = Gravity.CENTER
+        }, matchWrap())
+        page.addView(TextView(this).apply {
+            text = "התקנת APK, ‏APKS, ‏XAPK ו־APKM דרך Wireless Debugging — בלי מחשב ובלי Root"
+            textSize = 13f
+            setTextColor(MUTED)
+            gravity = Gravity.CENTER
+        }, matchWrap(14))
+
+        // Status card
+        val statusCard = card(page)
+        statusText = TextView(this).apply { textSize = 15f; setTextColor(INK) }
+        statusCard.addView(statusText, matchWrap(6))
+        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            visibility = View.GONE
         }
-        page.addView(title, matchWrap())
-        page.addView(label("התקנת APK דרך Wireless Debugging"), matchWrap())
-        page.addView(label("1. הפעל במכשיר: אפשרויות למפתחים ← ניפוי באגים אלחוטי."), matchWrap())
-        host = field("כתובת IP של המכשיר (למשל 192.168.1.20)")
-        pairPort = field("Pairing port")
-        pin = field("קוד זיווג בן 6 ספרות")
-        connectPort = field("Connect port (אפשר להשאיר ריק לגילוי אוטומטי)")
-        page.addView(host, matchWrap())
-        page.addView(pairPort, matchWrap())
-        page.addView(pin, matchWrap())
-        page.addView(connectPort, matchWrap())
-        page.addView(actionButton("בצע זיווג חד־פעמי", true) { pairDevice() }, matchWrap())
-        page.addView(actionButton("אתר חיבור Wireless Debugging", false) { discoverConnectPort() }, matchWrap())
-        page.addView(actionButton("בחר קובץ APK", false) { chooseApk() }, matchWrap())
-        page.addView(actionButton("התקן APK שנבחר", true) { installSelected() }, matchWrap())
-        status = TextView(this).apply {
-            text = "מוכן. יש לבצע זיווג פעם אחת, ולאחר מכן אפשר לפתוח APK מכל מנהל קבצים."
-            textSize = 14f
-            setTextColor(0xFF55483E.toInt())
-            setPadding(0, dp(18), 0, 0)
+        statusCard.addView(progressBar, matchWrap(6))
+        cancelButton = button("בטל פעולה", primary = false) { Bridge.cancelCurrent() }.apply { visibility = View.GONE }
+        statusCard.addView(cancelButton, matchWrap())
+        openAppButton = button("פתח את האפליקציה שהותקנה", primary = false) { openInstalledApp() }.apply { visibility = View.GONE }
+        statusCard.addView(openAppButton, matchWrap())
+
+        // Connection card
+        val conn = card(page)
+        conn.addView(heading("1 · חיבור"), matchWrap())
+        connectionText = body("")
+        conn.addView(connectionText, matchWrap(8))
+        conn.addView(button("זווג דרך התראה (מומלץ)", primary = true) { startNotificationPairing() }.busyAware(), matchWrap())
+        conn.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
+        conn.addView(button("בדוק חיבור", primary = false) { Bridge.testConnection() }.busyAware(), matchWrap())
+        conn.addView(button("זיווג ידני / מכשיר אחר ▾", primary = false) {
+            manualBox.visibility = if (manualBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }, matchWrap())
+        manualBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        manualBox.addView(body("ברירת המחדל 127.0.0.1 היא המכשיר הזה. אפשר להזין IP של מכשיר אחר באותה רשת. פורט הזיווג נמצא אוטומטית אם משאירים ריק."), matchWrap(6))
+        host = field("כתובת יעד (127.0.0.1)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI).apply { setText(Bridge.targetHost) }
+        pairPort = field("פורט זיווג (לא חובה)", InputType.TYPE_CLASS_NUMBER)
+        pin = field("קוד זיווג בן 6 ספרות", InputType.TYPE_CLASS_NUMBER)
+        manualBox.addView(host, matchWrap())
+        manualBox.addView(pairPort, matchWrap())
+        manualBox.addView(pin, matchWrap())
+        manualBox.addView(button("בצע זיווג", primary = true) { manualPair() }.busyAware(), matchWrap())
+        manualBox.addView(button("שמור כתובת יעד", primary = false) {
+            Bridge.targetHost = host.text.toString()
+            Bridge.savedConnectPort = 0
+            host.setText(Bridge.targetHost)
+            refreshConnectionInfo()
+            toast("כתובת היעד נשמרה.")
+        }, matchWrap())
+        conn.addView(manualBox, matchWrap())
+
+        // Install card
+        val inst = card(page)
+        inst.addView(heading("2 · התקנה"), matchWrap())
+        filesText = body("")
+        inst.addView(filesText, matchWrap(8))
+        inst.addView(button("בחר קבצים (APK / APKS / XAPK / APKM)", primary = false) { chooseFiles() }.busyAware(), matchWrap())
+        installButton = button("התקן", primary = true) { installSelected() }.busyAware()
+        inst.addView(installButton, matchWrap(10))
+        val opts = Bridge.loadOptions()
+        option(inst, "play", "רשום את Google Play כמקור ההתקנה", opts.registerPlayInstaller)
+        option(inst, "downgrade", "אפשר שנמוך גרסה (‎-d)", opts.allowDowngrade)
+        option(inst, "grant", "הענק את כל ההרשאות מראש (‎-g)", opts.grantPermissions)
+        option(inst, "test", "אפשר חבילות בדיקה (‎-t)", opts.allowTestPackages)
+        if (Build.VERSION.SDK_INT >= 34) {
+            option(inst, "bypass", "עקוף חסימת targetSdk נמוך (Android 14+)", opts.bypassLowTargetSdk)
         }
-        page.addView(status, matchWrap())
-        val scroll = ScrollView(this)
-        scroll.addView(page)
-        setContentView(scroll)
+        inst.addView(note("רישום Google Play כמקור ההתקנה הוא סימון בלבד: ההתקנה מתבצעת דרך ADB, והאפליקציה אינה מקבלת רישוי, רכישה או אימות של Play."), matchWrap())
+
+        // Tools card
+        val tools = card(page)
+        tools.addView(heading("3 · כלים"), matchWrap())
+        uninstallPkg = field("שם חבילה להסרה (למשל com.example.app)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        tools.addView(uninstallPkg, matchWrap())
+        keepData = checkBox("שמור נתוני אפליקציה (‎-k)", false)
+        tools.addView(keepData, matchWrap())
+        tools.addView(button("הסר התקנה", primary = false) {
+            Bridge.uninstall(uninstallPkg.text.toString(), keepData.isChecked)
+        }.busyAware(), matchWrap(12))
+        tools.addView(body("הפעלה אוטומטית: APK Bridge יכול להדליק את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (למשל אחרי הפעלה מחדש), כך שלא צריך להיכנס להגדרות לפני כל התקנה."), matchWrap(6))
+        tools.addView(button("אפשר הפעלה אוטומטית של ניפוי באגים אלחוטי", primary = false) { Bridge.grantAutoEnable() }.busyAware(), matchWrap())
+
+        // Log card
+        val logCard = card(page)
+        logCard.addView(heading("יומן"), matchWrap())
+        logText = TextView(this).apply {
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setTextColor(0xFF4A3F36.toInt())
+            setTextIsSelectable(true)
+            textDirection = View.TEXT_DIRECTION_ANY_RTL
+        }
+        logScroll = ScrollView(this).apply {
+            addView(logText)
+            isNestedScrollingEnabled = true
+        }
+        logCard.addView(logScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(220)).apply { bottomMargin = dp(8) })
+        val logButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        logButtons.addView(button("העתק יומן", primary = false) { copyLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
+        logButtons.addView(button("נקה", primary = false) { Bridge.clearLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        logCard.addView(logButtons, matchWrap())
+
+        page.addView(TextView(this).apply {
+            text = "גרסה ${versionName()}"
+            textSize = 12f
+            setTextColor(MUTED)
+            gravity = Gravity.CENTER
+        }, matchWrap())
+
+        val root = ScrollView(this).apply {
+            setBackgroundColor(BACKGROUND)
+            isFillViewport = true
+            addView(page)
+        }
+        // targetSdk 35 forces edge-to-edge on Android 15+: keep content clear of system bars and the keyboard.
+        window.setDecorFitsSystemWindows(false)
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime() or WindowInsets.Type.displayCutout())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            WindowInsets.CONSUMED
+        }
+        setContentView(root)
     }
 
-    private fun label(value: String) = TextView(this).apply {
+    private fun card(parent: LinearLayout) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(14), dp(16), dp(12))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(18).toFloat()
+            setColor(0xFFFFFFFF.toInt())
+            setStroke(dp(1), 0xFFF2E2D2.toInt())
+        }
+        elevation = dp(1).toFloat()
+        parent.addView(this, matchWrap(14))
+    }
+
+    private fun heading(value: String) = TextView(this).apply {
+        text = value
+        textSize = 18f
+        typeface = Typeface.DEFAULT_BOLD
+        setTextColor(INK)
+        setPadding(0, 0, 0, dp(6))
+    }
+
+    private fun body(value: String) = TextView(this).apply {
         text = value
         textSize = 14f
-        setTextColor(0xFF6D5B4C.toInt())
-        setPadding(0, dp(10), 0, dp(5))
+        setTextColor(0xFF55483E.toInt())
+        setLineSpacing(0f, 1.1f)
     }
 
-    private fun field(hintText: String) = EditText(this).apply {
+    private fun note(value: String) = TextView(this).apply {
+        text = value
+        textSize = 12f
+        setTextColor(MUTED)
+        setPadding(0, dp(4), 0, 0)
+    }
+
+    private fun field(hintText: String, type: Int) = EditText(this).apply {
         hint = hintText
         textSize = 15f
+        inputType = type
         setSingleLine(true)
-        setTextColor(0xFF30251D.toInt())
+        setTextColor(INK)
         setHintTextColor(0xFF9B8D80.toInt())
         setPadding(dp(14), dp(12), dp(14), dp(12))
-        setBackgroundColor(0xFFFFFFFF.toInt())
+        background = GradientDrawable().apply {
+            cornerRadius = dp(12).toFloat()
+            setColor(0xFFFFFBF7.toInt())
+            setStroke(dp(1), 0xFFE8D6C4.toInt())
+        }
     }
 
-    private fun actionButton(textValue: String, primary: Boolean, action: () -> Unit) =
-        Button(this).apply {
-            text = textValue
-            textSize = 15f
-            isAllCaps = false
-            setTextColor(if (primary) 0xFFFFFFFF.toInt() else 0xFF75451F.toInt())
-            setBackgroundColor(if (primary) 0xFFF09A45.toInt() else 0xFFFFE7D1.toInt())
-            setOnClickListener { action() }
-        }
+    private fun checkBox(label: String, checked: Boolean) = CheckBox(this).apply {
+        text = label
+        textSize = 14f
+        isChecked = checked
+        setTextColor(INK)
+    }
 
-    private fun pairDevice() {
-        val ip = host.text.toString().trim()
-        val port = pairPort.text.toString().toIntOrNull()
-        val code = pin.text.toString().trim()
-        if (ip.isBlank() || port == null || code.length != 6 || !code.all(Char::isDigit)) {
-            message("צריך כתובת IP, פורט זיווג וקוד בן 6 ספרות.")
+    private fun option(parent: LinearLayout, key: String, label: String, checked: Boolean) {
+        val box = checkBox(label, checked)
+        box.setOnCheckedChangeListener { _, _ -> Bridge.saveOptions(currentOptions()) }
+        optionBoxes[key] = box
+        parent.addView(box, matchWrap(0))
+    }
+
+    private fun button(textValue: String, primary: Boolean, action: () -> Unit) = Button(this).apply {
+        text = textValue
+        textSize = 15f
+        isAllCaps = false
+        stateListAnimator = null
+        setTextColor(if (primary) 0xFFFFFFFF.toInt() else 0xFF75451F.toInt())
+        background = GradientDrawable().apply {
+            cornerRadius = dp(14).toFloat()
+            setColor(if (primary) ACCENT else 0xFFFFE7D1.toInt())
+        }
+        setPadding(dp(12), dp(12), dp(12), dp(12))
+        setOnClickListener { action() }
+    }
+
+    private fun Button.busyAware() = also { busyViews += it }
+
+    // endregion
+
+    // region rendering
+
+    private fun render(state: BridgeState) {
+        statusText.text = state.status
+        val showProgress = state.busy || state.progress in 0..99
+        progressBar.visibility = if (showProgress) View.VISIBLE else View.GONE
+        progressBar.isIndeterminate = state.progress < 0
+        if (state.progress >= 0) progressBar.progress = state.progress
+        cancelButton.visibility = if (state.busy) View.VISIBLE else View.GONE
+        busyViews.forEach { it.isEnabled = !state.busy; it.alpha = if (state.busy) 0.5f else 1f }
+        val pkg = state.lastInstalledPackage
+        openAppButton.visibility = if (!state.busy && pkg != null && packageManager.getLaunchIntentForPackage(pkg) != null) View.VISIBLE else View.GONE
+        if (!state.busy) refreshConnectionInfo()
+    }
+
+    private fun refreshConnectionInfo() {
+        if (!::connectionText.isInitialized) return
+        val wifi = Bridge.isOnWifi()
+        val wireless = Bridge.isWirelessDebuggingOn()
+        val lines = mutableListOf<String>()
+        lines += if (Bridge.isPaired) "✔ זווג בעבר עם המכשיר (${Bridge.targetHost})" else "✖ עדיין לא בוצע זיווג"
+        lines += if (wifi) "✔ מחובר ל־Wi‑Fi" else "✖ אין Wi‑Fi — ניפוי באגים אלחוטי דורש Wi‑Fi"
+        lines += when (wireless) {
+            true -> "✔ ניפוי באגים אלחוטי פעיל"
+            false -> if (Bridge.canWriteSecureSettings()) "• ניפוי באגים אלחוטי כבוי — יופעל אוטומטית בעת הצורך" else "✖ ניפוי באגים אלחוטי כבוי"
+            null -> "• מצב ניפוי באגים אלחוטי לא ידוע"
+        }
+        if (Bridge.canWriteSecureSettings()) lines += "✔ הפעלה אוטומטית מאופשרת"
+        if (Bridge.savedConnectPort > 0) lines += "• פורט חיבור אחרון: ${Bridge.savedConnectPort}"
+        connectionText.text = lines.joinToString("\n")
+    }
+
+    private fun renderSelection() {
+        if (!::filesText.isInitialized) return
+        filesText.text = if (selected.isEmpty()) {
+            "לא נבחרו קבצים. אפשר גם לפתוח או לשתף קובץ APK מכל מנהל קבצים או דפדפן."
+        } else {
+            selected.joinToString("\n") { "• ${Bridge.displayName(it)} (${Bridge.formatSize(Bridge.sizeOf(it))})" }
+        }
+        installButton.text = if (selected.size > 1) "התקן ${selected.size} קבצים" else "התקן"
+    }
+
+    // endregion
+
+    // region actions
+
+    private fun currentOptions() = InstallOptions(
+        allowDowngrade = optionBoxes["downgrade"]?.isChecked == true,
+        grantPermissions = optionBoxes["grant"]?.isChecked == true,
+        allowTestPackages = optionBoxes["test"]?.isChecked == true,
+        bypassLowTargetSdk = optionBoxes["bypass"]?.isChecked ?: Bridge.loadOptions().bypassLowTargetSdk,
+        registerPlayInstaller = optionBoxes["play"]?.isChecked == true,
+    )
+
+    private fun startNotificationPairing() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
             return
         }
-        busy("מבצע זיווג מאובטח…")
-        scope.launch {
+        if (!Bridge.isOnWifi()) toast("שים לב: ניפוי באגים אלחוטי דורש חיבור Wi‑Fi.")
+        PairingService.start(this)
+        Bridge.log("זיווג דרך התראה: פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\" והזן את הקוד בהתראה.")
+        toast("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\", והזן את הקוד בהתראה שתופיע.")
+        openDeveloperOptions()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_NOTIFICATIONS) return
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            startNotificationPairing()
+        } else {
+            toast("בלי הרשאת התראות אפשר להשתמש בזיווג ידני (אפשר במסך מפוצל).")
+            manualBox.visibility = View.VISIBLE
+        }
+    }
+
+    private fun openDeveloperOptions() {
+        val intents = listOf(
+            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+            Intent(Settings.ACTION_DEVICE_INFO_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS),
+        )
+        for (i in intents) {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    AdbClient.pairTls(ip, port, code, keyProvider())
+                startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                if (i.action == Settings.ACTION_DEVICE_INFO_SETTINGS) {
+                    toast("אפשרויות למפתחים כבויות: הקש 7 פעמים על \"מספר Build\" כדי להפעיל אותן.")
                 }
-                if (result.isSuccess) {
-                    getPreferences(MODE_PRIVATE).edit().putString("paired_host", ip).apply()
-                    host.setText(ip)
-                    status.text = "הזיווג הצליח. כעת הפעל גילוי אוטומטי או הזן את Connect port שמופיע במסך Wireless Debugging."
-                    message("הזיווג הצליח.")
-                } else {
-                    status.text = "הזיווג נכשל: ${result.exceptionOrNull()?.message ?: "לא התקבל אישור"}"
-                }
-            } catch (e: Exception) {
-                status.text = "שגיאת זיווג: ${e.message ?: e.javaClass.simpleName}"
+                return
+            } catch (_: ActivityNotFoundException) {
+            } catch (_: SecurityException) {
             }
         }
     }
 
-    private fun discoverConnectPort() {
-        val ip = host.text.toString().trim().ifBlank {
-            getPreferences(MODE_PRIVATE).getString("paired_host", "").orEmpty()
+    private fun manualPair() {
+        val code = pin.text.toString().trim()
+        if (code.length != 6 || !code.all(Char::isDigit)) {
+            toast("קוד הזיווג חייב להכיל 6 ספרות.")
+            return
         }
-        if (ip.isBlank()) { message("הזן כתובת IP תחילה."); return }
-        host.setText(ip)
-        val manager = nsd ?: return
-        busy("מחפש שירות Wireless Debugging ברשת המקומית…")
-        val listener = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(serviceType: String) {}
-            override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                if (serviceInfo.serviceType.contains("_adb-tls-connect")) {
-                    manager.stopServiceDiscovery(this)
-                    manager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
-                            status.text = "נמצא שירות ADB אך לא ניתן לפתור את הכתובת. אפשר להזין Connect port ידנית."
-                        }
-                        override fun onServiceResolved(info: NsdServiceInfo) {
-                            runOnUiThread {
-                                val resolvedHost = info.host?.hostAddress ?: ip
-                                host.setText(resolvedHost)
-                                connectPort.setText(info.port.toString())
-                                status.text = "נמצא חיבור Wireless Debugging: $resolvedHost:${info.port}"
-                            }
-                        }
-                    })
-                }
-            }
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
-            override fun onDiscoveryStopped(serviceType: String) {}
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                status.text = "גילוי mDNS נכשל ($errorCode). הזן Connect port ידנית."
-                manager.stopServiceDiscovery(this)
-            }
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                manager.stopServiceDiscovery(this)
-            }
-        }
-        discovery = listener
-        manager.discoverServices("_adb-tls-connect._tcp.", NsdManager.PROTOCOL_DNS_SD, listener)
+        Bridge.pair(host.text.toString(), pairPort.text.toString().toIntOrNull(), code)
     }
 
-    private fun chooseApk() {
+    private fun chooseFiles() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "application/vnd.android.package-archive"
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                "application/vnd.android.package-archive",
+                "application/zip",
+                "application/x-zip-compressed",
+                "application/octet-stream",
+                "application/vnd.apkm",
+                "application/xapk-package-archive",
+            ))
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         }
-        startActivityForResult(intent, REQUEST_APK)
+        try {
+            startActivityForResult(intent, REQUEST_FILES)
+        } catch (_: ActivityNotFoundException) {
+            toast("לא נמצא בוחר קבצים במכשיר.")
+        }
     }
 
-    @Deprecated("Legacy result callback retained for API 30 compatibility")
+    @Deprecated("Framework Activity result callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_APK && resultCode == Activity.RESULT_OK) {
-            data?.data?.let { selectedApk = it; status.text = "נבחר קובץ: ${displayName(it)}" }
+        if (requestCode != REQUEST_FILES || resultCode != RESULT_OK || data == null) return
+        val uris = mutableListOf<Uri>()
+        data.clipData?.let { clip -> for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let(uris::add) }
+        if (uris.isEmpty()) data.data?.let(uris::add)
+        uris.forEach { uri ->
+            runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        }
+        setSelection(uris)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun handleIncoming(intent: Intent?) {
+        if (intent == null) return
+        val uris: List<Uri> = when (intent.action) {
+            Intent.ACTION_VIEW -> listOfNotNull(intent.data)
+            Intent.ACTION_SEND -> listOfNotNull(
+                if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                else intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+            )
+            Intent.ACTION_SEND_MULTIPLE ->
+                if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+                else intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty()
+            else -> emptyList()
+        }
+        if (uris.isNotEmpty()) {
+            setSelection(uris)
+            Bridge.log("התקבלו ${uris.size} קבצים מאפליקציה אחרת.")
         }
     }
 
-    private fun handleIncoming(intent: Intent?) {
-        if (intent == null) return
-        val incoming = when (intent.action) {
-            Intent.ACTION_VIEW -> intent.data
-            Intent.ACTION_SEND -> {
-                if (android.os.Build.VERSION.SDK_INT >= 33)
-                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
-            }
-            else -> null
-        }
-        if (incoming != null) {
-            selectedApk = incoming
-            status.text = "התקבל קובץ להתקנה: ${displayName(incoming)}"
-            if (getPreferences(MODE_PRIVATE).getString("paired_host", null) != null) {
-                status.append("\nאפשר ללחוץ על התקן APK שנבחר.")
-            }
-        }
+    private fun setSelection(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        selected = uris
+        renderSelection()
     }
 
     private fun installSelected() {
-        val uri = selectedApk
-        if (uri == null) { message("בחר או פתח קובץ APK תחילה."); return }
-        val ip = host.text.toString().trim().ifBlank {
-            getPreferences(MODE_PRIVATE).getString("paired_host", "").orEmpty()
-        }
-        val port = connectPort.text.toString().toIntOrNull()
-        if (ip.isBlank() || port == null) {
-            message("נדרש IP ו־Connect port. אפשר לנסות גילוי אוטומטי.")
+        if (selected.isEmpty()) {
+            chooseFiles()
             return
         }
-        busy("מכין את קובץ ההתקנה…")
-        scope.launch {
-            var temp: File? = null
-            try {
-                temp = withContext(Dispatchers.IO) {
-                    val out = File(cacheDir, "incoming-${System.currentTimeMillis()}.apk")
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        out.outputStream().use { output -> input.copyTo(output) }
-                    } ?: error("לא ניתן לקרוא את קובץ ה־APK")
-                    out
-                }
-                val packageName = packageManager.getPackageArchiveInfo(temp!!.absolutePath, 0)?.packageName
-                    ?: error("הקובץ שנבחר אינו APK תקין או שלא ניתן לקרוא את שם החבילה")
-                status.text = "מתחבר למכשיר ומתקין…"
-                val verification = withContext(Dispatchers.IO) {
-                    AdbClient.connectTls(ip, port, keyProvider()).use { client ->
-                        val source = RandomAccessSource.of(temp!!)
-                        source.use {
-                            client.install.install(it, flags = listOf("-r", "-i", "com.android.vending")).collect { progress ->
-                                withContext(Dispatchers.Main) {
-                                    status.text = "התקנה: ${progress.percentage}% — ${progress.statusText}"
-                                }
-                            }
-                        }
-                        client.shell("pm list packages -i ${packageName}").stdoutText.trim()
-                    }
-                }
-                val playListed = verification.contains("installer=com.android.vending")
-                status.text = if (playListed) {
-                    "ההתקנה הסתיימה בהצלחה. Android מציג את Google Play כמקור ההתקנה הרשום עבור ${packageName}.\n\n${verification}"
-                } else {
-                    "ההתקנה הסתיימה, אך Android לא אישר ש-Google Play הוא מקור ההתקנה.\n\nתוצאת הבדיקה: ${verification}"
-                }
-                message(if (playListed) "ההתקנה הסתיימה; מקור ההתקנה הרשום הוא Google Play." else "ההתקנה הסתיימה; זיהוי Google Play לא אומת.")
-            } catch (e: Exception) {
-                status.text = "ההתקנה נכשלה: ${e.message ?: e.javaClass.simpleName}"
-            } finally {
-                withContext(Dispatchers.IO) { temp?.delete() }
-            }
-        }
+        val options = currentOptions()
+        Bridge.saveOptions(options)
+        Bridge.install(selected, options)
     }
 
-    private fun keyProvider() = FileKeyProvider(File(filesDir, "adbkey"))
+    private fun openInstalledApp() {
+        val pkg = Bridge.state.lastInstalledPackage ?: return
+        val launch = packageManager.getLaunchIntentForPackage(pkg)
+        if (launch == null) toast("לאפליקציה אין מסך פתיחה.") else startActivity(launch)
+    }
 
-    private fun displayName(uri: Uri): String = runCatching {
-        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-            if (it.moveToFirst()) it.getString(0) else uri.lastPathSegment ?: "APK"
-        } ?: uri.lastPathSegment ?: "APK"
-    }.getOrDefault("APK")
+    private fun copyLog() {
+        val cm = getSystemService(ClipboardManager::class.java) ?: return
+        cm.setPrimaryClip(ClipData.newPlainText("APK Bridge log", Bridge.logSnapshot()))
+        toast("היומן הועתק.")
+    }
 
-    private fun busy(text: String) { status.text = text }
-    private fun message(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+    // endregion
+
+    private fun versionName(): String = runCatching {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        "${info.versionName} (${info.longVersionCode})"
+    }.getOrDefault("?")
+
+    private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-    private fun matchWrap() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-        bottomMargin = dp(9)
-    }
+    private fun matchWrap(bottom: Int = 9) = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+    ).apply { bottomMargin = dp(bottom) }
 
-    override fun onDestroy() {
-        discovery?.let { runCatching { nsd?.stopServiceDiscovery(it) } }
-        scope.cancel()
-        super.onDestroy()
+    companion object {
+        private const val REQUEST_FILES = 4102
+        private const val REQUEST_NOTIFICATIONS = 4103
+        private const val KEY_SELECTED = "selected_uris"
+        private val INK = 0xFF30251D.toInt()
+        private val MUTED = 0xFF8A7868.toInt()
+        private val ACCENT = 0xFFF09A45.toInt()
+        private val BACKGROUND = 0xFFFFF9F3.toInt()
     }
-
-    companion object { private const val REQUEST_APK = 4102 }
 }
