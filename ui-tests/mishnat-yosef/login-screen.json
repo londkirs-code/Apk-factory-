@@ -1,0 +1,33 @@
+{
+  "name": "login-screen",
+  "description": "Fresh install without an account: login screen renders, empty-form validation works, typing and rotation do not crash. Never submits credentials to the real server.",
+  "package": "org.mishnatyosef.mobile",
+  "grant_permissions": true,
+  "stop_on_failure": false,
+  "steps": [
+    {"action": "clear_data"},
+    {"action": "shell", "cmd": "pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS", "ignore_errors": true, "optional": true},
+    {"action": "shell", "cmd": "appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow", "ignore_errors": true, "optional": true},
+    {"action": "launch"},
+    {"action": "wait_for", "text": "ברוכים הבאים", "timeout": 30},
+    {"action": "back", "optional": true, "note": "close an update/notice dialog if one opened over the login screen"},
+    {"action": "assert_foreground", "optional": true},
+    {"action": "launch", "restart": false, "optional": true},
+    {"action": "screenshot", "name": "login"},
+    {"action": "assert_text", "text": "התחברות לחשבון"},
+    {"action": "assert_text", "text": "התחברו עם החשבון שלכם"},
+    {"action": "assert_visible", "class": "EditText", "index": 1, "note": "email + password fields"},
+    {"action": "tap", "text": "התחברות", "exact": true, "note": "submit the empty form"},
+    {"action": "assert_text", "text": "יש למלא אימייל וסיסמה", "timeout": 5},
+    {"action": "screenshot", "name": "empty-form-validation"},
+    {"action": "type", "class": "EditText", "index": 0, "value": "ui-test@example.com", "hide_keyboard": true},
+    {"action": "assert_text", "text": "ui-test@example.com"},
+    {"action": "screenshot", "name": "email-typed"},
+    {"action": "rotate", "to": "landscape"},
+    {"action": "assert_text", "text": "ברוכים הבאים", "timeout": 8},
+    {"action": "screenshot", "name": "landscape"},
+    {"action": "rotate", "to": "portrait"},
+    {"action": "assert_foreground"},
+    {"action": "screenshot", "name": "back-to-portrait"}
+  ]
+}

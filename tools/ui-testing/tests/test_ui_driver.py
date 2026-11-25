@@ -120,7 +120,7 @@ class DriverTests(unittest.TestCase):
                  "assert_text", "assert_visible", "assert_not_visible", "assert_no_text", "assert_foreground", "dump",
                  "rotate", "open_url", "grant", "shell", "explore"}
         root = Path(__file__).resolve().parents[3]
-        files = list((root / "tools/ui-testing/scenarios").glob("*.json")) + list(root.glob("apps/*/ui-tests/*.json"))
+        files = list((root / "tools/ui-testing/scenarios").glob("*.json")) + list(root.glob("apps/*/ui-tests/*.json")) + list(root.glob("ui-tests/*/*.json"))
         self.assertTrue(files)
         for f in files:
             data = json.loads(f.read_text(encoding="utf-8"))

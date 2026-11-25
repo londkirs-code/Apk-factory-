@@ -11,7 +11,7 @@ Full reference (in Hebrew), covering actions, selectors and limitations: `docs/U
 
 ## Procedure
 1. **Pick the APK.** The default is `downloads/<app>/app.apk` (or `downloads/<App>.apk`) on the branch being run. If you just built a new APK, wait until the build has published it. Otherwise pass `apk_url`.
-2. **Write or update a scenario** in `apps/<app>/ui-tests/<name>.json`. For external apps, use `ui-tests/<app>/<name>.json`.
+2. **Write or update a scenario** in `ui-tests/<app>/<name>.json`. Prefer this over `apps/<app>/ui-tests/`, because changes under `apps/` trigger an APK rebuild on main.
    - Read the app's layouts and strings first, and select elements by real `text`, `id` or `desc`.
    - Add a `screenshot` step at every point the user cares about.
    - Use `optional: true` for dialogs that may not appear.
@@ -19,6 +19,7 @@ Full reference (in Hebrew), covering actions, selectors and limitations: `docs/U
 3. **Trigger the test** in one of these ways:
    - Workflow dispatch of `.github/workflows/ui-test-apk.yml` with `app`, `mode` and an optional `scenario`.
    - Or post the exact comment `/ui-test <app> [auto|scenario|explore|both|path.json] [N]` on issue #1. This only works when posted from the owner's account.
+   - Or push the scenario change to a development branch (not main). That tests the app automatically.
    - Then confirm that a new run appeared.
 4. **Wait for the run to finish, then read the results.** They are published to the `ui-test-results` branch:
    - `latest/<app>.md`

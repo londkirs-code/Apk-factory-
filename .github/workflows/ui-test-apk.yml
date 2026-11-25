@@ -3,7 +3,8 @@ name: UI test APK on emulator
 # Optional, on-demand UI testing: boots an Android emulator, installs an APK,
 # runs a JSON scenario (tap / type / swipe / assert) or an automatic exploration,
 # and publishes screenshots + report to the `ui-test-results` branch.
-# It never runs on ordinary pushes, so normal APK builds stay fast.
+# It never runs on pushes to main, so normal APK builds stay fast. On development
+# branches, pushing a changed scenario (ui-tests/<app>/*.json) tests that app.
 # Docs: docs/UI_TESTING.md · AI procedure: skills/ui-test-apk/SKILL.md
 
 on:
@@ -59,6 +60,13 @@ on:
         default: ""
   issue_comment:
     types: [created]
+  push:
+    # Development branches only: changing a scenario (or the tooling) tests the
+    # affected apps right away. Never runs on main, so normal builds are unaffected.
+    branches-ignore: [main, master, ui-test-results]
+    paths:
+      - "ui-tests/**"
+      - "apps/*/ui-tests/**"
   workflow_run:
     # Automatic test after a successful build — only when the repository
     # variable UI_TEST_AFTER_BUILD is set to "true" (off by default).
@@ -77,6 +85,7 @@ jobs:
       (github.event_name == 'issue_comment' && github.event.issue.number == 1 &&
        startsWith(github.event.comment.body, '/ui-test') &&
        github.event.comment.user.login == github.repository_owner) ||
+      github.event_name == 'push' ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
        vars.UI_TEST_AFTER_BUILD == 'true')
     runs-on: ubuntu-latest
@@ -86,7 +95,7 @@ jobs:
         with:
           # Manual runs use the selected branch (so new scenarios can be tried before merge).
           ref: ${{ (github.event_name == 'issue_comment' || github.event_name == 'workflow_run') && 'main' || github.ref }}
-          fetch-depth: 1
+          fetch-depth: ${{ github.event_name == 'push' && 50 || 1 }}
 
       - name: Resolve request
         id: resolve
@@ -101,6 +110,7 @@ jobs:
           IN_LOCALE: ${{ inputs.locale }}
           IN_APK_URL: ${{ inputs.apk_url }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          PUSH_BEFORE: ${{ github.event.before }}
           VAR_APPS: ${{ vars.UI_TEST_APPS }}
         run: |
           set -euo pipefail
@@ -117,11 +127,21 @@ jobs:
               *) echo "::error::Unknown argument '$ARG2'"; exit 1 ;;
             esac
             [[ -n "${ARG3:-}" ]] && ACTIONS="$ARG3"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            # Test every app whose scenarios changed in this push: scenarios + a short exploration.
+            git fetch --quiet --depth=50 origin "$GITHUB_REF" || true
+            if [[ -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+              CHANGED="$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA")"
+            else
+              CHANGED="$(git show --name-only --pretty=format: "$GITHUB_SHA")"
+            fi
+            APPS="$(printf '%s\n' "$CHANGED" | sed -nE 's#^ui-tests/([^/]+)/.*#\1#p; s#^apps/([^/]+)/ui-tests/.*#\1#p' | sort -u | tr '\n' ' ')"
+            MODE=both; ACTIONS=20
           else
             # workflow_run: apps from the UI_TEST_APPS variable, else apps that have scenarios.
             APPS="$(printf '%s' "${VAR_APPS:-}" | tr ',' ' ')"
             if [[ -z "${APPS// }" ]]; then
-              APPS="$(find apps -mindepth 3 -maxdepth 3 -path '*/ui-tests/*.json' | cut -d/ -f2 | sort -u | tr '\n' ' ')"
+              APPS="$( { find apps -mindepth 3 -maxdepth 3 -path '*/ui-tests/*.json' | cut -d/ -f2; find ui-tests -mindepth 2 -maxdepth 2 -name '*.json' 2>/dev/null | cut -d/ -f2; } | sort -u | tr '\n' ' ')"
             fi
           fi
           APPS="$(echo $APPS)"

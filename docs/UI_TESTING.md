@@ -12,7 +12,7 @@
 | `tools/ui-testing/run-ci.sh` | בחירת APK ותרחישים לכל אפליקציה וסיכום |
 | `tools/ui-testing/publish-results.sh` | פרסום התוצאות לענף `ui-test-results` |
 | `tools/ui-testing/scenarios/example-smoke.json` | תבנית לתרחיש |
-| `apps/<app>/ui-tests/*.json` או `ui-tests/<app>/*.json` | תרחישים לכל אפליקציה |
+| `ui-tests/<app>/*.json` (מומלץ) או `apps/<app>/ui-tests/*.json` | תרחישים לכל אפליקציה. עדיף `ui-tests/`, כי שינוי תחת `apps/` מפעיל בנייה מחדש של ה־APK ב־main |
 
 ## שלוש דרכים להפעלה
 1. **Actions → UI test APK on emulator → Run workflow**
@@ -39,6 +39,8 @@
    - `UI_TEST_APPS` = רשימת אפליקציות (לא חובה). אם לא מגדירים, ייבדקו רק אפליקציות שיש להן תרחישים.
 
    הבדיקה משתמשת ב־APK מתוך ה־Artifact של אותה בנייה.
+
+4. **Push לענף פיתוח** (לא `main`) שמשנה קובץ תחת `ui-tests/<app>/`: נבדקת מיד האפליקציה שהתרחיש שלה השתנה (תרחישים וסריקה קצרה).
 
 שימוש מתוך workflow אחר: `uses: ./.github/workflows/ui-test-apk.yml` עם `app` ו־`apk_artifact`.
 
