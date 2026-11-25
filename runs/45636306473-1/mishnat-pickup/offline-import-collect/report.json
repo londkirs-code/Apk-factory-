@@ -1,0 +1,355 @@
+{
+  "app": "mishnat-pickup",
+  "package": "org.mishnatyosef.pickup",
+  "mode": "scenario",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 102.1,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "clear_data",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.19,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "push",
+      "detail": "src='fixtures/ui-test-list.txt', dest='/sdcard/Download/ui-test-list.txt'",
+      "status": "passed",
+      "seconds": 3.11,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 3.44,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait_for",
+      "detail": "text='כניסה לחשבון'",
+      "status": "passed",
+      "seconds": 2.22,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "screenshot",
+      "detail": "name='login'",
+      "status": "passed",
+      "seconds": 2.37,
+      "error": "",
+      "screenshot": "screenshots/001-login.png"
+    },
+    {
+      "index": 6,
+      "action": "assert_text",
+      "detail": "text='משנת אוסף'",
+      "status": "passed",
+      "seconds": 2.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "assert_text",
+      "detail": "text='רשימות שמורות'",
+      "status": "passed",
+      "seconds": 2.0,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "scroll_to",
+      "detail": "text='ייבוא רשימה מקובץ'",
+      "status": "passed",
+      "seconds": 2.0,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "tap",
+      "detail": "text='ייבוא רשימה מקובץ'",
+      "status": "passed",
+      "seconds": 3.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "wait",
+      "detail": "seconds=3",
+      "status": "passed",
+      "seconds": 3.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "screenshot",
+      "detail": "name='file-picker'",
+      "status": "passed",
+      "seconds": 2.35,
+      "error": "",
+      "screenshot": "screenshots/002-file-picker.png"
+    },
+    {
+      "index": 12,
+      "action": "tap",
+      "detail": "file shown directly (Recent)",
+      "status": "passed",
+      "seconds": 3.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "tap",
+      "detail": "otherwise open the picker drawer",
+      "status": "skipped",
+      "seconds": 4.68,
+      "error": "element not found within 3s: desc='Show roots'",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "tap",
+      "detail": "text='Downloads'",
+      "status": "skipped",
+      "seconds": 4.64,
+      "error": "element not found within 4s: text='Downloads'",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "tap",
+      "detail": "text='ui-test-list'",
+      "status": "skipped",
+      "seconds": 9.99,
+      "error": "element not found within 8s: text='ui-test-list'",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "wait_for",
+      "detail": "text='נמצאו 1 רשימות'",
+      "status": "passed",
+      "seconds": 1.99,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "screenshot",
+      "detail": "name='import-summary'",
+      "status": "passed",
+      "seconds": 2.34,
+      "error": "",
+      "screenshot": "screenshots/003-import-summary.png"
+    },
+    {
+      "index": 18,
+      "action": "tap",
+      "detail": "text='ייבא רשימות'",
+      "status": "passed",
+      "seconds": 3.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "wait_for",
+      "detail": "text='נאספו 0 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "assert_text",
+      "detail": "TXT quantity shown as 2, not 2.0",
+      "status": "passed",
+      "seconds": 1.99,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "assert_not_visible",
+      "detail": "text='2.0'",
+      "status": "passed",
+      "seconds": 2.5,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "screenshot",
+      "detail": "name='list-imported'",
+      "status": "passed",
+      "seconds": 2.36,
+      "error": "",
+      "screenshot": "screenshots/004-list-imported.png"
+    },
+    {
+      "index": 23,
+      "action": "tap",
+      "detail": "text='לחם'",
+      "status": "passed",
+      "seconds": 3.02,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 24,
+      "action": "assert_text",
+      "detail": "text='נאספו 1 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.02,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "screenshot",
+      "detail": "name='one-collected'",
+      "status": "passed",
+      "seconds": 2.34,
+      "error": "",
+      "screenshot": "screenshots/005-one-collected.png"
+    },
+    {
+      "index": 26,
+      "action": "tap",
+      "detail": "text='חלב'",
+      "status": "passed",
+      "seconds": 3.02,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 27,
+      "action": "assert_text",
+      "detail": "text='נאספו 3 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 28,
+      "action": "tap",
+      "detail": "text='מלפפון'",
+      "status": "passed",
+      "seconds": 2.62,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "screenshot",
+      "detail": "celebration animation lasts ~1.5s; uiautomator cannot read the screen while it animates, so capture it as an image",
+      "status": "passed",
+      "seconds": 2.45,
+      "error": "",
+      "screenshot": "screenshots/006-celebration.png"
+    },
+    {
+      "index": 30,
+      "action": "screenshot",
+      "detail": "name='celebration'",
+      "status": "passed",
+      "seconds": 2.31,
+      "error": "",
+      "screenshot": "screenshots/007-celebration.png"
+    },
+    {
+      "index": 31,
+      "action": "wait",
+      "detail": "seconds=5",
+      "status": "passed",
+      "seconds": 5.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 32,
+      "action": "assert_text",
+      "detail": "text='נאספו 6 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "screenshot",
+      "detail": "name='all-collected'",
+      "status": "passed",
+      "seconds": 2.34,
+      "error": "",
+      "screenshot": "screenshots/008-all-collected.png"
+    },
+    {
+      "index": 34,
+      "action": "tap",
+      "detail": "tap again returns it to pending",
+      "status": "passed",
+      "seconds": 3.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 35,
+      "action": "assert_text",
+      "detail": "text='נאספו 5 מתוך 6'",
+      "status": "passed",
+      "seconds": 1.99,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 36,
+      "action": "screenshot",
+      "detail": "name='one-returned'",
+      "status": "passed",
+      "seconds": 2.35,
+      "error": "",
+      "screenshot": "screenshots/009-one-returned.png"
+    }
+  ],
+  "screenshots": [
+    "001-login.png",
+    "002-file-picker.png",
+    "003-import-summary.png",
+    "004-list-imported.png",
+    "005-one-collected.png",
+    "006-celebration.png",
+    "007-celebration.png",
+    "008-all-collected.png",
+    "009-one-returned.png"
+  ]
+}
