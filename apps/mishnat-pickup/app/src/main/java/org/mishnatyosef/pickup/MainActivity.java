@@ -1811,7 +1811,7 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• ✓ ליד רשימות בחלון הרשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
+            "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
             + "• רשימה ששותפה בענן מציגה את המספר שלה (☁️) ליד השם, בכותרת ובפעולות של הרשימה.\n"
@@ -2842,9 +2842,6 @@ public class MainActivity extends Activity {
         settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
         panel.addView(tileRow(history, create, merge, cloud, settings), Ui.row(this, Ui.S2, 0));
 
-        if (entries.size() >= 2)
-            panel.addView(Ui.text(this, "✓ ליד רשימות מציג אותן יחד, וכל רשימה נחשבת כמו משתמש.", Ui.T_NOTE, Ui.MUTED, false),
-                    Ui.row(this, Ui.S2, 0));
         if (listGroupActive()) {
             Button leave = Ui.button(this, "ביטול כל הסימונים ויציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
             leave.setOnClickListener(v -> { dialog.dismiss(); leaveListGroup(); showHomeScreen(false); });
@@ -2890,8 +2887,12 @@ public class MainActivity extends Activity {
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
-        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
-                (int) (getResources().getDisplayMetrics().heightPixels * 0.9f));
+        // חלון צף גדול: כמעט כל רוחב המסך (עד 640dp) ו-94% מהגובה.
+        if (dialog.getWindow() != null) {
+            android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+            int width = Math.min(metrics.widthPixels - Ui.dp(this, 16), Ui.dp(this, 640));
+            dialog.getWindow().setLayout(width, (int) (metrics.heightPixels * 0.94f));
+        }
         if (focus != null) focus.requestFocus(); else history.requestFocus();
     }
 
@@ -2935,9 +2936,10 @@ public class MainActivity extends Activity {
             if (onChecked != null) onChecked.run();
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.setMarginStart(Ui.dp(this, Ui.S1));
-        // ה-✓ בצד השמאלי, אחרי ⋮, כדי שהמעבר במקשים ינחת קודם על הרשימה עצמה.
-        line.addView(box, lp);
+        lp.gravity = Gravity.CENTER_VERTICAL;
+        lp.setMarginEnd(Ui.dp(this, Ui.S1));
+        // ה-✓ בצד ימין, לפני שם הרשימה.
+        line.addView(box, 0, lp);
         return line;
     }
 
