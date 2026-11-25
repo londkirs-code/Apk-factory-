@@ -217,7 +217,7 @@ public class MainActivity extends Activity {
     private static String extractToken(String body) { return ApiClient.extractToken(body); }
 
     /** המסך המוצג כרגע. מקור אמת יחיד לניווט, לקיצורי המקשים ולמקש חזרה. */
-    private enum Screen { NONE, LOGIN, HOME, SETTINGS, SAVED_LISTS, HISTORY }
+    private enum Screen { NONE, LOGIN, HOME, SETTINGS, SAVED_LISTS, HISTORY, DISPLAY_SETTINGS }
     private Screen screen = Screen.NONE;
     /** לאן חוזרים ממסך רשימות שמורות, מהיסטוריית ההזמנות וממסך ההתחברות. */
     private Screen savedListsReturn = Screen.HOME, historyReturn = Screen.SAVED_LISTS;
@@ -1435,6 +1435,7 @@ public class MainActivity extends Activity {
         if (celebration != null) { dismissCelebration(); return; }
         switch (screen) {
             case SETTINGS: closeSettings(); return;
+            case DISPLAY_SETTINGS: showSettingsScreen(); return;
             case SAVED_LISTS: leaveSavedListsScreen(); return;
             case HISTORY: leaveHistoryScreen(); return;
             case LOGIN:
@@ -1905,6 +1906,7 @@ public class MainActivity extends Activity {
             "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
+            + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
             + "• 🔄 ההזמנה העדכנית מהאתר מסומנת, עם הסבר על הסנכרון. הזמנה חדשה או שינוי באתר מוצגים בהודעה, והוספות שלך נשמרות בעותק ולא נמחקות.\n"
             + "• חזרה תמיד חוזרת שלב אחד אחורה, גם מחלונות שנפתחו מתוך חלונות.\n"
             + "• שיתוף כטקסט בוואטסאפ, SMS ומייל נשלח כהודעה רגילה. \"רשימה חדשה\" כולל גם קבלה בבלוטות' והדבקת טקסט.\n"
@@ -1978,7 +1980,29 @@ public class MainActivity extends Activity {
         settingsHeader.addView(settingsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
         content.addView(settingsHeader, Ui.row(this, 0, 0));
 
-        // 1. רשימות: הפעולות היומיומיות.
+        // 1. חשבונות: ריבוע לכל חשבון (שם ומצב), בשתי עמודות. לחיצה פותחת את הפעולות שלו.
+        LinearLayout accounts = settingsCard(content, "חשבונות");
+        for (SourceRegistry.Source source : sourceRegistry.all()) {
+            if (LOCAL_LIST_OWNER.equals(source.ownerKey)) continue; // "רשימות במכשיר" אינו חשבון
+            boolean imported = SourceRegistry.KIND_IMPORTED.equals(source.kind);
+            boolean connected = !imported && secretStore.get(source.id) != null;
+            String status = imported ? "מיובאת" : (connected ? (source.id.equals(activeSourceId) ? "פעיל ✓" : "מחובר") : "מנותק");
+            String label = source.label == null || source.label.trim().isEmpty() ? "חיבור ללא שם" : source.label.trim();
+            Button item = Ui.gridButton(this, label, source.id.equals(activeSourceId) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+            android.text.SpannableString text = new android.text.SpannableString("👤\n" + label + "\n" + status);
+            text.setSpan(new android.text.style.RelativeSizeSpan(1.6f), 0, 2, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            text.setSpan(new android.text.style.RelativeSizeSpan(0.8f), text.length() - status.length(), text.length(),
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            item.setText(text);
+            item.setContentDescription(label + ", " + status);
+            item.setOnClickListener(v -> showSourceActions(source));
+            addGridButton(accounts, item);
+        }
+        Button add = Ui.gridButton(this, listSourceCount() == 0 ? "התחברות לחשבון" : "הוספת חשבון", Ui.Kind.SOFT);
+        add.setOnClickListener(v -> beginAddAccount());
+        addGridButton(accounts, add);
+
+        // 2. רשימות: הפעולות היומיומיות, וכניסה למסך "תצוגה וצליל".
         LinearLayout lists = settingsCard(content, "רשימות");
         Button savedLists = Ui.gridButton(this, "רשימות שמורות", Ui.Kind.SOFT);
         savedLists.setOnClickListener(v -> showSavedListsScreen(Screen.SETTINGS));
@@ -1988,38 +2012,13 @@ public class MainActivity extends Activity {
         Button sync = Ui.gridButton(this, "סנכרון עם האתר", Ui.Kind.SOFT);
         // הסנכרון מתבצע מול מסך הרשימה, כדי שההתקדמות וההודעות יוצגו למשתמש.
         sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
+        Button display = Ui.gridButton(this, "תצוגה וצליל", Ui.Kind.SOFT);
+        display.setOnClickListener(v -> showDisplaySettingsScreen());
         Button keysHelp = Ui.gridButton(this, "מדריך המקשים", Ui.Kind.SOFT);
         keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
-        addGridButtons(lists, savedLists, history, sync, keysHelp);
+        addGridButtons(lists, savedLists, history, sync, display, keysHelp);
 
-        // 2. חשבונות: כל חשבון הוא כפתור אחד שפותח את פעולותיו (התחברות מחדש, ניתוק, הסרה).
-        LinearLayout accounts = settingsCard(content, "חשבונות");
-        for (SourceRegistry.Source source : sourceRegistry.all()) {
-            boolean imported = SourceRegistry.KIND_IMPORTED.equals(source.kind);
-            boolean connected = !imported && secretStore.get(source.id) != null;
-            String status = imported ? "מיובאת" : (connected ? (source.id.equals(activeSourceId) ? "פעיל" : "מחובר") : "מנותק");
-            String label = source.label == null || source.label.trim().isEmpty()
-                    ? "חיבור ללא שם" : source.label;
-            Button item = Ui.button(this, label + "  ·  " + status, Ui.Kind.SOFT);
-            item.setOnClickListener(v -> showSourceActions(source));
-            accounts.addView(item, Ui.row(this, Ui.S1, Ui.S1));
-        }
-        Button add = Ui.button(this, sourceRegistry.all().isEmpty() ? "התחברות לחשבון" : "הוספת חשבון",
-                Ui.Kind.PRIMARY);
-        add.setOnClickListener(v -> beginAddAccount());
-        accounts.addView(add, Ui.row(this, Ui.S1, Ui.S1));
-
-        // 3. תצוגה ומשוב.
-        LinearLayout display = settingsCard(content, "תצוגה ומשוב");
-        addDisplaySettings(display);
-        addFeedbackSettings(display);
-        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות הקטגוריות",
-                true, Ui.S1, Ui.S1);
-        display.addView(Ui.text(this, "תצוגה מאוחדת", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
-        addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "הצגת כמות לפי משפחה (שם וכמות של כל חשבון)",
-                true, Ui.S1, Ui.S1);
-
-        // 4. ייבוא ונתונים.
+        // 3. ייבוא ונתונים.
         LinearLayout data = settingsCard(content, "ייבוא ונתונים");
         Button importFile = Ui.gridButton(this, "ייבוא קובץ", Ui.Kind.SOFT);
         importFile.setOnClickListener(v -> openImportPicker());
@@ -2047,8 +2046,25 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
         presentScreen(scroll, Screen.SETTINGS);
-        // מקלדת: הפוקוס מתחיל בפעולה הראשונה, ולמעלה ממנה נמצא כפתור הסגירה.
-        savedLists.requestFocus();
+        // מקלדת: הפוקוס מתחיל בפעולה הראשונה (החשבון הראשון), ולמעלה ממנה נמצא כפתור הסגירה.
+        if (!focusFirstButton(accounts)) savedLists.requestFocus();
+    }
+
+    /** מסך "תצוגה וצליל": גודל תצוגה, צליל ורטט, כותרות קטגוריות ופירוט לפי משפחה. חזרה - להגדרות. */
+    private void showDisplaySettingsScreen() {
+        LinearLayout content = Ui.screen(this);
+        content.addView(buildSubScreenHeader("תצוגה וצליל", this::showSettingsScreen), Ui.row(this, 0, Ui.S2));
+        LinearLayout display = settingsCard(content, "תצוגה");
+        addDisplaySettings(display);
+        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות הקטגוריות", true, Ui.S1, Ui.S1);
+        addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "הצגת כמות לפי משפחה (בתצוגה המאוחדת)", true, 0, Ui.S1);
+        LinearLayout sound = settingsCard(content, "צליל ורטט");
+        addFeedbackSettings(sound);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+        presentScreen(scroll, Screen.DISPLAY_SETTINGS);
+        if (displaySizeSlider != null) displaySizeSlider.requestFocus();
     }
 
     private static String formatBytes(long bytes) {
@@ -2524,7 +2540,6 @@ public class MainActivity extends Activity {
         ends.addView(large,new LinearLayout.LayoutParams(0,-2,1f));content.addView(ends);
     }
     private void addFeedbackSettings(LinearLayout content) {
-        content.addView(Ui.text(this, "צליל ורטט", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
         boolean legacySound = uiPreferences.getBoolean("feedback_sound", false);
         boolean legacyVibration = uiPreferences.getBoolean("feedback_vibration", false);
         // שתי אפשרויות בכל שורה: איסוף פריט, ואז סיום הרשימה.
