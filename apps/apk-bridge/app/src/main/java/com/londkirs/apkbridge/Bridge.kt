@@ -107,8 +107,33 @@ object Bridge {
     @Volatile private var currentJob: Job? = null
 
     fun init(context: Context) {
-        if (!::app.isInitialized) app = context.applicationContext
+        if (::app.isInitialized) return
+        app = context.applicationContext
+        applyAutomaticDefaultsOnce()
     }
+
+    /**
+     * One-time switch to "as automatic as possible" defaults, also for installs that
+     * already saved older preferences. Every item can still be turned off in Settings.
+     */
+    private fun applyAutomaticDefaultsOnce() {
+        if (prefs.getBoolean("defaults_v3", false)) return
+        prefs.edit()
+            .putBoolean("keep_adb_without_wifi", true)
+            .putString("auto_install_mode", "auto")
+            .putBoolean("opt_grant", true)
+            .putBoolean("a11y_auto_pair", true)
+            .putBoolean("auto_wifi", true)
+            .putBoolean("auto_enable_wireless", true)
+            .putBoolean("auto_setup", true)
+            .putBoolean("defaults_v3", true)
+            .apply()
+    }
+
+    /** After a successful ADB connection, grant this app everything it can use (see [autoSetup]). */
+    var autoSetupEnabled: Boolean
+        get() = prefs.getBoolean("auto_setup", true)
+        set(value) = prefs.edit().putBoolean("auto_setup", value).apply()
 
     // region preferences
 
@@ -128,8 +153,7 @@ object Bridge {
 
     /** What to do with a file opened/shared into the app: "off", "ask" or "auto". */
     var autoInstallMode: String
-        get() = prefs.getString("auto_install_mode", null)
-            ?: if (prefs.getBoolean("auto_install_incoming", false)) "auto" else "off"
+        get() = prefs.getString("auto_install_mode", null) ?: "auto"
         set(value) = prefs.edit().putString("auto_install_mode", value).apply()
 
     /** Only auto-install files that update an app that is already installed. */
@@ -153,7 +177,7 @@ object Bridge {
     /** Open Android's Wi‑Fi panel and wait for Wi‑Fi whenever a connection is needed and Wi‑Fi is off. */
     /** Keep a plain-TCP adbd on 127.0.0.1:5555 so ADB keeps working without Wi‑Fi (until reboot). */
     var keepAdbWithoutWifi: Boolean
-        get() = prefs.getBoolean("keep_adb_without_wifi", false)
+        get() = prefs.getBoolean("keep_adb_without_wifi", true)
         set(value) = prefs.edit().putBoolean("keep_adb_without_wifi", value).apply()
 
     var autoWifi: Boolean
@@ -181,7 +205,7 @@ object Bridge {
 
     fun loadOptions() = InstallOptions(
         allowDowngrade = prefs.getBoolean("opt_downgrade", false),
-        grantPermissions = prefs.getBoolean("opt_grant", false),
+        grantPermissions = prefs.getBoolean("opt_grant", true),
         allowTestPackages = prefs.getBoolean("opt_test", true),
         bypassLowTargetSdk = prefs.getBoolean("opt_bypass_low_target", true),
         registerPlayInstaller = prefs.getBoolean("opt_play_installer", true),
@@ -550,7 +574,7 @@ object Bridge {
             if (legacy != null) {
                 return try {
                     log("מחובר (ADB קבוע).")
-                    block(legacy)
+                    block(legacy).also { runCatching { autoSetup(legacy) } }
                 } finally {
                     runCatching { legacy.close() }
                 }
@@ -639,17 +663,85 @@ object Bridge {
             log("מחובר.")
             result = Result.success(block(connected))
         } finally {
-            // After a reboot the TCP mode is gone; renew it while we have a working connection.
-            if (result != null && keepAdbWithoutWifi && isLocalTarget(host) && !isLocalPortOpen(LEGACY_PORT)) {
-                log("מחדש את ADB הקבוע (פורט $LEGACY_PORT) — נדרש אחרי הפעלה מחדש של המכשיר.")
-                runCatching {
-                    connected.shell("settings put global adb_enabled 1")
-                    connected.tcpip(LEGACY_PORT)
+            var renewed = false
+            if (result != null && local) {
+                runCatching { autoSetup(connected) }.onFailure { log("ההגדרה האוטומטית נכשלה: ${explain(it)}") }
+                // Keep ADB alive without Wi‑Fi: start (or, after a reboot, renew) adbd's TCP mode on 5555.
+                if (keepAdbWithoutWifi && !isLocalPortOpen(LEGACY_PORT)) {
+                    log("מפעיל ADB קבוע (פורט $LEGACY_PORT) — יישאר פעיל גם בלי Wi‑Fi עד הפעלה מחדש של המכשיר.")
+                    renewed = runCatching {
+                        connected.shell("settings put global adb_enabled 1")
+                        log("ADB: ${connected.tcpip(LEGACY_PORT)}")
+                    }.isSuccess
                 }
             }
             runCatching { connected.close() }
+            if (renewed && !prefs.getBoolean("legacy_authorized", false)) authorizeLegacyOnce()
         }
         return result!!.getOrThrow()
+    }
+
+    /** First time only: connect to 5555 so Android asks "Allow debugging?" while the user is here. */
+    private suspend fun authorizeLegacyOnce() {
+        delay(3_000)
+        status("אשר את החלון \"לאפשר ניפוי באגים?\" (סמן \"אפשר תמיד\") — כדי ש־ADB יישאר פעיל גם בלי Wi‑Fi.")
+        val ok = runCatching { connectLegacy(60_000).close() }.isSuccess
+        if (ok) {
+            prefs.edit().putBoolean("legacy_authorized", true).apply()
+            status("✔ ADB קבוע פעיל: APK Bridge יעבוד גם כשה־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר.")
+        } else {
+            log("החיבור הקבוע עדיין לא אושר; ינוסה שוב בפעולה הבאה.")
+        }
+    }
+
+    /**
+     * Runs once per missing item after a successful connection to this device: grants the
+     * permissions APK Bridge can use, enables its accessibility service, exempts it from battery
+     * optimization and installs the Wi‑Fi helper. Each step is skipped when already in place.
+     */
+    private suspend fun autoSetup(c: AdbClient) {
+        if (!autoSetupEnabled) return
+        val pkg = app.packageName
+        suspend fun run(label: String, cmd: String) {
+            val r = c.shell(cmd)
+            val out = (r.stdoutText + r.stderrText).trim()
+            log(if (r.exitCode == 0) "✔ הוגדר אוטומטית: $label" else "לא ניתן להגדיר $label: ${out.ifBlank { "exit ${r.exitCode}" }}")
+        }
+        if (!canWriteSecureSettings()) {
+            run("הפעלה אוטומטית של ניפוי באגים אלחוטי", "pm grant $pkg android.permission.WRITE_SECURE_SETTINGS")
+        }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            run("הרשאת התראות", "pm grant $pkg android.permission.POST_NOTIFICATIONS")
+        }
+        if (!app.packageManager.canRequestPackageInstalls()) {
+            run("התקנת אפליקציות (עזר ה־Wi‑Fi)", "appops set $pkg REQUEST_INSTALL_PACKAGES allow")
+        }
+        val power = app.getSystemService(android.os.PowerManager::class.java)
+        if (power != null && !power.isIgnoringBatteryOptimizations(pkg)) {
+            run("החרגה מחיסכון בסוללה", "dumpsys deviceidle whitelist +$pkg")
+        }
+        if (Compat.hasWirelessDebugging && accessibilityAutoPair && !PairingAccessibilityService.isEnabled(app)) {
+            val me = android.content.ComponentName(app, PairingAccessibilityService::class.java).flattenToString()
+            val current = runCatching {
+                Settings.Secure.getString(app.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            }.getOrNull().orEmpty()
+            val list = (current.split(':').filter { it.isNotBlank() } + me).distinct().joinToString(":")
+            run(
+                "שירות הנגישות לזיווג אוטומטי",
+                "settings put secure enabled_accessibility_services '$list' && settings put secure accessibility_enabled 1",
+            )
+        }
+        if (autoWifi && !isWifiHelperInstalled() && isWifiHelperBundled()) {
+            val file = File(app.cacheDir, "wifi-helper.apk")
+            runCatching {
+                app.assets.open(WIFI_HELPER_ASSET).use { input -> file.outputStream().use { input.copyTo(it) } }
+                c.install.install(RandomAccessSource.of(file), listOf("-r")).collect { }
+                log("✔ הוגדר אוטומטית: עזר ה־Wi‑Fi הותקן.")
+            }.onFailure { log("התקנת עזר ה־Wi‑Fi נכשלה: ${explain(it)}") }
+            file.delete()
+        }
     }
 
     private fun isLocalPortOpen(port: Int): Boolean = runCatching {
@@ -676,7 +768,7 @@ object Bridge {
         }
         return try {
             log("מחובר (ADB קלאסי).")
-            block(c)
+            block(c).also { if (local) runCatching { autoSetup(c) } }
         } finally {
             runCatching { c.close() }
         }

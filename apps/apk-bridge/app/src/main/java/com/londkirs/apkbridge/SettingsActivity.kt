@@ -120,6 +120,10 @@ class SettingsActivity : Activity() {
         // Pairing & connection
         val pair = card(page)
         pair.addView(heading("זיווג וחיבור"), matchWrap())
+        pair.addView(checkBox("הגדרה אוטומטית אחרי חיבור מוצלח (הרשאות, נגישות, סוללה, עזר Wi‑Fi)", Bridge.autoSetupEnabled) {
+            Bridge.autoSetupEnabled = it
+        }, matchWrap(0))
+        pair.addView(note("אחרי חיבור ADB ראשון APK Bridge נותן לעצמו דרך ADB: הדלקה אוטומטית של ניפוי באגים, התראות, התקנת אפליקציות, החרגה מחיסכון בסוללה ושירות הנגישות — ומתקין את עזר ה־Wi‑Fi."), matchWrap(12))
         pair.addView(checkBox("זיווג אוטומטי: לזהות את קוד הזיווג מהמסך (נגישות)", Bridge.accessibilityAutoPair) {
             Bridge.accessibilityAutoPair = it
             refresh()
