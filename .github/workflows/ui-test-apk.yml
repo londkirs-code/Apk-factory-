@@ -238,7 +238,14 @@ jobs:
           # Debug build: no signing secrets are needed or exposed. Same applicationId as release.
           for app in $BUILD_APPS; do
             echo "::group::Building $app (debug) from $GITHUB_SHA"
-            (cd "apps/$app" && gradle --build-cache --console=plain assembleDebug)
+            # Retry transient dependency-download failures (e.g. Maven Central HTTP 429).
+            # Branch runs get a read-only Gradle cache, so dependencies are downloaded each time.
+            for attempt in 1 2 3; do
+              if (cd "apps/$app" && gradle --build-cache --console=plain assembleDebug); then break; fi
+              [[ $attempt -lt 3 ]] || { echo "::error::Debug build of $app failed 3 times"; exit 1; }
+              echo "::warning::Build attempt $attempt for $app failed; retrying in $((attempt * 45))s"
+              sleep $((attempt * 45))
+            done
             APK="$(find "apps/$app/app/build/outputs/apk/debug" -name '*.apk' | head -n1)"
             [[ -s "$APK" ]] || { echo "::error::No debug APK produced for $app"; exit 1; }
             mkdir -p "$RUNNER_TEMP/apks/$app"
