@@ -1,0 +1,27 @@
+[ok] 01 clear_data
+[ok] 02 shell cmd='pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[ok] 03 shell cmd='appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow', ignore_errors=True
+[ok] 04 launch
+[ok] 05 wait_for text='ברוכים הבאים'
+[ok] 06 tap desc='פתיחת הגדרות ופעולות'
+[ok] 07 wait_for text='פעולות מהירות'
+[ok] 08 screenshot name='day-dialog'
+[ok] 09 tap text='מצב לילה'
+[ok] 10 wait seconds=1.5
+[ok] 11 assert_text button label flipped
+[ok] 12 assert_text dialog still open
+[ok] 13 screenshot name='night-dialog'
+[ok] 14 tap desc='סגירת חלון הפעולות'
+[ok] 15 assert_not_visible text='פעולות מהירות'
+[ok] 16 screenshot name='night-login-screen'
+[ok] 17 tap desc='פתיחת הגדרות ופעולות'
+[ok] 18 wait_for text='פעולות מהירות'
+[ok] 19 screenshot name='night-dialog-reopened'
+[ok] 20 tap text='מצב יום'
+[ok] 21 wait seconds=1.5
+[ok] 22 assert_text text='מצב לילה'
+[ok] 23 screenshot name='back-to-day-dialog'
+[ok] 24 tap desc='סגירת חלון הפעולות'
+[ok] 25 assert_foreground
+
+Result: PASSED — 25 steps, 6 screenshots, 0 crashes
