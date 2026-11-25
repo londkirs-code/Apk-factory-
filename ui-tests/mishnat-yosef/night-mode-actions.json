@@ -1,0 +1,114 @@
+{
+  "name": "night-mode-actions",
+  "description": "The 'פעולות' dialog on the login screen: toggling night mode from inside the dialog must recolor the dialog itself (check the night-dialog screenshot), then return to day mode.",
+  "package": "org.mishnatyosef.mobile",
+  "stop_on_failure": false,
+  "steps": [
+    {
+      "action": "clear_data"
+    },
+    {
+      "action": "shell",
+      "cmd": "pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS",
+      "ignore_errors": true,
+      "optional": true
+    },
+    {
+      "action": "shell",
+      "cmd": "appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow",
+      "ignore_errors": true,
+      "optional": true
+    },
+    {
+      "action": "launch"
+    },
+    {
+      "action": "wait_for",
+      "text": "ברוכים הבאים",
+      "timeout": 30
+    },
+    {
+      "action": "tap",
+      "desc": "פתיחת הגדרות ופעולות"
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8
+    },
+    {
+      "action": "screenshot",
+      "name": "day-dialog"
+    },
+    {
+      "action": "tap",
+      "text": "מצב לילה"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.5
+    },
+    {
+      "action": "assert_text",
+      "text": "מצב יום",
+      "note": "button label flipped"
+    },
+    {
+      "action": "assert_text",
+      "text": "פעולות מהירות",
+      "note": "dialog still open"
+    },
+    {
+      "action": "screenshot",
+      "name": "night-dialog"
+    },
+    {
+      "action": "tap",
+      "desc": "סגירת חלון הפעולות"
+    },
+    {
+      "action": "assert_not_visible",
+      "text": "פעולות מהירות"
+    },
+    {
+      "action": "screenshot",
+      "name": "night-login-screen"
+    },
+    {
+      "action": "tap",
+      "desc": "פתיחת הגדרות ופעולות"
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8
+    },
+    {
+      "action": "screenshot",
+      "name": "night-dialog-reopened"
+    },
+    {
+      "action": "tap",
+      "text": "מצב יום"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.5
+    },
+    {
+      "action": "assert_text",
+      "text": "מצב לילה"
+    },
+    {
+      "action": "screenshot",
+      "name": "back-to-day-dialog"
+    },
+    {
+      "action": "tap",
+      "desc": "סגירת חלון הפעולות"
+    },
+    {
+      "action": "assert_foreground"
+    }
+  ]
+}

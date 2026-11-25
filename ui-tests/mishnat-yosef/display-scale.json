@@ -1,0 +1,177 @@
+{
+  "name": "display-scale",
+  "description": "Actions dialog sliders on the login screen: display size to both extremes, columns slider, reset; rotation with the dialog open. Checks no crash and readable layout.",
+  "package": "org.mishnatyosef.mobile",
+  "stop_on_failure": false,
+  "steps": [
+    {
+      "action": "clear_data"
+    },
+    {
+      "action": "shell",
+      "cmd": "pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS",
+      "ignore_errors": true,
+      "optional": true
+    },
+    {
+      "action": "shell",
+      "cmd": "appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow",
+      "ignore_errors": true,
+      "optional": true
+    },
+    {
+      "action": "launch"
+    },
+    {
+      "action": "wait_for",
+      "text": "ברוכים הבאים",
+      "timeout": 30
+    },
+    {
+      "action": "tap",
+      "desc": "פתיחת הגדרות ופעולות"
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8
+    },
+    {
+      "action": "swipe",
+      "desc": "גודל התצוגה",
+      "direction": "left",
+      "ms": 600
+    },
+    {
+      "action": "wait",
+      "seconds": 3
+    },
+    {
+      "action": "screenshot",
+      "name": "scale-left-end"
+    },
+    {
+      "action": "assert_foreground"
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8,
+      "optional": true,
+      "note": "dialog reopens after the scale change"
+    },
+    {
+      "action": "swipe",
+      "desc": "גודל התצוגה",
+      "direction": "right",
+      "ms": 600,
+      "optional": true
+    },
+    {
+      "action": "wait",
+      "seconds": 3
+    },
+    {
+      "action": "screenshot",
+      "name": "scale-right-end"
+    },
+    {
+      "action": "assert_foreground"
+    },
+    {
+      "action": "back",
+      "optional": true
+    },
+    {
+      "action": "screenshot",
+      "name": "login-at-changed-scale"
+    },
+    {
+      "action": "rotate",
+      "to": "landscape"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "landscape-changed-scale"
+    },
+    {
+      "action": "rotate",
+      "to": "portrait"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "tap",
+      "desc": "פתיחת הגדרות ופעולות"
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8
+    },
+    {
+      "action": "rotate",
+      "to": "landscape"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8,
+      "note": "dialog is reopened after rotation"
+    },
+    {
+      "action": "screenshot",
+      "name": "dialog-landscape"
+    },
+    {
+      "action": "rotate",
+      "to": "portrait"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8,
+      "note": "still open after rotating back"
+    },
+    {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8
+    },
+    {
+      "action": "tap",
+      "text": "איפוס תצוגה"
+    },
+    {
+      "action": "wait",
+      "seconds": 3
+    },
+    {
+      "action": "screenshot",
+      "name": "after-reset"
+    },
+    {
+      "action": "assert_text",
+      "text": "100%",
+      "timeout": 8,
+      "optional": true
+    },
+    {
+      "action": "assert_foreground"
+    }
+  ]
+}
