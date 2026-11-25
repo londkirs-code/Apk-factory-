@@ -269,6 +269,7 @@ class Runner:
         self.size = (1080, 1920)
         self._seen_crash_lines: set[str] = set()
         self.scenario_dir = Path.cwd()
+        self.auto_allow_permissions = True
 
     # ---------------------------------------------------------------- helpers
     def slug(self, name: str) -> str:
@@ -375,6 +376,27 @@ class Runner:
         if "No activities found" in out or "monkey aborted" in out:
             raise StepError(f"cannot launch {self.package}: {out.strip()}")
         self.settle(2.5)
+        if self.auto_allow_permissions:
+            self.allow_permission_dialogs()
+
+    def allow_permission_dialogs(self, rounds: int = 3) -> None:
+        """Tap 'Allow' on runtime-permission dialogs that cover the app right after launch."""
+        for _ in range(rounds):
+            if "permissioncontroller" not in self.adb.foreground_package():
+                return
+            try:
+                nodes = self.nodes()
+            except StepError:
+                return
+            ids = ("permission_allow_button", "permission_allow_foreground_only_button", "permission_allow_one_time_button")
+            target = next((n for i in ids for n in nodes if n.rid.endswith(":id/" + i)), None)
+            if target is None:
+                target = next((n for n in nodes if n.flag("clickable") and n.text.strip().lower() in ("allow", "אישור", "התר", "לאפשר")), None)
+            if target is None:
+                return
+            self.report.warnings.append("auto-allowed a runtime permission dialog after launch")
+            self.tap_xy(*target.center)
+            self.settle(1.0)
 
     def settle(self, seconds: float = 1.0) -> None:
         time.sleep(seconds)
@@ -825,6 +847,7 @@ def main(argv: list[str] | None = None) -> int:
                     avoid=scenario.get("avoid", args.avoid))
     if args.scenario:
         runner.scenario_dir = args.scenario.resolve().parent
+    runner.auto_allow_permissions = bool(scenario.get("auto_allow_permissions", True))
     runner.prepare_device(disable_animations=scenario.get("disable_animations", True))
     runner.collect_device_info()
 

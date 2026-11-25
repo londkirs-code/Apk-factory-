@@ -77,6 +77,9 @@ final class ImportParser {
             String id=base.substring(0,24);
             int suffix=1;while(!ids.add(id))id=base.substring(0,20)+"_"+(suffix++);
             Item item=new Item();item.id=id;item.name=name;item.quantity=quantity;
+            // TXT lines carry no image: keep these non-null like the JSON parser does, otherwise
+            // fingerprinting the imported rows throws and the import is rolled back.
+            item.image="";item.imageUrl="";
             item.unit=unit;item.note=note;item.category=category;
             list.items.add(item);
         }

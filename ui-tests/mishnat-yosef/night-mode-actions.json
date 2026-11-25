@@ -9,6 +9,12 @@
     },
     {
       "action": "shell",
+      "cmd": "pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS",
+      "ignore_errors": true,
+      "optional": true
+    },
+    {
+      "action": "shell",
       "cmd": "appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow",
       "ignore_errors": true,
       "optional": true
