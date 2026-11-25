@@ -1,0 +1,371 @@
+{
+  "app": "mishnat-yosef",
+  "package": "org.mishnatyosef.mobile",
+  "mode": "scenario",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 78.5,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "clear_data",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.49,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "shell",
+      "detail": "cmd='pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "shell",
+      "detail": "cmd='appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 3.15,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "wait_for",
+      "detail": "text='ברוכים הבאים'",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "tap",
+      "detail": "desc='פתיחת הגדרות ופעולות'",
+      "status": "passed",
+      "seconds": 3.02,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "wait_for",
+      "detail": "text='פעולות מהירות'",
+      "status": "passed",
+      "seconds": 2.02,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "swipe",
+      "detail": "desc='גודל התצוגה'",
+      "status": "passed",
+      "seconds": 3.59,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "wait",
+      "detail": "seconds=3",
+      "status": "passed",
+      "seconds": 3.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "screenshot",
+      "detail": "name='scale-left-end'",
+      "status": "passed",
+      "seconds": 2.24,
+      "error": "",
+      "screenshot": "screenshots/001-scale-left-end.png"
+    },
+    {
+      "index": 11,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "wait_for",
+      "detail": "dialog reopens after the scale change",
+      "status": "passed",
+      "seconds": 2.02,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "swipe",
+      "detail": "desc='גודל התצוגה'",
+      "status": "passed",
+      "seconds": 3.67,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "wait",
+      "detail": "seconds=3",
+      "status": "passed",
+      "seconds": 3.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "screenshot",
+      "detail": "name='scale-right-end'",
+      "status": "passed",
+      "seconds": 2.25,
+      "error": "",
+      "screenshot": "screenshots/002-scale-right-end.png"
+    },
+    {
+      "index": 16,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.85,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "screenshot",
+      "detail": "name='login-at-changed-scale'",
+      "status": "passed",
+      "seconds": 2.23,
+      "error": "",
+      "screenshot": "screenshots/003-login-at-changed-scale.png"
+    },
+    {
+      "index": 19,
+      "action": "rotate",
+      "detail": "to='landscape'",
+      "status": "passed",
+      "seconds": 1.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "screenshot",
+      "detail": "name='landscape-changed-scale'",
+      "status": "passed",
+      "seconds": 2.24,
+      "error": "",
+      "screenshot": "screenshots/004-landscape-changed-scale.png"
+    },
+    {
+      "index": 22,
+      "action": "rotate",
+      "detail": "to='portrait'",
+      "status": "passed",
+      "seconds": 1.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 23,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 24,
+      "action": "tap",
+      "detail": "desc='פתיחת הגדרות ופעולות'",
+      "status": "passed",
+      "seconds": 3.0,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "wait_for",
+      "detail": "text='פעולות מהירות'",
+      "status": "passed",
+      "seconds": 2.0,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 26,
+      "action": "rotate",
+      "detail": "to='landscape'",
+      "status": "passed",
+      "seconds": 1.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 27,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 28,
+      "action": "wait_for",
+      "detail": "dialog is reopened after rotation",
+      "status": "passed",
+      "seconds": 2.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "screenshot",
+      "detail": "name='dialog-landscape'",
+      "status": "passed",
+      "seconds": 2.24,
+      "error": "",
+      "screenshot": "screenshots/005-dialog-landscape.png"
+    },
+    {
+      "index": 30,
+      "action": "rotate",
+      "detail": "to='portrait'",
+      "status": "passed",
+      "seconds": 1.58,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 31,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 32,
+      "action": "wait_for",
+      "detail": "still open after rotating back",
+      "status": "passed",
+      "seconds": 2.0,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "wait_for",
+      "detail": "text='פעולות מהירות'",
+      "status": "passed",
+      "seconds": 1.99,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 34,
+      "action": "tap",
+      "detail": "text='איפוס תצוגה'",
+      "status": "passed",
+      "seconds": 3.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 35,
+      "action": "wait",
+      "detail": "seconds=3",
+      "status": "passed",
+      "seconds": 3.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 36,
+      "action": "screenshot",
+      "detail": "name='after-reset'",
+      "status": "passed",
+      "seconds": 2.26,
+      "error": "",
+      "screenshot": "screenshots/006-after-reset.png"
+    },
+    {
+      "index": 37,
+      "action": "assert_text",
+      "detail": "text='100%'",
+      "status": "passed",
+      "seconds": 1.99,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 38,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.05,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-scale-left-end.png",
+    "002-scale-right-end.png",
+    "003-login-at-changed-scale.png",
+    "004-landscape-changed-scale.png",
+    "005-dialog-landscape.png",
+    "006-after-reset.png",
+    "007-final.png"
+  ]
+}

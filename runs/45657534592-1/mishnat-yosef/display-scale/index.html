@@ -1,0 +1,54 @@
+<!doctype html><meta charset="utf-8">
+<title>UI test — mishnat-yosef</title>
+<style>body{font-family:system-ui,sans-serif;margin:24px;background:#f6f7f9}
+.grid{display:flex;flex-wrap:wrap;gap:16px}figure{margin:0;background:#fff;padding:8px;border-radius:8px;box-shadow:0 1px 3px #0002}
+img{width:240px;display:block}figcaption{font-size:12px;margin-top:4px}table{border-collapse:collapse;background:#fff}
+td,th{border:1px solid #ddd;padding:4px 8px;font-size:13px;text-align:left}tr.failed{background:#fde8e8}tr.skipped{background:#fff7e0}
+pre{background:#222;color:#eee;padding:12px;overflow:auto}</style>
+<h1>UI test — mishnat-yosef (scenario): PASSED</h1>
+<p>Package <code>org.mishnatyosef.mobile</code> · {&quot;model&quot;: &quot;sdk_gphone64_x86_64&quot;, &quot;sdk&quot;: &quot;33&quot;, &quot;release&quot;: &quot;13&quot;, &quot;abi&quot;: &quot;x86_64&quot;, &quot;locale&quot;: &quot;&quot;, &quot;screen&quot;: &quot;1080x2400&quot;}</p>
+<table><tr><th>#</th><th>Action</th><th>Detail</th><th>Result</th><th>Error</th></tr><tr class='passed'><td>1</td><td>clear_data</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>2</td><td>shell</td><td>cmd=&#x27;pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS&#x27;, ignore_errors=True</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>3</td><td>shell</td><td>cmd=&#x27;appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow&#x27;, ignore_errors=True</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>4</td><td>launch</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>5</td><td>wait_for</td><td>text=&#x27;ברוכים הבאים&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>6</td><td>tap</td><td>desc=&#x27;פתיחת הגדרות ופעולות&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>7</td><td>wait_for</td><td>text=&#x27;פעולות מהירות&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>8</td><td>swipe</td><td>desc=&#x27;גודל התצוגה&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>9</td><td>wait</td><td>seconds=3</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>10</td><td>screenshot</td><td>name=&#x27;scale-left-end&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>11</td><td>assert_foreground</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>12</td><td>wait_for</td><td>dialog reopens after the scale change</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>13</td><td>swipe</td><td>desc=&#x27;גודל התצוגה&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>14</td><td>wait</td><td>seconds=3</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>15</td><td>screenshot</td><td>name=&#x27;scale-right-end&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>16</td><td>assert_foreground</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>17</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>18</td><td>screenshot</td><td>name=&#x27;login-at-changed-scale&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>19</td><td>rotate</td><td>to=&#x27;landscape&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>20</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>21</td><td>screenshot</td><td>name=&#x27;landscape-changed-scale&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>22</td><td>rotate</td><td>to=&#x27;portrait&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>23</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>24</td><td>tap</td><td>desc=&#x27;פתיחת הגדרות ופעולות&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>25</td><td>wait_for</td><td>text=&#x27;פעולות מהירות&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>26</td><td>rotate</td><td>to=&#x27;landscape&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>27</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>28</td><td>wait_for</td><td>dialog is reopened after rotation</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>29</td><td>screenshot</td><td>name=&#x27;dialog-landscape&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>30</td><td>rotate</td><td>to=&#x27;portrait&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>31</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>32</td><td>wait_for</td><td>still open after rotating back</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>33</td><td>wait_for</td><td>text=&#x27;פעולות מהירות&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>34</td><td>tap</td><td>text=&#x27;איפוס תצוגה&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>35</td><td>wait</td><td>seconds=3</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>36</td><td>screenshot</td><td>name=&#x27;after-reset&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>37</td><td>assert_text</td><td>text=&#x27;100%&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>38</td><td>assert_foreground</td><td></td><td>passed</td><td></td></tr></table>
+<h2>Screenshots</h2><div class="grid"><figure><a href="screenshots/001-scale-left-end.png"><img src="screenshots/001-scale-left-end.png" loading="lazy"></a><figcaption>001-scale-left-end.png</figcaption></figure>
+<figure><a href="screenshots/002-scale-right-end.png"><img src="screenshots/002-scale-right-end.png" loading="lazy"></a><figcaption>002-scale-right-end.png</figcaption></figure>
+<figure><a href="screenshots/003-login-at-changed-scale.png"><img src="screenshots/003-login-at-changed-scale.png" loading="lazy"></a><figcaption>003-login-at-changed-scale.png</figcaption></figure>
+<figure><a href="screenshots/004-landscape-changed-scale.png"><img src="screenshots/004-landscape-changed-scale.png" loading="lazy"></a><figcaption>004-landscape-changed-scale.png</figcaption></figure>
+<figure><a href="screenshots/005-dialog-landscape.png"><img src="screenshots/005-dialog-landscape.png" loading="lazy"></a><figcaption>005-dialog-landscape.png</figcaption></figure>
+<figure><a href="screenshots/006-after-reset.png"><img src="screenshots/006-after-reset.png" loading="lazy"></a><figcaption>006-after-reset.png</figcaption></figure>
+<figure><a href="screenshots/007-final.png"><img src="screenshots/007-final.png" loading="lazy"></a><figcaption>007-final.png</figcaption></figure></div>
