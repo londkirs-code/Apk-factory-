@@ -1,0 +1,257 @@
+{
+  "app": "mishnat-yosef",
+  "package": "org.mishnatyosef.mobile",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 199.7,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "clear_data",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.21,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "shell",
+      "detail": "cmd='appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 3.16,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait_for",
+      "detail": "text='ברוכים הבאים'",
+      "status": "failed",
+      "seconds": 31.54,
+      "error": "element not found within 30s: text='ברוכים הבאים'",
+      "screenshot": "screenshots/001-step4-wait_for-FAILED.png"
+    },
+    {
+      "index": 5,
+      "action": "tap",
+      "detail": "desc='פתיחת הגדרות ופעולות'",
+      "status": "failed",
+      "seconds": 10.05,
+      "error": "element not found within 10s: desc='פתיחת הגדרות ופעולות'",
+      "screenshot": "screenshots/002-step5-tap-FAILED.png"
+    },
+    {
+      "index": 6,
+      "action": "wait_for",
+      "detail": "text='פעולות מהירות'",
+      "status": "failed",
+      "seconds": 9.97,
+      "error": "element not found within 8s: text='פעולות מהירות'",
+      "screenshot": "screenshots/003-step6-wait_for-FAILED.png"
+    },
+    {
+      "index": 7,
+      "action": "screenshot",
+      "detail": "name='day-dialog'",
+      "status": "passed",
+      "seconds": 2.36,
+      "error": "",
+      "screenshot": "screenshots/004-day-dialog.png"
+    },
+    {
+      "index": 8,
+      "action": "tap",
+      "detail": "text='מצב לילה'",
+      "status": "failed",
+      "seconds": 12.61,
+      "error": "element not found within 10s: text='מצב לילה'",
+      "screenshot": "screenshots/005-step8-tap-FAILED.png"
+    },
+    {
+      "index": 9,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.53,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "assert_text",
+      "detail": "button label flipped",
+      "status": "failed",
+      "seconds": 7.34,
+      "error": "element not found within 5s: text='מצב יום'",
+      "screenshot": "screenshots/006-step10-assert_text-FAILED.png"
+    },
+    {
+      "index": 11,
+      "action": "assert_text",
+      "detail": "dialog still open",
+      "status": "failed",
+      "seconds": 7.34,
+      "error": "element not found within 5s: text='פעולות מהירות'",
+      "screenshot": "screenshots/007-step11-assert_text-FAILED.png"
+    },
+    {
+      "index": 12,
+      "action": "screenshot",
+      "detail": "name='night-dialog'",
+      "status": "passed",
+      "seconds": 2.35,
+      "error": "",
+      "screenshot": "screenshots/008-night-dialog.png"
+    },
+    {
+      "index": 13,
+      "action": "tap",
+      "detail": "desc='סגירת חלון הפעולות'",
+      "status": "failed",
+      "seconds": 10.04,
+      "error": "element not found within 10s: desc='סגירת חלון הפעולות'",
+      "screenshot": "screenshots/009-step13-tap-FAILED.png"
+    },
+    {
+      "index": 14,
+      "action": "assert_not_visible",
+      "detail": "text='פעולות מהירות'",
+      "status": "passed",
+      "seconds": 2.52,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "screenshot",
+      "detail": "name='night-login-screen'",
+      "status": "passed",
+      "seconds": 2.39,
+      "error": "",
+      "screenshot": "screenshots/010-night-login-screen.png"
+    },
+    {
+      "index": 16,
+      "action": "tap",
+      "detail": "desc='פתיחת הגדרות ופעולות'",
+      "status": "failed",
+      "seconds": 12.66,
+      "error": "element not found within 10s: desc='פתיחת הגדרות ופעולות'",
+      "screenshot": "screenshots/011-step16-tap-FAILED.png"
+    },
+    {
+      "index": 17,
+      "action": "wait_for",
+      "detail": "text='פעולות מהירות'",
+      "status": "failed",
+      "seconds": 10.02,
+      "error": "element not found within 8s: text='פעולות מהירות'",
+      "screenshot": "screenshots/012-step17-wait_for-FAILED.png"
+    },
+    {
+      "index": 18,
+      "action": "screenshot",
+      "detail": "name='night-dialog-reopened'",
+      "status": "passed",
+      "seconds": 2.36,
+      "error": "",
+      "screenshot": "screenshots/013-night-dialog-reopened.png"
+    },
+    {
+      "index": 19,
+      "action": "tap",
+      "detail": "text='מצב יום'",
+      "status": "failed",
+      "seconds": 12.66,
+      "error": "element not found within 10s: text='מצב יום'",
+      "screenshot": "screenshots/014-step19-tap-FAILED.png"
+    },
+    {
+      "index": 20,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.53,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "assert_text",
+      "detail": "text='מצב לילה'",
+      "status": "failed",
+      "seconds": 7.31,
+      "error": "element not found within 5s: text='מצב לילה'",
+      "screenshot": "screenshots/015-step21-assert_text-FAILED.png"
+    },
+    {
+      "index": 22,
+      "action": "screenshot",
+      "detail": "name='back-to-day-dialog'",
+      "status": "passed",
+      "seconds": 2.37,
+      "error": "",
+      "screenshot": "screenshots/016-back-to-day-dialog.png"
+    },
+    {
+      "index": 23,
+      "action": "tap",
+      "detail": "desc='סגירת חלון הפעולות'",
+      "status": "failed",
+      "seconds": 12.63,
+      "error": "element not found within 10s: desc='סגירת חלון הפעולות'",
+      "screenshot": "screenshots/017-step23-tap-FAILED.png"
+    },
+    {
+      "index": 24,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "failed",
+      "seconds": 0.03,
+      "error": "foreground app is com.google.android.permissioncontroller, expected org.mishnatyosef.mobile",
+      "screenshot": "screenshots/018-step24-assert_foreground-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-step4-wait_for-FAILED.png",
+    "002-step5-tap-FAILED.png",
+    "003-step6-wait_for-FAILED.png",
+    "004-day-dialog.png",
+    "005-step8-tap-FAILED.png",
+    "006-step10-assert_text-FAILED.png",
+    "007-step11-assert_text-FAILED.png",
+    "008-night-dialog.png",
+    "009-step13-tap-FAILED.png",
+    "010-night-login-screen.png",
+    "011-step16-tap-FAILED.png",
+    "012-step17-wait_for-FAILED.png",
+    "013-night-dialog-reopened.png",
+    "014-step19-tap-FAILED.png",
+    "015-step21-assert_text-FAILED.png",
+    "016-back-to-day-dialog.png",
+    "017-step23-tap-FAILED.png",
+    "018-step24-assert_foreground-FAILED.png",
+    "019-final.png"
+  ]
+}
