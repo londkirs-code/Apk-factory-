@@ -99,3 +99,8 @@ test('the manifest loads the QR library before the panel script', () => {
   qr.make();
   assert.ok(qr.getModuleCount() > 20);
 });
+
+test('content.js finds the core on globalThis (Firefox content-script sandbox)', () => {
+  const src = readFileSync(new URL('../src/content.js', import.meta.url), 'utf8');
+  assert.match(src, /globalThis\.MishnatCore/);
+});

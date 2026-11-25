@@ -12,7 +12,8 @@
   window.__mishnatOsefDownload = true;
 
   const ext = typeof browser !== 'undefined' ? browser : chrome;
-  const core = window.MishnatCore;
+  // בפיירפוקס window של סקריפט התוכן הוא עטיפה של הדף, ו-core.js נרשם על globalThis.
+  const core = globalThis.MishnatCore || window.MishnatCore;
   const API = 'https://v2.mishnatyosef.org/api';
 
   // ---------- API ----------
