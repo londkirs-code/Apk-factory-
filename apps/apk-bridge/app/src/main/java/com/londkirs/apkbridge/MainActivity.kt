@@ -27,6 +27,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import kotlinx.coroutines.launch
 
 class BridgeApp : Application() {
     override fun onCreate() {
@@ -52,6 +53,14 @@ class MainActivity : Activity() {
     private lateinit var installButton: Button
     private lateinit var cancelButton: Button
     private lateinit var openAppButton: Button
+    private lateinit var logHeader: TextView
+    private lateinit var logPreview: TextView
+    private lateinit var logBody: LinearLayout
+    private lateinit var a11yText: TextView
+    private lateinit var a11yButton: Button
+    private var shownInstallSeq = 0
+    private var previewJob: kotlinx.coroutines.Job? = null
+    private var previewText: String? = null
     private val optionBoxes = mutableMapOf<String, CheckBox>()
     private val busyViews = mutableListOf<View>()
 
@@ -63,6 +72,7 @@ class MainActivity : Activity() {
             if (logText.text.isNotEmpty()) logText.append("\n")
             logText.append(line)
         }
+        logPreview.text = line
         logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
@@ -71,8 +81,11 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         Bridge.init(this)
         selected = savedInstanceState?.getParcelableArrayList<Uri>(KEY_SELECTED).orEmpty()
+        shownInstallSeq = savedInstanceState?.getInt(KEY_SHOWN_SEQ, Bridge.state.installSeq) ?: Bridge.state.installSeq
         buildUi()
         logText.text = Bridge.logSnapshot()
+        logPreview.text = Bridge.lastLogLine()
+        applyLogExpanded()
         if (savedInstanceState == null) handleIncoming(intent)
         renderSelection()
     }
@@ -98,6 +111,7 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putParcelableArrayList(KEY_SELECTED, ArrayList(selected))
+        outState.putInt(KEY_SHOWN_SEQ, shownInstallSeq)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -143,12 +157,50 @@ class MainActivity : Activity() {
         openAppButton = button("פתח את האפליקציה שהותקנה", primary = false) { openInstalledApp() }.apply { visibility = View.GONE }
         statusCard.addView(openAppButton, matchWrap())
 
+        // Log card — right under the status, collapsed by default (tap the header to open).
+        val logCard = card(page)
+        logHeader = heading("").apply {
+            setOnClickListener { Bridge.logExpanded = !Bridge.logExpanded; applyLogExpanded() }
+        }
+        logCard.addView(logHeader, matchWrap(2))
+        logPreview = TextView(this).apply {
+            textSize = 12f
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setTextColor(MUTED)
+            textDirection = View.TEXT_DIRECTION_ANY_RTL
+            setOnClickListener { Bridge.logExpanded = true; applyLogExpanded() }
+        }
+        logCard.addView(logPreview, matchWrap(2))
+        logBody = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        logText = TextView(this).apply {
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setTextColor(0xFF4A3F36.toInt())
+            setTextIsSelectable(true)
+            textDirection = View.TEXT_DIRECTION_ANY_RTL
+        }
+        logScroll = ScrollView(this).apply {
+            addView(logText)
+            isNestedScrollingEnabled = true
+        }
+        logBody.addView(logScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(240)).apply { bottomMargin = dp(8) })
+        val logButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        logButtons.addView(button("העתק יומן", primary = false) { copyLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
+        logButtons.addView(button("נקה", primary = false) { Bridge.clearLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        logBody.addView(logButtons, matchWrap(0))
+        logCard.addView(logBody, matchWrap(0))
+
         // Connection card
         val conn = card(page)
         conn.addView(heading("1 · חיבור"), matchWrap())
         connectionText = body("")
         conn.addView(connectionText, matchWrap(8))
-        conn.addView(button("זווג דרך התראה (מומלץ)", primary = true) { startNotificationPairing() }.busyAware(), matchWrap())
+        a11yText = body("")
+        conn.addView(a11yText, matchWrap(6))
+        a11yButton = button("הפעל זיווג אוטומטי (נגישות)", primary = true) { openAccessibilitySetup() }
+        conn.addView(a11yButton, matchWrap())
+        conn.addView(button("זווג דרך התראה", primary = false) { startNotificationPairing() }.busyAware(), matchWrap())
         conn.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
         conn.addView(button("בדוק חיבור", primary = false) { Bridge.testConnection() }.busyAware(), matchWrap())
         conn.addView(button("זיווג ידני / מכשיר אחר ▾", primary = false) {
@@ -188,6 +240,9 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 34) {
             option(inst, "bypass", "עקוף חסימת targetSdk נמוך (Android 14+)", opts.bypassLowTargetSdk)
         }
+        val autoBox = checkBox("התקן מיד כשקובץ נפתח או משותף אל APK Bridge", Bridge.autoInstallIncoming)
+        autoBox.setOnCheckedChangeListener { _, checked -> Bridge.autoInstallIncoming = checked }
+        inst.addView(autoBox, matchWrap(0))
         inst.addView(note("רישום Google Play כמקור ההתקנה הוא סימון בלבד: ההתקנה מתבצעת דרך ADB, והאפליקציה אינה מקבלת רישוי, רכישה או אימות של Play."), matchWrap())
 
         // Tools card
@@ -202,26 +257,6 @@ class MainActivity : Activity() {
         }.busyAware(), matchWrap(12))
         tools.addView(body("הפעלה אוטומטית: APK Bridge יכול להדליק את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (למשל אחרי הפעלה מחדש), כך שלא צריך להיכנס להגדרות לפני כל התקנה."), matchWrap(6))
         tools.addView(button("אפשר הפעלה אוטומטית של ניפוי באגים אלחוטי", primary = false) { Bridge.grantAutoEnable() }.busyAware(), matchWrap())
-
-        // Log card
-        val logCard = card(page)
-        logCard.addView(heading("יומן"), matchWrap())
-        logText = TextView(this).apply {
-            textSize = 12f
-            typeface = Typeface.MONOSPACE
-            setTextColor(0xFF4A3F36.toInt())
-            setTextIsSelectable(true)
-            textDirection = View.TEXT_DIRECTION_ANY_RTL
-        }
-        logScroll = ScrollView(this).apply {
-            addView(logText)
-            isNestedScrollingEnabled = true
-        }
-        logCard.addView(logScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(220)).apply { bottomMargin = dp(8) })
-        val logButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        logButtons.addView(button("העתק יומן", primary = false) { copyLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
-        logButtons.addView(button("נקה", primary = false) { Bridge.clearLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        logCard.addView(logButtons, matchWrap())
 
         page.addView(TextView(this).apply {
             text = "גרסה ${versionName()}"
@@ -339,6 +374,59 @@ class MainActivity : Activity() {
         val pkg = state.lastInstalledPackage
         openAppButton.visibility = if (!state.busy && pkg != null && packageManager.getLaunchIntentForPackage(pkg) != null) View.VISIBLE else View.GONE
         if (!state.busy) refreshConnectionInfo()
+        if (!state.busy && state.installSeq > shownInstallSeq) {
+            shownInstallSeq = state.installSeq
+            if (pkg != null) offerToOpen(pkg)
+        }
+    }
+
+    private fun offerToOpen(pkg: String) {
+        val launch = packageManager.getLaunchIntentForPackage(pkg) ?: return
+        if (isFinishing || isDestroyed) return
+        val label = Bridge.appLabel(pkg) ?: pkg
+        android.app.AlertDialog.Builder(this)
+            .setTitle("✔ $label הותקן")
+            .setMessage("לפתוח את האפליקציה עכשיו?")
+            .setPositiveButton("פתח") { _, _ ->
+                runCatching { startActivity(launch) }.onFailure { toast("לא ניתן לפתוח את האפליקציה.") }
+            }
+            .setNegativeButton("לא עכשיו", null)
+            .show()
+    }
+
+    private fun applyLogExpanded() {
+        val open = Bridge.logExpanded
+        logHeader.text = if (open) "יומן ▴" else "יומן ▾  (הקש לפתיחה)"
+        logBody.visibility = if (open) View.VISIBLE else View.GONE
+        logPreview.visibility = if (open) View.GONE else View.VISIBLE
+        if (open) logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    private fun openAccessibilitySetup() {
+        if (PairingAccessibilityService.isEnabled(this)) {
+            openDeveloperOptions()
+            toast("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\". הקוד יזוהה ויוזן אוטומטית.")
+            return
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("זיווג אוטומטי")
+            .setMessage(
+                "APK Bridge יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד הזיווג והפורט ויבצע את הזיווג בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n" +
+                    "במסך הבא: בחר \"APK Bridge\" ← הפעל.\n\n" +
+                    "אם האפשרות אפורה (Android 13+): פתח פרטי אפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", וחזור לכאן."
+            )
+            .setPositiveButton("להגדרות נגישות") { _, _ -> openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) }
+            .setNeutralButton("פרטי אפליקציה") { _, _ ->
+                runCatching {
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                }
+            }
+            .setNegativeButton("ביטול", null)
+            .show()
+    }
+
+    private fun openSettings(action: String) {
+        try { startActivity(Intent(action)) } catch (_: ActivityNotFoundException) { openDeveloperOptions() }
     }
 
     private fun refreshConnectionInfo() {
@@ -356,6 +444,14 @@ class MainActivity : Activity() {
         if (Bridge.canWriteSecureSettings()) lines += "✔ הפעלה אוטומטית מאופשרת"
         if (Bridge.savedConnectPort > 0) lines += "• פורט חיבור אחרון: ${Bridge.savedConnectPort}"
         connectionText.text = lines.joinToString("\n")
+        val a11y = PairingAccessibilityService.isEnabled(this)
+        a11yText.text = if (a11y) {
+            "✔ זיווג אוטומטי פעיל: פתח \"התאמת מכשיר עם קוד התאמה\" בהגדרות, והקוד יזוהה ויוזן לבד."
+        } else {
+            "זיווג אוטומטי: APK Bridge יכול לקרוא את קוד הזיווג מהמסך ולזווג בעצמו (דורש הפעלת שירות נגישות)."
+        }
+        a11yButton.text = if (a11y) "פתח הגדרות לזיווג אוטומטי" else "הפעל זיווג אוטומטי (נגישות)"
+
     }
 
     private fun renderSelection() {
@@ -363,7 +459,8 @@ class MainActivity : Activity() {
         filesText.text = if (selected.isEmpty()) {
             "לא נבחרו קבצים. אפשר גם לפתוח או לשתף קובץ APK מכל מנהל קבצים או דפדפן."
         } else {
-            selected.joinToString("\n") { "• ${Bridge.displayName(it)} (${Bridge.formatSize(Bridge.sizeOf(it))})" }
+            selected.joinToString("\n") { "• ${Bridge.displayName(it)} (${Bridge.formatSize(Bridge.sizeOf(it))})" } +
+                (previewText?.let { "\n\n$it" } ?: "")
         }
         installButton.text = if (selected.size > 1) "התקן ${selected.size} קבצים" else "התקן"
     }
@@ -484,13 +581,41 @@ class MainActivity : Activity() {
         if (uris.isNotEmpty()) {
             setSelection(uris)
             Bridge.log("התקבלו ${uris.size} קבצים מאפליקציה אחרת.")
+            if (Bridge.autoInstallIncoming && Bridge.isPaired && !Bridge.state.busy) installSelected()
         }
     }
 
     private fun setSelection(uris: List<Uri>) {
         if (uris.isEmpty()) return
         selected = uris
+        previewText = null
         renderSelection()
+        loadPreview()
+    }
+
+    private fun loadPreview() {
+        previewJob?.cancel()
+        val only = selected.singleOrNull() ?: return
+        if (!Bridge.displayName(only).endsWith(".apk", ignoreCase = true)) return
+        previewJob = Bridge.scope.launch {
+            val p = Bridge.preview(only) ?: return@launch
+            val text = buildString {
+                append("${p.label} · ${p.packageName}\nגרסה ${p.versionName ?: "?"} (${p.versionCode})")
+                val installedCode = p.installedVersionCode
+                when {
+                    installedCode == null -> append("\nלא מותקנת כרגע — התקנה חדשה.")
+                    installedCode < p.versionCode -> append("\nעדכון: מותקנת ${p.installedVersionName} ($installedCode).")
+                    installedCode == p.versionCode -> append("\nאותה גרסה כבר מותקנת — התקנה מחדש.")
+                    else -> append("\n⚠ שנמוך: מותקנת גרסה חדשה יותר ${p.installedVersionName} ($installedCode). סמן \"אפשר שנמוך גרסה\".")
+                }
+            }
+            runOnUiThread {
+                if (selected.singleOrNull() == only) {
+                    previewText = text
+                    renderSelection()
+                }
+            }
+        }
     }
 
     private fun installSelected() {
@@ -532,6 +657,7 @@ class MainActivity : Activity() {
         private const val REQUEST_FILES = 4102
         private const val REQUEST_NOTIFICATIONS = 4103
         private const val KEY_SELECTED = "selected_uris"
+        private const val KEY_SHOWN_SEQ = "shown_install_seq"
         private val INK = 0xFF30251D.toInt()
         private val MUTED = 0xFF8A7868.toInt()
         private val ACCENT = 0xFFF09A45.toInt()

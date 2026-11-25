@@ -12,4 +12,6 @@
     <string name="pair_enter_code">הזן קוד</string>
     <string name="pair_code_hint">קוד זיווג בן 6 ספרות</string>
     <string name="pair_cancel">ביטול</string>
+    <string name="a11y_label">APK Bridge — זיווג אוטומטי</string>
+    <string name="a11y_description">קורא רק את מסכי ההגדרות של Android כדי לזהות את קוד הזיווג ואת הפורט של ניפוי הבאגים האלחוטי, ומבצע את הזיווג אוטומטית. שום מידע לא נשמר ולא נשלח מחוץ למכשיר.</string>
 </resources>

@@ -9,6 +9,8 @@
     <!-- Not granted at install time. The user can grant it through ADB from the Tools card so the
          app can switch Wireless Debugging back on by itself. -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <!-- Shows name/version of installed apps (update vs. downgrade preview, "open after install"). -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <!-- Lets "Open installed app" find launcher activities of freshly installed packages. -->
     <queries>
@@ -64,6 +66,19 @@
             android:name=".PairingService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <service
+            android:name=".PairingAccessibilityService"
+            android:exported="true"
+            android:label="@string/a11y_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/pairing_accessibility" />
+        </service>
 
         <receiver
             android:name=".PairingReplyReceiver"

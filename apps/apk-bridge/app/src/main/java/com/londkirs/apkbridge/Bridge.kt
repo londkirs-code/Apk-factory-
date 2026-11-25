@@ -59,6 +59,18 @@ data class BridgeState(
     val status: String = "מוכן.",
     val progress: Int = -1,
     val lastInstalledPackage: String? = null,
+    /** Incremented after every successful install, so the UI can offer to open the app once. */
+    val installSeq: Int = 0,
+)
+
+/** What a selected APK is, shown before installing. */
+data class ApkPreview(
+    val label: String,
+    val packageName: String,
+    val versionName: String?,
+    val versionCode: Long,
+    val installedVersionName: String?,
+    val installedVersionCode: Long?,
 )
 
 /**
@@ -71,6 +83,7 @@ object Bridge {
     const val LOCAL_HOST = "127.0.0.1"
     private const val PREFS = "bridge"
     private const val PLAY_STORE = "com.android.vending"
+    private const val INSTALL_CHANNEL = "installs"
     private val KNOWN_ABIS = listOf("arm64_v8a", "armeabi_v7a", "armeabi", "x86_64", "x86", "mips64", "mips")
 
     private lateinit var app: Context
@@ -105,6 +118,16 @@ object Bridge {
     var isPaired: Boolean
         get() = prefs.getBoolean("paired", false)
         set(value) = prefs.edit().putBoolean("paired", value).apply()
+
+    var autoInstallIncoming: Boolean
+        get() = prefs.getBoolean("auto_install_incoming", false)
+        set(value) = prefs.edit().putBoolean("auto_install_incoming", value).apply()
+
+    var logExpanded: Boolean
+        get() = prefs.getBoolean("log_expanded", false)
+        set(value) = prefs.edit().putBoolean("log_expanded", value).apply()
+
+    fun lastLogLine(): String = synchronized(logLines) { logLines.lastOrNull().orEmpty() }
 
     fun loadOptions() = InstallOptions(
         allowDowngrade = prefs.getBoolean("opt_downgrade", false),
@@ -360,6 +383,18 @@ object Bridge {
         }
     }
 
+    /** Called by the accessibility service when it reads a pairing code off the Settings screen. */
+    fun autoPair(port: Int, code: String) = runJob("הזיווג האוטומטי") {
+        status("זוהה קוד זיווג במסך — מזווג אוטומטית…")
+        if (pairNow(LOCAL_HOST, port, code)) {
+            notifyInfo("APK Bridge זווג בהצלחה", "הזיווג האוטומטי הצליח. אפשר לחזור ל־APK Bridge ולהתקין.", null)
+            status("הזיווג האוטומטי הצליח. בודק חיבור…")
+            withClient { describeDevice(it) }
+        } else {
+            status("הזיווג האוטומטי נכשל. אם הקוד התחלף, הוא ינוסה שוב אוטומטית.")
+        }
+    }
+
     // endregion
 
     // region connection
@@ -579,10 +614,81 @@ object Bridge {
             installer != null -> "מקור ההתקנה הרשום: $installer"
             else -> "מקור ההתקנה: לא רשום"
         }
+        val label = appLabel(pkg) ?: pkg
         status(
-            "${prefix}✔ $pkg הותקן בהצלחה" + (version?.let { " (versionCode $it)" } ?: "") + ".\n$installerText",
+            "${prefix}✔ $label ($pkg) הותקן בהצלחה" + (version?.let { " (versionCode $it)" } ?: "") + ".\n$installerText",
             100,
         )
+        update { it.copy(lastInstalledPackage = pkg, installSeq = it.installSeq + 1) }
+        // When the app screen is not visible, offer "open" through a notification instead of a dialog.
+        if (stateListeners.isEmpty()) {
+            val launch = app.packageManager.getLaunchIntentForPackage(pkg)
+            notifyInfo("✔ $label הותקן", if (launch != null) "הקש כדי לפתוח את האפליקציה." else "ההתקנה הושלמה.", launch)
+        }
+    }
+
+    fun appLabel(pkg: String): String? = runCatching {
+        val pm = app.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+    }.getOrNull()
+
+    private fun notifyInfo(title: String, text: String, target: android.content.Intent?) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        val nm = app.getSystemService(android.app.NotificationManager::class.java) ?: return
+        if (nm.getNotificationChannel(INSTALL_CHANNEL) == null) {
+            nm.createNotificationChannel(
+                android.app.NotificationChannel(INSTALL_CHANNEL, "תוצאות התקנה", android.app.NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val intent = (target ?: android.content.Intent(app, MainActivity::class.java))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = android.app.PendingIntent.getActivity(
+            app, title.hashCode(), intent,
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val n = android.app.Notification.Builder(app, INSTALL_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_bridge)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(title.hashCode(), n)
+    }
+
+    /** Reads name/version of a single selected .apk and compares it to the installed version. */
+    suspend fun preview(uri: Uri): ApkPreview? = withContext(Dispatchers.IO) {
+        runCatching {
+            val size = sizeOf(uri)
+            if (size > 400L * 1024 * 1024) return@runCatching null
+            val file = File(app.cacheDir, "preview.apk")
+            app.contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { input.copyTo(it, 256 * 1024) }
+            } ?: return@runCatching null
+            try {
+                val pm = app.packageManager
+                val info = pm.getPackageArchiveInfo(file.absolutePath, 0) ?: return@runCatching null
+                val ai = info.applicationInfo
+                val label = if (ai != null) {
+                    ai.sourceDir = file.absolutePath
+                    ai.publicSourceDir = file.absolutePath
+                    pm.getApplicationLabel(ai).toString()
+                } else info.packageName
+                val installed = runCatching { pm.getPackageInfo(info.packageName, 0) }.getOrNull()
+                ApkPreview(
+                    label = label,
+                    packageName = info.packageName,
+                    versionName = info.versionName,
+                    versionCode = info.longVersionCode,
+                    installedVersionName = installed?.versionName,
+                    installedVersionCode = installed?.longVersionCode,
+                )
+            } finally {
+                file.delete()
+            }
+        }.getOrNull()
     }
 
     private suspend fun pushObbs(client: AdbClient, pkg: String, obbs: List<Pair<String, File>>) {
