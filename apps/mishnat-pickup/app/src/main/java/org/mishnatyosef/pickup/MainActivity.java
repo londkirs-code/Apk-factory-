@@ -1080,6 +1080,8 @@ public class MainActivity extends Activity {
      */
     private boolean moveToRowStart(ViewGroup root, View current, int direction) {
         if (current == null || current instanceof EditText) return false;
+        // תפריט רשת (שתי עמודות): למעלה/למטה נשארים באותה עמודה, כמו מסך אפליקציות.
+        if (moveInGrid(current, direction)) return true;
         int explicit = direction == View.FOCUS_UP ? current.getNextFocusUpId() : current.getNextFocusDownId();
         if (explicit != View.NO_ID) return false;
         View next = android.view.FocusFinder.getInstance().findNextFocus(root, current, direction);
@@ -1099,6 +1101,28 @@ public class MainActivity extends Activity {
             if (candidate.getVisibility() != View.VISIBLE || !candidate.isEnabled()) continue;
             if (candidate.isFocusable()) return candidate == next ? false : candidate.requestFocus();
             if (candidate instanceof ViewGroup && candidate.requestFocus()) return true;
+        }
+        return false;
+    }
+
+    /** ניווט בתפריט שתי העמודות: לשורה הקודמת/הבאה, באותה עמודה (או לכפתור היחיד בשורה). */
+    private boolean moveInGrid(View current, int direction) {
+        ViewParent parent = current.getParent();
+        if (!(parent instanceof LinearLayout) || !GRID_ROW_TAG.equals(((View) parent).getTag())) return false;
+        LinearLayout row = (LinearLayout) parent;
+        if (!(row.getParent() instanceof ViewGroup)) return false;
+        ViewGroup container = (ViewGroup) row.getParent();
+        int column = row.indexOfChild(current);
+        int index = container.indexOfChild(row) + (direction == View.FOCUS_DOWN ? 1 : -1);
+        if (index < 0 || index >= container.getChildCount()) return false;
+        View sibling = container.getChildAt(index);
+        if (!GRID_ROW_TAG.equals(sibling.getTag()) || !(sibling instanceof LinearLayout)) return false; // יציאה מהרשת: ניווט רגיל
+        LinearLayout target = (LinearLayout) sibling;
+        View same = column < target.getChildCount() ? target.getChildAt(column) : null;
+        if (same instanceof Button && same.isEnabled() && same.getVisibility() == View.VISIBLE && same.requestFocus()) return true;
+        for (int i = 0; i < target.getChildCount(); i++) {
+            View child = target.getChildAt(i);
+            if (child instanceof Button && child.isEnabled() && child.getVisibility() == View.VISIBLE && child.requestFocus()) return true;
         }
         return false;
     }
@@ -1884,7 +1908,7 @@ public class MainActivity extends Activity {
             + "• 🔄 ההזמנה העדכנית מהאתר מסומנת, עם הסבר על הסנכרון. הזמנה חדשה או שינוי באתר מוצגים בהודעה, והוספות שלך נשמרות בעותק ולא נמחקות.\n"
             + "• חזרה תמיד חוזרת שלב אחד אחורה, גם מחלונות שנפתחו מתוך חלונות.\n"
             + "• שיתוף כטקסט בוואטסאפ, SMS ומייל נשלח כהודעה רגילה. \"רשימה חדשה\" כולל גם קבלה בבלוטות' והדבקת טקסט.\n"
-            + "• עיצוב חדש לתפריטים: כפתורים בשתי עמודות, עם אימוג׳י גדול ושם מתחת, כמו מסך אפליקציות.\n"
+            + "• עיצוב חדש לתפריטים: כפתורים בשתי עמודות בגודל אחיד, עם אימוג׳י גדול ושם מתחת, כמו מסך אפליקציות. במקשים, למעלה ולמטה נשארים באותה עמודה.\n"
             + "• \"שיתוף\" בחלון הרשימות: ענן, JSON, TXT או ZIP עם תמונות, ואז וואטסאפ, SMS, מייל או שמירה במכשיר. משתף את המסומנות או את המוצגת, ואפשר לייבא הכול בחזרה.\n"
             + "• \"רשימה חדשה\" שואל מאיפה: הזמנה קודמת באתר, הענן, קובץ או רשימה ריקה.\n"
             + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
@@ -2237,6 +2261,7 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
                 lp.setMarginStart(gap);
                 row.addView(button, lp);
+                scheduleGridEqualize(container);
                 return;
             }
         }
@@ -2250,6 +2275,34 @@ public class MainActivity extends Activity {
         lp.setMarginStart(gap);
         row.addView(spacer, lp);
         container.addView(row, Ui.row(this, gap, 0));
+        scheduleGridEqualize(container);
+    }
+
+    private final java.util.WeakHashMap<ViewGroup, Boolean> gridEqualizePending = new java.util.WeakHashMap<>();
+
+    /** כל הכפתורים ברשת באותו גובה: הגובה של הכפתור הגבוה ביותר (טקסט לא נחתך). */
+    private void scheduleGridEqualize(final ViewGroup container) {
+        if (gridEqualizePending.containsKey(container)) return;
+        gridEqualizePending.put(container, Boolean.TRUE);
+        container.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override public void onGlobalLayout() {
+                List<Button> buttons = new ArrayList<>();
+                int max = 0;
+                for (int i = 0; i < container.getChildCount(); i++) {
+                    View row = container.getChildAt(i);
+                    if (!(row instanceof LinearLayout) || !GRID_ROW_TAG.equals(row.getTag())) continue;
+                    for (int j = 0; j < ((LinearLayout) row).getChildCount(); j++) {
+                        View child = ((LinearLayout) row).getChildAt(j);
+                        if (child instanceof Button) { buttons.add((Button) child); max = Math.max(max, child.getHeight()); }
+                    }
+                }
+                if (max <= 0) return; // עוד לא נמדד
+                if (Build.VERSION.SDK_INT >= 16) container.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                else container.getViewTreeObserver().removeGlobalOnLayoutListener(this);
+                gridEqualizePending.remove(container);
+                for (Button b : buttons) if (b.getHeight() != max) { b.setMinHeight(max); b.setMinimumHeight(max); }
+            }
+        });
     }
 
     private void addGridButtons(LinearLayout container, Button... buttons) {
