@@ -264,21 +264,12 @@ object Bridge {
         }.getOrDefault(false)
     }
 
-    /** Installs the bundled Wi‑Fi helper over ADB (needs a working ADB connection once). */
-    fun installWifiHelper() {
-        val file = File(app.cacheDir, "wifi-helper.apk")
-        val copied = runCatching {
-            app.assets.open(WIFI_HELPER_ASSET).use { input -> file.outputStream().use { input.copyTo(it) } }
-        }.isSuccess
-        if (!copied) {
-            log("קובץ עזר ה־Wi‑Fi חסר בגרסה הזו של APK Bridge.")
-            return
-        }
-        install(
-            listOf(Uri.fromFile(file)),
-            loadOptions().copy(registerPlayInstaller = false, allowDowngrade = true),
-        )
-    }
+    /** Re-sends the current state so open screens refresh (e.g. after the helper was installed). */
+    fun refreshState() = update { it }
+
+    var helperOffered: Boolean
+        get() = prefs.getBoolean("wifi_helper_offered", false)
+        set(value) = prefs.edit().putBoolean("wifi_helper_offered", value).apply()
 
     fun addLogListener(l: (String) -> Unit) { logListeners += l }
     fun removeLogListener(l: (String) -> Unit) { logListeners -= l }

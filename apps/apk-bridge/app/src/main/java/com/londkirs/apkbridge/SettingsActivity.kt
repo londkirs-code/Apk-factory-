@@ -39,6 +39,7 @@ class SettingsActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        HelperInstaller.resumeIfPermitted(this)
         refresh()
     }
 
@@ -135,8 +136,7 @@ class SettingsActivity : Activity() {
         wifiHelperState = note("")
         pair.addView(wifiHelperState, matchWrap(4))
         wifiHelperButton = button("התקן את עזר ה־Wi‑Fi", false) {
-            Bridge.installWifiHelper()
-            toast("מתקין את עזר ה־Wi‑Fi… (דורש חיבור ADB פעיל)")
+            HelperInstaller.start(this)
         }
         pair.addView(wifiHelperButton, matchWrap(12))
         pair.addView(checkBox("להדליק ניפוי באגים אלחוטי אוטומטית כשהוא כבוי", Bridge.autoEnableWireless) {
@@ -193,7 +193,7 @@ class SettingsActivity : Activity() {
         val helper = Bridge.isWifiHelperInstalled()
         wifiHelperState.text = when {
             helper -> "✔ עזר ה־Wi‑Fi מותקן: Wi‑Fi כבוי יודלק לבד, בלי הקשה."
-            Bridge.isWifiHelperBundled() -> "בלי עזר ה־Wi‑Fi תיפתח חלונית Wi‑Fi שבה צריך להקיש פעם אחת. עזר ה־Wi‑Fi הוא אפליקציה קטנה (מובנית ב־APK Bridge) שבנויה ל־Android 9, ולכן Android עדיין מרשה לה להדליק Wi‑Fi — כמו Termux:API. ההתקנה נעשית פעם אחת דרך ADB, כשה־Wi‑Fi דלוק."
+            Bridge.isWifiHelperBundled() -> "בלי עזר ה־Wi‑Fi תיפתח חלונית Wi‑Fi שבה צריך להקיש פעם אחת. עזר ה־Wi‑Fi הוא אפליקציה קטנה (מובנית ב־APK Bridge) שבנויה ל־Android 9, ולכן Android עדיין מרשה לה להדליק Wi‑Fi — כמו Termux:API. ההתקנה חד־פעמית דרך מתקין האפליקציות של Android — לא נדרש ניפוי באגים."
             else -> "עזר ה־Wi‑Fi לא נכלל בגרסה הזו."
         }
         wifiHelperButton.visibility = if (!helper && Bridge.isWifiHelperBundled()) View.VISIBLE else View.GONE

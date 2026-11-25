@@ -78,6 +78,22 @@ class MainActivity : Activity() {
 
     private val wifiPanelListener: () -> Unit = { openWifiPanel() }
 
+    /** First launch: offer to install the bundled Wi‑Fi helper with Android's normal installer. */
+    private fun offerWifiHelperOnce() {
+        if (Bridge.helperOffered || Bridge.isWifiHelperInstalled() || !Bridge.isWifiHelperBundled()) return
+        Bridge.helperOffered = true
+        android.app.AlertDialog.Builder(this)
+            .setTitle("להתקין את עזר ה־Wi‑Fi?")
+            .setMessage(
+                "אפליקציה זעירה שמאפשרת ל־APK Bridge להדליק Wi‑Fi לבד כשהוא כבוי (ניפוי באגים אלחוטי עובד רק עם Wi‑Fi).\n\n" +
+                    "ההתקנה נעשית דרך מתקין האפליקציות הרגיל של Android — בלי ניפוי באגים. ייתכן שתתבקש פעם אחת לאשר ל־APK Bridge להתקין אפליקציות.\n\n" +
+                    "אפשר להתקין גם מאוחר יותר: ⚙ הגדרות ← זיווג וחיבור."
+            )
+            .setPositiveButton("התקן") { _, _ -> HelperInstaller.start(this) }
+            .setNegativeButton("לא עכשיו", null)
+            .show()
+    }
+
     private fun openWifiPanel() {
         try {
             startActivity(Intent(Settings.Panel.ACTION_WIFI))
@@ -96,7 +112,10 @@ class MainActivity : Activity() {
         logText.text = Bridge.logSnapshot()
         logPreview.text = Bridge.lastLogLine()
         applyLogExpanded()
-        if (savedInstanceState == null) handleIncoming(intent)
+        if (savedInstanceState == null) {
+            handleIncoming(intent)
+            offerWifiHelperOnce()
+        }
         renderSelection()
     }
 
@@ -117,6 +136,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        HelperInstaller.resumeIfPermitted(this)
         refreshConnectionInfo()
         refreshOptionsSummary()
         applyLogExpanded()
