@@ -1,0 +1,72 @@
+{
+  "format": "mishnat-pickup-list",
+  "version": 1,
+  "lists": [
+    {
+      "account": {
+        "id": "web-1700000000000-0",
+        "name": "הורדה מהאתר"
+      },
+      "order": {
+        "id": "web-1700000000000-0",
+        "name": "וישלח תשפ\"ז"
+      },
+      "items": [
+        {
+          "id": "11",
+          "name": "בטטות",
+          "quantity": 1,
+          "category": "ירקות",
+          "imageUrl": "https://images.mishnatyosef.org/images/items/11_c.jpg"
+        },
+        {
+          "id": "421",
+          "name": "קווקר הכנה מהירה",
+          "quantity": 2,
+          "category": "קטניות ושימורים",
+          "imageUrl": "https://images.mishnatyosef.org/images/items/421_a.jpeg"
+        },
+        {
+          "id": "6385",
+          "name": "שישיית נייר סופג",
+          "quantity": 1,
+          "category": "טיפוח ונקיון",
+          "imageUrl": "https://images.mishnatyosef.org/images/items/6385_b.jpg"
+        },
+        {
+          "id": "160",
+          "name": "ביצים גודל M",
+          "quantity": 1,
+          "category": "ביצים",
+          "imageUrl": "https://images.example/160.jpg"
+        }
+      ]
+    },
+    {
+      "account": {
+        "id": "web-1700000000000-1",
+        "name": "הורדה מהאתר"
+      },
+      "order": {
+        "id": "web-1700000000000-1",
+        "name": "הזמנה | שנייה לבדיקה"
+      },
+      "items": [
+        {
+          "id": "11",
+          "name": "בטטות",
+          "quantity": 1,
+          "category": "ירקות",
+          "imageUrl": "https://images.mishnatyosef.org/images/items/11_c.jpg"
+        },
+        {
+          "id": "421",
+          "name": "קווקר הכנה מהירה",
+          "quantity": 2,
+          "category": "קטניות ושימורים",
+          "imageUrl": "https://images.mishnatyosef.org/images/items/421_a.jpeg"
+        }
+      ]
+    }
+  ]
+}

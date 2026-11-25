@@ -72,3 +72,9 @@
 - שרת: `cloud/Code.gs` (Apps Script שמחובר לגיליון). מספרים 1..1000, תוקף 7 ימים, שורה קבועה לכל מספר בלשונית `lists`, LockService בהקצאה, ועד 15 העלאות למכשיר בכל 6 שעות.
 - אפליקציה: `CloudShare.java`. POST text/plain, וההפניה 302 של גוגל מטופלת ידנית ב-GET. הבאה עוברת דרך `importInput` (פורמט mishnat-pickup-list).
 - כתובת ברירת המחדל: `CloudShare.DEFAULT_URL` (פריסת Apps Script של המשתמש, נקבעה ב-2.05). אחרי שינוי בקוד השרת עושים פריסה מחדש עם "גרסה חדשה", כדי שהכתובת לא תשתנה. עקיפה בהגדרות נשמרת במפתח `cloud_url`.
+
+## תוסף דפדפן (browser-extension)
+- תוסף ל-Chrome ול-Firefox שמוריד הזמנות מהאתר לקובצי ייבוא לאפליקציה: TXT, JSON ו-ZIP עם תמונות. הגרסה שלו ב-`manifest.base.json`, בנפרד מגרסת האפליקציה.
+- `src/core.js` הוא העתק של OrderParser, OrderHistoryPage ו-ListExporter. שינוי בפורמט נעשה בשני המקומות, ואחריו מריצים `node test/fixtures.mjs --write`. הבדיקה `ExtensionCompatibilityTest` באפליקציה מוודאת שהקבצים עדיין נקלטים.
+- ההתחברות לאתר: localStorage "token" באתר. ה-API נמצא ב-`https://v2.mishnatyosef.org/api`. תמונות ל-ZIP נטענות דרך הרקע (רק מ-images.mishnatyosef.org).
+- Firefox: הגדרות gecko (id, strict_min_version 115, data_collection_permissions none). התקנה קבועה דורשת חתימה ב-AMO (Unlisted).

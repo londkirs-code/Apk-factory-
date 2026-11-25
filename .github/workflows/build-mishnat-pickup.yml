@@ -150,6 +150,16 @@ jobs:
           echo "Source versionCode=$SOURCE_CODE; previously published=$PREVIOUS_CODE; building=$NEXT_NAME ($NEXT_CODE)."
           git diff --check
 
+      - name: Test and build the browser extension (Chrome + Firefox)
+        id: extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/mishnat-pickup/browser-extension
+          node --test test/core.test.mjs
+          node build.mjs "$RUNNER_TEMP/extension" | tee "$RUNNER_TEMP/extension-build.txt"
+          echo "version=$(sed -n 's/^version=//p' "$RUNNER_TEMP/extension-build.txt")" >> "$GITHUB_OUTPUT"
+
       - name: Build signed Release APK
         shell: bash
         run: |
@@ -210,6 +220,9 @@ jobs:
           # עותק בשם "משנת אוסף" ומספר הגרסה, להורדה בשם ברור. הקודם נמחק.
           find downloads/mishnat-pickup -maxdepth 1 -name 'משנת אוסף *.apk' -delete
           cp downloads/mishnat-pickup/app.apk "downloads/mishnat-pickup/משנת אוסף ${VERSION_NAME}.apk"
+          # תוסף הדפדפן (Chrome ו-Firefox) לצד ה-APK.
+          find downloads/mishnat-pickup -maxdepth 1 -name 'mishnat-osef-*.zip' -delete
+          cp "$RUNNER_TEMP"/extension/mishnat-osef-*.zip downloads/mishnat-pickup/
           SHA="$(sha256sum downloads/mishnat-pickup/app.apk | cut -d ' ' -f1)"
           SOURCE_SHA="$(git rev-parse HEAD)"
           UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -268,15 +281,19 @@ jobs:
           VERSION_CODE: ${{ steps.verify.outputs.version_code }}
           VERSION_NAME: ${{ steps.verify.outputs.version_name }}
           SHA: ${{ steps.publish.outputs.sha256 }}
+          EXT_VERSION: ${{ steps.extension.outputs.version }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
+            const ext = process.env.EXT_VERSION;
             const body = [
               `✅ @${process.env.ACTOR} — אפליקציית איסוף משנת יוסף נבנתה ונחתמה.`,
               '',
               `גרסה: ${process.env.VERSION_NAME} (${process.env.VERSION_CODE})`,
               `SHA-256: ${process.env.SHA}`,
               `הורדת APK: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/${encodeURIComponent('משנת אוסף ' + process.env.VERSION_NAME + '.apk')}`,
+              `תוסף לכרום ${ext}: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/mishnat-osef-chrome-${ext}.zip`,
+              `תוסף לפיירפוקס ${ext}: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/mishnat-osef-firefox-${ext}.zip`,
               `[יומן הבנייה](${process.env.RUN_URL})`,
               '',
               '_הבנייה אינה מהווה בדיקת התחברות מול חשבון אמיתי או בדיקת התקנה במכשיר._'

@@ -80,6 +80,16 @@ jobs:
           } >> "$GITHUB_ENV"
           keytool -list -keystore "$HOME/.android/apk-factory-release.jks" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
 
+      - name: Test and build the browser extension (Chrome + Firefox)
+        id: extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/mishnat-pickup/browser-extension
+          node --test test/core.test.mjs
+          node build.mjs "$RUNNER_TEMP/extension" | tee "$RUNNER_TEMP/extension-build.txt"
+          echo "version=$(sed -n 's/^version=//p' "$RUNNER_TEMP/extension-build.txt")" >> "$GITHUB_OUTPUT"
+
       - name: Run unit tests
         shell: bash
         run: |
@@ -161,6 +171,9 @@ jobs:
           APK_NAME="משנת אוסף ${{ steps.verify.outputs.version_name }}.apk"
           find "$DEST" -maxdepth 1 -name '*.apk' -delete
           cp apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk "$DEST/$APK_NAME"
+          # תוסף הדפדפן (Chrome ו-Firefox) לצד ה-APK.
+          find "$DEST" -maxdepth 1 -name 'mishnat-osef-*.zip' -delete
+          cp "$RUNNER_TEMP"/extension/mishnat-osef-*.zip "$DEST/"
           SHA="$(sha256sum "$DEST/$APK_NAME" | cut -d ' ' -f1)"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
           cat > "$DEST/build-info.txt" <<INFO
@@ -201,18 +214,23 @@ jobs:
           VERSION_CODE: ${{ steps.verify.outputs.version_code }}
           SHA: ${{ steps.copy.outputs.sha256 }}
           APK_NAME: ${{ steps.copy.outputs.apk_name }}
+          EXT_VERSION: ${{ steps.extension.outputs.version }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const { execSync } = require('child_process');
             const head = execSync('git rev-parse HEAD').toString().trim();
-            const url = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${head}/downloads/mishnat-pickup-pr/${process.env.PR_NUMBER}/${encodeURIComponent(process.env.APK_NAME)}`;
+            const base = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${head}/downloads/mishnat-pickup-pr/${process.env.PR_NUMBER}/`;
+            const url = base + encodeURIComponent(process.env.APK_NAME);
+            const ext = process.env.EXT_VERSION;
             const body = [
               `📦 בנייה חדשה של אפליקציית איסוף משנת יוסף מה־PR הזה.`,
               '',
               `גרסה: ${process.env.VERSION_NAME} (${process.env.VERSION_CODE})`,
               `SHA-256: ${process.env.SHA}`,
               `הורדת APK לבדיקה: ${url}`,
+              `תוסף לכרום ${ext}: ${base}mishnat-osef-chrome-${ext}.zip`,
+              `תוסף לפיירפוקס ${ext}: ${base}mishnat-osef-firefox-${ext}.zip`,
               `[יומן הבנייה](${process.env.RUN_URL})`,
               '',
               '_הבנייה אינה מהווה בדיקת התחברות מול חשבון אמיתי או בדיקת התקנה במכשיר._'
