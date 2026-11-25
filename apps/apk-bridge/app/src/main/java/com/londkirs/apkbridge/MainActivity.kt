@@ -18,7 +18,6 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -112,7 +111,7 @@ class MainActivity : Activity() {
 
     private fun openWifiPanel() {
         try {
-            startActivity(Intent(Settings.Panel.ACTION_WIFI))
+            startActivity(Compat.wifiPanelIntent())
         } catch (_: ActivityNotFoundException) {
             runCatching { startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }
         }
@@ -259,7 +258,14 @@ class MainActivity : Activity() {
         conn.addView(a11yText, matchWrap(6))
         a11yButton = button("הפעל זיווג אוטומטי (נגישות)", primary = true) { openAccessibilitySetup() }
         conn.addView(a11yButton, matchWrap())
-        conn.addView(button("זווג דרך התראה", primary = false) { startNotificationPairing() }.busyAware(), matchWrap())
+        val notifyPair = button("זווג דרך התראה", primary = false) { startNotificationPairing() }.busyAware()
+        conn.addView(notifyPair, matchWrap())
+        if (!Compat.hasWirelessDebugging) {
+            // Android 8–10: no pairing codes; the connection card explains classic ADB on port 5555.
+            a11yText.visibility = View.GONE
+            a11yButton.visibility = View.GONE
+            notifyPair.visibility = View.GONE
+        }
         conn.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
         conn.addView(button("בדוק חיבור", primary = false) { Bridge.testConnection() }.busyAware(), matchWrap())
         conn.addView(button("זיווג ידני / מכשיר אחר ▾", primary = false) {
@@ -298,6 +304,9 @@ class MainActivity : Activity() {
         // Tools card
         val tools = card(page)
         tools.addView(heading("3 · כלים"), matchWrap())
+        tools.addView(button("📱 אפליקציות מותקנות — פתיחה, הסרה, שמירת APK", primary = true) {
+            startActivity(Intent(this, AppsActivity::class.java))
+        }, matchWrap(12))
         uninstallPkg = field("שם חבילה להסרה (למשל com.example.app)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
         tools.addView(uninstallPkg, matchWrap())
         keepData = checkBox("שמור נתוני אפליקציה (‎-k)", false)
@@ -322,13 +331,7 @@ class MainActivity : Activity() {
             isFillViewport = true
             addView(page)
         }
-        // targetSdk 35 forces edge-to-edge on Android 15+: keep content clear of system bars and the keyboard.
-        window.setDecorFitsSystemWindows(false)
-        root.setOnApplyWindowInsetsListener { v, insets ->
-            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime() or WindowInsets.Type.displayCutout())
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            WindowInsets.CONSUMED
-        }
+        Compat.applySystemBarInsets(this, root, includeIme = true)
         setContentView(root)
     }
 
@@ -484,6 +487,11 @@ class MainActivity : Activity() {
 
     private fun refreshConnectionInfo() {
         if (!::connectionText.isInitialized) return
+        if (!Compat.hasWirelessDebugging) {
+            connectionText.text = "מצב ADB קלאסי (Android ${Build.VERSION.RELEASE}).\n\n${Bridge.LEGACY_HELP}\n\n" +
+                "בחיבור הראשון יופיע \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\". אפשר גם להתקין על מכשיר אחר: זיווג ידני / מכשיר אחר ← כתובת היעד."
+            return
+        }
         val wifi = Bridge.isOnWifi()
         val wireless = Bridge.isWirelessDebuggingOn()
         val lines = mutableListOf<String>()
@@ -765,7 +773,7 @@ class MainActivity : Activity() {
 
     private fun versionName(): String = runCatching {
         val info = packageManager.getPackageInfo(packageName, 0)
-        "${info.versionName} (${info.longVersionCode})"
+        "${info.versionName} (${Compat.versionCode(info)})"
     }.getOrDefault("?")
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()

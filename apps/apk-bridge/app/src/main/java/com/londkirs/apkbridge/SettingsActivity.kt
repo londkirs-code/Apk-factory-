@@ -11,7 +11,6 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
-import android.view.WindowInsets
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
@@ -172,12 +171,7 @@ class SettingsActivity : Activity() {
             isFillViewport = true
             addView(page)
         }
-        window.setDecorFitsSystemWindows(false)
-        root.setOnApplyWindowInsetsListener { v, insets ->
-            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            WindowInsets.CONSUMED
-        }
+        Compat.applySystemBarInsets(this, root, includeIme = false)
         setContentView(root)
     }
 

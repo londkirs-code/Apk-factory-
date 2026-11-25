@@ -85,6 +85,9 @@ object Bridge {
     private const val PLAY_STORE = "com.android.vending"
     private const val INSTALL_CHANNEL = "installs"
     const val LEGACY_PORT = 5555
+    val LEGACY_HELP = "ב־Android ${Build.VERSION.RELEASE} אין ניפוי באגים אלחוטי עם קוד זיווג (קיים רק מ־Android 11). " +
+        "כדי להשתמש ב־APK Bridge: הפעל \"ניפוי באגים ב־USB\" באפשרויות למפתחים, חבר פעם אחת למחשב והרץ: adb tcpip 5555 — " +
+        "ואז אפשר לנתק את הכבל. יש לחזור על כך אחרי כל הפעלה מחדש של המכשיר."
     const val WIFI_HELPER_PKG = "com.londkirs.apkbridge.wifihelper"
     private const val WIFI_HELPER_ACTION = "com.londkirs.apkbridge.wifihelper.ENABLE_WIFI"
     private const val WIFI_HELPER_ASSET = "wifi-helper.apk"
@@ -228,7 +231,7 @@ object Bridge {
         }
         log("אין חיבור Wi‑Fi — פותח את חלונית ה־Wi‑Fi של Android.")
         if (wifiPanelListeners.isEmpty()) {
-            notifyInfo("APK Bridge צריך Wi‑Fi", "הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", android.content.Intent(Settings.Panel.ACTION_WIFI))
+            notifyInfo("APK Bridge צריך Wi‑Fi", "הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", Compat.wifiPanelIntent())
         } else {
             main.post { wifiPanelListeners.forEach { it() } }
         }
@@ -553,6 +556,7 @@ object Bridge {
                 }
             }
         }
+        if (!Compat.hasWirelessDebugging) return withLegacyClient(targetHost, block)
         ensureWifi()
         ensureWirelessDebugging()
         val host = targetHost
@@ -616,6 +620,11 @@ object Bridge {
                 if (client != null) break
             }
         }
+        if (client == null && !local) {
+            // An older target device (Android 4–10) only offers classic ADB on port 5555.
+            log("מנסה ADB קלאסי ב־$host:$LEGACY_PORT (מכשיר יעד ישן)…")
+            client = runCatching { connectLegacy(60_000, host) }.getOrNull()
+        }
         if (client == null) {
             val hint = when {
                 isWirelessDebuggingOn() == false -> "ניפוי באגים אלחוטי כבוי. הפעל אותו באפשרויות למפתחים."
@@ -648,9 +657,28 @@ object Bridge {
     }.getOrDefault(false)
 
     /** Plain-TCP ADB with RSA auth. The first time Android may ask "Allow debugging?" — tick "Always allow". */
-    private suspend fun connectLegacy(handshakeMs: Long): AdbClient = withContext(Dispatchers.IO) {
+    private suspend fun connectLegacy(handshakeMs: Long, host: String = LOCAL_HOST): AdbClient = withContext(Dispatchers.IO) {
         withTimeout(handshakeMs + 5_000) {
-            AdbClient.connectTcp(LOCAL_HOST, LEGACY_PORT, keyProvider(), handshakeMs)
+            AdbClient.connectTcp(host, LEGACY_PORT, keyProvider(), handshakeMs)
+        }
+    }
+
+    /** Android 8–10 (or an old target device): no Wireless Debugging, only classic ADB over TCP. */
+    private suspend fun <T> withLegacyClient(host: String, block: suspend (AdbClient) -> T): T {
+        val local = isLocalTarget(host)
+        val target = if (local) LOCAL_HOST else host
+        log("מתחבר ל־ADB הקלאסי ב־$target:$LEGACY_PORT…")
+        if (local && !isLocalPortOpen(LEGACY_PORT)) error(LEGACY_HELP)
+        val c = try {
+            connectLegacy(60_000, target)
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            error("החיבור לא אושר בזמן. אשר את החלון \"לאפשר ניפוי באגים?\" (סמן \"אפשר תמיד\") ונסה שוב.")
+        }
+        return try {
+            log("מחובר (ADB קלאסי).")
+            block(c)
+        } finally {
+            runCatching { c.close() }
         }
     }
 
@@ -884,9 +912,9 @@ object Bridge {
                     label = label,
                     packageName = info.packageName,
                     versionName = info.versionName,
-                    versionCode = info.longVersionCode,
+                    versionCode = Compat.versionCode(info),
                     installedVersionName = installed?.versionName,
-                    installedVersionCode = installed?.longVersionCode,
+                    installedVersionCode = installed?.let { Compat.versionCode(it) },
                 )
             } finally {
                 file.delete()

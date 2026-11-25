@@ -59,7 +59,7 @@ object HelperInstaller {
                     }
                     val pending = PendingIntent.getBroadcast(
                         context, 7, Intent(context, HelperInstallReceiver::class.java),
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                        PendingIntent.FLAG_UPDATE_CURRENT or Compat.pendingIntentMutable,
                     )
                     session.commit(pending.intentSender)
                 }

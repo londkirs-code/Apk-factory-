@@ -1,0 +1,7 @@
+<resources>
+    <!-- windowLightNavigationBar exists from API 27. -->
+    <style name="AppTheme" parent="AppTheme.Base">
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:navigationBarColor">#FFF9F3</item>
+    </style>
+</resources>

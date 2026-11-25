@@ -1,12 +1,13 @@
 <resources>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="AppTheme.Base" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#F39A45</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">#FFF9F3</item>
-        <item name="android:navigationBarColor">#FFF9F3</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <!-- Dark on API 26 (no light navigation bar there); light from API 27 in values-v27. -->
+        <item name="android:navigationBarColor">#30251D</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowBackground">#FFF9F3</item>
     </style>
+    <style name="AppTheme" parent="AppTheme.Base" />
 </resources>

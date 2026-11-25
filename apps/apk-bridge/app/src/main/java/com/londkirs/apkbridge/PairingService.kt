@@ -51,7 +51,11 @@ class PairingService : Service() {
     }
 
     private fun startAsForeground(n: Notification) {
-        startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        } else {
+            startForeground(NOTIFICATION_ID, n)
+        }
     }
 
     private fun search() {
@@ -117,7 +121,7 @@ class PairingService : Service() {
         val input = RemoteInput.Builder(KEY_CODE).setLabel(getString(R.string.pair_code_hint)).build()
         val reply = Intent(this, PairingReplyReceiver::class.java).putExtra(EXTRA_PORT, port)
         val pending = PendingIntent.getBroadcast(
-            this, 1, reply, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+            this, 1, reply, PendingIntent.FLAG_UPDATE_CURRENT or Compat.pendingIntentMutable,
         )
         val action = Notification.Action.Builder(null as Icon?, getString(R.string.pair_enter_code), pending)
             .addRemoteInput(input)
