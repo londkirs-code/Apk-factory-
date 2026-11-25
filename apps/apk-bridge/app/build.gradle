@@ -10,7 +10,7 @@ android {
         applicationId 'com.londkirs.apkbridge'
         minSdk 30
         targetSdk 35
-        versionCode 8
+        versionCode 9
         versionName '2.5.0'
     }
     buildTypes { release { minifyEnabled false } }
