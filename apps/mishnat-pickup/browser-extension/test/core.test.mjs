@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import vmModule from 'node:vm';
 import { join } from 'node:path';
 import { core, dir, build, exportsFromFixture, NOW } from './fixtures.mjs';
 
@@ -81,4 +82,20 @@ test('קובצי הדוגמה תואמים לפלט הנוכחי (אחרי שי�
   for (const [name, data] of Object.entries(await build())) {
     assert.ok(readFileSync(join(dir, name)).equals(data), name + ' השתנה');
   }
+});
+
+test('the manifest loads the QR library before the panel script', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../manifest.base.json', import.meta.url), 'utf8'));
+  const js = manifest.content_scripts[0].js;
+  assert.ok(js.includes('vendor/qrcode.js'), 'vendor/qrcode.js missing from content_scripts');
+  assert.ok(js.indexOf('vendor/qrcode.js') < js.indexOf('content.js'));
+  // the library must define a global qrcode with UTF-8 support, as content.js uses it
+  const vm = vmModule;
+  const context = vm.createContext({});
+  vm.runInContext(readFileSync(new URL('../src/vendor/qrcode.js', import.meta.url), 'utf8'), context);
+  const qr = context.qrcode(0, 'L');
+  context.qrcode.stringToBytes = context.qrcode.stringToBytesFuncs['UTF-8'];
+  qr.addData('## רשימה\nחלב | 2', 'Byte');
+  qr.make();
+  assert.ok(qr.getModuleCount() > 20);
 });
