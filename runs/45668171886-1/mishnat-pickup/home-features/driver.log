@@ -1,0 +1,72 @@
+[ok] 01 clear_data
+[ok] 02 push src='fixtures/ui-test-features.txt', dest='/sdcard/Download/ui-test-features.txt'
+[ok] 03 launch
+[FAIL] 04 wait_for text='כניסה לחשבון' element not found within 30s: text='כניסה לחשבון'
+[FAIL] 05 scroll_to text='ייבוא רשימה מקובץ' not found after scrolling: text='ייבוא רשימה מקובץ'
+[FAIL] 06 tap text='ייבוא רשימה מקובץ' element not found within 10s: text='ייבוא רשימה מקובץ'
+[FAIL] 07 tap text='ui-test-features' element not found within 10s: text='ui-test-features'
+[FAIL] 08 wait_for text='נמצאו 1 רשימות' element not found within 15s: text='נמצאו 1 רשימות'
+[FAIL] 09 tap text='ייבא רשימות' element not found within 10s: text='ייבא רשימות'
+[FAIL] 10 wait_for 1+2+3+4+1.5 units element not found within 10s: text='נאספו 0 מתוך 11.5'
+[ok] 11 screenshot name='imported-5-items'
+[FAIL] 12 assert_text decimal quantity kept element not found within 5s: text='1.5'
+[FAIL] 13 tap text='חיפוש פריט' element not found within 10s: text='חיפוש פריט'
+[ok] 14 type value='Pasta', hide_keyboard=True
+[ok] 15 wait seconds=1
+[ok] 16 screenshot name='search-pasta'
+[FAIL] 17 assert_text text='Pasta' element not found within 5s: text='Pasta'
+[ok] 18 assert_not_visible search filters other items
+[FAIL] 19 type class='EditText' element not found within 10s: class='EditText'
+[ok] 20 wait seconds=1
+[FAIL] 21 assert_text cleared search shows all items element not found within 5s: text='מלפפון'
+[FAIL] 22 long_press text='Pasta' element not found within 10s: text='Pasta'
+[FAIL] 23 wait_for text='איסוף כמות חלקית' element not found within 5s: text='איסוף כמות חלקית'
+[ok] 24 screenshot name='partial-dialog'
+[FAIL] 25 swipe RTL slider: try to pick more units element not found within 10s: class='SeekBar'
+[ok] 26 screenshot name='partial-dialog-moved'
+[FAIL] 27 tap text='אישור הכמות' element not found within 10s: text='אישור הכמות'
+[ok] 28 wait seconds=1
+[FAIL] 29 scroll_to the partial card sits in the collected section, below the fold not found after scrolling: text='נאספו חלקית'
+[ok] 30 screenshot name='partial-collected'
+[FAIL] 31 scroll_to text='נאספו 1 מתוך' not found after scrolling: text='נאספו 1 מתוך'
+[FAIL] 32 tap desc='איפוס ליקוט' element not found within 10s: desc='איפוס ליקוט'
+[FAIL] 33 wait_for text='להחזיר את כל המוצרים' element not found within 5s: text='להחזיר את כל המוצרים'
+[ok] 34 screenshot name='reset-confirm'
+[FAIL] 35 tap text='איפוס' element not found within 10s: text='איפוס'
+[FAIL] 36 wait_for text='נאספו 0 מתוך 11.5' element not found within 5s: text='נאספו 0 מתוך 11.5'
+[FAIL] 37 tap desc='רשימה לפי חשבון' element not found within 10s: desc='רשימה לפי חשבון'
+[ok] 38 wait seconds=1.5
+[ok] 39 screenshot name='view-by-account'
+[FAIL] 40 tap desc='רשימה מאוחדת' element not found within 10s: desc='רשימה מאוחדת'
+[ok] 41 wait seconds=1.5
+[ok] 42 screenshot name='view-combined'
+[FAIL] 43 tap text='גבינה' element not found within 10s: text='גבינה'
+[FAIL] 44 assert_text text='נאספו 1.5 מתוך 11.5' element not found within 5s: text='נאספו 1.5 מתוך 11.5'
+[ok] 45 rotate to='landscape'
+[ok] 46 wait seconds=1.5
+[FAIL] 47 assert_text progress survives rotation element not found within 5s: text='נאספו 1.5 מתוך 11.5'
+[ok] 48 screenshot name='landscape'
+[ok] 49 rotate to='portrait'
+[ok] 50 wait seconds=1.5
+[FAIL] 51 tap desc='הגדרות' element not found within 10s: desc='הגדרות'
+[FAIL] 52 wait_for text='סיכום מהיר' element not found within 8s: text='סיכום מהיר'
+[ok] 53 screenshot name='settings-top'
+[ok] 54 swipe direction='up'
+[ok] 55 screenshot name='settings-middle'
+[ok] 56 swipe direction='up'
+[ok] 57 swipe direction='up'
+[ok] 58 screenshot name='settings-bottom'
+[FAIL] 59 scroll_to text='רשימות שמורות' not found after scrolling: text='רשימות שמורות'
+[FAIL] 60 tap text='רשימות שמורות' element not found within 10s: text='רשימות שמורות'
+[ok] 61 wait seconds=2
+[ok] 62 screenshot name='saved-lists'
+[ok] 63 back
+[ok] 64 wait seconds=1
+[ok] 65 back
+[ok] 66 wait seconds=1
+[ok] 67 launch restart=False
+[ok] 68 screenshot name='before-explore'
+[ok] 69 explore auto-explore from the list screen
+[skip] 70 assert_foreground  foreground app is com.google.android.apps.nexuslauncher, expected org.mishnatyosef.pickup
+
+Result: FAILED — 76 steps, 52 screenshots, 0 crashes

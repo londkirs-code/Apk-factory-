@@ -1,0 +1,1215 @@
+--------- beginning of main
+11-25 17:59:18.781  7187  7363 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.googlequicksearchbox componentName=null serviceId=36
+11-25 17:59:18.789  7187  7187 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.common.BIND_SHARED_PREFS pkg=com.google.android.gms }
+11-25 17:59:18.800  7187  7187 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+11-25 17:59:18.800  7187  7187 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+11-25 17:59:18.808 12135 12135 V GraphicsEnvironment: ANGLE Developer option for 'com.google.android.permissioncontroller' set to: 'default'
+11-25 17:59:18.808 12135 12135 V GraphicsEnvironment: ANGLE GameManagerService for com.google.android.permissioncontroller: false
+11-25 17:59:18.808 12135 12135 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+11-25 17:59:18.809 12135 12135 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:18.811 12135 12135 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:18.818 12112 12112 I izy     : SslGuard completed installation.
+11-25 17:59:18.821 12110 12110 V GraphicsEnvironment: ANGLE Developer option for 'com.android.keychain' set to: 'default'
+11-25 17:59:18.822 12110 12110 V GraphicsEnvironment: ANGLE GameManagerService for com.android.keychain: false
+11-25 17:59:18.822 12110 12110 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+11-25 17:59:18.830 12110 12110 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:18.841 12110 12110 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:18.871  7105  7105 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.nearby.exposurenotification.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.PersistentApiServiceNoInstantApps }
+11-25 17:59:18.873  7105  7105 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.nearby.exposurenotification.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.PersistentApiServiceNoInstantApps }
+11-25 17:59:18.884  7105  7358 W ChimeraUtils: Module com.google.android.gms.nearby_en missing resource null(0)
+11-25 17:59:18.889   480   495 I system_server: Background concurrent copying GC freed 380147(14MB) AllocSpace objects, 18(360KB) LOS objects, 49% free, 21MB/42MB, paused 2.236ms,32us total 1.394s
+--------- beginning of system
+11-25 17:59:18.894   480   534 E VerityUtils: Failed to measure fs-verity, errno 1: /data/app/~~7u2_vaFl4611Lm5J8dfB0Q==/org.mishnatyosef.pickup-Nqk5ngr6wVBk8MX83UVewA==/base.apk
+11-25 17:59:18.905  7105  7358 W ChimeraUtils: Module com.google.android.gms.nearby_en missing resource null(0)
+11-25 17:59:18.906  7187 12148 W SQLiteLog: (28) double-quoted string literal: "org.mishnatyosef.pickup"
+11-25 17:59:18.912  7187  7363 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.gms componentName=null serviceId=30
+11-25 17:59:18.936  7187  7415 I Icing   : Usage reports ok 0, Failed Usage reports 0, indexed 0, rejected 0
+11-25 17:59:18.950 12112 12219 W .apps.wellbeing: Accessing hidden field Ljava/util/Collections$SynchronizedCollection;->mutex:Ljava/lang/Object; (max-target-o, reflection, denied)
+11-25 17:59:18.968 12112 12219 W .apps.wellbeing: Accessing hidden method Ljava/util/Collections$SynchronizedSet;-><init>(Ljava/util/Set;Ljava/lang/Object;)V (max-target-o, reflection, denied)
+11-25 17:59:18.978 12112 12219 W .apps.wellbeing: Accessing hidden method Ljava/util/Collections$SynchronizedCollection;-><init>(Ljava/util/Collection;Ljava/lang/Object;)V (max-target-o, reflection, denied)
+11-25 17:59:18.992 12110 12240 W KeyChain: Creating new DB.
+11-25 17:59:19.006  7187  7195 I gle.android.gms: Background concurrent copying GC freed 62812(3527KB) AllocSpace objects, 10(456KB) LOS objects, 49% free, 13MB/26MB, paused 1.046ms,13us total 151.685ms
+11-25 17:59:19.026   480  2164 I ActivityManager: Force stopping org.mishnatyosef.pickup appid=10174 user=0: clear data
+11-25 17:59:19.028   480   513 I ActivityManager: Force stopping org.mishnatyosef.pickup appid=10174 user=-1: clearApplicationUserData
+11-25 17:59:19.028   480   502 W Looper  : Drained
+11-25 17:59:19.052   480   513 D CompatibilityChangeReporter: Compat change id reported: 135634846; UID 10125; state: DISABLED
+11-25 17:59:19.053  3792  3792 V MediaPlayerList: mPackageChangedBroadcastReceiver: action: android.intent.action.PACKAGE_DATA_CLEARED
+11-25 17:59:19.054   983   983 D CarrierSvcBindHelper: onHandleForceStop: [org.mishnatyosef.pickup]
+11-25 17:59:19.054   480   514 D CompatibilityChangeReporter: Compat change id reported: 143937733; UID 10125; state: ENABLED
+11-25 17:59:19.060   288   288 D Zygote  : Forked child process 12253
+11-25 17:59:19.061   983   983 D CarrierSvcBindHelper: No carrier app for: 0
+11-25 17:59:19.061   480   514 I ActivityManager: Start proc 12253:com.android.chrome/u0a125 for broadcast {com.android.chrome/org.chromium.chrome.browser.browserservices.InstalledWebappBroadcastReceiver}
+11-25 17:59:19.069 12253 12253 I .android.chrome: Using CollectorTypeCC GC.
+11-25 17:59:19.069 12253 12253 W .android.chrome: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:19.069 12253 12253 W .android.chrome: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:19.074  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+--------- beginning of kernel
+11-25 17:59:19.280     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12252 n tail=0 logMask=10 pid=0 start=0ns deadline=0ns
+11-25 17:59:19.075  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:19.075  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:19.075  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:19.075  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:19.076  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:19.076  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:19.077  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:19.077  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:19.079  7187  7363 I Icing   : IndexChimeraService.getServiceInterface callingPackage=com.google.android.gms componentName=AppsCorpus serviceId=36
+11-25 17:59:19.080  7187  7414 I Icing   : Usage reports ok 0, Failed Usage reports 0, indexed 0, rejected 0
+11-25 17:59:19.081   394   401 I adbd    : jdwp connection from 12253
+11-25 17:59:19.088  7105  7105 D BoundBrokerSvc: onBind: Intent { act=com.google.android.contextmanager.service.ContextManagerService.START pkg=com.google.android.gms }
+11-25 17:59:19.088  7105  7105 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.contextmanager.service.ContextManagerService.START pkg=com.google.android.gms }
+11-25 17:59:19.305     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12266 n tail=0 logMask=99 pid=0 start=0ns deadline=0ns
+11-25 17:59:19.111  7187  7414 I Icing   : Usage reports ok 0, Failed Usage reports 0, indexed 0, rejected 0
+11-25 17:59:19.112 12253 12253 D CompatibilityChangeReporter: Compat change id reported: 171979766; UID 10125; state: ENABLED
+11-25 17:59:19.114 12253 12253 W ziparchive: Unable to open '/data/app/~~8F-4puPY9VpaWVNX_FJBuw==/com.google.android.trichromelibrary_541412337-ytc3E4uiz9euH3HuMBypPQ==/TrichromeLibrary.dm': No such file or directory
+11-25 17:59:19.114 12253 12253 W ziparchive: Unable to open '/data/app/~~8F-4puPY9VpaWVNX_FJBuw==/com.google.android.trichromelibrary_541412337-ytc3E4uiz9euH3HuMBypPQ==/TrichromeLibrary.dm': No such file or directory
+11-25 17:59:19.114 12253 12253 W .android.chrome: Entry not found
+11-25 17:59:19.116 12253 12253 D nativeloader: Configuring classloader-namespace for other apk /data/app/~~8F-4puPY9VpaWVNX_FJBuw==/com.google.android.trichromelibrary_541412337-ytc3E4uiz9euH3HuMBypPQ==/TrichromeLibrary.apk. target_sdk_version=33, uses_libraries=ALL, library_path=/data/app/~~HJZRYSgSuSM_0M5478bOdQ==/com.android.chrome-X_JXyReHmoh2RjXEBFKAIQ==/lib/x86_64:/data/app/~~HJZRYSgSuSM_0M5478bOdQ==/com.android.chrome-X_JXyReHmoh2RjXEBFKAIQ==/Chrome.apk!/lib/x86_64:/data/app/~~8F-4puPY9VpaWVNX_FJBuw==/com.google.android.trichromelibrary_541412337-ytc3E4uiz9euH3HuMBypPQ==/TrichromeLibrary.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.android.chrome
+11-25 17:59:19.117 12135 12201 I PermissionControllerServiceImpl: Updating user sensitive for uid 10174
+11-25 17:59:19.123 12253 12253 D nativeloader: Configuring classloader-namespace for other apk /data/app/~~HJZRYSgSuSM_0M5478bOdQ==/com.android.chrome-X_JXyReHmoh2RjXEBFKAIQ==/Chrome.apk. target_sdk_version=33, uses_libraries=, library_path=/data/app/~~HJZRYSgSuSM_0M5478bOdQ==/com.android.chrome-X_JXyReHmoh2RjXEBFKAIQ==/lib/x86_64:/data/app/~~HJZRYSgSuSM_0M5478bOdQ==/com.android.chrome-X_JXyReHmoh2RjXEBFKAIQ==/Chrome.apk!/lib/x86_64:/data/app/~~8F-4puPY9VpaWVNX_FJBuw==/com.google.android.trichromelibrary_541412337-ytc3E4uiz9euH3HuMBypPQ==/TrichromeLibrary.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.android.chrome
+11-25 17:59:19.130 12253 12253 V GraphicsEnvironment: ANGLE Developer option for 'com.android.chrome' set to: 'default'
+11-25 17:59:19.130 12253 12253 V GraphicsEnvironment: ANGLE GameManagerService for com.android.chrome: false
+11-25 17:59:19.130 12253 12253 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+11-25 17:59:19.135 12253 12253 I LoadedApk: No resource references to update in package com.google.android.trichromelibrary
+11-25 17:59:19.135 12253 12253 D NetworkSecurityConfig: Using Network Security Config from resource 0_resource_name_obfuscated debugBuild: false
+11-25 17:59:19.137 12253 12253 D NetworkSecurityConfig: Using Network Security Config from resource 0_resource_name_obfuscated debugBuild: false
+11-25 17:59:19.139 12253 12253 I cr_SplitCompatApp: Launched version=109.0.5414.123 minSdkVersion=29 isBundle=true processName=com.android.chrome isIsolated=false
+11-25 17:59:19.142 12112 12138 W DynamiteModule: Local module descriptor class for com.google.android.gms.googlecertificates not found.
+11-25 17:59:19.154   480  2149 D CompatibilityChangeReporter: Compat change id reported: 161145287; UID 10172; state: DISABLED
+11-25 17:59:19.155 12112 12138 W ziparchive: Unable to open '/data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.dm': No such file or directory
+11-25 17:59:19.155 12112 12138 W ziparchive: Unable to open '/data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.dm': No such file or directory
+11-25 17:59:19.161 12112 12138 I DynamiteModule: Considering local module com.google.android.gms.googlecertificates:0 and remote module com.google.android.gms.googlecertificates:7
+11-25 17:59:19.161 12112 12138 I DynamiteModule: Selected remote version of com.google.android.gms.googlecertificates, version >= 7
+11-25 17:59:19.163   480  1603 D CompatibilityChangeReporter: Compat change id reported: 161145287; UID 10115; state: DISABLED
+11-25 17:59:19.170 12253 12288 I cr_LibraryLoader: Using ModernLinker
+11-25 17:59:19.170 12253 12288 I cr_LibraryLoader: Loading monochrome_64 from within /data/app/~~HJZRYSgSuSM_0M5478bOdQ==/com.android.chrome-X_JXyReHmoh2RjXEBFKAIQ==/Chrome.apk
+11-25 17:59:19.178 12112 12138 W ziparchive: Unable to open '/data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.dm': No such file or directory
+11-25 17:59:19.178 12112 12138 W ziparchive: Unable to open '/data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.dm': No such file or directory
+11-25 17:59:19.183   480  1603 E AppOps  : Bad call made by uid 10115. Package "com.google.android.gms" does not belong to uid 10115.
+11-25 17:59:19.186   480  1603 E AppOps  : Bad call made by uid 10115. Package "com.google.android.gms" does not belong to uid 10115.
+11-25 17:59:19.188   480  1603 E AppOps  : Bad call made by uid 10115. Package "com.google.android.gms" does not belong to uid 10115.
+11-25 17:59:19.189   480  1603 D CompatibilityChangeReporter: Compat change id reported: 161145287; UID 10125; state: DISABLED
+11-25 17:59:19.190  1620  3770 W MediaProvider: isAppCloneUserPair for user 0: false
+11-25 17:59:19.169   394   394 W /apex/com.android.adbd/bin/adbd: type=1400 audit(0.0:61): avc: denied { search } for comm=73796E6320737663203336 name="oem" dev="dm-5" ino=43 scontext=u:r:adbd:s0 tcontext=u:object_r:oemfs:s0 tclass=dir permissive=0
+11-25 17:59:19.200 12253 12288 I cr_ModernLinker: loadLibraryImplLocked: monochrome_64, relroMode=1
+11-25 17:59:19.234  7105  7129 I FontLog : Received query Google Sans, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
+11-25 17:59:19.236  7105  7129 I FontLog : Query [Google Sans] resolved to {Google Sans, wdth 100.0, wght 400, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+11-25 17:59:19.243  7105  7129 I FontLog : Font PFD returned from cache for {Google Sans, wdth 100.0, wght 400, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+11-25 17:59:19.243  7105  7129 I FontLog : Fetch {Google Sans, wdth 100.0, wght 400, ital 0.0, bestEffort false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
+11-25 17:59:19.248   480  1682 D CompatibilityChangeReporter: Compat change id reported: 135634846; UID 10085; state: DISABLED
+11-25 17:59:19.248   480  1682 D CompatibilityChangeReporter: Compat change id reported: 177438394; UID 10085; state: DISABLED
+11-25 17:59:19.250   480  1682 D CompatibilityChangeReporter: Compat change id reported: 135772972; UID 10085; state: DISABLED
+11-25 17:59:19.250   480  1682 D CompatibilityChangeReporter: Compat change id reported: 135754954; UID 10085; state: ENABLED
+11-25 17:59:19.256   480   514 D CompatibilityChangeReporter: Compat change id reported: 143937733; UID 10085; state: ENABLED
+11-25 17:59:19.262   288   288 D Zygote  : Forked child process 12302
+11-25 17:59:19.263   480   514 I ActivityManager: Start proc 12302:com.google.android.documentsui/u0a85 for broadcast {com.google.android.documentsui/com.android.documentsui.PackageReceiver}
+11-25 17:59:19.273  7105  7129 I FontLog : Pulling font file for id = 1, cache size = 1 [CONTEXT service_id=132 ]
+11-25 17:59:19.283  7105  7129 I FontLog : Received query Google Sans:500, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
+11-25 17:59:19.283  7105  7129 I FontLog : Query [Google Sans:500] resolved to {Google Sans, wdth 100.0, wght 500, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+11-25 17:59:19.283 12302 12302 I oid.documentsui: Using CollectorTypeCC GC.
+11-25 17:59:19.284 12302 12302 W oid.documentsui: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:19.284 12302 12302 W oid.documentsui: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:19.290   394   401 I adbd    : jdwp connection from 12302
+11-25 17:59:19.303 12253 12288 I cr_LibraryLoader: Successfully loaded native library
+11-25 17:59:19.309 12253 12288 I cr_CachingUmaRecorder: Flushed 25 samples from 24 histograms.
+11-25 17:59:19.328  7105  7129 I FontLog : Font PFD returned from cache for {Google Sans, wdth 100.0, wght 500, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+11-25 17:59:19.328  7105  7129 I FontLog : Fetch {Google Sans, wdth 100.0, wght 500, ital 0.0, bestEffort false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
+11-25 17:59:19.339  7105  7630 I FontLog : Pulling font file for id = 2, cache size = 2 [CONTEXT service_id=132 ]
+11-25 17:59:19.342  7187  7414 I Icing   : Indexing com.google.android.gms-apps from com.google.android.gms
+11-25 17:59:19.344 12302 12302 D CompatibilityChangeReporter: Compat change id reported: 171979766; UID 10085; state: ENABLED
+11-25 17:59:19.346  7187  7414 I Icing   : Indexing done com.google.android.gms-apps
+11-25 17:59:19.349  7105  7129 I FontLog : Received query Google Sans:700, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
+11-25 17:59:19.349  7105  7129 I FontLog : Query [Google Sans:700] resolved to {Google Sans, wdth 100.0, wght 700, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+11-25 17:59:19.353  7105  7129 I FontLog : Fetch {Google Sans, wdth 100.0, wght 700, ital 0.0, bestEffort false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
+11-25 17:59:19.353 12302 12302 D nativeloader: Configuring classloader-namespace-shared for other apk /system/priv-app/DocumentsUIGoogle/DocumentsUIGoogle.apk. target_sdk_version=33, uses_libraries=, library_path=/system/priv-app/DocumentsUIGoogle/lib/x86_64:/system/lib64:/system_ext/lib64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.documentsui:/system/priv-app/DocumentsUIGoogle:/system/lib64:/system_ext/lib64
+11-25 17:59:19.358  7105  7666 I FontLog : Pulling font file for id = 3, cache size = 3 [CONTEXT service_id=132 ]
+11-25 17:59:19.374 12302 12302 V GraphicsEnvironment: ANGLE Developer option for 'com.google.android.documentsui' set to: 'default'
+11-25 17:59:19.374  1022  1813 D EGL_emulation: app_time_stats: avg=605.63ms min=53.97ms max=1542.61ms count=3
+11-25 17:59:19.374 12302 12302 V GraphicsEnvironment: ANGLE GameManagerService for com.google.android.documentsui: false
+11-25 17:59:19.374 12302 12302 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+11-25 17:59:19.376 12302 12302 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:19.376 12302 12302 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:19.423  7105 12192 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.ipa.base.IpaGcmTaskService started execution. cause:9 exec_start_elapsed_seconds: 655 [CONTEXT service_id=218 ]
+11-25 17:59:19.441  7105 12188 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.ipa.base.IpaGcmTaskService finished executing. cause:9 result: 1 elapsed_millis: 30 uptime_millis: 30 exec_start_elapsed_seconds: 655 [CONTEXT service_id=218 ]
+11-25 17:59:19.459   480  1682 D CompatibilityChangeReporter: Compat change id reported: 161145287; UID 10085; state: DISABLED
+11-25 17:59:19.460 12302 12302 D CompatibilityChangeReporter: Compat change id reported: 183155436; UID 10085; state: ENABLED
+11-25 17:59:19.470 12112 12291 D CompatibilityChangeReporter: Compat change id reported: 160794467; UID 10115; state: ENABLED
+11-25 17:59:19.477 12302 12325 I ProvidersCache: Provider returned no roots. Possibly naughty: com.google.android.apps.docs.storage
+11-25 17:59:19.491 12302 12302 D CompatibilityChangeReporter: Compat change id reported: 210923482; UID 10085; state: ENABLED
+11-25 17:59:19.493   480  1682 I ActivityManager: Killing 2565:com.google.android.gms.unstable/u0a120 (adj 925): empty #17
+11-25 17:59:19.494 12302 12302 D DocumentsApplication: OverlayManager.setEnabled() result: true
+11-25 17:59:19.501   480   515 I libprocessgroup: Successfully killed process cgroup uid 10120 pid 2565 in 0ms
+11-25 17:59:19.506   288   288 I Zygote  : Process 2565 exited due to signal 9 (Killed)
+11-25 17:59:19.507   480   699 D ConnectivityService: releasing NetworkRequest [ REQUEST id=84, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10120 RequestorUid: 10120 RequestorPkg: com.google.android.gms UnderlyingNetworks: Null] ] (release request)
+11-25 17:59:19.513  7105 12176 I Fitness : FitCleanupIntentOperation received Intent android.intent.action.PACKAGE_DATA_CLEARED [CONTEXT service_id=17 ]
+11-25 17:59:19.515 12135 12135 D CompatibilityChangeReporter: Compat change id reported: 183155436; UID 10172; state: ENABLED
+11-25 17:59:19.523  7187  7414 I Icing   : doRemovePackageData org.mishnatyosef.pickup
+11-25 17:59:19.525 12135 12135 I PermissionEventCleanupJobService: Job already scheduled.
+11-25 17:59:19.526 12135 12135 D PersistedStoragePackageUninstalledReceiver: Received android.intent.action.PACKAGE_DATA_CLEARED for org.mishnatyosef.pickup for u0
+11-25 17:59:19.531  1620  2320 I MediaProvider: Begin Intent { act=android.intent.action.PACKAGE_DATA_CLEARED dat=package: flg=0x1000010 cmp=com.google.android.providers.media.module/com.android.providers.media.MediaService (has extras) }
+11-25 17:59:19.532  1620  2320 D MediaProvider: Deleted 0 Android/media items belonging to org.mishnatyosef.pickup on /data/user/0/com.google.android.providers.media.module/databases/external.db
+11-25 17:59:19.532  1620  2320 D MediaGrants: Removed 0 media_grants for org.mishnatyosef.pickup. Reason: Package orphaned
+11-25 17:59:19.533  1620  2320 I MediaProvider: End Intent { act=android.intent.action.PACKAGE_DATA_CLEARED dat=package: flg=0x1000010 cmp=com.google.android.providers.media.module/com.android.providers.media.MediaService (has extras) }
+11-25 17:59:19.538  1620  2320 I MediaProvider: Begin Intent { act=android.intent.action.MEDIA_SCANNER_SCAN_FILE dat=file:///... flg=0x1400010 cmp=com.google.android.providers.media.module/com.android.providers.media.MediaService }
+11-25 17:59:19.548  1620  2320 I MediaProvider: End Intent { act=android.intent.action.MEDIA_SCANNER_SCAN_FILE dat=file:///... flg=0x1400010 cmp=com.google.android.providers.media.module/com.android.providers.media.MediaService }
+11-25 17:59:19.589  7105 12189 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.ipa.base.IpaGcmTaskService started execution. cause:9 exec_start_elapsed_seconds: 655 [CONTEXT service_id=218 ]
+11-25 17:59:19.594  7105 12188 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.ipa.base.IpaGcmTaskService finished executing. cause:9 result: 1 elapsed_millis: 15 uptime_millis: 15 exec_start_elapsed_seconds: 655 [CONTEXT service_id=218 ]
+11-25 17:59:19.615 12337 12337 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:19.618 12337 12337 I AndroidRuntime: Using default boot image
+11-25 17:59:19.618 12337 12337 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:19.621 12337 12337 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:19.621 12337 12337 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:19.686 12337 12337 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:19.687 12337 12337 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:19.692 12337 12337 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:19.692 12337 12337 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:19.709 12337 12337 D AndroidRuntime: Calling main entry com.android.commands.content.Content
+11-25 17:59:19.714  1620  2286 W ModernMediaScanner: Failed to visit /system/media: java.nio.file.NoSuchFileException: /system/media
+11-25 17:59:19.714  1620  2286 I MediaProvider: Scanned internal due to REASON_DEMAND, found 0 items in 0ms, 0 inserts 0 updates 0 deletes
+11-25 17:59:19.715  1620  2286 W ModernMediaScanner: Failed to visit /oem/media: java.nio.file.NoSuchFileException: /oem/media
+11-25 17:59:19.715  1620  2286 I MediaProvider: Scanned internal due to REASON_DEMAND, found 0 items in 1ms, 0 inserts 0 updates 0 deletes
+11-25 17:59:19.848  1620  1755 W MediaProvider: getVolumePath for unknown volume: internal
+11-25 17:59:19.855  1620  1755 W MediaProvider: getVolumePath for unknown volume: internal
+11-25 17:59:19.868  1620  1755 W MediaProvider: getVolumePath for unknown volume: internal
+11-25 17:59:19.875  1620  1755 W MediaProvider: getVolumePath for unknown volume: internal
+11-25 17:59:19.883  1620  1755 W MediaProvider: getVolumePath for unknown volume: internal
+11-25 17:59:19.888  1620  2286 I MediaProvider: Scanned internal due to REASON_DEMAND, found 227 items in 172ms, 0 inserts 7 updates 0 deletes
+11-25 17:59:19.888  1620  1755 W MediaProvider: getVolumePath for unknown volume: internal
+11-25 17:59:19.891  1620  1755 W MediaProvider: getVolumePath for unknown volume: internal
+11-25 17:59:19.911  7105 12189 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.ipa.base.IpaGcmTaskService started execution. cause:9 exec_start_elapsed_seconds: 655 [CONTEXT service_id=218 ]
+11-25 17:59:19.917  1620  2286 I MediaProvider: Scanned external_primary due to REASON_DEMAND, found 18 items in 22ms, 0 inserts 1 updates 0 deletes
+11-25 17:59:19.920 12337 12337 D AndroidRuntime: Shutting down VM
+11-25 17:59:19.922  7105 12190 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.ipa.base.IpaGcmTaskService finished executing. cause:9 result: 1 elapsed_millis: 15 uptime_millis: 15 exec_start_elapsed_seconds: 655 [CONTEXT service_id=218 ]
+11-25 17:59:20.367  1022  1022 D MainContentCaptureSession: Flushing 19 event(s) for act:com.google.android.apps.nexuslauncher/.NexusLauncherActivity [state=2 (ACTIVE), disabled=false], reason=TEXT_CHANGE
+11-25 17:59:21.247  2056  2292 I Process : Sending signal. PID: 2056 SIG: 9
+11-25 17:59:21.253   480  2141 I ActivityManager: Process com.google.android.contacts (pid 2056) has died: cch+35 CEM 
+11-25 17:59:21.253   480   515 I libprocessgroup: Successfully killed process cgroup uid 10122 pid 2056 in 0ms
+11-25 17:59:21.255   288   288 I Zygote  : Process 2056 exited due to signal 9 (Killed)
+11-25 17:59:22.455     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12350 n tail=0 logMask=10 pid=0 start=0ns deadline=0ns
+11-25 17:59:22.468     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12353 n tail=0 logMask=99 pid=0 start=0ns deadline=0ns
+11-25 17:59:22.277   480   818 I ActivityManager: Force stopping org.mishnatyosef.pickup appid=10174 user=0: from pid 12358
+11-25 17:59:22.279   983   983 D CarrierSvcBindHelper: onHandleForceStop: [org.mishnatyosef.pickup]
+11-25 17:59:22.280   983   983 D CarrierSvcBindHelper: No carrier app for: 0
+11-25 17:59:22.333 12361 12361 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:22.335 12361 12361 I AndroidRuntime: Using default boot image
+11-25 17:59:22.335 12361 12361 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:22.336 12361 12361 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:22.337 12361 12361 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:22.390 12361 12361 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:22.390 12361 12361 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:22.394 12361 12361 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:22.394 12361 12361 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:22.406 12361 12361 D AndroidRuntime: Calling main entry com.android.commands.monkey.Monkey
+11-25 17:59:22.406 12361 12361 W Monkey  : args: [-p, org.mishnatyosef.pickup, -c, android.intent.category.LAUNCHER, 1]
+11-25 17:59:22.406 12361 12361 W Monkey  :  arg: "-p"
+11-25 17:59:22.406 12361 12361 W Monkey  :  arg: "org.mishnatyosef.pickup"
+11-25 17:59:22.406 12361 12361 W Monkey  :  arg: "-c"
+11-25 17:59:22.406 12361 12361 W Monkey  :  arg: "android.intent.category.LAUNCHER"
+11-25 17:59:22.406 12361 12361 W Monkey  :  arg: "1"
+11-25 17:59:22.406 12361 12361 W Monkey  : data="org.mishnatyosef.pickup"
+11-25 17:59:22.406 12361 12361 W Monkey  : data="android.intent.category.LAUNCHER"
+11-25 17:59:22.414   480   513 W BroadcastQueue: Skipping deliver [background] BroadcastRecord{a6e1192 u-1 android.net.conn.CONNECTIVITY_CHANGE} to ReceiverList{3242763 12361 (unknown name)/2000/u-1 remote:55077f4}: process gone or crashing
+11-25 17:59:22.418   480   818 I ActivityTaskManager: START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=org.mishnatyosef.pickup/.MainActivity} from uid 2000
+11-25 17:59:22.422   480   818 D CompatibilityChangeReporter: Compat change id reported: 205907456; UID 10174; state: ENABLED
+11-25 17:59:22.425   759   811 W ShellStartingWindow: Window background does not exist, using android.graphics.drawable.ColorDrawable@fed79db
+11-25 17:59:22.426   480   505 D CompatibilityChangeReporter: Compat change id reported: 135634846; UID 10174; state: DISABLED
+11-25 17:59:22.426   480   505 D CompatibilityChangeReporter: Compat change id reported: 177438394; UID 10174; state: DISABLED
+11-25 17:59:22.426   480   505 D CompatibilityChangeReporter: Compat change id reported: 135772972; UID 10174; state: DISABLED
+11-25 17:59:22.426   480   505 D CompatibilityChangeReporter: Compat change id reported: 135754954; UID 10174; state: ENABLED
+11-25 17:59:22.426   480   514 D CompatibilityChangeReporter: Compat change id reported: 143937733; UID 10174; state: ENABLED
+11-25 17:59:22.432   288   288 D Zygote  : Forked child process 12374
+11-25 17:59:22.433   480   514 I ActivityManager: Start proc 12374:org.mishnatyosef.pickup/u0a174 for next-top-activity {org.mishnatyosef.pickup/org.mishnatyosef.pickup.MainActivity}
+11-25 17:59:22.435 12361 12361 I Monkey  : Events injected: 1
+11-25 17:59:22.435   759   812 W Parcel  : Expecting binder but got null!
+11-25 17:59:22.441   480   868 D CoreBackPreview: Window{a2d7a78 u0 Splash Screen org.mishnatyosef.pickup}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c1f81b6, mPriority=0}
+11-25 17:59:22.452  1022  1022 D MainContentCaptureSession: Flushing 1 event(s) for act:com.google.android.apps.nexuslauncher/.NexusLauncherActivity [state=2 (ACTIVE), disabled=false], reason=FULL
+11-25 17:59:22.473 12374 12374 I natyosef.pickup: Late-enabling -Xcheck:jni
+11-25 17:59:22.512   759   811 D SplashScreenView: Build android.window.SplashScreenView{d6bb290 V.E...... ......ID 0,0-0,0}
+11-25 17:59:22.512   759   811 D SplashScreenView: Icon: view: android.widget.ImageView{2a31789 V.ED..... ......I. 0,0-0,0 #10204dd android:id/splashscreen_icon_view} drawable: com.android.wm.shell.startingsurface.SplashscreenIconDrawableFactory$ImmobileIconDrawable@d92f38e size: 420
+11-25 17:59:22.512   759   811 D SplashScreenView: Branding: view: android.view.View{b9b27af G.ED..... ......I. 0,0-0,0 #10204dc android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+11-25 17:59:22.641   480   503 W Looper  : Slow dispatch took 111ms android.ui h=android.os.Handler c=android.database.ContentObserver$$ExternalSyntheticLambda0@c412090 m=0
+11-25 17:59:22.643 12361 12361 I Monkey  : ## Network stats: elapsed time=118ms (0ms mobile, 0ms wifi, 118ms not connected)
+11-25 17:59:22.646 12361 12361 I app_process: System.exit called, status: 0
+11-25 17:59:22.646 12361 12361 I AndroidRuntime: VM exiting with result code 0.
+11-25 17:59:22.784   284  3309 I netd    : setProcSysNet(4, 2, wlan0, retrans_time_ms, 750) <4.43ms>
+11-25 17:59:22.786   284  3309 I netd    : setProcSysNet(4, 2, wlan0, ucast_solicit, 10) <0.04ms>
+11-25 17:59:22.786   284  3309 I netd    : setProcSysNet(6, 2, wlan0, retrans_time_ms, 750) <0.06ms>
+11-25 17:59:22.787   284  3309 I netd    : setProcSysNet(6, 2, wlan0, ucast_solicit, 10) <0.02ms>
+11-25 17:59:22.787   480  2165 W Binder  : Caught a RuntimeException from the binder stub implementation.
+11-25 17:59:22.787   480  2165 W Binder  : java.lang.ArrayIndexOutOfBoundsException: Array index out of range: 0
+11-25 17:59:22.787   480  2165 W Binder  : 	at android.util.ArraySet.valueAt(ArraySet.java:422)
+11-25 17:59:22.787   480  2165 W Binder  : 	at com.android.server.contentcapture.ContentCapturePerUserService$ContentCaptureServiceRemoteCallback.updateContentCaptureOptions(ContentCapturePerUserService.java:733)
+11-25 17:59:22.787   480  2165 W Binder  : 	at com.android.server.contentcapture.ContentCapturePerUserService$ContentCaptureServiceRemoteCallback.setContentCaptureWhitelist(ContentCapturePerUserService.java:646)
+11-25 17:59:22.787   480  2165 W Binder  : 	at android.service.contentcapture.IContentCaptureServiceCallback$Stub.onTransact(IContentCaptureServiceCallback.java:115)
+11-25 17:59:22.787   480  2165 W Binder  : 	at android.os.Binder.execTransactInternal(Binder.java:1285)
+11-25 17:59:22.787   480  2165 W Binder  : 	at android.os.Binder.execTransact(Binder.java:1244)
+11-25 17:59:22.807   759   796 W Looper  : Slow dispatch took 152ms wmshell.main h=android.os.Handler c=com.android.keyguard.CarrierTextManager$$ExternalSyntheticLambda0@d4eba9a m=0
+11-25 17:59:23.068   480  2127 W system_server: Long monitor contention with owner binder:480_9 (868) at android.window.TaskSnapshot com.android.server.wm.ActivityTaskManagerService.takeTaskSnapshot(int)(ActivityTaskManagerService.java:3762) waiters=0 in int com.android.server.wm.ActivityTaskManagerService.getLastResumedActivityUserId() for 256ms
+11-25 17:59:23.068   480   506 W system_server: Long monitor contention with owner binder:480_9 (868) at android.window.TaskSnapshot com.android.server.wm.ActivityTaskManagerService.takeTaskSnapshot(int)(ActivityTaskManagerService.java:3762) waiters=1 in void com.android.server.wm.SurfaceAnimator.lambda$getFinishedCallback$1(com.android.server.wm.SurfaceAnimator$OnAnimationFinishedCallback, int, com.android.server.wm.AnimationAdapter) for 255ms
+11-25 17:59:23.088   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d9eb0
+11-25 17:59:23.088   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d4870
+11-25 17:59:23.088   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8da270
+11-25 17:59:23.106  1022  1022 D MainContentCaptureSession: Flushing 2 event(s) for act:com.google.android.apps.nexuslauncher/.NexusLauncherActivity [state=2 (ACTIVE), disabled=false], reason=VIEW_TREE_APPEARING
+11-25 17:59:23.106  1022  1022 D MainContentCaptureSession: Flushing 2 event(s) for act:com.google.android.apps.nexuslauncher/.NexusLauncherActivity [state=2 (ACTIVE), disabled=false], reason=VIEW_TREE_APPEARED
+11-25 17:59:23.233  1502  2830 I PhenotypeProcessReaper: Memory state is: 200
+11-25 17:59:23.373   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8da630
+11-25 17:59:23.415   759   812 D EGL_emulation: app_time_stats: avg=65382.64ms min=191.99ms max=130573.28ms count=2
+11-25 17:59:23.467 12374 12374 I natyosef.pickup: Using CollectorTypeCC GC.
+11-25 17:59:23.468 12374 12374 W natyosef.pickup: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:23.468 12374 12374 W natyosef.pickup: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:23.471   394   401 I adbd    : jdwp connection from 12374
+11-25 17:59:23.514 12374 12374 D CompatibilityChangeReporter: Compat change id reported: 171979766; UID 10174; state: ENABLED
+11-25 17:59:23.524 12374 12374 W ziparchive: Unable to open '/data/app/~~7u2_vaFl4611Lm5J8dfB0Q==/org.mishnatyosef.pickup-Nqk5ngr6wVBk8MX83UVewA==/base.dm': No such file or directory
+11-25 17:59:23.526 12374 12374 W ziparchive: Unable to open '/data/app/~~7u2_vaFl4611Lm5J8dfB0Q==/org.mishnatyosef.pickup-Nqk5ngr6wVBk8MX83UVewA==/base.dm': No such file or directory
+11-25 17:59:23.549 12374 12374 D nativeloader: Configuring classloader-namespace for other apk /data/app/~~7u2_vaFl4611Lm5J8dfB0Q==/org.mishnatyosef.pickup-Nqk5ngr6wVBk8MX83UVewA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~7u2_vaFl4611Lm5J8dfB0Q==/org.mishnatyosef.pickup-Nqk5ngr6wVBk8MX83UVewA==/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/org.mishnatyosef.pickup
+11-25 17:59:23.556 12374 12374 V GraphicsEnvironment: ANGLE Developer option for 'org.mishnatyosef.pickup' set to: 'default'
+11-25 17:59:23.556 12374 12374 V GraphicsEnvironment: ANGLE GameManagerService for org.mishnatyosef.pickup: false
+11-25 17:59:23.557 12374 12374 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+11-25 17:59:23.558 12374 12374 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:23.559 12374 12374 D NetworkSecurityConfig: No Network Security Config specified, using platform default
+11-25 17:59:23.568 12374 12395 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-25 17:59:23.569 12374 12395 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-25 17:59:23.571 12374 12395 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-25 17:59:23.602 12374 12374 D CompatibilityChangeReporter: Compat change id reported: 171228096; UID 10174; state: ENABLED
+11-25 17:59:23.604 12374 12374 D CompatibilityChangeReporter: Compat change id reported: 210923482; UID 10174; state: ENABLED
+11-25 17:59:23.628 12374 12374 D CompatibilityChangeReporter: Compat change id reported: 237531167; UID 10174; state: DISABLED
+11-25 17:59:23.629 12374 12393 W Parcel  : Expecting binder but got null!
+11-25 17:59:23.632   480   868 D CoreBackPreview: Window{9644aa2 u0 org.mishnatyosef.pickup/org.mishnatyosef.pickup.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@16826f0, mPriority=0}
+11-25 17:59:23.647 12374 12393 W Parcel  : Expecting binder but got null!
+11-25 17:59:23.649   480   868 D CoreBackPreview: Window{340c21c u0 org.mishnatyosef.pickup/org.mishnatyosef.pickup.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@be88bfa, mPriority=0}
+11-25 17:59:23.742 12374 12393 D HostConnection: HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_vulkan_queue_submit_with_commands ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_multi_configs ANDROID_EMU_hwc_color_transform ANDROID_EMU_hwc_display_power_mode GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+11-25 17:59:23.750   480   480 D AutofillInlineSuggestionsRequestSession: onCreateInlineSuggestionsRequestLocked called: 1073741824@677692493
+11-25 17:59:23.752   480  1671 D AutofillInlineSuggestionsRequestSession: onInlineSuggestionsSessionInvalidated() called.
+11-25 17:59:23.777   480  9350 I AutofillManagerServiceImpl: Prune session 209372743 (Token{79b90a1 ActivityRecord{d3d2c6 u0 org.mishnatyosef.pickup/.MainActivity} t-1 f}}})
+11-25 17:59:23.777   480  9350 D AutofillSession: clearPendingIntentLocked
+11-25 17:59:23.777   480  9350 D AutofillInlineSuggestionsRequestSession: onInlineSuggestionsResponseLocked called for:1073741824@209372743
+11-25 17:59:23.777   480  9350 W AutofillInlineSuggestionsRequestSession: Never received an InlineSuggestionsRequest from the IME for 1073741824@209372743
+11-25 17:59:23.778  1535  1535 V InlineSuggestionRenderService: handleDestroySuggestionViews called for 0:209372743
+11-25 17:59:23.779   480   503 D AutofillUI: destroySaveUiUiThread(): already destroyed
+11-25 17:59:23.781 12374 12393 W OpenGLRenderer: Failed to initialize 101010-2 format, error = EGL_SUCCESS
+11-25 17:59:23.781 12374 12393 D EGL_emulation: eglCreateContext: 0x7d9a983539d0: maj 3 min 0 rcv 3
+11-25 17:59:23.783 12374 12393 D EGL_emulation: eglMakeCurrent: 0x7d9a983539d0: ver 3 0 (tinfo 0x7d9cb9100080) (first time)
+11-25 17:59:23.833   127   127 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+11-25 17:59:23.834 12374 12393 I Gralloc4: mapper 4.x is not supported
+11-25 17:59:23.846   127   127 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.allocator@4.0::IAllocator/default in either framework or device VINTF manifest.
+11-25 17:59:23.849   126   126 I servicemanager: Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest.
+11-25 17:59:23.850 12374 12393 W Gralloc4: allocator 4.x is not supported
+11-25 17:59:23.857 12374 12393 D HostConnection: HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_vulkan_queue_submit_with_commands ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_multi_configs ANDROID_EMU_hwc_color_transform ANDROID_EMU_hwc_display_power_mode GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+11-25 17:59:24.465 12374 12374 I Choreographer: Skipped 48 frames!  The application may be doing too much work on its main thread.
+11-25 17:59:24.500 12374 12374 D CompatibilityChangeReporter: Compat change id reported: 163400105; UID 10174; state: ENABLED
+11-25 17:59:24.502 12374 12389 I OpenGLRenderer: Davey! duration=832ms; Flags=1, FrameTimelineVsyncId=33284, IntendedVsync=659690735677, Vsync=659707402343, InputEventId=0, HandleInputStart=659711148124, AnimationStart=659711151190, PerformTraversalsStart=659711152542, DrawStart=660354870844, FrameDeadline=659707402343, FrameInterval=659711125031, FrameStartTime=16666666, SyncQueued=660367805050, SyncStart=660369704573, IssueDrawCommandsStart=660369788980, SwapBuffers=660383189387, FrameCompleted=660524989032, DequeueBufferDuration=3727, QueueBufferDuration=906200, GpuCompleted=660524989032, SwapBuffersCompleted=660523905672, DisplayPresentTime=30434138266529, CommandSubmissionCompleted=660383189387, 
+11-25 17:59:24.517   480   502 W ziparchive: Unable to open '/data/app/~~7u2_vaFl4611Lm5J8dfB0Q==/org.mishnatyosef.pickup-Nqk5ngr6wVBk8MX83UVewA==/base.dm': No such file or directory
+11-25 17:59:24.548   480   502 I ActivityTaskManager: Displayed org.mishnatyosef.pickup/.MainActivity: +2s85ms
+11-25 17:59:24.549   759   796 W Looper  : Slow dispatch took 46ms wmshell.main h=android.os.Handler c=android.window.TaskOrganizer$1$$ExternalSyntheticLambda7@de92ec1 m=0
+11-25 17:59:24.564 12374 12374 I AssistStructure: Flattened final assist data: 3812 bytes, containing 2 windows, 18 views
+11-25 17:59:24.579   480  2127 W InputManager-JNI: Input channel object 'a2d7a78 Splash Screen org.mishnatyosef.pickup (client)' was disposed without first being removed with the input manager!
+11-25 17:59:24.580   480   868 D CoreBackPreview: Window{a2d7a78 u0 Splash Screen org.mishnatyosef.pickup EXITING}: Setting back callback null
+11-25 17:59:24.587  1022  2238 D OneSearchSuggestProvider: Shut down the binder channel
+11-25 17:59:24.594  3792  3860 D BtGatt.ScanManager: uid 10120 isForeground true scanMode -1
+11-25 17:59:24.600  3792  3860 D BtGatt.ScanManager: uid 10120 isForeground true scanMode -1
+11-25 17:59:24.609   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:24.609   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:24.610  1022  2567 I s.nexuslauncher: oneway function results for code 2 on binder at 0x7d9a283a8420 will be dropped but finished with status UNKNOWN_TRANSACTION
+11-25 17:59:24.611   480  1671 D AutofillSession: createPendingIntent for request 4
+11-25 17:59:24.611   480  1671 D ContentCapturePerUserService: Notified activity assist data for activity: Token{1a7d6bf ActivityRecord{e9ed18c u0 org.mishnatyosef.pickup/.MainActivity} t10}} without a session Id
+11-25 17:59:24.633  1756  6713 I PBSessionCacheImpl: Deleted sessionId[7724765302456347] from persistence.
+11-25 17:59:24.660  1756  2447 I A       : Using proto config with mendel
+11-25 17:59:24.661  1756  2447 I A       : Using proto config with mendel
+11-25 17:59:24.661  1756  2447 W SearchServiceCore: Abort, client detached.
+11-25 17:59:24.722  1756  2447 I MicroDetectionState: Should stop hotword detection immediately - true
+11-25 17:59:24.729 12374 12389 I OpenGLRenderer: Davey! duration=905ms; Flags=0, FrameTimelineVsyncId=33300, IntendedVsync=659724069009, Vsync=660524068977, InputEventId=0, HandleInputStart=660525571639, AnimationStart=660525573933, PerformTraversalsStart=660525971304, DrawStart=660526219046, FrameDeadline=660557402309, FrameInterval=660525488363, FrameStartTime=16666666, SyncQueued=660526386108, SyncStart=660526403501, IssueDrawCommandsStart=660526681810, SwapBuffers=660529923506, FrameCompleted=660629177202, DequeueBufferDuration=4800, QueueBufferDuration=334645, GpuCompleted=660629177202, SwapBuffersCompleted=660555841671, DisplayPresentTime=184911227037740, CommandSubmissionCompleted=660529923506, 
+11-25 17:59:24.729 12374 12389 I OpenGLRenderer: Davey! duration=872ms; Flags=0, FrameTimelineVsyncId=33300, IntendedVsync=659724069009, Vsync=660524068977, InputEventId=0, HandleInputStart=660525571639, AnimationStart=660525573933, PerformTraversalsStart=660525971304, DrawStart=660526551126, FrameDeadline=660374068983, FrameInterval=660525488363, FrameStartTime=16666666, SyncQueued=660526670088, SyncStart=660559753127, IssueDrawCommandsStart=660561798302, SwapBuffers=660564055123, FrameCompleted=660629182311, DequeueBufferDuration=4158, QueueBufferDuration=121918, GpuCompleted=660629182311, SwapBuffersCompleted=660619163797, DisplayPresentTime=14723147894111, CommandSubmissionCompleted=660564055123, 
+11-25 17:59:24.760  1756  2447 I A       : Using proto config with mendel
+11-25 17:59:24.760  1756  2447 I A       : Using proto config with mendel
+11-25 17:59:24.764   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8da810
+11-25 17:59:24.764   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d7330
+11-25 17:59:24.764   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8da7b0
+11-25 17:59:24.764   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8da7b0
+11-25 17:59:25.437     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12409 n tail=0 logMask=10 pid=0 start=0ns deadline=0ns
+11-25 17:59:25.450     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12412 n tail=0 logMask=99 pid=0 start=0ns deadline=0ns
+11-25 17:59:25.333   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:25.340 12415 12415 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:25.343 12415 12415 I AndroidRuntime: Using default boot image
+11-25 17:59:25.343 12415 12415 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:25.345 12415 12415 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:25.345 12415 12415 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:25.585 12415 12415 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:25.587 12415 12415 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:25.593 12374 12393 D EGL_emulation: app_time_stats: avg=226.09ms min=31.92ms max=472.62ms count=5
+11-25 17:59:25.608 12415 12415 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:25.608 12415 12415 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:25.624 12415 12415 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:25.652 12415 12415 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:25.660  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:25.661  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:25.661  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:25.661  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:25.661  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:25.661  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:25.661  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:25.661  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:25.661  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:25.664  1756  2159 I A       : NGA disabled due to not being eligible.
+11-25 17:59:25.665   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:25.671 12374 12393 D EGL_emulation: app_time_stats: avg=190.06ms min=97.76ms max=420.96ms count=7
+11-25 17:59:25.695 12415 12429 V UiAutomation: Init UiAutomation@28aa3dc[id=186, flags=0]
+11-25 17:59:25.756  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:25.760 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:25.761  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:25.761  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:25.761  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:25.761  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:25.761  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:25.761  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:25.761  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:25.761  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:26.670 12415 12415 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:26.671  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:26.671 12415 12415 D AndroidRuntime: Shutting down VM
+11-25 17:59:26.674  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:26.675  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:26.675  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:26.675  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:26.676  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:26.676  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:26.676  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:26.676  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:26.676  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:26.678   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:26.894 12374 12393 D EGL_emulation: app_time_stats: avg=305.75ms min=136.60ms max=509.44ms count=4
+11-25 17:59:27.512     0     0 I logd    : start watching /data/system/packages.list ...
+11-25 17:59:27.514     0     0 I logd    : ReadPackageList, total packages: 182
+11-25 17:59:28.252 12438 12438 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:28.254 12438 12438 I AndroidRuntime: Using default boot image
+11-25 17:59:28.255 12438 12438 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:28.256 12438 12438 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:28.256 12438 12438 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:28.311 12438 12438 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:28.312 12438 12438 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:28.315 12438 12438 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:28.315 12438 12438 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:28.317 12438 12438 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:28.328 12438 12438 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:28.332   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:28.332 12438 12452 V UiAutomation: Init UiAutomation@a727317[id=187, flags=0]
+11-25 17:59:28.333  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:28.334  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:28.334  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:28.335  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:28.335  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:28.335  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:28.335  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:28.335  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:28.336  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:28.337  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:28.339  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:28.339  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:28.339  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:28.340 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:28.340  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:28.340  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:28.340  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:28.340  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:28.340  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:28.341  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:28.411 12374 12393 D EGL_emulation: app_time_stats: avg=505.69ms min=490.77ms max=526.67ms count=3
+11-25 17:59:29.337 12438 12438 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:29.339 12438 12438 D AndroidRuntime: Shutting down VM
+11-25 17:59:29.340  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:29.340  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:29.341  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:29.341  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:29.341  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:29.342  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:29.342  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:29.344   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:29.345  1756  2111 I A       : NGA disabled due to not being eligible.
+11-25 17:59:29.352  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:29.358  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:29.365   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d8f50
+11-25 17:59:29.425 12374 12393 D EGL_emulation: app_time_stats: avg=506.91ms min=489.84ms max=523.99ms count=2
+11-25 17:59:29.543   149 12245 I keystore2: keystore2::watchdog: Watchdog thread idle -> terminating. Have a great day.
+11-25 17:59:29.897 12302 12302 D CompatibilityChangeReporter: Compat change id reported: 150939131; UID 10085; state: ENABLED
+11-25 17:59:29.897 12302 12302 I ProvidersCache: Updating roots due to change on user 0at content://com.android.providers.media.documents/root
+11-25 17:59:29.910 12302 12457 I ProvidersCache: Provider returned no roots. Possibly naughty: com.google.android.apps.docs.storage
+11-25 17:59:29.983   480  1671 W JobScheduler: Job didn't exist in JobStore: a09c4d0 #u0a139/1034 com.google.android.apps.photos/com.google.android.libraries.social.mediamonitor.MediaMonitorJobSchedulerService
+11-25 17:59:29.993   480  1671 W UriGrantsManagerService: No permission grants found for com.google.android.apps.photos
+11-25 17:59:29.993   480  1671 W UriGrantsManagerService: No permission grants found for com.google.android.apps.photos
+11-25 17:59:30.010   480  1671 W UriGrantsManagerService: No permission grants found for com.google.android.apps.photos
+11-25 17:59:30.010   480  1671 W UriGrantsManagerService: No permission grants found for com.google.android.apps.photos
+11-25 17:59:30.018   480  1671 W UriGrantsManagerService: No permission grants found for com.google.android.apps.photos
+11-25 17:59:30.018   480  1671 W UriGrantsManagerService: No permission grants found for com.google.android.apps.photos
+11-25 17:59:30.901 12374 12393 D EGL_emulation: app_time_stats: avg=492.01ms min=476.71ms max=502.12ms count=3
+11-25 17:59:30.941 12463 12463 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:30.945 12463 12463 I AndroidRuntime: Using default boot image
+11-25 17:59:30.945 12463 12463 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:30.947 12463 12463 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:30.947 12463 12463 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:31.005 12463 12463 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:31.005 12463 12463 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:31.009 12463 12463 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:31.009 12463 12463 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:31.010 12463 12463 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:31.023 12463 12463 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:31.026  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:31.027   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:31.028  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:31.029  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:31.029  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:31.029  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:31.029 12463 12477 V UiAutomation: Init UiAutomation@fb7a7e9[id=188, flags=0]
+11-25 17:59:31.029  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:31.029  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:31.029  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:31.029  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:31.031  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:31.031   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:31.031   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:31.044  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:31.044  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:31.044  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:31.044  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:31.044  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:31.045  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:31.045  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:31.045  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:31.045  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:31.076 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:31.904 12374 12393 D EGL_emulation: app_time_stats: avg=501.38ms min=499.97ms max=502.79ms count=2
+11-25 17:59:32.033 12463 12463 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:32.034  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:32.035  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:32.035  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:32.035  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:32.035  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:32.036  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:32.036  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:32.036  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:32.036  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:32.040  1756  2111 I A       : NGA disabled due to not being eligible.
+11-25 17:59:32.040   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:32.042 12463 12463 D AndroidRuntime: Shutting down VM
+11-25 17:59:33.401 12374 12393 D EGL_emulation: app_time_stats: avg=498.94ms min=491.57ms max=505.49ms count=3
+11-25 17:59:33.547  3327  3433 I Process : Sending signal. PID: 3327 SIG: 9
+11-25 17:59:33.554   480  2169 I ActivityManager: Process com.google.android.calendar (pid 3327) has died: cch+35 CEM 
+11-25 17:59:33.555   480   699 D ConnectivityService: releasing NetworkRequest [ REQUEST id=82, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10123 RequestorUid: 10123 RequestorPkg: com.google.android.calendar UnderlyingNetworks: Null] ] (release request)
+11-25 17:59:33.555   480   515 I libprocessgroup: Successfully killed process cgroup uid 10123 pid 3327 in 0ms
+11-25 17:59:33.557   288   288 I Zygote  : Process 3327 exited due to signal 9 (Killed)
+11-25 17:59:33.623 12482 12482 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:33.626 12482 12482 I AndroidRuntime: Using default boot image
+11-25 17:59:33.626 12482 12482 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:33.627 12482 12482 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:33.627 12482 12482 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:33.681 12482 12482 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:33.681 12482 12482 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:33.684 12482 12482 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:33.684 12482 12482 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:33.686 12482 12482 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:33.697 12482 12482 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:33.701  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:33.701  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:33.701  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:33.702  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:33.702  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:33.702  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:33.702  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:33.703  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:33.703  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:33.703  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:33.704   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:33.706 12482 12496 V UiAutomation: Init UiAutomation@79f7724[id=189, flags=0]
+11-25 17:59:33.707  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:33.707 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:33.707  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:33.707  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:33.708  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:33.708  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:33.708  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:33.708  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:33.708  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:33.708  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:34.043  7105  7105 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.nearby.exposurenotification.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.PersistentApiServiceNoInstantApps }
+11-25 17:59:34.105  7187  7187 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.feedback.internal.IFeedbackService dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+11-25 17:59:34.327   759   820 D ControlsListingControllerImpl: Subscribing callback, service count: 0
+11-25 17:59:34.329   759   820 D ControlsListingControllerImpl: Unsubscribing callback
+11-25 17:59:34.402 12374 12393 D EGL_emulation: app_time_stats: avg=500.45ms min=498.14ms max=502.77ms count=2
+11-25 17:59:34.802     0     0 W healthd : battery l=100 v=5000 t=25.0 h=2 st=2 c=900000 fc=3000000 cc=10 chg=a
+11-25 17:59:34.709 12482 12482 W AccessibilityNodeInfoDumper: Fetch time: 2ms
+11-25 17:59:34.710  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:34.711  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:34.711  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:34.711  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:34.711  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:34.712  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:34.712  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:34.713  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:34.713  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:34.717  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:34.719   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:34.723 12482 12482 D AndroidRuntime: Shutting down VM
+11-25 17:59:35.902 12374 12393 D EGL_emulation: app_time_stats: avg=499.78ms min=466.27ms max=532.85ms count=3
+11-25 17:59:36.304 12499 12499 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:36.307 12499 12499 I AndroidRuntime: Using default boot image
+11-25 17:59:36.307 12499 12499 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:36.308 12499 12499 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:36.308 12499 12499 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:36.361 12499 12499 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:36.361 12499 12499 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:36.364 12499 12499 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:36.364 12499 12499 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:36.366 12499 12499 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:36.376 12499 12499 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:36.381   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:36.383  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:36.384 12499 12513 V UiAutomation: Init UiAutomation@f87465f[id=190, flags=0]
+11-25 17:59:36.390  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:36.390  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:36.390  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:36.391  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:36.391  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:36.392  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:36.393  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:36.402 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:36.404  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:36.404  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:36.405  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:36.405  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:36.405  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:36.405  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:36.406  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:36.408  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:36.408  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:36.409  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:36.412  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:37.386 12499 12499 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:37.387  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:37.387 12499 12499 D AndroidRuntime: Shutting down VM
+11-25 17:59:37.390  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:37.392  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:37.392  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:37.392  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:37.392  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:37.393  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:37.393  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:37.393  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:37.394  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:37.394   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:37.441 12374 12393 D EGL_emulation: app_time_stats: avg=513.08ms min=390.91ms max=608.50ms count=3
+11-25 17:59:37.551  7105 12190 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.tapandpay.gcmtask.TapAndPayGcmTaskService started execution. cause:4 exec_start_elapsed_seconds: 673 [CONTEXT service_id=218 ]
+11-25 17:59:37.557  7105 12514 W TapAndPay: NfcAdapter is null while obtaining CardEmulation instance. [CONTEXT service_id=79 ]
+11-25 17:59:37.557  7105 12514 W TapAndPay: java.lang.NullPointerException: NfcAdapter is null
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at android.nfc.cardemulation.CardEmulation.getInstance(CardEmulation.java:154)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at cdoy.<init>(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at com.google.android.gms.tapandpay.hce.task.TapAndPayAidRegistrationTaskOperation.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):5)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at com.google.android.gms.tapandpay.gcmtask.TapAndPayGcmTaskChimeraService.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):4)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at avzs.call(:com.google.android.gms@231818047@23.18.18 (190800-535401451):4)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at aced.c(:com.google.android.gms@231818047@23.18.18 (190800-535401451):6)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at aced.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1137)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:637)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at acjn.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.557  7105 12514 W TapAndPay: 	at java.lang.Thread.run(Thread.java:1012)
+11-25 17:59:37.567  7105 12190 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.tapandpay.gcmtask.TapAndPayGcmTaskService finished executing. cause:4 result: 3 elapsed_millis: 29 uptime_millis: 29 exec_start_elapsed_seconds: 673 [CONTEXT service_id=218 ]
+11-25 17:59:37.633  7105 12514 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.auth.account.be.legacy.AuthCronService started execution. cause:5 exec_start_elapsed_seconds: 673 [CONTEXT service_id=218 ]
+11-25 17:59:37.658   480  1671 D CompatibilityChangeReporter: Compat change id reported: 135634846; UID 10120; state: DISABLED
+11-25 17:59:37.659   480   514 D CompatibilityChangeReporter: Compat change id reported: 143937733; UID 10120; state: ENABLED
+11-25 17:59:37.663   288   288 D Zygote  : Forked child process 12515
+11-25 17:59:37.664   480   514 I ActivityManager: Start proc 12515:com.google.android.gms.unstable/u0a120 for service {com.google.android.gms/com.google.android.gms.droidguard.DroidGuardService}
+11-25 17:59:37.667 12515 12515 I id.gms.unstable: Using CollectorTypeCC GC.
+11-25 17:59:37.668 12515 12515 W id.gms.unstable: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:37.668 12515 12515 W id.gms.unstable: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:37.675   394   401 I adbd    : jdwp connection from 12515
+11-25 17:59:37.677   480  1671 D CompatibilityChangeReporter: Compat change id reported: 181136395; UID 10174; state: DISABLED
+11-25 17:59:37.677   480  1671 D CompatibilityChangeReporter: Compat change id reported: 174042936; UID 10174; state: DISABLED
+11-25 17:59:37.696 12515 12515 D CompatibilityChangeReporter: Compat change id reported: 171979766; UID 10120; state: ENABLED
+11-25 17:59:37.699 12515 12515 D nativeloader: Configuring classloader-namespace for other apk /system/framework/org.apache.http.legacy.jar. target_sdk_version=33, uses_libraries=ALL, library_path=/product/priv-app/PrebuiltGmsCore/lib/x86_64:/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.gms
+11-25 17:59:37.701 12515 12515 D nativeloader: Configuring classloader-namespace for other apk /system/framework/com.android.media.remotedisplay.jar. target_sdk_version=33, uses_libraries=ALL, library_path=/product/priv-app/PrebuiltGmsCore/lib/x86_64:/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.gms
+11-25 17:59:37.703 12515 12515 D nativeloader: Configuring classloader-namespace for other apk /system/framework/com.android.location.provider.jar. target_sdk_version=33, uses_libraries=ALL, library_path=/product/priv-app/PrebuiltGmsCore/lib/x86_64:/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.gms
+11-25 17:59:37.706 12515 12515 D nativeloader: Configuring classloader-namespace for other apk /system_ext/framework/androidx.window.extensions.jar. target_sdk_version=33, uses_libraries=ALL, library_path=/product/priv-app/PrebuiltGmsCore/lib/x86_64:/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.gms
+11-25 17:59:37.706 12515 12515 D nativeloader: Configuring classloader-namespace for other apk /system_ext/framework/androidx.window.sidecar.jar. target_sdk_version=33, uses_libraries=ALL, library_path=/product/priv-app/PrebuiltGmsCore/lib/x86_64:/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.gms
+11-25 17:59:37.710 12515 12515 D nativeloader: Configuring vendor-classloader-namespace for unbundled product apk /product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore.apk. target_sdk_version=33, uses_libraries=, library_path=/product/priv-app/PrebuiltGmsCore/lib/x86_64:/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore.apk!/lib/x86_64:/product/lib64:/system/product/lib64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.gms:/product/lib64:/system/product/lib64
+11-25 17:59:37.716 12515 12515 V GraphicsEnvironment: ANGLE Developer option for 'com.google.android.gms' set to: 'default'
+11-25 17:59:37.716 12515 12515 V GraphicsEnvironment: ANGLE GameManagerService for com.google.android.gms: false
+11-25 17:59:37.716 12515 12515 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+11-25 17:59:37.717 12515 12515 D NetworkSecurityConfig: Using Network Security Config from resource network_security_config debugBuild: false
+11-25 17:59:37.717 12515 12515 D NetworkSecurityConfig: Using Network Security Config from resource network_security_config debugBuild: false
+11-25 17:59:37.746 12515 12515 W ProviderHelper: Unknown dynamite feature providerinstaller.dynamite
+11-25 17:59:37.747 12515 12515 I DynamiteModule: Considering local module com.google.android.gms.providerinstaller.dynamite:1 and remote module com.google.android.gms.providerinstaller.dynamite:0
+11-25 17:59:37.747 12515 12515 I DynamiteModule: Selected local version of com.google.android.gms.providerinstaller.dynamite
+11-25 17:59:37.751 12515 12515 V NativeCrypto: Registering com/google/android/gms/org/conscrypt/NativeCrypto's 295 native methods...
+11-25 17:59:37.762 12515 12515 I ProviderInstaller: Installed default security provider GmsCore_OpenSSL
+11-25 17:59:37.774 12515 12540 I Watchcat: Started
+11-25 17:59:37.775 12515 12515 D CompatibilityChangeReporter: Compat change id reported: 183155436; UID 10120; state: ENABLED
+11-25 17:59:37.775 12515 12515 I GmsApplication: [gms_startup_benchmark] Static start time (ms): 673779, Startup latency (ms): 56, Is system user: true
+11-25 17:59:37.776 12515 12515 I cuir    : Primes not initialized, returning default (no-op) Primes instance which will ignore all calls. Please call Primes.initialize(...) before using any Primes API.
+11-25 17:59:37.776 12515 12540 I GMS_MM_Logger: Start time: 224130
+11-25 17:59:37.777 12515 12540 I GMS_MM_Logger: Started.
+11-25 17:59:37.816 12515 12526 W ziparchive: Unable to open '/data/user/0/com.google.android.gms/app_dg_cache/BCD37DA6707F74E3F78AB9C0F65BC34E65B1F2E1/the.dm': No such file or directory
+11-25 17:59:37.825 12515 12526 D nativeloader: Configuring classloader-namespace for other apk . target_sdk_version=33, uses_libraries=ALL, library_path=, permitted_path=/data:/mnt/expand
+11-25 17:59:37.853   284 12548 I resolv  : GetAddrInfoHandler::run: {100 786532 100 983140 10120 0}
+11-25 17:59:37.853 12515 12526 D TrafficStats: tagSocket(84) with statsTag=0x1809, statsUid=-1
+11-25 17:59:37.855 12515 12526 W libc    : Access denied finding property "persist.adb.tls_server.enable"
+11-25 17:59:37.855 12515 12526 W libc    : Access denied finding property "service.adb.tls.port"
+11-25 17:59:37.853 12515 12515 W binder:12515_1: type=1400 audit(0.0:62): avc: denied { read } for name="u:object_r:system_adbd_prop:s0" dev="tmpfs" ino=269 scontext=u:r:gmscore_app:s0:c512,c768 tcontext=u:object_r:system_adbd_prop:s0 tclass=file permissive=0 app=com.google.android.gms
+11-25 17:59:37.853 12515 12515 W binder:12515_1: type=1400 audit(0.0:63): avc: denied { read } for name="u:object_r:adbd_prop:s0" dev="tmpfs" ino=61 scontext=u:r:gmscore_app:s0:c512,c768 tcontext=u:object_r:adbd_prop:s0 tclass=file permissive=0 app=com.google.android.gms
+11-25 17:59:37.872  7105  7358 W GmsUrlRequestImpl: Content-Type header is overwritten.
+11-25 17:59:37.873   284 12549 I resolv  : GetAddrInfoHandler::run: {100 786532 100 983140 10120 0}
+11-25 17:59:37.873   284 12550 I resolv  : res_nmkquery: (QUERY, IN, AAAA)
+11-25 17:59:37.873   284 12551 I resolv  : res_nmkquery: (QUERY, IN, A)
+11-25 17:59:37.873   284 12551 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7abc9d8fa030
+11-25 17:59:37.873   284 12551 I resolv  : doQuery: rcode=0, ancount=8, return value=168
+11-25 17:59:37.874   284 12550 I resolv  : resolv_cache_lookup: FOUND IN CACHE entry=0x7abcad8ef190
+11-25 17:59:37.874   284 12550 I resolv  : doQuery: rcode=0, ancount=8, return value=264
+11-25 17:59:37.874  7105  7466 D TrafficStats: tagSocket(188) with statsTag=0x401, statsUid=10120
+11-25 17:59:37.968  7105  7358 W GLSUser : [AppCertManager] Exception while requesting key: 
+11-25 17:59:37.968  7105  7358 W GLSUser : java.util.concurrent.ExecutionException: avvw: Parse Proto Exception.
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dlnv.s(:com.google.android.gms@231818047@23.18.18 (190800-535401451):3)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dlnv.get(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at oub.b(:com.google.android.gms@231818047@23.18.18 (190800-535401451):78)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at otz.b(:com.google.android.gms@231818047@23.18.18 (190800-535401451):4)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at otu.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at otx.a(:com.google.android.gms@231818047@23.18.18 (190800-535401451):6)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at lzq.call(:com.google.android.gms@231818047@23.18.18 (190800-535401451):14)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at aced.c(:com.google.android.gms@231818047@23.18.18 (190800-535401451):6)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at aced.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1137)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:637)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at acjn.run(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at java.lang.Thread.run(Thread.java:1012)
+11-25 17:59:37.968  7105  7358 W GLSUser : Caused by: avvw: Parse Proto Exception.
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at avwn.f(:com.google.android.gms@231818047@23.18.18 (190800-535401451):5)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at avxk.onSucceeded(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at jf.onSucceeded(:com.google.android.gms.dynamite_cronetdynamite@231818047@23.18.18 (190800-0):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at ie.run(:com.google.android.gms.dynamite_cronetdynamite@231818047@23.18.18 (190800-0):4)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	... 6 more
+11-25 17:59:37.968  7105  7358 W GLSUser : Caused by: dzfz: Protocol message contained an invalid tag (zero).
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzdb.k(:com.google.android.gms@231818047@23.18.18 (190800-535401451):13)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzha.c(:com.google.android.gms@231818047@23.18.18 (190800-535401451):47)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzha.h(:com.google.android.gms@231818047@23.18.18 (190800-535401451):45)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzfd.A(:com.google.android.gms@231818047@23.18.18 (190800-535401451):2)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzex.f(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzcx.d(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzcx.c(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at dzcx.n(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at avwn.h(:com.google.android.gms@231818047@23.18.18 (190800-535401451):7)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	at avwn.f(:com.google.android.gms@231818047@23.18.18 (190800-535401451):1)
+11-25 17:59:37.968  7105  7358 W GLSUser : 	... 9 more
+11-25 17:59:37.975  7105 12188 I NetworkScheduler.Stats: Task com.google.android.gms/com.google.android.gms.auth.account.be.legacy.AuthCronService finished executing. cause:5 result: 3 elapsed_millis: 350 uptime_millis: 350 exec_start_elapsed_seconds: 673 [CONTEXT service_id=218 ]
+11-25 17:59:38.308  1756  2447 I WorkerManager: dispose()
+11-25 17:59:38.308  1756  2447 W A       : Queue length for executor EventBus is now 11. Perhaps some tasks are too long, or the pool is too small.
+11-25 17:59:38.444 12374 12383 I natyosef.pickup: Compiler allocated 4355KB to compile void android.view.ViewRootImpl.performTraversals()
+11-25 17:59:38.918 12374 12393 D EGL_emulation: app_time_stats: avg=492.13ms min=460.54ms max=515.91ms count=3
+11-25 17:59:38.995 12554 12554 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:38.998 12554 12554 I AndroidRuntime: Using default boot image
+11-25 17:59:38.998 12554 12554 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:38.999 12554 12554 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:39.000 12554 12554 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:39.054 12554 12554 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:39.054 12554 12554 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:39.058 12554 12554 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:39.058 12554 12554 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:39.060 12554 12554 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:39.072 12554 12554 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:39.076 12554 12568 V UiAutomation: Init UiAutomation@4cc7b31[id=191, flags=0]
+11-25 17:59:39.076   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:39.078  1756  2159 I A       : NGA disabled due to not being eligible.
+11-25 17:59:39.078  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:39.079  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:39.079  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:39.079  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:39.079  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:39.080  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:39.080  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:39.080  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:39.080  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:39.091  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:39.092 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:39.102  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:39.102  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:39.102  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:39.102  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:39.102  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:39.103  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:39.103  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:39.103  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:39.918 12374 12393 D EGL_emulation: app_time_stats: avg=500.10ms min=499.81ms max=500.39ms count=2
+11-25 17:59:40.081 12554 12554 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:40.082  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:40.083  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:40.083  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:40.083  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:40.083  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:40.083 12554 12554 D AndroidRuntime: Shutting down VM
+11-25 17:59:40.085  1756  2111 I A       : NGA disabled due to not being eligible.
+11-25 17:59:40.086  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:40.087   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:40.088  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:40.089  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:40.089  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:40.918 12374 12393 D EGL_emulation: app_time_stats: avg=500.05ms min=490.73ms max=509.37ms count=2
+11-25 17:59:41.663 12572 12572 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:41.666 12572 12572 I AndroidRuntime: Using default boot image
+11-25 17:59:41.666 12572 12572 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:41.667 12572 12572 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:41.668 12572 12572 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:41.727 12572 12572 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:41.727 12572 12572 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:41.732 12572 12572 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:41.732 12572 12572 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:41.734 12572 12572 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:41.745 12572 12572 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:41.750  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:41.750   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:41.752  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:41.752  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:41.752  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:41.753  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:41.753  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:41.754  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:41.754  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:41.755  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:41.755  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:41.756 12572 12586 V UiAutomation: Init UiAutomation@cb44a6c[id=192, flags=0]
+11-25 17:59:41.757  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:41.757  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:41.757  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:41.757  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:41.757  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:41.757  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:41.758  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:41.758  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:41.758  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:41.758 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:42.418 12374 12393 D EGL_emulation: app_time_stats: avg=499.86ms min=499.69ms max=500.10ms count=3
+11-25 17:59:42.762 12572 12572 W AccessibilityNodeInfoDumper: Fetch time: 9ms
+11-25 17:59:42.765 12572 12572 D AndroidRuntime: Shutting down VM
+11-25 17:59:42.765  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:42.767   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:42.768  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:42.768  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:42.768  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:42.769  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:42.769  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:42.770  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:42.770  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:42.770  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:42.771  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:42.880   480  2141 I ActivityManager: Killing 4602:com.google.android.apps.maps/u0a145 (adj 975): empty #17
+11-25 17:59:42.881   480   515 I libprocessgroup: Successfully killed process cgroup uid 10145 pid 4602 in 0ms
+11-25 17:59:42.891   480   699 D ConnectivityService: releasing NetworkRequest [ REQUEST id=114, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10145 RequestorUid: 10145 RequestorPkg: com.google.android.apps.maps UnderlyingNetworks: Null] ] (release request)
+11-25 17:59:42.892   288   288 I Zygote  : Process 4602 exited due to signal 9 (Killed)
+11-25 17:59:42.947   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:42.947   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:43.918 12374 12393 D EGL_emulation: app_time_stats: avg=499.88ms min=490.81ms max=508.77ms count=3
+11-25 17:59:43.930   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:43.930   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:44.346 12590 12590 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:44.349 12590 12590 I AndroidRuntime: Using default boot image
+11-25 17:59:44.349 12590 12590 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:44.350 12590 12590 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:44.350 12590 12590 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:44.404 12590 12590 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:44.404 12590 12590 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:44.408 12590 12590 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:44.408 12590 12590 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:44.410 12590 12590 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:44.425 12590 12590 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:44.429   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:44.432  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:44.437  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:44.438  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:44.438  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:44.438  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:44.438  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:44.438  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:44.439  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:44.439  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:44.440  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:44.440 12590 12604 V UiAutomation: Init UiAutomation@49c19a7[id=193, flags=0]
+11-25 17:59:44.464 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:44.464  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:44.465  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:44.465  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:44.465  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:44.465  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:44.466  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:44.466  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:44.466  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:44.467  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:44.918 12374 12393 D EGL_emulation: app_time_stats: avg=499.99ms min=496.68ms max=503.30ms count=2
+11-25 17:59:45.474 12590 12590 W AccessibilityNodeInfoDumper: Fetch time: 37ms
+11-25 17:59:45.476  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:45.476  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:45.476  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:45.476   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:45.476  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:45.476  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:45.476  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:45.477  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:45.477  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:45.477  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:45.478  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:45.481 12590 12590 D AndroidRuntime: Shutting down VM
+11-25 17:59:45.497   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d9f10
+11-25 17:59:45.928 12374 12393 D EGL_emulation: app_time_stats: avg=504.71ms min=499.72ms max=509.69ms count=2
+11-25 17:59:47.111 12609 12609 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:47.114 12609 12609 I AndroidRuntime: Using default boot image
+11-25 17:59:47.114 12609 12609 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:47.115 12609 12609 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:47.115 12609 12609 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:47.171 12609 12609 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:47.171 12609 12609 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:47.174 12609 12609 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:47.174 12609 12609 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:47.176 12609 12609 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:47.188 12609 12609 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:47.192  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:47.193  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:47.193  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:47.193  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:47.193  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:47.193  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:47.194  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:47.194  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:47.194  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:47.194 12609 12623 V UiAutomation: Init UiAutomation@5eb3473[id=194, flags=0]
+11-25 17:59:47.197  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:47.198   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:47.203  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:47.203  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:47.203 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:47.204  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:47.204  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:47.204  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:47.205  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:47.205  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:47.205  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:47.207  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:47.418 12374 12393 D EGL_emulation: app_time_stats: avg=496.78ms min=490.16ms max=500.24ms count=3
+11-25 17:59:47.717   480   572 I ActivityManager: Killing 987:com.google.android.setupwizard/u0a116 (adj 985): empty #17
+11-25 17:59:47.718   480   572 I ActivityManager: Killing 1739:com.google.android.apps.youtube.music/u0a128 (adj 985): empty #18
+11-25 17:59:47.724   480   515 I libprocessgroup: Successfully killed process cgroup uid 10116 pid 987 in 0ms
+11-25 17:59:47.729   288   288 I Zygote  : Process 987 exited due to signal 9 (Killed)
+11-25 17:59:47.730   480  1684 I MediaSessionStack: removeSession | record: com.google.android.apps.youtube.music/YouTube playerlib (userId=0)
+11-25 17:59:47.730   480   699 D ConnectivityService: releasing NetworkRequest [ REQUEST id=46, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10128 RequestorUid: 10128 RequestorPkg: com.google.android.apps.youtube.music UnderlyingNetworks: Null] ] (release request)
+11-25 17:59:47.730   480   699 D ConnectivityService: releasing NetworkRequest [ REQUEST id=52, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10128 RequestorUid: 10128 RequestorPkg: com.google.android.apps.youtube.music UnderlyingNetworks: Null] ] (release request)
+11-25 17:59:47.730   480   699 D ConnectivityService: releasing NetworkRequest [ REQUEST id=66, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10128 RequestorUid: 10128 RequestorPkg: com.google.android.apps.youtube.music UnderlyingNetworks: Null] ] (release request)
+11-25 17:59:47.731   480   515 I libprocessgroup: Successfully killed process cgroup uid 10128 pid 1739 in 0ms
+11-25 17:59:47.732   288   288 I Zygote  : Process 1739 exited due to signal 9 (Killed)
+11-25 17:59:47.733  3792  3792 V MediaPlayerList: onActiveSessionsChanged: number of controllers: 1
+11-25 17:59:47.734  3792  3792 D MediaPlayerList: onActiveSessionsChanged: controller: com.google.android.googlequicksearchbox
+11-25 17:59:47.734  3792  3792 D MediaPlayerList: Already have a controller for the player: com.google.android.googlequicksearchbox, updating instead
+11-25 17:59:47.736  3792  3792 D MediaPlayerList: sendMediaUpdate
+11-25 17:59:47.736  3792  3792 I MediaPlayerList: sendMediaUpdate: Creating a one item queue for a player with no queue
+11-25 17:59:47.736  3792  3792 D MediaPlayerList: sendMediaUpdate state=PlaybackState {state=0, position=0, buffered position=0, speed=0.0, updated=57406, actions=2409991, custom actions=[Action:mName='Rewind 10 seconds, mIcon=2131234345, mExtras=null, Action:mName='Fast forward 30 second, mIcon=2131234125, mExtras=null, Action:mName='Skip to next episode, mIcon=2131234405, mExtras=null], active item id=-1, error=null}
+11-25 17:59:47.736  3792  3792 D AvrcpNativeInterface: sendMediaUpdate: metadata=false playStatus=false queue=false
+11-25 17:59:47.739  3792  3792 D AvrcpTargetJni: sendMediaUpdateNative
+11-25 17:59:47.744  3792  3792 I bt_stack: [INFO:avrcp_service.cc(423)] virtual void bluetooth::avrcp::AvrcpService::SendMediaUpdate(bool, bool, bool) track_changed=0 :  play_state=0 :  queue=0
+11-25 17:59:48.208 12609 12609 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:48.209  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:48.210  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:48.210  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:48.210  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:48.210  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:48.210 12609 12609 D AndroidRuntime: Shutting down VM
+11-25 17:59:48.211  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:48.211  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:48.211  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:48.211  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:48.222  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:48.223   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:48.233   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d90d0
+11-25 17:59:48.427 12374 12393 D EGL_emulation: app_time_stats: avg=504.28ms min=499.78ms max=508.78ms count=2
+11-25 17:59:48.879   480  1671 D WifiNl80211Manager: Scan result ready event
+11-25 17:59:48.880   480  1671 D WifiNative: Scan result ready event
+11-25 17:59:49.457  7187 12626 I GmscoreIpa: Starting mediastore instant index [CONTEXT service_id=255 ]
+11-25 17:59:49.471   480  1671 D CompatibilityChangeReporter: Compat change id reported: 182734110; UID 10120; state: ENABLED
+11-25 17:59:49.475   480  1671 D CompatibilityChangeReporter: Compat change id reported: 149924527; UID 10120; state: ENABLED
+11-25 17:59:49.476   480  1671 D CompatibilityChangeReporter: Compat change id reported: 132649864; UID 10120; state: DISABLED
+11-25 17:59:49.797 12628 12628 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:49.800 12628 12628 I AndroidRuntime: Using default boot image
+11-25 17:59:49.800 12628 12628 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:49.801 12628 12628 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:49.801 12628 12628 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:49.855 12628 12628 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:49.855 12628 12628 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:49.859 12628 12628 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:49.859 12628 12628 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:49.861 12628 12628 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:49.872 12628 12628 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:49.876   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:49.876  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:49.878  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:49.878 12628 12642 V UiAutomation: Init UiAutomation@1c91db4[id=195, flags=0]
+11-25 17:59:49.879  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:49.879  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:49.879  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:49.880  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:49.880  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:49.883  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:49.883  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:49.883  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:49.910 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:49.919  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:49.919  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:49.920  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:49.920  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:49.920  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:49.921  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:49.921  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:49.923  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:49.923  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:49.938 12374 12393 D EGL_emulation: app_time_stats: avg=503.73ms min=490.93ms max=520.30ms count=3
+11-25 17:59:49.952   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:50.883 12628 12628 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:50.889  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:50.889   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:50.890 12628 12628 D AndroidRuntime: Shutting down VM
+11-25 17:59:50.891  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:50.891  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:50.891  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:50.891  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:50.892  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:50.892  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:50.892  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:50.892  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:50.893  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:50.923   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d6af0
+11-25 17:59:50.971 12374 12393 D EGL_emulation: app_time_stats: avg=516.59ms min=496.37ms max=536.81ms count=2
+11-25 17:59:50.984   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:52.436 12374 12393 D EGL_emulation: app_time_stats: avg=488.00ms min=463.18ms max=501.16ms count=3
+11-25 17:59:52.510 12645 12645 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:52.513 12645 12645 I AndroidRuntime: Using default boot image
+11-25 17:59:52.513 12645 12645 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:52.514 12645 12645 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:52.515 12645 12645 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:52.567 12645 12645 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:52.567 12645 12645 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:52.571 12645 12645 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:52.571 12645 12645 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:52.573 12645 12645 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:52.584 12645 12645 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:52.587   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:52.588  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:52.589  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:52.589  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:52.589  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:52.590  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:52.590  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:52.590  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:52.590  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:52.590  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:52.590  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:52.591 12645 12659 V UiAutomation: Init UiAutomation@9b0ecef[id=196, flags=0]
+11-25 17:59:52.593  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:52.594 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:52.594  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:52.594  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:52.594  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:52.594  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:52.594  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:52.594  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:52.595  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:52.595  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:52.623   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:52.623   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:53.298     0     0 I         : kworker/dying (200) used greatest stack depth: 10808 bytes left
+11-25 17:59:53.594 12645 12645 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:53.596  1624  4534 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:53.596  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:53.597  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:53.597  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:53.597  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:53.598  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:53.598  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:53.598  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:53.598  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:53.599 12645 12645 D AndroidRuntime: Shutting down VM
+11-25 17:59:53.600   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:53.601  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:53.613   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8d6610
+11-25 17:59:53.943 12374 12393 D EGL_emulation: app_time_stats: avg=502.51ms min=499.04ms max=508.60ms count=3
+11-25 17:59:55.183 12662 12662 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:55.186 12662 12662 I AndroidRuntime: Using default boot image
+11-25 17:59:55.186 12662 12662 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:55.188 12662 12662 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:55.188 12662 12662 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:55.244 12662 12662 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:55.244 12662 12662 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:55.248 12662 12662 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:55.248 12662 12662 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:55.250 12662 12662 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:55.262 12662 12662 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:55.267   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:55.267  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:55.269  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:55.269  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:55.269  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:55.270  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:55.270  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:55.270  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:55.270  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:55.271  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:55.271  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:55.272 12662 12676 V UiAutomation: Init UiAutomation@198bc2a[id=197, flags=0]
+11-25 17:59:55.273  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:55.273  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:55.273  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:55.273  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:55.274  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:55.274 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:55.274  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:55.274  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:55.275  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:55.275  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:55.281   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:55.281   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:55.298   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:55.298   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:55.438 12374 12393 D EGL_emulation: app_time_stats: avg=498.06ms min=490.54ms max=502.04ms count=3
+11-25 17:59:56.272 12662 12662 W AccessibilityNodeInfoDumper: Fetch time: 2ms
+11-25 17:59:56.275  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:56.276  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:56.276 12662 12662 D AndroidRuntime: Shutting down VM
+11-25 17:59:56.276  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:56.276  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:56.276  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:56.277  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:56.277  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:56.277  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:56.277  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:56.280  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:56.299   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:56.458 12374 12393 D EGL_emulation: app_time_stats: avg=509.87ms min=496.76ms max=522.98ms count=2
+11-25 17:59:57.153 12681 12681 W ProcessState: Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+11-25 17:59:57.160   127   127 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+11-25 17:59:57.160 12681 12682 I Gralloc4: mapper 4.x is not supported
+11-25 17:59:57.182 12681 12682 D HostConnection: HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_vulkan_queue_submit_with_commands ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_multi_configs ANDROID_EMU_hwc_color_transform ANDROID_EMU_hwc_display_power_mode GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+11-25 17:59:57.433 12684 12684 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:57.439 12684 12684 I AndroidRuntime: Using default boot image
+11-25 17:59:57.440 12684 12684 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:57.441 12684 12684 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:57.442 12684 12684 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:57.519 12684 12684 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:57.520 12684 12684 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:57.524 12684 12684 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:57.524 12684 12684 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:57.526 12684 12684 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:57.538 12684 12684 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:57.543  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:57.543   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:57.545 12684 12698 V UiAutomation: Init UiAutomation@6ddf0fc[id=198, flags=0]
+11-25 17:59:57.546  1756  2139 I A       : NGA disabled due to not being eligible.
+11-25 17:59:57.555  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:57.556  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:57.556  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:57.556  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:57.557  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:57.557  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:57.560  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:57.560  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:57.561  1624  1681 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:57.561  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:57.561  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:57.562  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:57.562  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:57.562  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:57.562  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:57.573  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:57.573  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:57.591 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:57.938 12374 12393 D EGL_emulation: app_time_stats: avg=493.33ms min=477.05ms max=503.07ms count=3
+11-25 17:59:58.548 12684 12684 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 17:59:58.549  1624  3789 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:58.550 12684 12684 D AndroidRuntime: Shutting down VM
+11-25 17:59:58.552  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 17:59:58.552   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 17:59:58.555  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:58.555  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:58.555  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:58.555  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:58.556  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:58.556  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:58.556  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:58.556  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:58.564   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:58.564   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:58.564   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:58.564   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:58.564   361   372 W TransactionTracing: Could not find layer id -1
+11-25 17:59:58.943 12374 12393 D EGL_emulation: app_time_stats: avg=502.45ms min=496.31ms max=508.59ms count=2
+11-25 17:59:59.431 12703 12703 W ProcessState: Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+11-25 17:59:59.446   127   127 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+11-25 17:59:59.446 12703 12704 I Gralloc4: mapper 4.x is not supported
+11-25 17:59:59.516 12703 12704 D HostConnection: HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_vulkan_queue_submit_with_commands ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_multi_configs ANDROID_EMU_hwc_color_transform ANDROID_EMU_hwc_display_power_mode GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+11-25 17:59:59.764 12706 12706 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-25 17:59:59.767 12706 12706 I AndroidRuntime: Using default boot image
+11-25 17:59:59.767 12706 12706 I AndroidRuntime: Leaving lock profiling enabled
+11-25 17:59:59.768 12706 12706 I app_process: Core platform API reporting enabled, enforcing=false
+11-25 17:59:59.769 12706 12706 I app_process: Using CollectorTypeCC GC.
+11-25 17:59:59.823 12706 12706 D app_process: Time zone APEX ICU file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+11-25 17:59:59.823 12706 12706 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt70l.dat
+11-25 17:59:59.827 12706 12706 W app_process: Unexpected CPU variant for x86: x86_64.
+11-25 17:59:59.827 12706 12706 W app_process: Known variants: atom, sandybridge, silvermont, kabylake, default
+11-25 17:59:59.829 12706 12706 W app_process: ClassLoaderContext classpath size mismatch. expected=0, found=1 (PCL[] | PCL[/system/framework/android.test.runner.jar*2649186567])
+11-25 17:59:59.841 12706 12706 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-25 17:59:59.846  1624  3789 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:59.846   480   480 D BatterySaverPolicy: accessibility changed to true, updating policy.
+11-25 17:59:59.855  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:59.855  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:59.855  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:59.855  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:59.855  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:59.855  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:59.855  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:59.855  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:59.865  1756  2159 I A       : NGA disabled due to not being eligible.
+11-25 17:59:59.870 12706 12720 V UiAutomation: Init UiAutomation@bd00cef[id=199, flags=0]
+11-25 17:59:59.885  1624  3789 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 17:59:59.886 12135 12135 V SafetyCenterAccessibilityListener: accessibility event occurred, safety center feature not enabled.
+11-25 17:59:59.888  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:59.888  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:59.888  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 17:59:59.888  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 17:59:59.889  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:59.889  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:59.889  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 17:59:59.889  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 17:59:59.957 12374 12393 D EGL_emulation: app_time_stats: avg=507.28ms min=491.95ms max=522.62ms count=2
+11-25 18:00:00.005  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 18:00:00.005  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 18:00:00.005  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 18:00:00.005  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 18:00:00.032   759   812 D EGL_emulation: app_time_stats: avg=44414.92ms min=44414.92ms max=44414.92ms count=1
+11-25 18:00:00.268   480   572 W DeviceIdleController: motion timeout went off and device isn't stationary
+11-25 18:00:00.280  7187 12723 I ChimeraConfigurator: Starting update, reason: 4 urgentFeatures: vision.ocr:-1
+11-25 18:00:00.288  7187 12723 I ChimeraConfigurator: Detected pending changes for urgent request: [vision.ocr]. Pending module sets: container:2318189190800+mlkit.ocr.common,tflite_dynamite:2640104055100800+tflite_dynamite,vision_ocr:2316024025100000+vision.ocr
+11-25 18:00:00.291  7187 12723 I GmsDebugLogger: [73] 1801
+11-25 18:00:00.292  7187 12723 W ZappDownloader: No successful module downloads for requested features [vision.ocr].
+11-25 18:00:00.292  7187 12723 I GmsDebugLogger: [30] [VisionOcrDynamite.integ:231602402100000],[TfliteDynamiteDynamite.integ:264010405100800],[MlkitOcrCommon.optional:231818100800]
+11-25 18:00:00.294  7187 12723 W ChimeraConfigService: Retry attempt was throttled. [CONTEXT service_id=264 ]
+11-25 18:00:00.294  7187 12723 I GmsDebugLogger: [83] 1 [vision.ocr]
+11-25 18:00:00.296  7187 12722 W Vision  : Request for optional module download of ocr failed. Request again.
+11-25 18:00:00.297  7187 12722 W Vision  : Would have logged:
+11-25 18:00:00.297  7187 12722 W Vision  : # dsae@37884fe7
+11-25 18:00:00.297  7187 12722 I Vision  : Schedule retrying download ocr at 696357 with backoff 160 seconds
+11-25 18:00:00.852 12706 12706 W AccessibilityNodeInfoDumper: Fetch time: 1ms
+11-25 18:00:00.856  1624  4479 I AiAiEcho: Settings cha with uri: content://settings/secure/accessibility_enabled
+11-25 18:00:00.857 12706 12706 D AndroidRuntime: Shutting down VM
+11-25 18:00:00.857  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 18:00:00.857  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 18:00:00.858  1624  2017 I AiAiEcho: Predicting[0]: 
+11-25 18:00:00.858  1624  2017 I AiAiEcho: Ranked targets strategy: SORT, count: 0, ranking metadata: 
+11-25 18:00:00.858  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 18:00:00.859  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 18:00:00.860  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0
+11-25 18:00:00.861  1756  2160 I A       : NGA disabled due to not being eligible.
+11-25 18:00:00.862   480   480 D BatterySaverPolicy: accessibility changed to false, updating policy.
+11-25 18:00:00.863  1624  2017 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0
+11-25 18:00:00.884   361   372 W TransactionTracing: Could not find layer handle 0x728e6f8da210
+11-25 18:00:00.959 12374 12393 D EGL_emulation: app_time_stats: avg=499.42ms min=473.97ms max=524.87ms count=2
+11-25 18:00:01.924     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12729 n tail=0 logMask=10 pid=0 start=0ns deadline=0ns
+11-25 18:00:01.937     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12732 n tail=0 logMask=99 pid=0 start=0ns deadline=0ns
+11-25 18:00:01.953     0     0 I logd    : logdr: UID=2000 GID=2000 PID=12735 n tail=0 logMask=99 pid=0 start=0ns deadline=0ns
