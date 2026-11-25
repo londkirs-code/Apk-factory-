@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace 'com.londkirs.apkbridge'
-    compileSdk 36
+    compileSdk 35
     defaultConfig {
         applicationId 'com.londkirs.apkbridge'
         minSdk 30
