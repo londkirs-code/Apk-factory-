@@ -1,5 +1,6 @@
 package com.londkirs.chullin.ui;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.content.Context;
@@ -17,8 +18,6 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import androidx.appcompat.app.AppCompatActivity;
 
 import com.londkirs.chullin.core.Completion;
 import com.londkirs.chullin.core.DailyPage;
@@ -41,7 +40,7 @@ import java.util.Map;
  * מסך הלימוד היומי. ה-UI נבנה בקוד (ללא XML) כדי לשמור על כל הלוגיקה בקבצי Java פשוטים.
  * כל הכללים (מצבי גמר, חזרות, עמוד יומי, לוח עברי) נמצאים בחבילת core.
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
 
     private static final String PREFS = "chullin";
     private static final String KEY_SETTINGS = "chullin_settings";
