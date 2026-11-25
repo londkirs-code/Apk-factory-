@@ -179,6 +179,9 @@ public class MainActivity extends Activity {
     private SeekBar displaySizeSlider;
     private String focusRestoreKey;
     private boolean combinedView = false;
+    /** תצוגת כמה רשימות יחד: כל רשימה שנבחרה נחשבת כמו משתמש נפרד בתצוגה המאוחדת / לפי משתמש. */
+    private static final String PREF_LIST_GROUP = "list_group", PREF_LIST_GROUP_ACTIVE = "list_group_active";
+    private static final String GROUP_PART_PREFIX = "list:";
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
     private volatile int authGeneration = 0;
@@ -1278,7 +1281,7 @@ public class MainActivity extends Activity {
     private void toggleListViewMode() {
         if (sourceRegistry == null) return;
         if (syncAllRunning) { showActionToast("אפשר להחליף תצוגה בסיום הסנכרון"); return; }
-        if (listSourceCount() <= 1) { showActionToast("יש חשבון אחד בלבד, ושתי התצוגות זהות"); return; }
+        if (!listGroupActive() && listSourceCount() <= 1) { showActionToast("יש חשבון אחד בלבד, ושתי התצוגות זהות"); return; }
         String next = "COMBINED_SUM".equals(sourceRegistry.viewMode())
                 ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
         sourceRegistry.setViewMode(next);
@@ -1413,7 +1416,8 @@ public class MainActivity extends Activity {
         root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         screen = Screen.NONE; // presentScreen לא ידרוס את המיקום שנשמר כבר
         presentScreen(root, Screen.HOME);
-        combinedView = !showingSavedList && sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning;
+        combinedView = listGroupActive()
+                || (!showingSavedList && sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning);
         if (combinedView) loadCombinedSnapshot();
         else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
         if (products.isEmpty() && !loadData && (messageText == null || messageText.getVisibility() != View.VISIBLE))
@@ -1805,7 +1809,8 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
+            "• הצגת כמה רשימות יחד: כל רשימה נחשבת כמו משתמש, ואפשר לעבור בין תצוגה מאוחדת לתצוגה לפי רשימה.\n"
+            + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
             + "• רשימה ששותפה בענן מציגה את המספר שלה (☁️) ליד השם, בכותרת ובפעולות של הרשימה.\n"
             + "• מדריך המקשים בהגדרות: תמונה במסך מלא. אישור או 5 מגדילים, 2/4/6/8 מזיזים, וכל מקש אחר סוגר.\n"
             + "• שיתוף בענן: כל רשימה מקבלת מספר (1 עד 1000) לשבוע, ומכל מכשיר אפשר להביא אותה לפי המספר. רק המוצרים משותפים, בלי שמות חשבונות.\n"
@@ -2533,8 +2538,10 @@ public class MainActivity extends Activity {
             addSourceAction(panel, dialog, "הזמנות קודמות מהאתר", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
         addSourceAction(panel, dialog, "יצירת רשימה חדשה", this::createNewSavedList);
         addSourceAction(panel, dialog, "הבאה מהענן לפי מספר", this::showCloudFetchDialog);
-        if (savedListStore.list().size() >= 2)
+        if (savedListStore.list().size() >= 2) {
+            addSourceAction(panel, dialog, "הצגת כמה רשימות יחד", this::showListGroupDialog);
             addSourceAction(panel, dialog, "איחוד רשימות", this::showMergeListsDialog);
+        }
         addSourceAction(panel, dialog, "כל הרשימות השמורות", () -> showSavedListsScreen(Screen.HOME));
     }
 
@@ -2830,6 +2837,16 @@ public class MainActivity extends Activity {
         settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
         panel.addView(tileRow(history, create, merge, cloud, settings), Ui.row(this, Ui.S2, 0));
 
+        if (entries.size() >= 2) {
+            Button together = Ui.button(this, listGroupActive() ? "שינוי הרשימות המוצגות יחד" : "הצגת כמה רשימות יחד", Ui.Kind.SOFT);
+            together.setOnClickListener(v -> { dialog.dismiss(); showListGroupDialog(); });
+            panel.addView(together, Ui.row(this, Ui.S2, 0));
+        }
+        if (listGroupActive()) {
+            Button leave = Ui.button(this, "יציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
+            leave.setOnClickListener(v -> { dialog.dismiss(); leaveListGroup(); showHomeScreen(false); });
+            panel.addView(leave, Ui.row(this, Ui.S1, 0));
+        }
         if (showingSavedList && !connectedAccounts().isEmpty()) {
             Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
             latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
@@ -2927,6 +2944,7 @@ public class MainActivity extends Activity {
 
     /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */
     private void returnToLatestOrder() {
+        leaveListGroup();
         showingSavedList = false;
         if (listSourceCount() > 1) { showHomeScreen(false); syncAllAccounts(); return; }
         if (accessToken.isEmpty()) {
@@ -3417,6 +3435,7 @@ public class MainActivity extends Activity {
     }
 
     private void openSavedList(SavedListStore.Entry entry) {
+        leaveListGroup();
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
         String archiveId=entry.id;
         try{
@@ -3503,7 +3522,7 @@ public class MainActivity extends Activity {
         Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת", unifiedMode);
         Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון", !unifiedMode);
         // עם חשבון אחד בלבד שתי התצוגות זהות, ולכן הכפתורים מוסתרים (המקום נשמר כדי שהשם יישאר באמצע).
-        boolean multipleSources = sourceRegistry != null && listSourceCount() > 1;
+        boolean multipleSources = sourceRegistry != null && (listGroupActive() ? listGroup().size() > 1 : listSourceCount() > 1);
         unified.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
         byAccount.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
 
@@ -3886,6 +3905,7 @@ public class MainActivity extends Activity {
 
     private void syncAllAccounts() {
         if (syncAllRunning) return;
+        leaveListGroup();
         showingSavedList=false;
         syncQueue.clear();
         for (SourceRegistry.Source source : sourceRegistry.all()) {
@@ -5080,7 +5100,50 @@ public class MainActivity extends Activity {
         Set<String> orderNames = new java.util.LinkedHashSet<>();
         combinedPickupInfos.clear();
         currentPickupInfo = null;
-        for (SourceRegistry.Source source : sourceRegistry.all()) {
+        boolean group = listGroupActive();
+        if (group) {
+            List<String> names = new ArrayList<>();
+            for (String entryId : listGroup()) {
+                SavedListStore.Entry entry = findSavedEntry(entryId);
+                if (entry == null) continue;
+                try {
+                    JSONObject snapshot = savedListStore.readEntry(entryId);
+                    JSONArray rows = snapshot.optJSONArray("products");
+                    if (rows == null) continue;
+                    String label = displayTitle(entry);
+                    names.add(label);
+                    JSONObject savedInfo = snapshot.optJSONObject("pickup_info");
+                    if (savedInfo != null) combinedPickupInfos.add(new JSONObject(savedInfo.toString()).put("_source_label", label));
+                    Set<String> ticks = new HashSet<>();
+                    JSONObject partials = new JSONObject();
+                    try {
+                        JSONArray saved = new JSONArray(snapshot.optString("_collected_ticks", "[]"));
+                        for (int i = 0; i < saved.length(); i++) ticks.add(saved.optString(i, ""));
+                        partials = new JSONObject(snapshot.optString("_partial_quantities", "{}"));
+                    } catch (Exception ignored) { }
+                    for (int i = 0; i < rows.length(); i++) {
+                        JSONObject o = rows.optJSONObject(i); if (o == null) continue;
+                        String imageFile = first(o, "image_file"), imagePath = "";
+                        if (!imageFile.isEmpty()) { File image = new File(imageFile); if (image.isFile() && image.length() > 0) imagePath = image.getAbsolutePath(); }
+                        ProductRow original = new ProductRow(first(o, "key"), first(o, "name"), first(o, "image_url"), first(o, "amount"),
+                                first(o, "note"), imagePath, first(o, "category"), o.optInt("category_order", 0));
+                        if (original.key.isEmpty() || original.name.isEmpty()) continue;
+                        boolean done = ticks.contains(DataGuard.tick(original));
+                        double partial = done ? parseQuantity(original.amount) : Math.max(0, partials.optDouble(original.key, 0));
+                        String partId = GROUP_PART_PREFIX + entryId;
+                        SourcePart part = new SourcePart(partId, entry.orderId, original, done, partial, label);
+                        // במאוחד: מוצר זהה מכל הרשימות בשורה אחת (לפי שם). לפי משתמש: שורה לכל רשימה.
+                        String displayKey = "COMBINED_SUM".equals(sourceRegistry.viewMode())
+                                ? "n:" + original.name.trim().toLowerCase(Locale.ROOT) : partId + "__" + original.key;
+                        java.util.List<SourcePart> list = grouped.get(displayKey);
+                        if (list == null) { list = new ArrayList<>(); grouped.put(displayKey, list); }
+                        list.add(part);
+                    }
+                } catch (Exception ignored) { }
+            }
+            orderNames.add(names.size() <= 2 ? android.text.TextUtils.join(" + ", names) : names.size() + " רשימות יחד");
+        }
+        if (!group) for (SourceRegistry.Source source : sourceRegistry.all()) {
             File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
             File manifest = new File(root, "order.json");
             if (!manifest.isFile()) continue;
@@ -5163,6 +5226,105 @@ public class MainActivity extends Activity {
         else showSyncMessage("", false);
     }
 
+    /** שומר את מצב האיסוף של מוצר אחד בתוך הרשימה השמורה שלו (תצוגת כמה רשימות יחד). */
+    private void saveGroupPart(SourcePart part) {
+        String entryId = part.sourceId.substring(GROUP_PART_PREFIX.length());
+        try {
+            JSONObject data = savedListStore.readEntry(entryId);
+            Set<String> ticks = new HashSet<>();
+            JSONArray a = new JSONArray(data.optString("_collected_ticks", "[]"));
+            for (int i = 0; i < a.length(); i++) ticks.add(a.optString(i, ""));
+            JSONObject partials = new JSONObject(data.optString("_partial_quantities", "{}"));
+            String tick = DataGuard.tick(part.product);
+            if (part.collected) { ticks.add(tick); partials.remove(part.product.key); }
+            else {
+                ticks.remove(tick);
+                if (part.partialQuantity > 0) partials.put(part.product.key, part.partialQuantity);
+                else partials.remove(part.product.key);
+            }
+            JSONArray saved = new JSONArray(); for (String t : ticks) saved.put(t);
+            savedListStore.setProgress(entryId, saved.toString(), partials.toString());
+        } catch (Exception ignored) { }
+    }
+
+    private List<String> listGroup() {
+        List<String> ids = new ArrayList<>();
+        if (uiPreferences == null) return ids;
+        try {
+            JSONArray a = new JSONArray(uiPreferences.getString(PREF_LIST_GROUP, "[]"));
+            for (int i = 0; i < a.length(); i++) ids.add(a.optString(i, ""));
+        } catch (Exception ignored) { }
+        return ids;
+    }
+
+    private boolean listGroupActive() {
+        return uiPreferences != null && uiPreferences.getBoolean(PREF_LIST_GROUP_ACTIVE, false) && !listGroup().isEmpty();
+    }
+
+    private void setListGroup(List<String> ids, boolean active) {
+        JSONArray a = new JSONArray(); for (String id : ids) a.put(id);
+        uiPreferences.edit().putString(PREF_LIST_GROUP, a.toString()).putBoolean(PREF_LIST_GROUP_ACTIVE, active).apply();
+    }
+
+    /** יציאה מתצוגת כמה רשימות יחד (הבחירה נשמרת לפעם הבאה). */
+    private void leaveListGroup() {
+        if (uiPreferences != null && uiPreferences.getBoolean(PREF_LIST_GROUP_ACTIVE, false))
+            uiPreferences.edit().putBoolean(PREF_LIST_GROUP_ACTIVE, false).apply();
+    }
+
+    /** בחירת כמה רשימות שמורות להצגה יחד; כל רשימה נחשבת כמו משתמש. */
+    private void showListGroupDialog() {
+        List<SavedListStore.Entry> entries = savedListStore.list();
+        if (entries.size() < 2) { showActionToast("צריך לפחות שתי רשימות שמורות"); return; }
+        Set<String> current = new HashSet<>(listGroup());
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "הצגת כמה רשימות יחד", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "סמנו רשימות. כל רשימה נחשבת כמו משתמש: אפשר לעבור בין תצוגה מאוחדת לתצוגה לפי רשימה. הסימונים נשמרים בכל רשימה.",
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        LinearLayout body = Ui.column(this);
+        final List<CheckBox> boxes = new ArrayList<>();
+        for (SavedListStore.Entry entry : entries) {
+            CheckBox box = new CheckBox(this);
+            box.setText(displayTitle(entry) + " · " + entry.itemCount + " פריטים");
+            box.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
+            box.setTextColor(Ui.INK);
+            if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
+            box.setBackground(Ui.focusFrame(this));
+            box.setPadding(Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2));
+            box.setTag(entry);
+            box.setChecked(current.contains(entry.id));
+            boxes.add(box);
+            body.addView(box, Ui.row(this, 0, 0));
+        }
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button show = Ui.button(this, "הצגה יחד", Ui.Kind.PRIMARY);
+        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        show.setOnClickListener(v -> {
+            List<String> chosen = new ArrayList<>();
+            for (CheckBox box : boxes) if (box.isChecked()) chosen.add(((SavedListStore.Entry) box.getTag()).id);
+            if (chosen.size() < 2) { showActionToast("יש לסמן לפחות שתי רשימות"); return; }
+            dialog.dismiss();
+            // הרשימה המוצגת עכשיו נשמרת קודם, כדי שהסימונים העדכניים שלה ייכנסו לתצוגה.
+            if (!combinedView && !currentOrderId.isEmpty()) archiveCurrentSnapshot(activeSourceId);
+            setListGroup(chosen, true);
+            showingSavedList = false;
+            showHomeScreen(false);
+            showActionToast(chosen.size() + " רשימות מוצגות יחד");
+        });
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        panel.addView(buttonPair(show, cancel), Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.85f));
+        boxes.get(0).requestFocus();
+    }
+
     private static final String PREF_FAMILY_BREAKDOWN = "show_family_breakdown";
 
     private String combinedNote(java.util.List<SourcePart> parts) {
@@ -5196,6 +5358,7 @@ public class MainActivity extends Activity {
         final java.util.List<SourcePart> copy=new ArrayList<>(parts);
         cacheWorker.execute(() -> {
             for(SourcePart part:copy) {
+                if(part.sourceId.startsWith(GROUP_PART_PREFIX)){saveGroupPart(part);continue;}
                 if(sourceRegistry.find(part.sourceId)==null)continue;
                 SharedPreferences prefs=sourceRegistry.prefs(part.sourceId);
                 Set<String> values=new HashSet<>();JSONObject partials=new JSONObject();
@@ -5225,7 +5388,8 @@ public class MainActivity extends Activity {
         else{collected.remove(key);if(quantity>0)partialCollected.put(key,quantity);else partialCollected.remove(key);}
         final java.util.List<SourcePart> copy=new ArrayList<>(parts);
         cacheWorker.execute(()->{
-            for(SourcePart part:copy){if(sourceRegistry.find(part.sourceId)==null)continue;
+            for(SourcePart part:copy){if(part.sourceId.startsWith(GROUP_PART_PREFIX)){saveGroupPart(part);continue;}
+                if(sourceRegistry.find(part.sourceId)==null)continue;
                 SharedPreferences prefs=sourceRegistry.prefs(part.sourceId);Set<String> ticks=new HashSet<>();JSONObject partials=new JSONObject();
                 try{JSONArray a=new JSONArray(prefs.getString(DataGuard.COLLECTED_PREFIX+part.orderId,"[]"));
                     for(int i=0;i<a.length();i++)ticks.add(a.optString(i,""));

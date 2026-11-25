@@ -331,6 +331,18 @@ final class SavedListStore {
         return true;
     }
 
+    /** שמירת התקדמות האיסוף בתוך הרשימה השמורה (תצוגת כמה רשימות יחד). */
+    synchronized boolean setProgress(String id, String ticks, String partials) {
+        try {
+            File file = fileFor(id);
+            if (!file.isFile()) return false;
+            JSONObject data = read(file);
+            data.put("_collected_ticks", ticks == null ? "[]" : ticks);
+            data.put("_partial_quantities", partials == null ? "{}" : partials);
+            return writeAtomic(file, data);
+        } catch (Exception e) { return false; }
+    }
+
     synchronized boolean delete(String id) {
         File file = fileFor(id);
         return !file.exists() || file.delete();
