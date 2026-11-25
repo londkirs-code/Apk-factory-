@@ -17,7 +17,7 @@ android {
     packaging {
         resources {
             excludes += ['META-INF/versions/**']
-            pickFirsts += ['META-INF/LICENSE.md']
+            pickFirsts += ['META-INF/LICENSE*', 'META-INF/NOTICE*']
         }
     }
     compileOptions {
