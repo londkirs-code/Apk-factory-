@@ -22,8 +22,9 @@ import java.util.Set;
 final class CloudShare {
     private CloudShare() {}
 
-    /** כתובת ברירת המחדל של השרת. ריקה עד שהשרת נפרס; אפשר לעקוף בהגדרות. */
-    static final String DEFAULT_URL = "";
+    /** כתובת ברירת המחדל של השרת (הפריסה של Apps Script). אפשר לעקוף בהגדרות. */
+    static final String DEFAULT_URL =
+            "https://script.google.com/macros/s/AKfycbxZF2NiDL80aY8mTf4pYmeyvmliWT_sj67RAOkc_emJL3Xcz4fk2wXc4mpMPZlcvpshSQ/exec";
     static final int MIN_NUMBER = 1, MAX_NUMBER = 1000;
 
     static final class Uploaded {
