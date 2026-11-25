@@ -139,12 +139,20 @@
       "seconds": 1
     },
     {
-      "action": "assert_text",
-      "text": "נאספו חלקית"
+      "action": "scroll_to",
+      "text": "נאספו חלקית",
+      "max_swipes": 5,
+      "note": "the partial card sits in the collected section, below the fold"
     },
     {
       "action": "screenshot",
       "name": "partial-collected"
+    },
+    {
+      "action": "scroll_to",
+      "text": "נאספו 1 מתוך",
+      "direction": "down",
+      "max_swipes": 5
     },
     {
       "action": "tap",

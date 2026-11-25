@@ -218,6 +218,12 @@ final class Ui {
 
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {
         Context c=v.root.getContext(); v.name.setText(name); v.note.setText(note);
+        // Names/notes that start with Latin text (e.g. "Pasta", "whole wheat") would otherwise get an
+        // LTR paragraph: left-aligned and with scrambled brackets inside the RTL card.
+        if (android.os.Build.VERSION.SDK_INT >= 17) {
+            v.name.setTextDirection(View.TEXT_DIRECTION_RTL);
+            v.note.setTextDirection(View.TEXT_DIRECTION_RTL);
+        }
         v.note.setVisibility(note==null||note.isEmpty()?View.GONE:View.VISIBLE);
         v.amount.setText(amount);
         int flags=v.name.getPaintFlags();
