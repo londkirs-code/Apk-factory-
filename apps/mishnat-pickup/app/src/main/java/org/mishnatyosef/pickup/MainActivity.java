@@ -2034,7 +2034,8 @@ public class MainActivity extends Activity {
             boolean connected = !imported && secretStore.get(source.id) != null;
             String status = imported ? "מיובאת" : (connected ? (source.id.equals(activeSourceId) ? "פעיל ✓" : "מחובר") : "מנותק");
             String label = source.label == null || source.label.trim().isEmpty() ? "חיבור ללא שם" : source.label.trim();
-            Button item = Ui.gridButton(this, label, source.id.equals(activeSourceId) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+            // כל הכפתורים בהגדרות באותו רקע; החשבון הפעיל מסומן בטקסט "פעיל ✓".
+            Button item = Ui.gridButton(this, label, Ui.Kind.SOFT);
             android.text.SpannableString text = new android.text.SpannableString("👤\n" + label + "\n" + status);
             text.setSpan(new android.text.style.RelativeSizeSpan(1.6f), 0, 2, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             text.setSpan(new android.text.style.RelativeSizeSpan(0.8f), text.length() - status.length(), text.length(),
@@ -2068,7 +2069,7 @@ public class MainActivity extends Activity {
         cloudServer.setOnClickListener(v -> showCloudServerDialog());
         Button clearImages = Ui.gridButton(this, "מחיקת מטמון התמונות", Ui.Kind.SOFT);
         clearImages.setOnClickListener(v -> confirmClearImageCache());
-        Button clear = Ui.gridButton(this, "מחיקת כל הנתונים", Ui.Kind.STRONG);
+        Button clear = Ui.gridButton(this, "מחיקת כל הנתונים", Ui.Kind.SOFT); // מוגן בחלון אישור
         clear.setOnClickListener(v -> confirmClearSavedData());
         addGridButtons(data, importFile, cloudServer, clearImages, clear);
         TextView dataStatus = Ui.text(this, (cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר")
@@ -2120,11 +2121,12 @@ public class MainActivity extends Activity {
         // ערכת צבעים: יום / לילה / לפי המכשיר.
         LinearLayout theme = settingsCard(content, "🌙 מצב לילה");
         String mode = uiPreferences.getString(PREF_THEME, "light");
-        Button light = Ui.gridButton(this, "בהיר", "light".equals(mode) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+        // אותו רקע לכולם; הבחירה הנוכחית מסומנת ב-✓.
+        Button light = Ui.gridButton(this, "light".equals(mode) ? "בהיר ✓" : "בהיר", Ui.Kind.SOFT);
         light.setOnClickListener(v -> setThemeMode("light"));
-        Button night = Ui.gridButton(this, "כהה", "dark".equals(mode) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+        Button night = Ui.gridButton(this, "dark".equals(mode) ? "כהה ✓" : "כהה", Ui.Kind.SOFT);
         night.setOnClickListener(v -> setThemeMode("dark"));
-        Button system = Ui.gridButton(this, "לפי המכשיר", "system".equals(mode) ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+        Button system = Ui.gridButton(this, "system".equals(mode) ? "לפי המכשיר ✓" : "לפי המכשיר", Ui.Kind.SOFT);
         system.setOnClickListener(v -> setThemeMode("system"));
         addGridButtons(theme, light, night, system);
 
