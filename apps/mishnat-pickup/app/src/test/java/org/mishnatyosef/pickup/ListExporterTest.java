@@ -117,7 +117,7 @@ public class ListExporterTest {
     @Test public void familyNameTravelsInEveryFormat() throws Exception {
         assertFamilies(parse(ListExporter.json(twoFamilies(), null).toString().getBytes(StandardCharsets.UTF_8)));
         String text = ListExporter.text(twoFamilies());
-        assertTrue(text.contains("#### משפחה: משפחת כהן"));
+        assertTrue(text.contains("\n## מכירת חנוכה | משפחת כהן\n"));
         assertFamilies(parse(text.getBytes(StandardCharsets.UTF_8)));
         List<String> chunks = ListExporter.qrChunks(twoFamilies(), 120);
         StringBuilder joined = new StringBuilder();

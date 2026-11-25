@@ -62,22 +62,6 @@ final class ImportParser {
         int total=0;
         for(int i=0;i<lines.length;i++) {
             String line=lines[i]==null?"":lines[i].trim();
-            if(line.startsWith("#### ")) {
-                // שם המשפחה של הרשימה ("#### משפחה: כהן"). אותה רשימה עם משפחה אחרת = רשימה נפרדת.
-                String family=clean(line.substring(5));
-                if(family.startsWith("משפחה:"))family=clean(family.substring(6));
-                if(family.length()>200)family=family.substring(0,200);
-                if(family.isEmpty()||family.equals(list.accountName))continue;
-                if(TEXT_ACCOUNT.equals(list.accountName)&&list.items.isEmpty()){list.accountName=family;continue;}
-                ImportedList same=null;
-                for(ImportedList previous:lists)if(previous.orderName.equals(list.orderName)&&family.equals(previous.accountName)){same=previous;break;}
-                if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
-                if(same!=null){list=same;ids=idsByList.get(same);continue;}
-                if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
-                list=newTextList(list.orderName,lists.size());list.accountName=family;
-                ids=new HashSet<>();idsByList.put(list,ids);
-                continue;
-            }
             if(line.startsWith("### ")) {
                 // קטגוריה למוצרים שאחריה (פורמט קומפקטי, למשל מקוד QR). "-" = בלי קטגוריה.
                 String category=clean(line.substring(4));
@@ -85,18 +69,23 @@ final class ImportParser {
                 continue;
             }
             if(line.startsWith("## ")) {
-                // רשימה חדשה באותו קובץ. רשימה באותו שם ממשיכה את הקודמת (למשל כמה קודי QR של אותה הזמנה).
-                String name=clean(line.substring(3));
+                // "## שם הרשימה | שם המשפחה" (המשפחה לא חובה). רשימה עם אותו שם ואותה משפחה ממשיכה את הקודמת
+                // (למשל כמה קודי QR של אותה הזמנה); אותו שם עם משפחה אחרת - רשימה נפרדת.
+                String[] parts=line.substring(3).split("\\|",-1);
+                String name=clean(parts[0]);
+                String family=parts.length>1?clean(parts[1]):"";
                 if(name.length()>200)name=name.substring(0,200);
+                if(family.length()>200)family=family.substring(0,200);
                 if(name.isEmpty())name="רשימה מקובץ טקסט";
+                String account=family.isEmpty()?TEXT_ACCOUNT:family;
                 currentCategory="";
-                if(name.equals(list.orderName))continue;
+                if(name.equals(list.orderName)&&account.equals(list.accountName))continue;
                 ImportedList existing=null;
-                for(ImportedList previous:lists)if(name.equals(previous.orderName)){existing=previous;break;}
+                for(ImportedList previous:lists)if(name.equals(previous.orderName)&&account.equals(previous.accountName)){existing=previous;break;}
                 if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
                 if(existing!=null){list=existing;ids=idsByList.get(existing);continue;}
                 if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
-                list=newTextList(name,lists.size());
+                list=newTextList(name,lists.size());list.accountName=account;
                 ids=new HashSet<>();
                 idsByList.put(list,ids);
                 continue;

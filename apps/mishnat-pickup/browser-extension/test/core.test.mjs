@@ -35,7 +35,7 @@ test('עמוד היסטוריה: מבנה Laravel ועמוד נוסף', () => {
 test('טקסט: "##" לכל רשימה, ו-| וירידות שורה לא שוברים עמודות', () => {
   const text = core.toText(exportsFromFixture(), { now: NOW });
   assert.match(text, /^## וישלח תשפ"ז$/m);
-  assert.match(text, /^## הזמנה \| שנייה לבדיקה$/m);
+  assert.match(text, /^## הזמנה \/ שנייה לבדיקה$/m);
   assert.match(text, /^קווקר הכנה מהירה \| 2 \| \| {2}\| קטניות ושימורים$/m);
 });
 
