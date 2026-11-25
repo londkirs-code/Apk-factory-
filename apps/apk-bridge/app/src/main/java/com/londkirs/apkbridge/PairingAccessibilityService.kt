@@ -27,6 +27,7 @@ class PairingAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.packageName?.toString() != SETTINGS) return
+        if (!Bridge.accessibilityAutoPair) return
         val root = rootInActiveWindow ?: return
         if (root.packageName?.toString() != SETTINGS) return
         val texts = ArrayList<String>()

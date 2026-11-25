@@ -61,7 +61,7 @@ class MainActivity : Activity() {
     private var shownInstallSeq = 0
     private var previewJob: kotlinx.coroutines.Job? = null
     private var previewText: String? = null
-    private val optionBoxes = mutableMapOf<String, CheckBox>()
+    private lateinit var optionsSummary: TextView
     private val busyViews = mutableListOf<View>()
 
     private var selected: List<Uri> = emptyList()
@@ -106,6 +106,8 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         refreshConnectionInfo()
+        refreshOptionsSummary()
+        applyLogExpanded()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -129,13 +131,15 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(18), dp(16), dp(24))
         }
 
-        page.addView(TextView(this).apply {
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        top.addView(TextView(this).apply {
             text = "APK Bridge"
             textSize = 28f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
-            gravity = Gravity.CENTER
-        }, matchWrap())
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        top.addView(button("⚙ הגדרות", primary = false) { openSettingsScreen() })
+        page.addView(top, matchWrap())
         page.addView(TextView(this).apply {
             text = "התקנת APK, ‏APKS, ‏XAPK ו־APKM דרך Wireless Debugging — בלי מחשב ובלי Root"
             textSize = 13f
@@ -232,18 +236,9 @@ class MainActivity : Activity() {
         inst.addView(button("בחר קבצים (APK / APKS / XAPK / APKM)", primary = false) { chooseFiles() }.busyAware(), matchWrap())
         installButton = button("התקן", primary = true) { installSelected() }.busyAware()
         inst.addView(installButton, matchWrap(10))
-        val opts = Bridge.loadOptions()
-        option(inst, "play", "רשום את Google Play כמקור ההתקנה", opts.registerPlayInstaller)
-        option(inst, "downgrade", "אפשר שנמוך גרסה (‎-d)", opts.allowDowngrade)
-        option(inst, "grant", "הענק את כל ההרשאות מראש (‎-g)", opts.grantPermissions)
-        option(inst, "test", "אפשר חבילות בדיקה (‎-t)", opts.allowTestPackages)
-        if (Build.VERSION.SDK_INT >= 34) {
-            option(inst, "bypass", "עקוף חסימת targetSdk נמוך (Android 14+)", opts.bypassLowTargetSdk)
-        }
-        val autoBox = checkBox("התקן מיד כשקובץ נפתח או משותף אל APK Bridge", Bridge.autoInstallIncoming)
-        autoBox.setOnCheckedChangeListener { _, checked -> Bridge.autoInstallIncoming = checked }
-        inst.addView(autoBox, matchWrap(0))
-        inst.addView(note("רישום Google Play כמקור ההתקנה הוא סימון בלבד: ההתקנה מתבצעת דרך ADB, והאפליקציה אינה מקבלת רישוי, רכישה או אימות של Play."), matchWrap())
+        optionsSummary = note("")
+        inst.addView(optionsSummary, matchWrap(4))
+        inst.addView(button("⚙ הגדרות התקנה והתקנה אוטומטית", primary = false) { openSettingsScreen() }, matchWrap())
 
         // Tools card
         val tools = card(page)
@@ -336,12 +331,6 @@ class MainActivity : Activity() {
         setTextColor(INK)
     }
 
-    private fun option(parent: LinearLayout, key: String, label: String, checked: Boolean) {
-        val box = checkBox(label, checked)
-        box.setOnCheckedChangeListener { _, _ -> Bridge.saveOptions(currentOptions()) }
-        optionBoxes[key] = box
-        parent.addView(box, matchWrap(0))
-    }
 
     private fun button(textValue: String, primary: Boolean, action: () -> Unit) = Button(this).apply {
         text = textValue
@@ -383,6 +372,13 @@ class MainActivity : Activity() {
     private fun offerToOpen(pkg: String) {
         val launch = packageManager.getLaunchIntentForPackage(pkg) ?: return
         if (isFinishing || isDestroyed) return
+        when (Bridge.openAfterInstall) {
+            "never" -> return
+            "auto" -> {
+                runCatching { startActivity(launch) }.onFailure { toast("לא ניתן לפתוח את האפליקציה.") }
+                return
+            }
+        }
         val label = Bridge.appLabel(pkg) ?: pkg
         android.app.AlertDialog.Builder(this)
             .setTitle("✔ $label הותקן")
@@ -469,13 +465,26 @@ class MainActivity : Activity() {
 
     // region actions
 
-    private fun currentOptions() = InstallOptions(
-        allowDowngrade = optionBoxes["downgrade"]?.isChecked == true,
-        grantPermissions = optionBoxes["grant"]?.isChecked == true,
-        allowTestPackages = optionBoxes["test"]?.isChecked == true,
-        bypassLowTargetSdk = optionBoxes["bypass"]?.isChecked ?: Bridge.loadOptions().bypassLowTargetSdk,
-        registerPlayInstaller = optionBoxes["play"]?.isChecked == true,
-    )
+    private fun openSettingsScreen() = startActivity(Intent(this, SettingsActivity::class.java))
+
+    private fun refreshOptionsSummary() {
+        if (!::optionsSummary.isInitialized) return
+        val o = Bridge.loadOptions()
+        val flags = buildList {
+            if (o.registerPlayInstaller) add("מקור Google Play")
+            if (o.allowDowngrade) add("שנמוך")
+            if (o.grantPermissions) add("כל ההרשאות")
+            if (o.allowTestPackages) add("חבילות בדיקה")
+            if (o.bypassLowTargetSdk && Build.VERSION.SDK_INT >= 34) add("עקיפת targetSdk")
+        }
+        val auto = when (Bridge.autoInstallMode) {
+            "auto" -> "מיידית" + if (Bridge.autoInstallUpdatesOnly) " (רק עדכונים)" else ""
+            "ask" -> "עם שאלה" + if (Bridge.autoInstallUpdatesOnly) " (רק עדכונים)" else ""
+            else -> "כבויה"
+        }
+        val open = when (Bridge.openAfterInstall) { "auto" -> "מיד"; "never" -> "לא"; else -> "לשאול" }
+        optionsSummary.text = "אפשרויות: ${flags.joinToString(" · ").ifEmpty { "ברירת מחדל" }}\nהתקנה אוטומטית: $auto · פתיחה אחרי התקנה: $open"
+    }
 
     private fun startNotificationPairing() {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -581,7 +590,7 @@ class MainActivity : Activity() {
         if (uris.isNotEmpty()) {
             setSelection(uris)
             Bridge.log("התקבלו ${uris.size} קבצים מאפליקציה אחרת.")
-            if (Bridge.autoInstallIncoming && Bridge.isPaired && !Bridge.state.busy) installSelected()
+            maybeAutoInstall()
         }
     }
 
@@ -591,6 +600,50 @@ class MainActivity : Activity() {
         previewText = null
         renderSelection()
         loadPreview()
+    }
+
+    /** Applies the "automatic install" setting to files that were opened/shared into the app. */
+    private fun maybeAutoInstall() {
+        val mode = Bridge.autoInstallMode
+        if (mode == "off") return
+        if (!Bridge.isPaired) {
+            Bridge.log("התקנה אוטומטית דולגה: עדיין לא בוצע זיווג.")
+            return
+        }
+        if (Bridge.state.busy) return
+        val files = selected
+        if (!Bridge.autoInstallUpdatesOnly) {
+            if (mode == "auto") installSelected() else confirmInstall(files, null)
+            return
+        }
+        // Updates-only: install automatically only when the APK updates an installed app.
+        val only = files.singleOrNull()
+        if (only == null || !Bridge.displayName(only).endsWith(".apk", true)) {
+            confirmInstall(files, "לא ניתן לבדוק אוטומטית אם זה עדכון.")
+            return
+        }
+        Bridge.scope.launch {
+            val p = Bridge.preview(only)
+            runOnUiThread {
+                if (selected != files) return@runOnUiThread
+                when {
+                    p?.installedVersionCode == null -> confirmInstall(files, "זו אינה אפליקציה שכבר מותקנת, ולכן היא לא מותקנת אוטומטית.")
+                    mode == "auto" -> installSelected()
+                    else -> confirmInstall(files, null)
+                }
+            }
+        }
+    }
+
+    private fun confirmInstall(files: List<Uri>, reason: String?) {
+        if (isFinishing || isDestroyed) return
+        val names = files.joinToString("\n") { "• ${Bridge.displayName(it)}" }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("להתקין עכשיו?")
+            .setMessage((reason?.let { "$it\n\n" } ?: "") + names)
+            .setPositiveButton("התקן") { _, _ -> if (selected == files) installSelected() }
+            .setNegativeButton("לא עכשיו", null)
+            .show()
     }
 
     private fun loadPreview() {
@@ -623,9 +676,7 @@ class MainActivity : Activity() {
             chooseFiles()
             return
         }
-        val options = currentOptions()
-        Bridge.saveOptions(options)
-        Bridge.install(selected, options)
+        Bridge.install(selected, Bridge.loadOptions())
     }
 
     private fun openInstalledApp() {

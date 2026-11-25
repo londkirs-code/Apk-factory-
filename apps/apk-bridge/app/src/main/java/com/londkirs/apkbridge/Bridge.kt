@@ -119,9 +119,42 @@ object Bridge {
         get() = prefs.getBoolean("paired", false)
         set(value) = prefs.edit().putBoolean("paired", value).apply()
 
-    var autoInstallIncoming: Boolean
-        get() = prefs.getBoolean("auto_install_incoming", false)
-        set(value) = prefs.edit().putBoolean("auto_install_incoming", value).apply()
+    /** What to do with a file opened/shared into the app: "off", "ask" or "auto". */
+    var autoInstallMode: String
+        get() = prefs.getString("auto_install_mode", null)
+            ?: if (prefs.getBoolean("auto_install_incoming", false)) "auto" else "off"
+        set(value) = prefs.edit().putString("auto_install_mode", value).apply()
+
+    /** Only auto-install files that update an app that is already installed. */
+    var autoInstallUpdatesOnly: Boolean
+        get() = prefs.getBoolean("auto_install_updates_only", false)
+        set(value) = prefs.edit().putBoolean("auto_install_updates_only", value).apply()
+
+    /** After a successful install: "ask", "auto" or "never". */
+    var openAfterInstall: String
+        get() = prefs.getString("open_after_install", "ask") ?: "ask"
+        set(value) = prefs.edit().putString("open_after_install", value).apply()
+
+    var installNotifications: Boolean
+        get() = prefs.getBoolean("install_notifications", true)
+        set(value) = prefs.edit().putBoolean("install_notifications", value).apply()
+
+    var accessibilityAutoPair: Boolean
+        get() = prefs.getBoolean("a11y_auto_pair", true)
+        set(value) = prefs.edit().putBoolean("a11y_auto_pair", value).apply()
+
+    var autoEnableWireless: Boolean
+        get() = prefs.getBoolean("auto_enable_wireless", true)
+        set(value) = prefs.edit().putBoolean("auto_enable_wireless", value).apply()
+
+    /** Removes the ADB key and pairing state; the next connection needs a fresh pairing. */
+    fun forgetPairing() {
+        File(app.filesDir, "adbkey").delete()
+        File(app.filesDir, "adbkey.pub").delete()
+        isPaired = false
+        savedConnectPort = 0
+        log("הזיווג נמחק. בפעם הבאה יידרש זיווג חדש.")
+    }
 
     var logExpanded: Boolean
         get() = prefs.getBoolean("log_expanded", false)
@@ -234,7 +267,7 @@ object Bridge {
 
     /** Turns Wireless Debugging on by itself when WRITE_SECURE_SETTINGS was granted earlier. */
     private suspend fun ensureWirelessDebugging() {
-        if (isWirelessDebuggingOn() == true || !canWriteSecureSettings()) return
+        if (!autoEnableWireless || isWirelessDebuggingOn() == true || !canWriteSecureSettings()) return
         if (!isOnWifi()) {
             log("אין חיבור Wi‑Fi — Android לא יפעיל ניפוי באגים אלחוטי בלי Wi‑Fi.")
             return
@@ -621,8 +654,8 @@ object Bridge {
         )
         update { it.copy(lastInstalledPackage = pkg, installSeq = it.installSeq + 1) }
         // When the app screen is not visible, offer "open" through a notification instead of a dialog.
-        if (stateListeners.isEmpty()) {
-            val launch = app.packageManager.getLaunchIntentForPackage(pkg)
+        if (stateListeners.isEmpty() && installNotifications) {
+            val launch = app.packageManager.getLaunchIntentForPackage(pkg)?.takeIf { openAfterInstall != "never" }
             notifyInfo("✔ $label הותקן", if (launch != null) "הקש כדי לפתוח את האפליקציה." else "ההתקנה הושלמה.", launch)
         }
     }
