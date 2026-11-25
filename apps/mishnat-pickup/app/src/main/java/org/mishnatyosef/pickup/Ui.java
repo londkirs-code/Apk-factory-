@@ -582,6 +582,17 @@ final class Ui {
         return t;
     }
 
+    /** כותרת משתמש (חשבון או רשימה) בתצוגה לפי משתמש: פס סגול כהה עם השם והמספר. */
+    static TextView userHeader(Context c, String name, int count) {
+        TextView t = text(c, "👤  " + name + (count > 0 ? "  ·  " + count : ""), T_NAME, P25, true);
+        t.setBackground(shape(c, P700, 10, 0, 0));
+        t.setPadding(dp(c, S3), dp(c, S2), dp(c, S3), dp(c, S2));
+        t.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        t.setFocusable(false);
+        t.setClickable(false);
+        return t;
+    }
+
     static CardViews productCard(Context c) { return productCard(c, 3); }
 
     /** mode 0: dense checklist; modes 1-4: scaled cards; mode 5: three-column grid. */

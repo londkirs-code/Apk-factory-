@@ -182,6 +182,8 @@ public class MainActivity extends Activity {
     /** תצוגת כמה רשימות יחד: כל רשימה שנבחרה נחשבת כמו משתמש נפרד בתצוגה המאוחדת / לפי משתמש. */
     private static final String PREF_LIST_GROUP = "list_group", PREF_LIST_GROUP_ACTIVE = "list_group_active";
     private static final String GROUP_PART_PREFIX = "list:";
+    /** סדר המשתמשים (חשבונות או רשימות) בתצוגה לפי משתמש: מזהה ← מקום. */
+    private final Map<String, Integer> userOrder = new java.util.LinkedHashMap<>();
     private final java.util.Map<String, java.util.List<SourcePart>> combinedParts = new java.util.LinkedHashMap<>();
     private boolean loading = false;
     private volatile int authGeneration = 0;
@@ -1809,7 +1811,8 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• הצגת כמה רשימות יחד: כל רשימה נחשבת כמו משתמש, ואפשר לעבור בין תצוגה מאוחדת לתצוגה לפי רשימה.\n"
+            "• ✓ ליד רשימות בחלון הרשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
+            + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
             + "• רשימה ששותפה בענן מציגה את המספר שלה (☁️) ליד השם, בכותרת ובפעולות של הרשימה.\n"
             + "• מדריך המקשים בהגדרות: תמונה במסך מלא. אישור או 5 מגדילים, 2/4/6/8 מזיזים, וכל מקש אחר סוגר.\n"
@@ -2482,8 +2485,8 @@ public class MainActivity extends Activity {
         View firstOpen=null;
         for(SavedListStore.Entry entry:entries){
             String details=withBadge(entry.itemCount+" פריטים · "+entry.sourceLabel,cloudBadge(entry.id));
-            LinearLayout line=buildListLine(displayTitle(entry),details,isDisplayedList(entry),
-                    ()->openSavedList(entry),()->showSavedListActions(entry));
+            LinearLayout line=buildListLine(entry,displayTitle(entry),details,isDisplayedList(entry),
+                    ()->openSavedList(entry),()->showSavedListActions(entry),null);
             content.addView(line,Ui.row(this,0,Ui.S1));
             if(firstOpen==null)firstOpen=line.getChildAt(0);
         }
@@ -2538,10 +2541,8 @@ public class MainActivity extends Activity {
             addSourceAction(panel, dialog, "הזמנות קודמות מהאתר", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
         addSourceAction(panel, dialog, "יצירת רשימה חדשה", this::createNewSavedList);
         addSourceAction(panel, dialog, "הבאה מהענן לפי מספר", this::showCloudFetchDialog);
-        if (savedListStore.list().size() >= 2) {
-            addSourceAction(panel, dialog, "הצגת כמה רשימות יחד", this::showListGroupDialog);
+        if (savedListStore.list().size() >= 2)
             addSourceAction(panel, dialog, "איחוד רשימות", this::showMergeListsDialog);
-        }
         addSourceAction(panel, dialog, "כל הרשימות השמורות", () -> showSavedListsScreen(Screen.HOME));
     }
 
@@ -2821,6 +2822,10 @@ public class MainActivity extends Activity {
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "רשימות", Ui.T_NAME, Ui.P900, true));
         Runnable reopen = this::showListSwitcher;
+        // שינוי ✓ מרענן את המסך הראשי כשהחלון נסגר.
+        final boolean[] checksChanged = {false};
+        Runnable groupChanged = () -> checksChanged[0] = true;
+        dialog.setOnDismissListener(d -> { if (checksChanged[0] && screen == Screen.HOME) showHomeScreen(false); });
 
         // פעולות קבועות למעלה
         Button history = Ui.tile(this, Ui.IC_HISTORY, "הזמנות קודמות");
@@ -2837,13 +2842,11 @@ public class MainActivity extends Activity {
         settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
         panel.addView(tileRow(history, create, merge, cloud, settings), Ui.row(this, Ui.S2, 0));
 
-        if (entries.size() >= 2) {
-            Button together = Ui.button(this, listGroupActive() ? "שינוי הרשימות המוצגות יחד" : "הצגת כמה רשימות יחד", Ui.Kind.SOFT);
-            together.setOnClickListener(v -> { dialog.dismiss(); showListGroupDialog(); });
-            panel.addView(together, Ui.row(this, Ui.S2, 0));
-        }
+        if (entries.size() >= 2)
+            panel.addView(Ui.text(this, "✓ ליד רשימות מציג אותן יחד, וכל רשימה נחשבת כמו משתמש.", Ui.T_NOTE, Ui.MUTED, false),
+                    Ui.row(this, Ui.S2, 0));
         if (listGroupActive()) {
-            Button leave = Ui.button(this, "יציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
+            Button leave = Ui.button(this, "ביטול כל הסימונים ויציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
             leave.setOnClickListener(v -> { dialog.dismiss(); leaveListGroup(); showHomeScreen(false); });
             panel.addView(leave, Ui.row(this, Ui.S1, 0));
         }
@@ -2862,9 +2865,9 @@ public class MainActivity extends Activity {
         if (current != null) {
             final SavedListStore.Entry shown = current;
             panel.addView(compactSection("מוצגת עכשיו"));
-            LinearLayout line = buildListLine(homeDisplayTitle(), withBadge(shown.itemCount + " פריטים", cloudBadge(shown.id)), true,
+            LinearLayout line = buildListLine(shown, homeDisplayTitle(), withBadge(shown.itemCount + " פריטים", cloudBadge(shown.id)), true,
                     () -> { dialog.dismiss(); showSavedListActions(shown, reopen); },
-                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); });
+                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); }, groupChanged);
             panel.addView(line, Ui.row(this, 0, 0));
         }
 
@@ -2874,9 +2877,9 @@ public class MainActivity extends Activity {
         for (SavedListStore.Entry entry : entries) {
             if (isDisplayedList(entry)) continue;
             others++;
-            LinearLayout line = buildListLine(displayTitle(entry), withBadge(entry.itemCount + " פריטים", cloudBadge(entry.id)), false,
+            LinearLayout line = buildListLine(entry, displayTitle(entry), withBadge(entry.itemCount + " פריטים", cloudBadge(entry.id)), false,
                     () -> { dialog.dismiss(); openSavedList(entry); },
-                    () -> { dialog.dismiss(); showSavedListActions(entry, reopen); });
+                    () -> { dialog.dismiss(); showSavedListActions(entry, reopen); }, groupChanged);
             body.addView(line, Ui.row(this, 0, Ui.S1));
             if (focus == null) focus = line.getChildAt(0);
         }
@@ -2918,6 +2921,26 @@ public class MainActivity extends Activity {
     }
 
     /** שורת רשימה: הכרטיס (פתיחה) וכפתור ⋮ לפעולות. */
+    /** שורת רשימה עם ✓ להצגה משותפת. onChecked נקרא אחרי שינוי הסימון. */
+    private LinearLayout buildListLine(SavedListStore.Entry entry, String name, String details, boolean highlighted,
+                                       Runnable open, Runnable more, Runnable onChecked) {
+        LinearLayout line = buildListLine(name, details, highlighted, open, more);
+        CheckBox box = new CheckBox(this);
+        box.setChecked(listGroup().contains(entry.id));
+        box.setContentDescription("הצגה יחד עם רשימות אחרות: " + name);
+        if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
+        box.setBackground(Ui.focusFrame(this));
+        box.setOnCheckedChangeListener((b, checked) -> {
+            setListChecked(entry, checked);
+            if (onChecked != null) onChecked.run();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.setMarginStart(Ui.dp(this, Ui.S1));
+        // ה-✓ בצד השמאלי, אחרי ⋮, כדי שהמעבר במקשים ינחת קודם על הרשימה עצמה.
+        line.addView(box, lp);
+        return line;
+    }
+
     private LinearLayout buildListLine(String name, String details, boolean highlighted, Runnable open, Runnable more) {
         Button row = Ui.listRow(this, name, details, highlighted);
         row.setOnClickListener(v -> open.run());
@@ -4692,8 +4715,11 @@ public class MainActivity extends Activity {
             reflowGridListsInProductOrder();
             return;
         }
-        // כותרות רק ברשימת "לאיסוף", ורק אם לא בוטלו בהגדרות. "נאספו" היא רשימה פשוטה.
-        if (categoryHeadersEnabled()) addListHeaders(pendingList);
+        // "לאיסוף": כותרות קטגוריות (אם לא בוטלו בהגדרות). "נאספו": רשימה פשוטה.
+        // בתצוגה לפי משתמש שתיהן מקבלות גם כותרת לכל משתמש.
+        boolean byUser = perUserLayout();
+        if (categoryHeadersEnabled() || byUser) addListHeaders(pendingList, byUser, categoryHeadersEnabled());
+        if (byUser) addListHeaders(collectedList, true, false);
     }
 
     private static final String PREF_CATEGORY_HEADERS = "show_category_headers";
@@ -4712,7 +4738,9 @@ public class MainActivity extends Activity {
         if (collectedOrderCache == null || collectedOrderCache.size() != products.size()) {
             ArrayList<ProductRow> sorted = new ArrayList<>(products);
             final java.text.Collator collator = java.text.Collator.getInstance(new java.util.Locale("he"));
+            final boolean byUser = perUserLayout();
             java.util.Collections.sort(sorted, (a, b) -> {
+                if (byUser) { int u = Integer.compare(userIndex(a), userIndex(b)); if (u != 0) return u; }
                 int byName = collator.compare(a.name == null ? "" : a.name, b.name == null ? "" : b.name);
                 return byName != 0 ? byName : a.key.compareTo(b.key);
             });
@@ -4726,21 +4754,48 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    private void addListHeaders(ViewGroup list) {
-        if (list == null || !hasCategories()) return;
-        String previous = null;
+    private void addListHeaders(ViewGroup list, boolean users, boolean categories) {
+        if (list == null) return;
+        if (categories && !hasCategories()) categories = false;
+        if (!users && !categories) return;
+        String previous = null, previousUser = null;
         for (int i = 0; i < list.getChildCount(); i++) {
             ProductCard card = findProductCard(list.getChildAt(i));
             if (card == null || card.product == null) continue;
+            if (users) {
+                String user = userLabel(card.product);
+                int userIdx = userIndex(card.product);
+                String userKey = userIdx + "|" + user;
+                if (!userKey.equals(previousUser)) {
+                    previousUser = userKey;
+                    previous = null; // כל משתמש מתחיל את הקטגוריות מחדש
+                    int count = 0;
+                    for (int j = i; j < list.getChildCount(); j++) {
+                        ProductCard other = findProductCard(list.getChildAt(j));
+                        if (other == null || other.product == null) continue;
+                        if (userIndex(other.product) != userIdx) break;
+                        count++;
+                    }
+                    TextView header = Ui.userHeader(this, user, count);
+                    header.setTag(CATEGORY_HEADER_TAG);
+                    LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(-1, -2);
+                    ulp.topMargin = Ui.dp(this, i == 0 ? Ui.S1 : Ui.S4);
+                    ulp.bottomMargin = Ui.dp(this, Ui.S2);
+                    list.addView(header, i, ulp);
+                    i++;
+                }
+            }
+            if (!categories) continue;
             String category = card.product.category.isEmpty() ? "ללא קטגוריה" : card.product.category;
             if (category.equals(previous)) continue;
             previous = category;
             int count = 0;
+            int ownUser = users ? userIndex(card.product) : 0;
             for (int j = i; j < list.getChildCount(); j++) {
                 ProductCard other = findProductCard(list.getChildAt(j));
                 if (other == null || other.product == null) continue;
                 String otherCategory = other.product.category.isEmpty() ? "ללא קטגוריה" : other.product.category;
-                if (!otherCategory.equals(category)) break;
+                if (!otherCategory.equals(category) || (users && userIndex(other.product) != ownUser)) break;
                 count++;
             }
             TextView header = Ui.categoryHeader(this, category, count);
@@ -4784,8 +4839,9 @@ public class MainActivity extends Activity {
         pendingList.removeAllViews();
         collectedList.removeAllViews();
         gridPositions.clear();
-        layoutGrid((GridLayout) pendingList, pendingOrder, categoryHeadersEnabled());
-        layoutGrid((GridLayout) collectedList, collectedOrder, false);
+        boolean byUser = perUserLayout();
+        layoutGrid((GridLayout) pendingList, pendingOrder, categoryHeadersEnabled(), byUser);
+        layoutGrid((GridLayout) collectedList, collectedOrder, false, byUser);
         if (blockFocus) pageScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         if (focusedCard != null && focusedCard.row.getParent() != null) focusedCard.row.requestFocus();
         if (pageScroll != null) {
@@ -4799,12 +4855,30 @@ public class MainActivity extends Activity {
     }
 
     /** פריסת רשת של שלושה כרטיסים בשורה. כל מחלקה מתחילה בשורה חדשה עם כותרת ברוחב מלא. */
-    private void layoutGrid(GridLayout grid, List<ProductCard> cards, boolean withHeaders) {
+    private void layoutGrid(GridLayout grid, List<ProductCard> cards, boolean withHeaders, boolean users) {
         boolean headers = withHeaders && hasCategories();
         int row = 0, column = 0;
         String previous = null;
+        int previousUser = -1;
         for (int i = 0; i < cards.size(); i++) {
             ProductCard card = cards.get(i);
+            if (users && card.product != null && userIndex(card.product) != previousUser) {
+                previousUser = userIndex(card.product);
+                previous = null;
+                if (column != 0) { row++; column = 0; }
+                int count = 0;
+                for (int j = i; j < cards.size(); j++) {
+                    if (cards.get(j).product == null || userIndex(cards.get(j).product) != previousUser) break;
+                    count++;
+                }
+                TextView uh = Ui.userHeader(this, userLabel(card.product), count);
+                uh.setTag(CATEGORY_HEADER_TAG);
+                GridLayout.LayoutParams ulp = new GridLayout.LayoutParams(GridLayout.spec(row), GridLayout.spec(0, 3, 1f));
+                ulp.width = 0;
+                ulp.setMargins(Ui.dp(this, 2), Ui.dp(this, row == 0 ? Ui.S1 : Ui.S4), Ui.dp(this, 2), Ui.dp(this, Ui.S1));
+                grid.addView(uh, ulp);
+                row++;
+            }
             String category = card.product == null || card.product.category.isEmpty()
                     ? "ללא קטגוריה" : card.product.category;
             if (headers && !category.equals(previous)) {
@@ -4815,6 +4889,7 @@ public class MainActivity extends Activity {
                     String otherCategory = other.product == null || other.product.category.isEmpty()
                             ? "ללא קטגוריה" : other.product.category;
                     if (!otherCategory.equals(category)) break;
+                    if (users && other.product != null && userIndex(other.product) != previousUser) break;
                     count++;
                 }
                 TextView header = Ui.categoryHeader(this, category, count);
@@ -5095,7 +5170,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadCombinedSnapshot() {
-        products.clear(); collected.clear(); partialCollected.clear(); combinedParts.clear();
+        products.clear(); collected.clear(); partialCollected.clear(); combinedParts.clear(); userOrder.clear();
         java.util.LinkedHashMap<String, java.util.List<SourcePart>> grouped = new java.util.LinkedHashMap<>();
         Set<String> orderNames = new java.util.LinkedHashSet<>();
         combinedPickupInfos.clear();
@@ -5219,11 +5294,33 @@ public class MainActivity extends Activity {
             else if(collectedAmount>0)partialCollected.put(entry.getKey(),collectedAmount);        }
         // מיון לפי מחלקות, לפי סדר המחלקות של המכירה הראשונה שיש לה מידע.
         sortByCategory(products, combinedPickupInfos.isEmpty() ? null : combinedPickupInfos.get(0));
+        // לפי משתמש: גוש לכל משתמש, ובתוכו המוצרים לפי סדר הקטגוריות (המיון יציב, ולכן סדר הקטגוריות נשמר).
+        for (java.util.List<SourcePart> parts : combinedParts.values())
+            for (SourcePart part : parts)
+                if (!userOrder.containsKey(part.sourceId)) userOrder.put(part.sourceId, userOrder.size());
+        if (perUserLayout()) java.util.Collections.sort(products, (a, b) -> Integer.compare(userIndex(a), userIndex(b)));
         // כשכל החשבונות מציגים את אותה מכירה, שמה מוצג בכותרת; אחרת כל השמות יחד.
         setCurrentOrderTitle(orderNames.size() <= 2 ? android.text.TextUtils.join(" · ", orderNames) : "");
         syncCompletionState();
         if(products.isEmpty()) showSyncMessage("אין רשימות שמורות להצגה בתצוגה המאוחדת.", false);
         else showSyncMessage("", false);
+    }
+
+    /** תצוגה לפי משתמש עם יותר ממשתמש אחד: המוצרים מחולקים לגושים לפי משתמש. */
+    private boolean perUserLayout() {
+        return combinedView && sourceRegistry != null && !"COMBINED_SUM".equals(sourceRegistry.viewMode()) && userOrder.size() > 1;
+    }
+
+    private int userIndex(ProductRow product) {
+        java.util.List<SourcePart> parts = product == null ? null : combinedParts.get(product.key);
+        if (parts == null || parts.isEmpty()) return Integer.MAX_VALUE;
+        Integer index = userOrder.get(parts.get(0).sourceId);
+        return index == null ? Integer.MAX_VALUE : index;
+    }
+
+    private String userLabel(ProductRow product) {
+        java.util.List<SourcePart> parts = product == null ? null : combinedParts.get(product.key);
+        return parts == null || parts.isEmpty() ? "" : parts.get(0).sourceLabel;
     }
 
     /** שומר את מצב האיסוף של מוצר אחד בתוך הרשימה השמורה שלו (תצוגת כמה רשימות יחד). */
@@ -5257,72 +5354,32 @@ public class MainActivity extends Activity {
         return ids;
     }
 
+    /** כמה רשימות יחד: פעיל כשמסומנות (✓) לפחות שתי רשימות. */
     private boolean listGroupActive() {
-        return uiPreferences != null && uiPreferences.getBoolean(PREF_LIST_GROUP_ACTIVE, false) && !listGroup().isEmpty();
+        return listGroup().size() >= 2;
     }
 
-    private void setListGroup(List<String> ids, boolean active) {
+    private void setListGroup(List<String> ids) {
         JSONArray a = new JSONArray(); for (String id : ids) a.put(id);
-        uiPreferences.edit().putString(PREF_LIST_GROUP, a.toString()).putBoolean(PREF_LIST_GROUP_ACTIVE, active).apply();
+        uiPreferences.edit().putString(PREF_LIST_GROUP, a.toString()).remove(PREF_LIST_GROUP_ACTIVE).apply();
     }
 
-    /** יציאה מתצוגת כמה רשימות יחד (הבחירה נשמרת לפעם הבאה). */
+    /** סימון ✓ ליד רשימה: מוסיף או מוריד אותה מהתצוגה המשותפת. */
+    private void setListChecked(SavedListStore.Entry entry, boolean checked) {
+        List<String> ids = listGroup();
+        // הרשימה המוצגת עכשיו נשמרת, כדי שהסימונים העדכניים שלה ייכנסו לתצוגה המשותפת.
+        if (checked && !combinedView && !currentOrderId.isEmpty()) archiveCurrentSnapshot(activeSourceId);
+        if (checked && !ids.contains(entry.id)) ids.add(entry.id);
+        if (!checked) ids.remove(entry.id);
+        setListGroup(ids);
+        if (ids.size() >= 2) showActionToast(ids.size() + " רשימות מסומנות יוצגו יחד");
+        else if (ids.size() == 1) showActionToast("סמנו עוד רשימה כדי להציג יחד");
+        if (ids.size() >= 2) showingSavedList = false;
+    }
+
+    /** יציאה מהתצוגה המשותפת: כל הסימונים (✓) מתבטלים. */
     private void leaveListGroup() {
-        if (uiPreferences != null && uiPreferences.getBoolean(PREF_LIST_GROUP_ACTIVE, false))
-            uiPreferences.edit().putBoolean(PREF_LIST_GROUP_ACTIVE, false).apply();
-    }
-
-    /** בחירת כמה רשימות שמורות להצגה יחד; כל רשימה נחשבת כמו משתמש. */
-    private void showListGroupDialog() {
-        List<SavedListStore.Entry> entries = savedListStore.list();
-        if (entries.size() < 2) { showActionToast("צריך לפחות שתי רשימות שמורות"); return; }
-        Set<String> current = new HashSet<>(listGroup());
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "הצגת כמה רשימות יחד", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "סמנו רשימות. כל רשימה נחשבת כמו משתמש: אפשר לעבור בין תצוגה מאוחדת לתצוגה לפי רשימה. הסימונים נשמרים בכל רשימה.",
-                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        LinearLayout body = Ui.column(this);
-        final List<CheckBox> boxes = new ArrayList<>();
-        for (SavedListStore.Entry entry : entries) {
-            CheckBox box = new CheckBox(this);
-            box.setText(displayTitle(entry) + " · " + entry.itemCount + " פריטים");
-            box.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
-            box.setTextColor(Ui.INK);
-            if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
-            box.setBackground(Ui.focusFrame(this));
-            box.setPadding(Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2));
-            box.setTag(entry);
-            box.setChecked(current.contains(entry.id));
-            boxes.add(box);
-            body.addView(box, Ui.row(this, 0, 0));
-        }
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        Button show = Ui.button(this, "הצגה יחד", Ui.Kind.PRIMARY);
-        Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
-        show.setOnClickListener(v -> {
-            List<String> chosen = new ArrayList<>();
-            for (CheckBox box : boxes) if (box.isChecked()) chosen.add(((SavedListStore.Entry) box.getTag()).id);
-            if (chosen.size() < 2) { showActionToast("יש לסמן לפחות שתי רשימות"); return; }
-            dialog.dismiss();
-            // הרשימה המוצגת עכשיו נשמרת קודם, כדי שהסימונים העדכניים שלה ייכנסו לתצוגה.
-            if (!combinedView && !currentOrderId.isEmpty()) archiveCurrentSnapshot(activeSourceId);
-            setListGroup(chosen, true);
-            showingSavedList = false;
-            showHomeScreen(false);
-            showActionToast(chosen.size() + " רשימות מוצגות יחד");
-        });
-        cancel.setOnClickListener(v -> dialog.dismiss());
-        panel.addView(buttonPair(show, cancel), Ui.row(this, Ui.S2, 0));
-        dialog.setContentView(panel);
-        dialog.show();
-        styleConfirmWindow(dialog);
-        if (dialog.getWindow() != null) dialog.getWindow().setLayout(dialog.getWindow().getAttributes().width,
-                (int) (getResources().getDisplayMetrics().heightPixels * 0.85f));
-        boxes.get(0).requestFocus();
+        if (uiPreferences != null && !listGroup().isEmpty()) setListGroup(new ArrayList<>());
     }
 
     private static final String PREF_FAMILY_BREAKDOWN = "show_family_breakdown";
@@ -5333,6 +5390,8 @@ public class MainActivity extends Activity {
         StringBuilder detail=new StringBuilder();
         // בהגדרות אפשר להסתיר את הפירוט לפי משפחה (שם החשבון וכמה כל אחד הזמין).
         boolean breakdown=uiPreferences==null||uiPreferences.getBoolean(PREF_FAMILY_BREAKDOWN,true);
+        // לפי משתמש יש כותרת עם שם המשתמש, ולכן אין צורך לחזור על השם בכל מוצר.
+        if(parts.size()==1&&perUserLayout())breakdown=false;
         Set<String> notes=new java.util.LinkedHashSet<>();
         for(SourcePart part:parts) {
             any|=part.collected || part.partialQuantity>0; all&=part.collected;
