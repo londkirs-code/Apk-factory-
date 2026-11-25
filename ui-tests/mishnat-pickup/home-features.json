@@ -1,0 +1,315 @@
+{
+  "name": "home-features",
+  "description": "Offline list features after a TXT import: decimal quantities, search, partial collection, reset, view modes, rotation, settings, saved lists, then auto-explore from the list screen.",
+  "package": "org.mishnatyosef.pickup",
+  "stop_on_failure": false,
+  "steps": [
+    {
+      "action": "clear_data"
+    },
+    {
+      "action": "push",
+      "src": "fixtures/ui-test-features.txt",
+      "dest": "/sdcard/Download/ui-test-features.txt"
+    },
+    {
+      "action": "launch"
+    },
+    {
+      "action": "wait_for",
+      "text": "כניסה לחשבון",
+      "timeout": 30
+    },
+    {
+      "action": "scroll_to",
+      "text": "ייבוא רשימה מקובץ",
+      "max_swipes": 4
+    },
+    {
+      "action": "tap",
+      "text": "ייבוא רשימה מקובץ"
+    },
+    {
+      "action": "tap",
+      "text": "ui-test-features",
+      "timeout": 10
+    },
+    {
+      "action": "wait_for",
+      "text": "נמצאו 1 רשימות",
+      "timeout": 15
+    },
+    {
+      "action": "tap",
+      "text": "ייבא רשימות"
+    },
+    {
+      "action": "wait_for",
+      "text": "נאספו 0 מתוך 11.5",
+      "timeout": 10,
+      "note": "1+2+3+4+1.5 units"
+    },
+    {
+      "action": "screenshot",
+      "name": "imported-5-items"
+    },
+    {
+      "action": "assert_text",
+      "text": "1.5",
+      "exact": true,
+      "note": "decimal quantity kept"
+    },
+    {
+      "action": "tap",
+      "text": "חיפוש פריט"
+    },
+    {
+      "action": "type",
+      "value": "Pasta",
+      "hide_keyboard": true
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "search-pasta"
+    },
+    {
+      "action": "assert_text",
+      "text": "Pasta",
+      "exact": true
+    },
+    {
+      "action": "assert_not_visible",
+      "text": "מלפפון",
+      "exact": true,
+      "note": "search filters other items"
+    },
+    {
+      "action": "type",
+      "class": "EditText",
+      "index": 0,
+      "clear": true,
+      "clear_count": 10,
+      "value": "",
+      "hide_keyboard": true
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "assert_text",
+      "text": "מלפפון",
+      "exact": true,
+      "note": "cleared search shows all items"
+    },
+    {
+      "action": "long_press",
+      "text": "Pasta",
+      "exact": true
+    },
+    {
+      "action": "wait_for",
+      "text": "איסוף כמות חלקית",
+      "timeout": 5
+    },
+    {
+      "action": "screenshot",
+      "name": "partial-dialog"
+    },
+    {
+      "action": "swipe",
+      "class": "SeekBar",
+      "direction": "left",
+      "note": "RTL slider: try to pick more units"
+    },
+    {
+      "action": "screenshot",
+      "name": "partial-dialog-moved"
+    },
+    {
+      "action": "tap",
+      "text": "אישור הכמות"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "assert_text",
+      "text": "נאספו חלקית"
+    },
+    {
+      "action": "screenshot",
+      "name": "partial-collected"
+    },
+    {
+      "action": "tap",
+      "desc": "איפוס ליקוט"
+    },
+    {
+      "action": "wait_for",
+      "text": "להחזיר את כל המוצרים",
+      "timeout": 5
+    },
+    {
+      "action": "screenshot",
+      "name": "reset-confirm"
+    },
+    {
+      "action": "tap",
+      "text": "איפוס",
+      "exact": true
+    },
+    {
+      "action": "wait_for",
+      "text": "נאספו 0 מתוך 11.5",
+      "timeout": 5
+    },
+    {
+      "action": "tap",
+      "desc": "רשימה לפי חשבון"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.5
+    },
+    {
+      "action": "screenshot",
+      "name": "view-by-account"
+    },
+    {
+      "action": "tap",
+      "desc": "רשימה מאוחדת"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.5
+    },
+    {
+      "action": "screenshot",
+      "name": "view-combined"
+    },
+    {
+      "action": "tap",
+      "text": "גבינה",
+      "exact": true
+    },
+    {
+      "action": "assert_text",
+      "text": "נאספו 1.5 מתוך 11.5"
+    },
+    {
+      "action": "rotate",
+      "to": "landscape"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.5
+    },
+    {
+      "action": "assert_text",
+      "text": "נאספו 1.5 מתוך 11.5",
+      "note": "progress survives rotation"
+    },
+    {
+      "action": "screenshot",
+      "name": "landscape"
+    },
+    {
+      "action": "rotate",
+      "to": "portrait"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.5
+    },
+    {
+      "action": "tap",
+      "desc": "הגדרות"
+    },
+    {
+      "action": "wait_for",
+      "text": "סיכום מהיר",
+      "timeout": 8
+    },
+    {
+      "action": "screenshot",
+      "name": "settings-top"
+    },
+    {
+      "action": "swipe",
+      "direction": "up"
+    },
+    {
+      "action": "screenshot",
+      "name": "settings-middle"
+    },
+    {
+      "action": "swipe",
+      "direction": "up"
+    },
+    {
+      "action": "swipe",
+      "direction": "up"
+    },
+    {
+      "action": "screenshot",
+      "name": "settings-bottom"
+    },
+    {
+      "action": "scroll_to",
+      "text": "רשימות שמורות",
+      "direction": "down",
+      "max_swipes": 6
+    },
+    {
+      "action": "tap",
+      "text": "רשימות שמורות",
+      "exact": true
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "saved-lists"
+    },
+    {
+      "action": "back"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "back",
+      "optional": true
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "launch",
+      "restart": false
+    },
+    {
+      "action": "screenshot",
+      "name": "before-explore"
+    },
+    {
+      "action": "explore",
+      "max_actions": 35,
+      "note": "auto-explore from the list screen"
+    },
+    {
+      "action": "assert_foreground",
+      "optional": true
+    }
+  ]
+}

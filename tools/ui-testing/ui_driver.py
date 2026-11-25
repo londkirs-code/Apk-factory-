@@ -555,7 +555,20 @@ class Runner:
 
     def swipe(self, s: dict[str, Any]) -> None:
         w, h = self.size
-        if "direction" in s:
+        if "direction" in s and has_selector(s):
+            # Drag across a specific element (e.g. a SeekBar): from its centre to one edge.
+            node = self.wait_for(s, float(s.get("timeout", 10)))
+            x1b, y1b, x2b, y2b = node.bounds
+            cx, cy = node.center
+            pad = 4
+            ends = {"left": (x1b + pad, cy), "right": (x2b - pad, cy), "up": (cx, y1b + pad), "down": (cx, y2b - pad)}
+            d = str(s["direction"]).lower()
+            if d not in ends:
+                raise StepError(f"bad swipe direction {d!r}")
+            start = (cx, cy) if s.get("from_center", True) else ends[{"left": "right", "right": "left", "up": "down", "down": "up"}[d]]
+            x1, y1 = start
+            x2, y2 = ends[d]
+        elif "direction" in s:
             d = str(s["direction"]).lower()
             cx, cy = w // 2, h // 2
             dx, dy = int(w * 0.35), int(h * 0.3)

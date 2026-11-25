@@ -1,0 +1,6 @@
+# UI test fixture: mixed Hebrew/ASCII names, decimal quantity
+לחם
+חלב | 2 | ליטר
+מלפפון | 3 | יח' |  | ירקות
+Pasta | 4 | pack | whole wheat
+גבינה | 1.5 | ק"ג
