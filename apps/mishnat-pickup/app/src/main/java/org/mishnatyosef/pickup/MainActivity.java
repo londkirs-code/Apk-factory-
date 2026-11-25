@@ -1933,6 +1933,7 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• בראש ההגדרות: שלושה ריבועים - 🎨 תצוגה וצליל, ⌨️ מדריך המקשים, ✨ מה חדש.\n"
             + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
             + "• 🔄 ההזמנה העדכנית מהאתר מסומנת, עם הסבר על הסנכרון. הזמנה חדשה או שינוי באתר מוצגים בהודעה, והוספות שלך נשמרות בעותק ולא נמחקות.\n"
             + "• חזרה תמיד חוזרת שלב אחד אחורה, גם מחלונות שנפתחו מתוך חלונות.\n"
@@ -2007,6 +2008,24 @@ public class MainActivity extends Activity {
         settingsHeader.addView(settingsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
         content.addView(settingsHeader, Ui.row(this, 0, 0));
 
+        // שורת קיצורים בראש ההגדרות: שלושה ריבועים.
+        Button displaySettings = Ui.gridButton(this, "תצוגה וצליל", Ui.Kind.SOFT);
+        displaySettings.setOnClickListener(v -> showDisplaySettingsScreen());
+        Button keysHelp = Ui.gridButton(this, "מדריך המקשים", Ui.Kind.SOFT);
+        keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
+        Button whatsNew = Ui.gridButton(this, "מה חדש", Ui.Kind.SOFT);
+        whatsNew.setOnClickListener(v -> showInfoDialog("מה חדש בגרסה " + appVersionName(), WHATS_NEW));
+        whatsNew.setContentDescription("מה חדש בגרסה " + appVersionName());
+        LinearLayout shortcuts = new LinearLayout(this);
+        shortcuts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        Button[] tiles = {displaySettings, keysHelp, whatsNew};
+        for (int i = 0; i < tiles.length; i++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
+            if (i > 0) lp.setMarginStart(Ui.dp(this, Ui.S1));
+            shortcuts.addView(tiles[i], lp);
+        }
+        content.addView(shortcuts, Ui.row(this, Ui.S3, 0));
+
         // 1. חשבונות: ריבוע לכל חשבון (שם ומצב), בשתי עמודות. לחיצה פותחת את הפעולות שלו.
         LinearLayout accounts = settingsCard(content, "חשבונות");
         for (SourceRegistry.Source source : sourceRegistry.all()) {
@@ -2039,9 +2058,7 @@ public class MainActivity extends Activity {
         Button sync = Ui.gridButton(this, "סנכרון עם האתר", Ui.Kind.SOFT);
         // הסנכרון מתבצע מול מסך הרשימה, כדי שההתקדמות וההודעות יוצגו למשתמש.
         sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
-        Button keysHelp = Ui.gridButton(this, "מדריך המקשים", Ui.Kind.SOFT);
-        keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
-        addGridButtons(lists, savedLists, history, sync, keysHelp);
+        addGridButtons(lists, savedLists, history, sync);
 
         // 3. ייבוא ונתונים.
         LinearLayout data = settingsCard(content, "ייבוא ונתונים");
@@ -2063,13 +2080,9 @@ public class MainActivity extends Activity {
             mainHandler.post(() -> dataStatus.setText(cloudStatus + " · מטמון התמונות: " + formatBytes(bytes)));
         });
 
-        Button whatsNew = Ui.button(this, "מה חדש · גרסה " + appVersionName(), Ui.Kind.SOFT);
-        whatsNew.setOnClickListener(v -> showInfoDialog("מה חדש בגרסה " + appVersionName(), WHATS_NEW));
-        content.addView(whatsNew, Ui.row(this, Ui.S5, 0));
-        // "תצוגה וצליל": כפתור נפרד בתחתית ההגדרות, שפותח מסך משלו.
-        Button displaySettings = Ui.button(this, "תצוגה וצליל", Ui.Kind.SOFT);
-        displaySettings.setOnClickListener(v -> showDisplaySettingsScreen());
-        content.addView(displaySettings, Ui.row(this, Ui.S2, 0));
+        TextView versionLine = Ui.text(this, "גרסה " + appVersionName(), Ui.T_NOTE, Ui.MUTED, false);
+        versionLine.setGravity(Gravity.CENTER);
+        content.addView(versionLine, Ui.row(this, Ui.S4, 0));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
