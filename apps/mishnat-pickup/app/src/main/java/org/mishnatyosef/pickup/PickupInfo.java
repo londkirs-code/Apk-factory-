@@ -149,7 +149,7 @@ final class PickupInfo {
         add(about, "סכום", money(text(order, "total"), text(order, "total_list")));
         add(about, "הוזמן", dateTime(text(order, "time")));
         add(about, "ההזמנות פתוחות", range(dateTime(text(sale, "begin")), dateTime(text(sale, "end"))));
-        add(about, "מחלקות", categories(sale));
+        add(about, "קטגוריות", categories(sale));
         section(lines, "פרטי ההזמנה", about);
         return lines;
     }

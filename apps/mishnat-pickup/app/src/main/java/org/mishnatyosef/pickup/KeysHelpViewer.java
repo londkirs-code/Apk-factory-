@@ -19,8 +19,8 @@ import android.widget.TextView;
 
 /**
  * מדריך המקשים: תמונה במסך מלא שאפשר להגדיל ולהזיז גם בלי מסך מגע.
- * אישור / 5: הגדלה (בהגדלה המקסימלית חוזר לגודל המסך) · 0: חזרה לגודל המסך ·
- * 2/4/6/8 וחצים: תזוזה · חזרה: סגירה. במסך מגע יש כפתורי + ו-−, וגלילה רגילה.
+ * אישור / 5: הגדלה (בהגדלה המקסימלית חוזר לגודל המסך) · 2/4/6/8 וחצים: תזוזה ·
+ * כל מקש אחר (וגם חזרה): סגירה. במסך מגע יש כפתורי + ו-−, וגלילה רגילה.
  */
 final class KeysHelpViewer {
     private static final float[] ZOOMS = {1f, 1.5f, 2f, 3f};
@@ -111,6 +111,7 @@ final class KeysHelpViewer {
 
     private boolean onKey(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) return false; // סגירה רגילה
+        if (dialog == null) return true;
         boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
         int stepY = vertical.getHeight() / 4, stepX = horizontal.getWidth() / 4;
         switch (keyCode) {
@@ -118,9 +119,6 @@ final class KeysHelpViewer {
             case KeyEvent.KEYCODE_5: case KeyEvent.KEYCODE_NUMPAD_5:
                 if (down && event.getRepeatCount() == 0)
                     zoomBy(zoomIndex == ZOOMS.length - 1 ? -zoomIndex : 1); // אחרי המקסימום חוזר לגודל המסך
-                return true;
-            case KeyEvent.KEYCODE_0: case KeyEvent.KEYCODE_NUMPAD_0: case KeyEvent.KEYCODE_STAR:
-                if (down) zoomBy(-zoomIndex);
                 return true;
             case KeyEvent.KEYCODE_2: case KeyEvent.KEYCODE_NUMPAD_2: case KeyEvent.KEYCODE_DPAD_UP:
                 if (down) vertical.smoothScrollBy(0, -stepY);
@@ -135,7 +133,9 @@ final class KeysHelpViewer {
                 if (down) horizontal.smoothScrollBy(stepX, 0);
                 return true;
             default:
-                return false;
+                // כל מקש אחר סוגר את התמונה. הסגירה בשחרור המקש, כדי שהמקש לא יפעל גם במסך שמתחת.
+                if (!down) dialog.dismiss();
+                return true;
         }
     }
 
@@ -160,8 +160,8 @@ final class KeysHelpViewer {
         lp.width = width; lp.height = height;
         image.setLayoutParams(lp);
         zoomLabel.setText(index == 0
-                ? "אישור: הגדלה · 2/4/6/8: תזוזה"
-                : "הגדלה ×" + trim(ZOOMS[index]) + " · 0: גודל מסך");
+                ? "אישור: הגדלה · 2/4/6/8: תזוזה · מקש אחר: סגירה"
+                : "הגדלה ×" + trim(ZOOMS[index]) + " · מקש אחר: סגירה");
         final float fx = cx, fy = cy;
         image.post(() -> {
             if (image == null) return;

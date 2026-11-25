@@ -366,7 +366,7 @@ public class MainActivity extends Activity {
         super.onResume();
         if (!showingSavedList && pendingList != null && !loading && !syncAllRunning
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) {
-            if (combinedView || sourceRegistry != null && sourceRegistry.all().size() > 1) syncAllAccounts();
+            if (combinedView || sourceRegistry != null && listSourceCount() > 1) syncAllAccounts();
             else if (!accessToken.isEmpty()) loadLatestOrder();
         }
     }
@@ -1278,7 +1278,7 @@ public class MainActivity extends Activity {
     private void toggleListViewMode() {
         if (sourceRegistry == null) return;
         if (syncAllRunning) { showActionToast("אפשר להחליף תצוגה בסיום הסנכרון"); return; }
-        if (sourceRegistry.all().size() <= 1) { showActionToast("יש חשבון אחד בלבד, ושתי התצוגות זהות"); return; }
+        if (listSourceCount() <= 1) { showActionToast("יש חשבון אחד בלבד, ושתי התצוגות זהות"); return; }
         String next = "COMBINED_SUM".equals(sourceRegistry.viewMode())
                 ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
         sourceRegistry.setViewMode(next);
@@ -1555,10 +1555,14 @@ public class MainActivity extends Activity {
 
     private void archiveImportedBundle(ImportParser.Bundle bundle,boolean mergeCurrent) {
         if(bundle==null||bundle.lists.isEmpty())return;
-        SourceRegistry.Source source=sourceRegistry.find(activeSourceId);
-        if(source==null||activeOwner.isEmpty()) {
-            Toast.makeText(this,"כדי לשמור קובץ כרשימה עצמאית צריך להתחבר לחשבון.",Toast.LENGTH_LONG).show();
-            ImportParser.delete(bundle.workDir);return;
+        // בלי חשבון הרשימות נשמרות במקור המקומי "רשימות במכשיר".
+        SourceRegistry.Source active=sourceRegistry.find(activeSourceId);
+        final SourceRegistry.Source source;
+        final String owner;
+        if(active!=null&&!activeOwner.isEmpty()){source=active;owner=activeOwner;}
+        else{
+            try{source=localListSource();}catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();ImportParser.delete(bundle.workDir);return;}
+            owner=source.ownerKey;
         }
         String currentEntryId="";
         if(mergeCurrent) {
@@ -1595,13 +1599,14 @@ public class MainActivity extends Activity {
                     String title=list.orderName==null||list.orderName.trim().isEmpty()
                             ? (list.accountName==null||list.accountName.trim().isEmpty()?"רשימה מיובאת":list.accountName)
                             : list.orderName;
-                    JSONObject snapshot=new JSONObject().put("order_id",syntheticId).put("owner",activeOwner)
+                    JSONObject snapshot=new JSONObject().put("order_id",syntheticId).put("owner",owner)
                             .put("order_name",title).put("updated_at",list.updatedAt==null?"":list.updatedAt)
                             .put("imported",true).put("products",products);
                     if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))
                         throw new Exception("לא ניתן לשמור את הרשימה '"+title+"'.");
-                    String ownerKey=activeOwner.substring(0,Math.min(12,activeOwner.length()));
-                    archived.add(source.id+"_"+ownerKey+"_"+syntheticId);
+                    String archivedId=savedEntryId(source.id,owner,String.valueOf(syntheticId));
+                    archived.add(archivedId);
+                    rememberCloudOrigin(archivedId,list.accountId);
                 }
                 if(mergeCurrent)for(String id:archived)
                     if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא מוזג לרשימה הנוכחית; העותקים המקוריים נשארו בארכיון.");
@@ -1800,15 +1805,17 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• מדריך המקשים בהגדרות: תמונה במסך מלא. אישור מגדיל, 2/4/6/8 מזיזים ו-0 חוזר לגודל המסך.\n"
+            "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
+            + "• רשימה ששותפה בענן מציגה את המספר שלה (☁️) ליד השם, בכותרת ובפעולות של הרשימה.\n"
+            + "• מדריך המקשים בהגדרות: תמונה במסך מלא. אישור או 5 מגדילים, 2/4/6/8 מזיזים, וכל מקש אחר סוגר.\n"
             + "• שיתוף בענן: כל רשימה מקבלת מספר (1 עד 1000) לשבוע, ומכל מכשיר אפשר להביא אותה לפי המספר. רק המוצרים משותפים, בלי שמות חשבונות.\n"
             + "• פס התקדמות האיסוף מתמלא מימין לשמאל.\n"
-            + "• רשימת \"נאספו\" פשוטה: לפי א-ב, בלי כותרות מחלקה.\n"
-            + "• בהגדרות אפשר לבטל את כותרות המחלקה. המוצרים נשארים מסודרים לפי מחלקות ועם הצבעים, ברצף אחד.\n"
+            + "• רשימת \"נאספו\" פשוטה: לפי א-ב, בלי כותרות קטגוריות.\n"
+            + "• בהגדרות אפשר לבטל את כותרות הקטגוריות. המוצרים נשארים מסודרים לפי קטגוריות ועם הצבעים, ברצף אחד.\n"
             + "• אפליקציה קלה יותר: האייקון החדש שוקל כ-19KB בלבד.\n"
             + "• בהגדרות: מחיקת מטמון התמונות (עם הגודל שלו), ואפשרות להסתיר את הכמות לפי משפחה בתצוגה המאוחדת.\n"
             + "• עיצוב חדש לכל האפליקציה: גווני סגול נקיים, טקסט גדול וברור שלא נחתך, ושוליים מסודרים גם במסכים קטנים.\n"
-            + "• כותרות וצבעים למחלקות: המוצרים מקובצים לפי מחלקה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
+            + "• כותרות וצבעים לקטגוריות: המוצרים מקובצים לפי קטגוריה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
             + "• לחיצה על שם הרשימה בכותרת מציגה מיד את כל הרשימות לבחירה, עם כפתור לפעולות לרשימה ולהגדרות.\n"
             + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
             + "• ייבוא הזמנה מהעבר לתוך רשימה קיימת, מתוך הפעולות של הרשימה.\n"
@@ -1902,7 +1909,7 @@ public class MainActivity extends Activity {
         Button keysHelp = Ui.button(this, "מדריך המקשים (תמונה)", Ui.Kind.SOFT);
         keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
         display.addView(keysHelp, Ui.row(this, Ui.S1, Ui.S1));
-        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות מחלקה (כבוי: רצף אחד לפי מחלקות, עם הצבעים בלבד)",
+        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות קטגוריות (כבוי: רצף אחד לפי קטגוריות, עם הצבעים בלבד)",
                 true, Ui.S1, Ui.S1);
         display.addView(Ui.text(this, "תצוגה מאוחדת", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
         addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "הצגת כמות לפי משפחה (שם וכמות של כל חשבון)",
@@ -2469,7 +2476,7 @@ public class MainActivity extends Activity {
         else content.addView(compactSection(entries.size()+" רשימות במכשיר"));
         View firstOpen=null;
         for(SavedListStore.Entry entry:entries){
-            String details=entry.itemCount+" פריטים · "+entry.sourceLabel;
+            String details=withBadge(entry.itemCount+" פריטים · "+entry.sourceLabel,cloudBadge(entry.id));
             LinearLayout line=buildListLine(displayTitle(entry),details,isDisplayedList(entry),
                     ()->openSavedList(entry),()->showSavedListActions(entry));
             content.addView(line,Ui.row(this,0,Ui.S1));
@@ -2491,6 +2498,8 @@ public class MainActivity extends Activity {
         LinearLayout panel=Ui.dialogPanel(this);
         panel.addView(Ui.text(this,displayTitle(entry),Ui.T_NAME,Ui.P900,true));
         panel.addView(Ui.text(this,entry.itemCount+" פריטים",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
+        String cloud=cloudDetails(entry.id);
+        if(!cloud.isEmpty())panel.addView(Ui.text(this,cloud,Ui.T_BODY,Ui.P700,true),Ui.row(this,0,Ui.S2));
         addListEntryActions(panel,dialog,entry,back==null?this::refreshSavedListsScreen:this::refreshHomeTitle,true);
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
         if(back!=null)addDialogBackButton(dialog,back);
@@ -2836,7 +2845,7 @@ public class MainActivity extends Activity {
         if (current != null) {
             final SavedListStore.Entry shown = current;
             panel.addView(compactSection("מוצגת עכשיו"));
-            LinearLayout line = buildListLine(homeDisplayTitle(), shown.itemCount + " פריטים", true,
+            LinearLayout line = buildListLine(homeDisplayTitle(), withBadge(shown.itemCount + " פריטים", cloudBadge(shown.id)), true,
                     () -> { dialog.dismiss(); showSavedListActions(shown, reopen); },
                     () -> { dialog.dismiss(); showSavedListActions(shown, reopen); });
             panel.addView(line, Ui.row(this, 0, 0));
@@ -2848,7 +2857,7 @@ public class MainActivity extends Activity {
         for (SavedListStore.Entry entry : entries) {
             if (isDisplayedList(entry)) continue;
             others++;
-            LinearLayout line = buildListLine(displayTitle(entry), entry.itemCount + " פריטים", false,
+            LinearLayout line = buildListLine(displayTitle(entry), withBadge(entry.itemCount + " פריטים", cloudBadge(entry.id)), false,
                     () -> { dialog.dismiss(); openSavedList(entry); },
                     () -> { dialog.dismiss(); showSavedListActions(entry, reopen); });
             body.addView(line, Ui.row(this, 0, Ui.S1));
@@ -2919,7 +2928,7 @@ public class MainActivity extends Activity {
     /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */
     private void returnToLatestOrder() {
         showingSavedList = false;
-        if (sourceRegistry.all().size() > 1) { showHomeScreen(false); syncAllAccounts(); return; }
+        if (listSourceCount() > 1) { showHomeScreen(false); syncAllAccounts(); return; }
         if (accessToken.isEmpty()) {
             String other = firstConnectedAccountId();
             if (!other.isEmpty()) { switchSource(other, () -> showHomeScreen(true)); return; }
@@ -3070,12 +3079,41 @@ public class MainActivity extends Activity {
             } catch(Exception e) {String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"שמירת ההזמנה נכשלה: "+error,Toast.LENGTH_LONG).show());}
         });
     }
+    /** בעלים קבוע לרשימות שנשמרות בלי חשבון. */
+    private static final String LOCAL_LIST_OWNER = DataGuard.sha256("mishnat-pickup-local-device-lists");
+
+    /**
+     * מקור מקומי לרשימות בלי חשבון ("רשימות במכשיר"). נוצר בפעם הראשונה שצריך אותו,
+     * לא נכלל בתצוגה המאוחדת, ולא מחליף את החשבון הפעיל.
+     */
+    /** מספר החשבונות והמקורות, בלי המקור המקומי "רשימות במכשיר" (שלא נכלל בתצוגה המאוחדת). */
+    private int listSourceCount() {
+        if (sourceRegistry == null) return 0;
+        int count = 0;
+        for (SourceRegistry.Source source : sourceRegistry.all())
+            if (!LOCAL_LIST_OWNER.equals(source.ownerKey)) count++;
+        return count;
+    }
+
+    private SourceRegistry.Source localListSource() throws Exception {
+        SourceRegistry.Source existing = sourceRegistry.findByOwner(LOCAL_LIST_OWNER);
+        if (existing != null) return existing;
+        String previous = activeSourceId;
+        SourceRegistry.Source created = sourceRegistry.create(SourceRegistry.KIND_IMPORTED, "רשימות במכשיר", LOCAL_LIST_OWNER);
+        sourceRegistry.setIncluded(created.id, false);
+        if (previous != null && !previous.isEmpty() && sourceRegistry.find(previous) != null)
+            sourceRegistry.setActive(previous);
+        return created;
+    }
+
     private void createNewSavedList() {
-        if(activeSourceId.isEmpty()||activeOwner.isEmpty()){Toast.makeText(this,"כדי ליצור רשימה עצמאית צריך להתחבר לחשבון.",Toast.LENGTH_LONG).show();return;}
-        SourceRegistry.Source source=sourceRegistry.find(activeSourceId);if(source==null)return;
         try {
+            // בלי חשבון הרשימה החדשה נשמרת במקור המקומי "רשימות במכשיר".
+            SourceRegistry.Source source=sourceRegistry.find(activeSourceId);
+            String owner=activeOwner;
+            if(source==null||owner.isEmpty()){source=localListSource();owner=source.ownerKey;}
             long id=System.currentTimeMillis();
-            JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",activeOwner).put("order_name","רשימה חדשה").put("imported",true).put("products",new JSONArray());
+            JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name","רשימה חדשה").put("imported",true).put("products",new JSONArray());
             if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת הרשימה נכשלה.");
             refreshSavedListsScreen();Toast.makeText(this,"נוצרה רשימה חדשה.",Toast.LENGTH_LONG).show();
         } catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();}
@@ -3099,6 +3137,60 @@ public class MainActivity extends Activity {
         return id;
     }
 
+    /** מספר הענן של רשימה נשמר לפי מזהה הרשימה, כדי להציג אותו ליד השם בלי לקרוא את הקובץ. */
+    private void setCloudNumber(String entryId, int number, long expiresAt) {
+        if (entryId == null || entryId.isEmpty() || number <= 0) return;
+        uiPreferences.edit().putString("cloud_" + entryId, number + "|" + expiresAt).apply();
+    }
+
+    /** {מספר, תוקף} של רשימה בענן, או null אם אין או שפג התוקף. */
+    private long[] cloudNumber(String entryId) {
+        if (entryId == null || uiPreferences == null) return null;
+        String value = uiPreferences.getString("cloud_" + entryId, "");
+        if (value == null || value.isEmpty()) return null;
+        try {
+            String[] parts = value.split("\\|");
+            long number = Long.parseLong(parts[0]), expires = parts.length > 1 ? Long.parseLong(parts[1]) : 0;
+            if (expires > 0 && expires <= System.currentTimeMillis()) return null;
+            return new long[]{number, expires};
+        } catch (Exception e) { return null; }
+    }
+
+    /** "☁️ 37" לשורת רשימה, או ריק. */
+    private String cloudBadge(String entryId) {
+        long[] cloud = cloudNumber(entryId);
+        return cloud == null ? "" : "☁️ " + cloud[0];
+    }
+
+    private String cloudDetails(String entryId) {
+        long[] cloud = cloudNumber(entryId);
+        if (cloud == null) return "";
+        String until = cloud[1] > 0 ? " · בתוקף עד " + new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(cloud[1])) : "";
+        return "☁️ בענן: מספר " + cloud[0] + until;
+    }
+
+    private static String withBadge(String details, String badge) {
+        return badge.isEmpty() ? details : details + " · " + badge;
+    }
+
+    /** רשימה שהגיעה מהענן נשמרת עם המספר שלה (המזהה: cloud-מספר-זמן העלאה). */
+    private void rememberCloudOrigin(String entryId, String accountId) {
+        if (accountId == null || !accountId.startsWith("cloud-")) return;
+        try {
+            String[] parts = accountId.split("-");
+            int number = Integer.parseInt(parts[1]);
+            long created = parts.length > 2 ? Long.parseLong(parts[2]) : 0;
+            setCloudNumber(entryId, number, created > 0 ? created + 7L * 24 * 60 * 60 * 1000 : 0);
+        } catch (Exception ignored) { }
+    }
+
+    /** סיומת לכותרת המסך הראשי כשהרשימה המוצגת שותפה בענן. */
+    private String homeCloudSuffix() {
+        if (combinedView || currentOrderId.isEmpty()) return "";
+        String badge = cloudBadge(savedEntryId(activeSourceId, activeOwner, currentOrderId));
+        return badge.isEmpty() ? "" : "  " + badge;
+    }
+
     private void shareListToCloud(SavedListStore.Entry entry) {
         final String title = displayTitle(entry), server = cloudUrl(), device = cloudDeviceId();
         Toast.makeText(this, "מעלה את הרשימה לענן…", Toast.LENGTH_SHORT).show();
@@ -3107,7 +3199,12 @@ public class MainActivity extends Activity {
                 JSONObject data = savedListStore.readEntry(entry.id);
                 JSONObject payload = CloudShare.buildPayload(title, data.optJSONArray("products"));
                 CloudShare.Uploaded uploaded = CloudShare.upload(server, payload, device);
-                mainHandler.post(() -> showCloudUploaded(uploaded, title));
+                mainHandler.post(() -> {
+                    setCloudNumber(entry.id, uploaded.number, uploaded.expiresAt);
+                    refreshHomeTitle();
+                    refreshSavedListsScreen();
+                    showCloudUploaded(uploaded, title);
+                });
             } catch (Exception e) {
                 String error = safeError(e);
                 mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
@@ -3406,7 +3503,7 @@ public class MainActivity extends Activity {
         Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת", unifiedMode);
         Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון", !unifiedMode);
         // עם חשבון אחד בלבד שתי התצוגות זהות, ולכן הכפתורים מוסתרים (המקום נשמר כדי שהשם יישאר באמצע).
-        boolean multipleSources = sourceRegistry != null && sourceRegistry.all().size() > 1;
+        boolean multipleSources = sourceRegistry != null && listSourceCount() > 1;
         unified.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
         byAccount.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
 
@@ -3424,7 +3521,7 @@ public class MainActivity extends Activity {
         byAccountLp.setMarginStart(gap);
         leftSide.addView(byAccount, byAccountLp);
 
-        TextView title = Ui.text(this, homeDisplayTitle(), wide ? Ui.T_TITLE : Ui.T_NAME + 2, Ui.P900, true);
+        TextView title = Ui.text(this, homeDisplayTitle() + homeCloudSuffix(), wide ? Ui.T_TITLE : Ui.T_NAME + 2, Ui.P900, true);
         homeTitleText = title;
         // השם הוא כפתור: מסגרת, חץ למטה ומשוב לחיצה. לחיצה פותחת מעבר בין רשימות.
         title.setClickable(true);
@@ -3508,7 +3605,7 @@ public class MainActivity extends Activity {
         retryButton = Ui.button(this, "לנסות לסנכרן שוב", Ui.Kind.SOFT);
         retryButton.setVisibility(View.GONE);
         retryButton.setOnClickListener(v -> {
-            if (combinedView || sourceRegistry != null && sourceRegistry.all().size() > 1)
+            if (combinedView || sourceRegistry != null && listSourceCount() > 1)
                 syncAllAccounts();
             else loadLatestOrder();
         });
@@ -3592,7 +3689,7 @@ public class MainActivity extends Activity {
         messageText.setText(text);
         messageText.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
         if (retryButton != null) {
-            retryButton.setText(combinedView || (sourceRegistry != null && sourceRegistry.all().size() > 1)
+            retryButton.setText(combinedView || (sourceRegistry != null && listSourceCount() > 1)
                     ? "סנכרן את כל החיבורים שוב" : "לנסות לסנכרן שוב");
             retryButton.setVisibility(canRetry && !syncAllRunning ? View.VISIBLE : View.GONE);
         }
@@ -4294,7 +4391,7 @@ public class MainActivity extends Activity {
     }
 
     private void refreshHomeTitle() {
-        if (homeTitleText != null) homeTitleText.setText(homeDisplayTitle());
+        if (homeTitleText != null) homeTitleText.setText(homeDisplayTitle() + homeCloudSuffix());
     }
 
     // ---------------------------------------------------------------------
@@ -4615,14 +4712,14 @@ public class MainActivity extends Activity {
         for (int i = 0; i < list.getChildCount(); i++) {
             ProductCard card = findProductCard(list.getChildAt(i));
             if (card == null || card.product == null) continue;
-            String category = card.product.category.isEmpty() ? "ללא מחלקה" : card.product.category;
+            String category = card.product.category.isEmpty() ? "ללא קטגוריה" : card.product.category;
             if (category.equals(previous)) continue;
             previous = category;
             int count = 0;
             for (int j = i; j < list.getChildCount(); j++) {
                 ProductCard other = findProductCard(list.getChildAt(j));
                 if (other == null || other.product == null) continue;
-                String otherCategory = other.product.category.isEmpty() ? "ללא מחלקה" : other.product.category;
+                String otherCategory = other.product.category.isEmpty() ? "ללא קטגוריה" : other.product.category;
                 if (!otherCategory.equals(category)) break;
                 count++;
             }
@@ -4689,14 +4786,14 @@ public class MainActivity extends Activity {
         for (int i = 0; i < cards.size(); i++) {
             ProductCard card = cards.get(i);
             String category = card.product == null || card.product.category.isEmpty()
-                    ? "ללא מחלקה" : card.product.category;
+                    ? "ללא קטגוריה" : card.product.category;
             if (headers && !category.equals(previous)) {
                 if (column != 0) { row++; column = 0; }
                 int count = 0;
                 for (int j = i; j < cards.size(); j++) {
                     ProductCard other = cards.get(j);
                     String otherCategory = other.product == null || other.product.category.isEmpty()
-                            ? "ללא מחלקה" : other.product.category;
+                            ? "ללא קטגוריה" : other.product.category;
                     if (!otherCategory.equals(category)) break;
                     count++;
                 }
