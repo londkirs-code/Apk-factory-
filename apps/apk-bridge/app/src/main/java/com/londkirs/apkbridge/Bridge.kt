@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,6 +32,8 @@ import java.io.File
 import java.io.FileInputStream
 import java.net.Inet4Address
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.NetworkInterface
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -170,6 +173,7 @@ object Bridge {
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     status("$name בוטל.")
                 } catch (e: Throwable) {
+                    log("פרטים טכניים: ${details(e)}")
                     status("$name נכשל: ${explain(e)}")
                 } finally {
                     update { it.copy(busy = false) }
@@ -390,18 +394,43 @@ object Bridge {
                 throw e
             } catch (e: Throwable) {
                 lastError = e
-                log("החיבור ל־${ep.port} נכשל: ${explain(e)}")
+                log("החיבור ל־${ep.host}:${ep.port} נכשל: ${explain(e)}")
+                log("פרטים טכניים: ${details(e)}")
                 null
             }
         }
 
+        val local = isLocalTarget(host)
+
+        // Some ROMs only accept the TLS port on the Wi‑Fi address, not on loopback.
+        suspend fun attemptAll(port: Int): AdbClient? {
+            attempt(Endpoint(host, port))?.let { return it }
+            if (local) for (ip in wifiIpv4Addresses()) attempt(Endpoint(ip, port))?.let { return it }
+            return null
+        }
+
         var client: AdbClient? = null
         val saved = savedConnectPort
-        if (saved > 0) client = attempt(Endpoint(host, saved))
+        if (saved > 0) client = attemptAll(saved)
         if (client == null) {
             log("מאתר את פורט Wireless Debugging (mDNS)…")
             val found = discover(CONNECT_SERVICE, host, 10_000)
-            if (found != null) client = attempt(found)
+            if (found == null) log("גילוי mDNS לא מצא את שירות החיבור.")
+            else {
+                log("mDNS מצא את פורט ${found.port}.")
+                client = attempt(found) ?: attemptAll(found.port)
+            }
+        }
+        if (client == null && local) {
+            // mDNS is flaky on many devices. adbd's TLS port is a random high port on this
+            // device, so scan loopback and keep only ports that answer with ADB's A_STLS.
+            log("סורק פורטים מקומיים כדי למצוא את ADB…")
+            val ports = scanLocalAdbPorts()
+            log(if (ports.isEmpty()) "לא נמצא פורט ADB פתוח במכשיר." else "נמצאו פורטים של ADB: ${ports.joinToString()}")
+            for (port in ports) {
+                client = attemptAll(port)
+                if (client != null) break
+            }
         }
         if (client == null) {
             val hint = when {
@@ -419,6 +448,56 @@ object Bridge {
             runCatching { connected.close() }
         }
     }
+
+    private fun wifiIpv4Addresses(): List<String> = runCatching {
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }
+            .filterIsInstance<Inet4Address>()
+            .mapNotNull { it.hostAddress }
+    }.getOrDefault(emptyList())
+
+    /** Finds loopback ports whose server replies to an ADB CNXN with A_STLS (the Wireless Debugging port). */
+    private suspend fun scanLocalAdbPorts(): List<Int> = withContext(Dispatchers.IO) {
+        val open = java.util.concurrent.ConcurrentLinkedQueue<Int>()
+        val all = (30000..65535).toList()
+        val chunk = (all.size + 63) / 64
+        coroutineScope {
+            all.chunked(chunk).forEach { ports ->
+                launch {
+                    for (port in ports) {
+                        val ok = runCatching {
+                            Socket().use { it.connect(InetSocketAddress(LOCAL_HOST, port), 200); true }
+                        }.getOrDefault(false)
+                        if (ok) open += port
+                    }
+                }
+            }
+        }
+        open.sorted().filter { probeStls(it) }
+    }
+
+    private fun probeStls(port: Int): Boolean = runCatching {
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(LOCAL_HOST, port), 500)
+            socket.soTimeout = 1500
+            val payload = "host::\u0000".toByteArray(Charsets.US_ASCII)
+            val header = java.nio.ByteBuffer.allocate(24).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            val cnxn = 0x4e584e43
+            header.putInt(cnxn).putInt(0x01000001).putInt(256 * 1024).putInt(payload.size)
+                .putInt(payload.sumOf { it.toInt() and 0xFF }).putInt(cnxn xor -1)
+            socket.getOutputStream().apply { write(header.array()); write(payload); flush() }
+            val reply = ByteArray(4)
+            var read = 0
+            val input = socket.getInputStream()
+            while (read < 4) {
+                val r = input.read(reply, read, 4 - read)
+                if (r < 0) return@runCatching false
+                read += r
+            }
+            java.nio.ByteBuffer.wrap(reply).order(java.nio.ByteOrder.LITTLE_ENDIAN).int == 0x534c5453
+        }
+    }.getOrDefault(false)
 
     private suspend fun describeDevice(client: AdbClient) {
         val info = client.shell("echo \"\$(getprop ro.product.manufacturer) \$(getprop ro.product.model) · Android \$(getprop ro.build.version.release) (SDK \$(getprop ro.build.version.sdk))\"")
@@ -655,6 +734,10 @@ object Bridge {
         bytes < 1024L * 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / 1048576.0)
         else -> String.format(Locale.US, "%.2f GB", bytes / 1073741824.0)
     }
+
+    /** Full cause chain, for the log, so a failure can be diagnosed from a copied log. */
+    fun details(e: Throwable): String = generateSequence(e) { it.cause }.take(6)
+        .joinToString(" ← ") { "${it.javaClass.simpleName}: ${it.message ?: ""}".trim() }
 
     /** Turns low-level failures into a short actionable Hebrew explanation. */
     fun explain(e: Throwable): String {

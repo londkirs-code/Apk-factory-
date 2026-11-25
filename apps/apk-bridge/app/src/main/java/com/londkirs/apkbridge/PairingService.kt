@@ -85,6 +85,8 @@ class PairingService : Service() {
             if (ok) {
                 notifyFinal(getString(R.string.pair_success), success = true)
                 stopSelfCleanly()
+                // Verify right away that ADB commands work, so problems show up in the log immediately.
+                Bridge.testConnection()
             } else {
                 // Let the user retry: the dialog may still be open with a new code.
                 notify(askForCode(port, getString(R.string.pair_failed_retry)))
