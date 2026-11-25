@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Tiny companion app: targetSdk 28 is intentional. Android only blocks
+// WifiManager.setWifiEnabled() for apps targeting API 29+, the same reason
+// Termux:API (targetSdk 28) can still switch Wi-Fi on. It is bundled inside
+// APK Bridge's assets and installed from there over ADB.
+android {
+    namespace 'com.londkirs.apkbridge.wifihelper'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.londkirs.apkbridge.wifihelper'
+        minSdk 24
+        //noinspection ExpiredTargetSdkVersion
+        targetSdk 28
+        versionCode 1
+        versionName '1.0'
+    }
+    buildTypes { release { minifyEnabled false } }
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+if (System.getenv('APK_SIGNING_STORE_FILE')) {
+    android {
+        signingConfigs {
+            release {
+                storeFile file(System.getenv('APK_SIGNING_STORE_FILE'))
+                storePassword System.getenv('APK_SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('APK_SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('APK_SIGNING_KEY_PASSWORD')
+            }
+        }
+        buildTypes { release { signingConfig signingConfigs.release } }
+    }
+}

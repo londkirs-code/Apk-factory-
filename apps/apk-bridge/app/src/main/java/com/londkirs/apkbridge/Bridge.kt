@@ -84,6 +84,9 @@ object Bridge {
     private const val PREFS = "bridge"
     private const val PLAY_STORE = "com.android.vending"
     private const val INSTALL_CHANNEL = "installs"
+    const val WIFI_HELPER_PKG = "com.londkirs.apkbridge.wifihelper"
+    private const val WIFI_HELPER_ACTION = "com.londkirs.apkbridge.wifihelper.ENABLE_WIFI"
+    private const val WIFI_HELPER_ASSET = "wifi-helper.apk"
     private val KNOWN_ABIS = listOf("arm64_v8a", "armeabi_v7a", "armeabi", "x86_64", "x86", "mips64", "mips")
 
     private lateinit var app: Context
@@ -199,7 +202,25 @@ object Bridge {
     suspend fun ensureWifi(): Boolean {
         if (isOnWifi()) return true
         if (!autoWifi) return false
-        log("אין חיבור Wi‑Fi — פותח את חלונית ה־Wi‑Fi של Android (אפליקציות לא רשאיות להדליק Wi‑Fi בעצמן).")
+        if (isWifiHelperInstalled()) {
+            log("אין חיבור Wi‑Fi — מדליק Wi‑Fi דרך עזר ה־Wi‑Fi…")
+            update { it.copy(status = "מדליק Wi‑Fi וממתין לחיבור לרשת…", progress = -1) }
+            if (requestWifiFromHelper()) {
+                val up = withTimeoutOrNull(25_000) {
+                    while (!isOnWifi()) delay(700)
+                    true
+                } ?: false
+                if (up) {
+                    log("Wi‑Fi הודלק והתחבר. ממשיך…")
+                    delay(1500)
+                    return true
+                }
+                log("ה־Wi‑Fi הודלק אבל לא התחבר לרשת שמורה בתוך 25 שניות.")
+            } else {
+                log("עזר ה־Wi‑Fi לא הצליח להדליק את ה־Wi‑Fi.")
+            }
+        }
+        log("אין חיבור Wi‑Fi — פותח את חלונית ה־Wi‑Fi של Android.")
         if (wifiPanelListeners.isEmpty()) {
             notifyInfo("APK Bridge צריך Wi‑Fi", "הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", android.content.Intent(Settings.Panel.ACTION_WIFI))
         } else {
@@ -217,6 +238,46 @@ object Bridge {
             log("לא התקבל חיבור Wi‑Fi בתוך 2 דקות.")
         }
         return connected
+    }
+
+    fun isWifiHelperInstalled(): Boolean = runCatching {
+        app.packageManager.getPackageInfo(WIFI_HELPER_PKG, 0); true
+    }.getOrDefault(false)
+
+    fun isWifiHelperBundled(): Boolean = runCatching { app.assets.open(WIFI_HELPER_ASSET).close(); true }.getOrDefault(false)
+
+    /** Asks the targetSdk-28 helper app to call WifiManager.setWifiEnabled(true). */
+    private suspend fun requestWifiFromHelper(): Boolean {
+        val reply = CompletableDeferred<Int>()
+        val intent = android.content.Intent(WIFI_HELPER_ACTION)
+            .setClassName(WIFI_HELPER_PKG, "$WIFI_HELPER_PKG.EnableWifiReceiver")
+            .addFlags(android.content.Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+        return runCatching {
+            app.sendOrderedBroadcast(
+                intent, null,
+                object : android.content.BroadcastReceiver() {
+                    override fun onReceive(c: Context, i: android.content.Intent) { reply.complete(resultCode) }
+                },
+                main, -1, null, null,
+            )
+            (withTimeoutOrNull(5_000) { reply.await() } ?: 0) == 1
+        }.getOrDefault(false)
+    }
+
+    /** Installs the bundled Wi‑Fi helper over ADB (needs a working ADB connection once). */
+    fun installWifiHelper() {
+        val file = File(app.cacheDir, "wifi-helper.apk")
+        val copied = runCatching {
+            app.assets.open(WIFI_HELPER_ASSET).use { input -> file.outputStream().use { input.copyTo(it) } }
+        }.isSuccess
+        if (!copied) {
+            log("קובץ עזר ה־Wi‑Fi חסר בגרסה הזו של APK Bridge.")
+            return
+        }
+        install(
+            listOf(Uri.fromFile(file)),
+            loadOptions().copy(registerPlayInstaller = false, allowDowngrade = true),
+        )
     }
 
     fun addLogListener(l: (String) -> Unit) { logListeners += l }

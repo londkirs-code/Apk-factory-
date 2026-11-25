@@ -26,6 +26,8 @@ class SettingsActivity : Activity() {
     private lateinit var a11yState: TextView
     private lateinit var wirelessState: TextView
     private lateinit var updatesOnly: CheckBox
+    private lateinit var wifiHelperState: TextView
+    private lateinit var wifiHelperButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,9 +35,21 @@ class SettingsActivity : Activity() {
         buildUi()
     }
 
+    private val stateListener: (BridgeState) -> Unit = { if (!it.busy) refresh() }
+
     override fun onResume() {
         super.onResume()
         refresh()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Bridge.addStateListener(stateListener)
+    }
+
+    override fun onStop() {
+        Bridge.removeStateListener(stateListener)
+        super.onStop()
     }
 
     private fun buildUi() {
@@ -118,7 +132,13 @@ class SettingsActivity : Activity() {
         pair.addView(checkBox("להדליק Wi‑Fi כשצריך: לפתוח את חלונית ה־Wi‑Fi אוטומטית ולהמשיך כשהוא מתחבר", Bridge.autoWifi) {
             Bridge.autoWifi = it
         }, matchWrap(0))
-        pair.addView(note("Android לא מאפשר לאפליקציות רגילות להדליק Wi‑Fi לבד (מאז Android 10), לכן נדרשת הקשה אחת בחלונית."), matchWrap(8))
+        wifiHelperState = note("")
+        pair.addView(wifiHelperState, matchWrap(4))
+        wifiHelperButton = button("התקן את עזר ה־Wi‑Fi", false) {
+            Bridge.installWifiHelper()
+            toast("מתקין את עזר ה־Wi‑Fi… (דורש חיבור ADB פעיל)")
+        }
+        pair.addView(wifiHelperButton, matchWrap(12))
         pair.addView(checkBox("להדליק ניפוי באגים אלחוטי אוטומטית כשהוא כבוי", Bridge.autoEnableWireless) {
             Bridge.autoEnableWireless = it
             refresh()
@@ -170,6 +190,13 @@ class SettingsActivity : Activity() {
         } else {
             "דורש הרשאה חד־פעמית: במסך הראשי ← כלים ← \"אפשר הפעלה אוטומטית של ניפוי באגים אלחוטי\"."
         }
+        val helper = Bridge.isWifiHelperInstalled()
+        wifiHelperState.text = when {
+            helper -> "✔ עזר ה־Wi‑Fi מותקן: Wi‑Fi כבוי יודלק לבד, בלי הקשה."
+            Bridge.isWifiHelperBundled() -> "בלי עזר ה־Wi‑Fi תיפתח חלונית Wi‑Fi שבה צריך להקיש פעם אחת. עזר ה־Wi‑Fi הוא אפליקציה קטנה (מובנית ב־APK Bridge) שבנויה ל־Android 9, ולכן Android עדיין מרשה לה להדליק Wi‑Fi — כמו Termux:API. ההתקנה נעשית פעם אחת דרך ADB, כשה־Wi‑Fi דלוק."
+            else -> "עזר ה־Wi‑Fi לא נכלל בגרסה הזו."
+        }
+        wifiHelperButton.visibility = if (!helper && Bridge.isWifiHelperBundled()) View.VISIBLE else View.GONE
         updatesOnly.isEnabled = Bridge.autoInstallMode != "off"
         updatesOnly.alpha = if (updatesOnly.isEnabled) 1f else 0.5f
     }

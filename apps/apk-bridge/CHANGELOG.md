@@ -1,5 +1,21 @@
 # APK Bridge — יומן שינויים
 
+## 2.4.0 — 2026-11-25
+**הבקשה:** המשתמש העיר, ובצדק, ש־Termux:API מדליק Wi‑Fi. בגרסה 2.3.0 נכתב שאפליקציה רגילה לא יכולה, וזה לא מדויק.
+
+**התיקון לאבחנה:** Android חוסם את `WifiManager.setWifiEnabled` רק לאפליקציות שבנויות ל־targetSdk 29 ומעלה. Termux:API בנויה ל־targetSdk 28 ולכן עדיין מורשית. APK Bridge בנויה ל־targetSdk 35 ומשתמשת ב־API של Android 11+, ולכן אי אפשר להוריד לה את ה־targetSdk.
+
+**המימוש — עזר Wi‑Fi:**
+- מודול חדש `wifihelper/` (`com.londkirs.apkbridge.wifihelper`, targetSdk 28, minSdk 24) עם `EnableWifiReceiver` בלבד, שמבצע `setWifiEnabled(true)`.
+- הקליטה מוגנת בהרשאת signature בשם `com.londkirs.apkbridge.permission.CONTROL_WIFI`, שמוגדרת בשתי האפליקציות. כך רק אפליקציה חתומה במפתח של APK Factory יכולה להפעיל אותה, וסדר ההתקנה לא משנה.
+- `app/build.gradle`: המשימה `bundleWifiHelper` בונה את העזר וכוללת אותו כ־`assets/wifi-helper.apk` בתוך APK Bridge.
+- הגדרות ← "התקן את עזר ה־Wi‑Fi" מתקין אותו דרך ADB פעם אחת (`Bridge.installWifiHelper`).
+- `Bridge.ensureWifi`: אם העזר מותקן, נשלח אליו broadcast שמדליק Wi‑Fi, וממתינים עד 25 שניות לחיבור לרשת שמורה. רק אם זה נכשל, או שהעזר לא מותקן, נפתחת חלונית ה־Wi‑Fi כמו קודם.
+
+**מה לא השתנה:** targetSdk 35 של APK Bridge, שם החבילה והחתימה.
+
+**בדיקות:** קומפילציית Kotlin של האפליקציה וקומפילציית Java של העזר עברו. בנייה, חתימה והכללת העזר מתבצעות ב־GitHub Actions. לא נבדק על מכשיר שהעזר אכן מדליק Wi‑Fi בגרסת Android של המשתמש.
+
 ## 2.3.0 — 2026-11-25
 **הבקשה:** להדליק Wi‑Fi אוטומטית אם הוא כבוי, ולשקול OCR/QR מתמונה בתוך האפליקציה רק אם זה תורם.
 

@@ -11,7 +11,7 @@ android {
         minSdk 30
         targetSdk 35
         versionCode 7
-        versionName '2.3.0'
+        versionName '2.4.0'
     }
     buildTypes { release { minifyEnabled false } }
     packaging {
@@ -26,6 +26,19 @@ android {
     }
     kotlinOptions { jvmTarget = '17' }
 }
+
+// Bundle the Wi-Fi helper APK (module :wifihelper) into this app's assets.
+def helperAssetsDir = "${buildDir}/generated/wifiHelperAssets"
+tasks.register('bundleWifiHelper', Copy) {
+    dependsOn ':wifihelper:assembleRelease'
+    from("${rootDir}/wifihelper/build/outputs/apk/release") {
+        include '*.apk'
+        rename { 'wifi-helper.apk' }
+    }
+    into helperAssetsDir
+}
+android.sourceSets.main.assets.srcDirs += helperAssetsDir
+tasks.named('preBuild') { dependsOn 'bundleWifiHelper' }
 
 dependencies {
     // v1.0.7+ fixes the RSA key ClassCastException on Android 8-11 and the BouncyCastle

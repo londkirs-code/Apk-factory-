@@ -507,8 +507,13 @@ class MainActivity : Activity() {
         }
         if (!Bridge.isOnWifi()) {
             if (Bridge.autoWifi) {
-                toast("ניפוי באגים אלחוטי דורש Wi‑Fi — הדלק אותו בחלונית, ואז לחץ שוב על הזיווג.")
-                openWifiPanel()
+                if (Bridge.isWifiHelperInstalled()) {
+                    toast("מדליק Wi‑Fi… לחץ שוב על הזיווג כשהוא מתחבר.")
+                    Bridge.scope.launch { Bridge.ensureWifi() }
+                } else {
+                    toast("ניפוי באגים אלחוטי דורש Wi‑Fi — הדלק אותו בחלונית, ואז לחץ שוב על הזיווג.")
+                    openWifiPanel()
+                }
                 return
             }
             toast("שים לב: ניפוי באגים אלחוטי דורש חיבור Wi‑Fi.")
