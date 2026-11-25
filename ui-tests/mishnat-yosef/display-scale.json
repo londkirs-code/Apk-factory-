@@ -124,6 +124,12 @@
       "seconds": 2
     },
     {
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8,
+      "note": "dialog is reopened after rotation"
+    },
+    {
       "action": "screenshot",
       "name": "dialog-landscape"
     },
@@ -136,10 +142,10 @@
       "seconds": 2
     },
     {
-      "action": "tap",
-      "desc": "פתיחת הגדרות ופעולות",
-      "optional": true,
-      "timeout": 3
+      "action": "wait_for",
+      "text": "פעולות מהירות",
+      "timeout": 8,
+      "note": "still open after rotating back"
     },
     {
       "action": "wait_for",

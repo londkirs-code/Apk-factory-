@@ -2005,10 +2005,11 @@ public class MainActivity extends Activity {
             restoreLoginFormState(state);
         }
         // Check for a newer release once per app launch; the setting defaults to enabled.
+        final boolean reopenActionsAfterRotation = state != null && state.getBoolean("actions_dialog_open", false);
         if (root != null) root.post(() -> {
             boolean showedUpdateSuccess = showPendingInAppUpdateSuccess();
             if (!showedUpdateSuccess) checkForUpdatesOnLaunch();
-            if (!showedUpdateSuccess && reopenActionsAfterScale && hasToken()) showActionsDialog();
+            if (!showedUpdateSuccess && ((reopenActionsAfterScale && hasToken()) || reopenActionsAfterRotation)) showActionsDialog();
         });
         else if (!showPendingInAppUpdateSuccess()) checkForUpdatesOnLaunch();
     }
@@ -3279,6 +3280,8 @@ public class MainActivity extends Activity {
     // The password is intentionally not saved.
     @Override protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
+        // The "פעולות" dialog is not restored by Android after rotation; remember to reopen it.
+        out.putBoolean("actions_dialog_open", actionsDialogPanel != null);
         if (!hasToken() && emailField != null && emailField.isAttachedToWindow()) {
             out.putString("login_email_draft", emailField.getText().toString());
             if (statusView != null && statusView.getVisibility() == View.VISIBLE) {
