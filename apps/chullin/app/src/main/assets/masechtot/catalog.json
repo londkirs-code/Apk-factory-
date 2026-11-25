@@ -1,0 +1,10 @@
+[
+  {
+    "key": "Chullin",
+    "heName": "חולין",
+    "dafFrom": 2,
+    "dafTo": 142,
+    "lastDafSideAOnly": true,
+    "dataFile": "masechtot/Chullin.json"
+  }
+]
