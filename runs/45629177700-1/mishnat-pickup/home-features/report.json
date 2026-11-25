@@ -1,0 +1,973 @@
+{
+  "app": "mishnat-pickup",
+  "package": "org.mishnatyosef.pickup",
+  "mode": "scenario",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 328.4,
+  "crashes": [],
+  "warnings": [
+    "explore: 10 distinct screens, 27 elements tapped, 0 relaunches, 137s"
+  ],
+  "screens": [
+    {
+      "signature": "9b987c1d91bb",
+      "screenshot": "screenshots/015-screen-1.png",
+      "found_at_action": "0"
+    },
+    {
+      "signature": "3a6a470d8347",
+      "screenshot": "screenshots/016-screen-2.png",
+      "found_at_action": "1"
+    },
+    {
+      "signature": "d93be98aed8c",
+      "screenshot": "screenshots/017-screen-3.png",
+      "found_at_action": "2"
+    },
+    {
+      "signature": "d89b4ebe68a8",
+      "screenshot": "screenshots/018-screen-4.png",
+      "found_at_action": "9"
+    },
+    {
+      "signature": "3992c56cf7ed",
+      "screenshot": "screenshots/019-screen-5.png",
+      "found_at_action": "12"
+    },
+    {
+      "signature": "ba22303c3560",
+      "screenshot": "screenshots/020-screen-6.png",
+      "found_at_action": "17"
+    },
+    {
+      "signature": "32255c2110f9",
+      "screenshot": "screenshots/021-screen-7.png",
+      "found_at_action": "20"
+    },
+    {
+      "signature": "5bee9a258cd2",
+      "screenshot": "screenshots/022-screen-8.png",
+      "found_at_action": "25"
+    },
+    {
+      "signature": "d34f94005d1e",
+      "screenshot": "screenshots/023-screen-9.png",
+      "found_at_action": "28"
+    },
+    {
+      "signature": "9e74eb02bacd",
+      "screenshot": "screenshots/024-screen-10.png",
+      "found_at_action": "33"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "clear_data",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.11,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "push",
+      "detail": "src='fixtures/ui-test-features.txt', dest='/sdcard/Download/ui-test-features.txt'",
+      "status": "passed",
+      "seconds": 25.18,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 4.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait_for",
+      "detail": "text='כניסה לחשבון'",
+      "status": "passed",
+      "seconds": 2.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "scroll_to",
+      "detail": "text='ייבוא רשימה מקובץ'",
+      "status": "passed",
+      "seconds": 2.22,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "tap",
+      "detail": "text='ייבוא רשימה מקובץ'",
+      "status": "passed",
+      "seconds": 3.53,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "tap",
+      "detail": "text='ui-test-features'",
+      "status": "passed",
+      "seconds": 4.21,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "wait_for",
+      "detail": "text='נמצאו 1 רשימות'",
+      "status": "passed",
+      "seconds": 3.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "tap",
+      "detail": "text='ייבא רשימות'",
+      "status": "passed",
+      "seconds": 3.39,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "wait_for",
+      "detail": "1+2+3+4+1.5 units",
+      "status": "passed",
+      "seconds": 3.61,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "screenshot",
+      "detail": "name='imported-5-items'",
+      "status": "passed",
+      "seconds": 2.8,
+      "error": "",
+      "screenshot": "screenshots/001-imported-5-items.png"
+    },
+    {
+      "index": 12,
+      "action": "assert_text",
+      "detail": "decimal quantity kept",
+      "status": "passed",
+      "seconds": 2.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "tap",
+      "detail": "text='חיפוש פריט'",
+      "status": "passed",
+      "seconds": 3.77,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "type",
+      "detail": "value='Pasta', hide_keyboard=True",
+      "status": "passed",
+      "seconds": 2.39,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.42,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "screenshot",
+      "detail": "name='search-pasta'",
+      "status": "passed",
+      "seconds": 3.48,
+      "error": "",
+      "screenshot": "screenshots/002-search-pasta.png"
+    },
+    {
+      "index": 17,
+      "action": "assert_text",
+      "detail": "text='Pasta'",
+      "status": "passed",
+      "seconds": 2.2,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "assert_not_visible",
+      "detail": "search filters other items",
+      "status": "passed",
+      "seconds": 3.15,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "type",
+      "detail": "class='EditText'",
+      "status": "passed",
+      "seconds": 4.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.19,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "assert_text",
+      "detail": "cleared search shows all items",
+      "status": "passed",
+      "seconds": 2.1,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "long_press",
+      "detail": "text='Pasta'",
+      "status": "passed",
+      "seconds": 3.97,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 23,
+      "action": "wait_for",
+      "detail": "text='איסוף כמות חלקית'",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 24,
+      "action": "screenshot",
+      "detail": "name='partial-dialog'",
+      "status": "passed",
+      "seconds": 2.5,
+      "error": "",
+      "screenshot": "screenshots/003-partial-dialog.png"
+    },
+    {
+      "index": 25,
+      "action": "swipe",
+      "detail": "RTL slider: try to pick more units",
+      "status": "passed",
+      "seconds": 3.49,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 26,
+      "action": "screenshot",
+      "detail": "name='partial-dialog-moved'",
+      "status": "passed",
+      "seconds": 2.39,
+      "error": "",
+      "screenshot": "screenshots/004-partial-dialog-moved.png"
+    },
+    {
+      "index": 27,
+      "action": "tap",
+      "detail": "text='אישור הכמות'",
+      "status": "passed",
+      "seconds": 3.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 28,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "scroll_to",
+      "detail": "the partial card sits in the collected section, below the fold",
+      "status": "passed",
+      "seconds": 5.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 30,
+      "action": "screenshot",
+      "detail": "name='partial-collected'",
+      "status": "passed",
+      "seconds": 2.46,
+      "error": "",
+      "screenshot": "screenshots/005-partial-collected.png"
+    },
+    {
+      "index": 31,
+      "action": "scroll_to",
+      "detail": "text='נאספו 1 מתוך'",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 32,
+      "action": "tap",
+      "detail": "desc='איפוס ליקוט'",
+      "status": "passed",
+      "seconds": 3.1,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "wait_for",
+      "detail": "text='להחזיר את כל המוצרים'",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 34,
+      "action": "screenshot",
+      "detail": "name='reset-confirm'",
+      "status": "passed",
+      "seconds": 2.41,
+      "error": "",
+      "screenshot": "screenshots/006-reset-confirm.png"
+    },
+    {
+      "index": 35,
+      "action": "tap",
+      "detail": "text='איפוס'",
+      "status": "passed",
+      "seconds": 3.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 36,
+      "action": "wait_for",
+      "detail": "text='נאספו 0 מתוך 11.5'",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 37,
+      "action": "tap",
+      "detail": "desc='רשימה לפי חשבון'",
+      "status": "passed",
+      "seconds": 3.12,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 38,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.56,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 39,
+      "action": "screenshot",
+      "detail": "name='view-by-account'",
+      "status": "passed",
+      "seconds": 2.38,
+      "error": "",
+      "screenshot": "screenshots/007-view-by-account.png"
+    },
+    {
+      "index": 40,
+      "action": "tap",
+      "detail": "desc='רשימה מאוחדת'",
+      "status": "passed",
+      "seconds": 3.11,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 41,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.56,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 42,
+      "action": "screenshot",
+      "detail": "name='view-combined'",
+      "status": "passed",
+      "seconds": 2.41,
+      "error": "",
+      "screenshot": "screenshots/008-view-combined.png"
+    },
+    {
+      "index": 43,
+      "action": "tap",
+      "detail": "text='גבינה'",
+      "status": "passed",
+      "seconds": 3.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 44,
+      "action": "assert_text",
+      "detail": "text='נאספו 1.5 מתוך 11.5'",
+      "status": "passed",
+      "seconds": 2.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 45,
+      "action": "rotate",
+      "detail": "to='landscape'",
+      "status": "passed",
+      "seconds": 1.65,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 46,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.56,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 47,
+      "action": "assert_text",
+      "detail": "progress survives rotation",
+      "status": "passed",
+      "seconds": 2.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 48,
+      "action": "screenshot",
+      "detail": "name='landscape'",
+      "status": "passed",
+      "seconds": 2.39,
+      "error": "",
+      "screenshot": "screenshots/009-landscape.png"
+    },
+    {
+      "index": 49,
+      "action": "rotate",
+      "detail": "to='portrait'",
+      "status": "passed",
+      "seconds": 1.61,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 50,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.56,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 51,
+      "action": "tap",
+      "detail": "desc='הגדרות'",
+      "status": "passed",
+      "seconds": 3.09,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 52,
+      "action": "wait_for",
+      "detail": "text='סיכום מהיר'",
+      "status": "passed",
+      "seconds": 2.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 53,
+      "action": "screenshot",
+      "detail": "name='settings-top'",
+      "status": "passed",
+      "seconds": 2.39,
+      "error": "",
+      "screenshot": "screenshots/010-settings-top.png"
+    },
+    {
+      "index": 54,
+      "action": "swipe",
+      "detail": "direction='up'",
+      "status": "passed",
+      "seconds": 1.34,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 55,
+      "action": "screenshot",
+      "detail": "name='settings-middle'",
+      "status": "passed",
+      "seconds": 2.66,
+      "error": "",
+      "screenshot": "screenshots/011-settings-middle.png"
+    },
+    {
+      "index": 56,
+      "action": "swipe",
+      "detail": "direction='up'",
+      "status": "passed",
+      "seconds": 1.26,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 57,
+      "action": "swipe",
+      "detail": "direction='up'",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 58,
+      "action": "screenshot",
+      "detail": "name='settings-bottom'",
+      "status": "passed",
+      "seconds": 2.42,
+      "error": "",
+      "screenshot": "screenshots/012-settings-bottom.png"
+    },
+    {
+      "index": 59,
+      "action": "scroll_to",
+      "detail": "text='רשימות שמורות'",
+      "status": "passed",
+      "seconds": 2.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 60,
+      "action": "tap",
+      "detail": "text='רשימות שמורות'",
+      "status": "passed",
+      "seconds": 3.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 61,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 62,
+      "action": "screenshot",
+      "detail": "name='saved-lists'",
+      "status": "passed",
+      "seconds": 2.38,
+      "error": "",
+      "screenshot": "screenshots/013-saved-lists.png"
+    },
+    {
+      "index": 63,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.91,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 64,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.16,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 65,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.22,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 66,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 67,
+      "action": "launch",
+      "detail": "restart=False",
+      "status": "passed",
+      "seconds": 2.85,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 68,
+      "action": "screenshot",
+      "detail": "name='before-explore'",
+      "status": "passed",
+      "seconds": 2.4,
+      "error": "",
+      "screenshot": "screenshots/014-before-explore.png"
+    },
+    {
+      "index": 69,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 70,
+      "action": "explore-tap",
+      "detail": "× / סגירת ההגדרות",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 71,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 72,
+      "action": "explore-tap",
+      "detail": "רטט ארוך בסיום הרשימה",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 73,
+      "action": "explore-tap",
+      "detail": "צליל הצלחה ממושך בסיום הרשימה",
+      "status": "passed",
+      "seconds": 1.27,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 74,
+      "action": "explore-tap",
+      "detail": "רשימה מאוחדת",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 75,
+      "action": "explore-tap",
+      "detail": "רשימה לפי חשבון",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 76,
+      "action": "explore-tap",
+      "detail": "חיפוש פריט ברשימה…",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 77,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 78,
+      "action": "explore-tap",
+      "detail": "לחם, כמות 1",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 79,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 80,
+      "action": "explore-tap",
+      "detail": "רשימה מאוחדת",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 81,
+      "action": "explore-tap",
+      "detail": "רשימה לפי חשבון",
+      "status": "passed",
+      "seconds": 1.33,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 82,
+      "action": "explore-tap",
+      "detail": "חיפוש פריט ברשימה…",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 83,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 84,
+      "action": "explore-tap",
+      "detail": "חלב, כמות 2",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 85,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 86,
+      "action": "explore-tap",
+      "detail": "רשימה מאוחדת",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 87,
+      "action": "explore-tap",
+      "detail": "רשימה לפי חשבון",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 88,
+      "action": "explore-tap",
+      "detail": "חיפוש פריט ברשימה…",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 89,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 90,
+      "action": "explore-tap",
+      "detail": "מלפפון, כמות 3",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 91,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 92,
+      "action": "explore-tap",
+      "detail": "רשימה מאוחדת",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 93,
+      "action": "explore-tap",
+      "detail": "רשימה לפי חשבון",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 94,
+      "action": "explore-tap",
+      "detail": "חיפוש פריט ברשימה…",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 95,
+      "action": "explore-tap",
+      "detail": "⚙ / הגדרות",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 69,
+      "action": "explore",
+      "detail": "auto-explore from the list screen",
+      "status": "passed",
+      "seconds": 136.61,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 70,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.08,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-imported-5-items.png",
+    "002-search-pasta.png",
+    "003-partial-dialog.png",
+    "004-partial-dialog-moved.png",
+    "005-partial-collected.png",
+    "006-reset-confirm.png",
+    "007-view-by-account.png",
+    "008-view-combined.png",
+    "009-landscape.png",
+    "010-settings-top.png",
+    "011-settings-middle.png",
+    "012-settings-bottom.png",
+    "013-saved-lists.png",
+    "014-before-explore.png",
+    "015-screen-1.png",
+    "016-screen-2.png",
+    "017-screen-3.png",
+    "018-screen-4.png",
+    "019-screen-5.png",
+    "020-screen-6.png",
+    "021-screen-7.png",
+    "022-screen-8.png",
+    "023-screen-9.png",
+    "024-screen-10.png",
+    "025-final.png"
+  ]
+}

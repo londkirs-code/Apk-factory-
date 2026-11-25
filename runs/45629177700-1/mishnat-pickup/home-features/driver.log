@@ -1,0 +1,72 @@
+[ok] 01 clear_data
+[ok] 02 push src='fixtures/ui-test-features.txt', dest='/sdcard/Download/ui-test-features.txt'
+[ok] 03 launch
+[ok] 04 wait_for text='כניסה לחשבון'
+[ok] 05 scroll_to text='ייבוא רשימה מקובץ'
+[ok] 06 tap text='ייבוא רשימה מקובץ'
+[ok] 07 tap text='ui-test-features'
+[ok] 08 wait_for text='נמצאו 1 רשימות'
+[ok] 09 tap text='ייבא רשימות'
+[ok] 10 wait_for 1+2+3+4+1.5 units
+[ok] 11 screenshot name='imported-5-items'
+[ok] 12 assert_text decimal quantity kept
+[ok] 13 tap text='חיפוש פריט'
+[ok] 14 type value='Pasta', hide_keyboard=True
+[ok] 15 wait seconds=1
+[ok] 16 screenshot name='search-pasta'
+[ok] 17 assert_text text='Pasta'
+[ok] 18 assert_not_visible search filters other items
+[ok] 19 type class='EditText'
+[ok] 20 wait seconds=1
+[ok] 21 assert_text cleared search shows all items
+[ok] 22 long_press text='Pasta'
+[ok] 23 wait_for text='איסוף כמות חלקית'
+[ok] 24 screenshot name='partial-dialog'
+[ok] 25 swipe RTL slider: try to pick more units
+[ok] 26 screenshot name='partial-dialog-moved'
+[ok] 27 tap text='אישור הכמות'
+[ok] 28 wait seconds=1
+[ok] 29 scroll_to the partial card sits in the collected section, below the fold
+[ok] 30 screenshot name='partial-collected'
+[ok] 31 scroll_to text='נאספו 1 מתוך'
+[ok] 32 tap desc='איפוס ליקוט'
+[ok] 33 wait_for text='להחזיר את כל המוצרים'
+[ok] 34 screenshot name='reset-confirm'
+[ok] 35 tap text='איפוס'
+[ok] 36 wait_for text='נאספו 0 מתוך 11.5'
+[ok] 37 tap desc='רשימה לפי חשבון'
+[ok] 38 wait seconds=1.5
+[ok] 39 screenshot name='view-by-account'
+[ok] 40 tap desc='רשימה מאוחדת'
+[ok] 41 wait seconds=1.5
+[ok] 42 screenshot name='view-combined'
+[ok] 43 tap text='גבינה'
+[ok] 44 assert_text text='נאספו 1.5 מתוך 11.5'
+[ok] 45 rotate to='landscape'
+[ok] 46 wait seconds=1.5
+[ok] 47 assert_text progress survives rotation
+[ok] 48 screenshot name='landscape'
+[ok] 49 rotate to='portrait'
+[ok] 50 wait seconds=1.5
+[ok] 51 tap desc='הגדרות'
+[ok] 52 wait_for text='סיכום מהיר'
+[ok] 53 screenshot name='settings-top'
+[ok] 54 swipe direction='up'
+[ok] 55 screenshot name='settings-middle'
+[ok] 56 swipe direction='up'
+[ok] 57 swipe direction='up'
+[ok] 58 screenshot name='settings-bottom'
+[ok] 59 scroll_to text='רשימות שמורות'
+[ok] 60 tap text='רשימות שמורות'
+[ok] 61 wait seconds=2
+[ok] 62 screenshot name='saved-lists'
+[ok] 63 back
+[ok] 64 wait seconds=1
+[ok] 65 back
+[ok] 66 wait seconds=1
+[ok] 67 launch restart=False
+[ok] 68 screenshot name='before-explore'
+[ok] 69 explore auto-explore from the list screen
+[ok] 70 assert_foreground
+
+Result: PASSED — 97 steps, 25 screenshots, 0 crashes
