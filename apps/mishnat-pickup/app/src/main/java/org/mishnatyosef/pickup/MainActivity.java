@@ -1537,21 +1537,20 @@ public class MainActivity extends Activity {
         }
         if(replacesExisting) panel.addView(Ui.banner(this,"נמצא מקור קיים. בדקו שתאריך העדכון בקובץ אינו ישן יותר; הייבוא עשוי להחליף את הרשימה המקומית."),Ui.row(this,Ui.S2,0));
         Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
-        Button apply=Ui.button(this,"ייבא רשימות",Ui.Kind.PRIMARY);
+        Button apply=Ui.gridButton(this,"ייבא רשימות כחשבון",Ui.Kind.SOFT);
         cancel.setOnClickListener(v->{dialog.dismiss();ImportParser.delete(bundle.workDir);});
         apply.setOnClickListener(v->{
             dialog.dismiss();
             if(hasConnectedImportConflict(bundle))showImportConflict(bundle);
             else commitImport(bundle,false);
         });
-        Button saveSeparate=Ui.button(this,"שמור כרשימות עצמאיות",Ui.Kind.SOFT);
+        Button saveSeparate=Ui.gridButton(this,"שמור כרשימות עצמאיות",Ui.Kind.SOFT);
         saveSeparate.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,false);});
-        Button addCurrent=Ui.button(this,"הוסף לרשימה הנוכחית",Ui.Kind.SOFT);
+        Button addCurrent=Ui.gridButton(this,"הוסף לרשימה הנוכחית",Ui.Kind.SOFT);
         addCurrent.setEnabled(!activeSourceId.isEmpty()&&!currentOrderId.isEmpty());
         addCurrent.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,true);});
-        panel.addView(saveSeparate,Ui.row(this,Ui.S3,Ui.S1));
-        panel.addView(addCurrent,Ui.row(this,0,Ui.S1));
-        panel.addView(apply,Ui.row(this,Ui.S3,Ui.S1));panel.addView(cancel);
+        addGridButtons(panel,saveSeparate,addCurrent,apply);
+        panel.addView(cancel,Ui.row(this,Ui.S2,0));
         // סגירה במקש חזרה או בנגיעה מחוץ לחלון מנקה את קובצי הייבוא הזמניים.
         dialog.setOnCancelListener(d->ImportParser.delete(bundle.workDir));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
@@ -1813,6 +1812,7 @@ public class MainActivity extends Activity {
             "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
+            + "• עיצוב חדש לתפריטים: כפתורים בשתי עמודות, עם אימוג׳י גדול ושם מתחת, כמו מסך אפליקציות.\n"
             + "• \"שיתוף\" בחלון הרשימות: ענן, JSON, TXT או ZIP עם תמונות, ואז וואטסאפ, SMS, מייל או שמירה במכשיר. משתף את המסומנות או את המוצגת, ואפשר לייבא הכול בחזרה.\n"
             + "• \"רשימה חדשה\" שואל מאיפה: הזמנה קודמת באתר, הענן, קובץ או רשימה ריקה.\n"
             + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
@@ -1884,16 +1884,17 @@ public class MainActivity extends Activity {
 
         // 1. רשימות: הפעולות היומיומיות.
         LinearLayout lists = settingsCard(content, "רשימות");
-        Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.SOFT);
+        Button savedLists = Ui.gridButton(this, "רשימות שמורות", Ui.Kind.SOFT);
         savedLists.setOnClickListener(v -> showSavedListsScreen(Screen.SETTINGS));
-        Button history = Ui.button(this, "הזמנות קודמות", Ui.Kind.SOFT);
+        Button history = Ui.gridButton(this, "הזמנות קודמות", Ui.Kind.SOFT);
         history.setEnabled(!connectedAccounts().isEmpty());
         history.setOnClickListener(v -> showOrderHistoryScreen(Screen.SETTINGS));
-        lists.addView(buttonPair(savedLists, history), Ui.row(this, Ui.S1, Ui.S1));
-        Button sync = Ui.button(this, "סנכרון עם האתר", Ui.Kind.PRIMARY);
+        Button sync = Ui.gridButton(this, "סנכרון עם האתר", Ui.Kind.SOFT);
         // הסנכרון מתבצע מול מסך הרשימה, כדי שההתקדמות וההודעות יוצגו למשתמש.
         sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
-        lists.addView(sync, Ui.row(this, Ui.S1, Ui.S1));
+        Button keysHelp = Ui.gridButton(this, "מדריך המקשים", Ui.Kind.SOFT);
+        keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
+        addGridButtons(lists, savedLists, history, sync, keysHelp);
 
         // 2. חשבונות: כל חשבון הוא כפתור אחד שפותח את פעולותיו (התחברות מחדש, ניתוק, הסרה).
         LinearLayout accounts = settingsCard(content, "חשבונות");
@@ -1916,9 +1917,6 @@ public class MainActivity extends Activity {
         LinearLayout display = settingsCard(content, "תצוגה ומשוב");
         addDisplaySettings(display);
         addFeedbackSettings(display);
-        Button keysHelp = Ui.button(this, "מדריך המקשים (תמונה)", Ui.Kind.SOFT);
-        keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
-        display.addView(keysHelp, Ui.row(this, Ui.S1, Ui.S1));
         addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "כותרות הקטגוריות",
                 true, Ui.S1, Ui.S1);
         display.addView(Ui.text(this, "תצוגה מאוחדת", Ui.T_NOTE, Ui.P600, true), Ui.row(this, Ui.S3, 0));
@@ -1927,26 +1925,23 @@ public class MainActivity extends Activity {
 
         // 4. ייבוא ונתונים.
         LinearLayout data = settingsCard(content, "ייבוא ונתונים");
-        Button importFile = Ui.button(this, "ייבוא קובץ", Ui.Kind.SOFT);
+        Button importFile = Ui.gridButton(this, "ייבוא קובץ", Ui.Kind.SOFT);
         importFile.setOnClickListener(v -> openImportPicker());
-        data.addView(importFile, Ui.row(this, Ui.S1, Ui.S1));
-        Button cloudServer = Ui.button(this, "כתובת שרת הענן", Ui.Kind.SOFT);
+        Button cloudServer = Ui.gridButton(this, "כתובת שרת הענן", Ui.Kind.SOFT);
         cloudServer.setOnClickListener(v -> showCloudServerDialog());
-        data.addView(cloudServer, Ui.row(this, Ui.S1, 0));
-        data.addView(Ui.text(this, cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר",
-                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, 2, Ui.S1));
-        Button clearImages = Ui.button(this, "מחיקת מטמון התמונות", Ui.Kind.SOFT);
+        Button clearImages = Ui.gridButton(this, "מחיקת מטמון התמונות", Ui.Kind.SOFT);
         clearImages.setOnClickListener(v -> confirmClearImageCache());
-        data.addView(clearImages, Ui.row(this, Ui.S1, 0));
-        TextView imagesSize = Ui.text(this, "גודל מטמון התמונות: מחשב…", Ui.T_NOTE, Ui.MUTED, false);
-        data.addView(imagesSize, Ui.row(this, 2, Ui.S1));
+        Button clear = Ui.gridButton(this, "מחיקת כל הנתונים", Ui.Kind.STRONG);
+        clear.setOnClickListener(v -> confirmClearSavedData());
+        addGridButtons(data, importFile, cloudServer, clearImages, clear);
+        TextView dataStatus = Ui.text(this, (cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר")
+                + " · מטמון התמונות: מחשב…", Ui.T_NOTE, Ui.MUTED, false);
+        data.addView(dataStatus, Ui.row(this, Ui.S2, Ui.S1));
+        final String cloudStatus = cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר";
         cacheWorker.execute(() -> {
             long bytes = images.diskCacheBytes();
-            mainHandler.post(() -> imagesSize.setText("גודל מטמון התמונות: " + formatBytes(bytes)));
+            mainHandler.post(() -> dataStatus.setText(cloudStatus + " · מטמון התמונות: " + formatBytes(bytes)));
         });
-        Button clear = Ui.button(this, "מחיקת כל הנתונים", Ui.Kind.STRONG);
-        clear.setOnClickListener(v -> confirmClearSavedData());
-        data.addView(clear, Ui.row(this, Ui.S1, Ui.S1));
 
         Button whatsNew = Ui.button(this, "מה חדש · גרסה " + appVersionName(), Ui.Kind.SOFT);
         whatsNew.setOnClickListener(v -> showInfoDialog("מה חדש בגרסה " + appVersionName(), WHATS_NEW));
@@ -2021,9 +2016,44 @@ public class MainActivity extends Activity {
     }
 
     private void addSourceAction(LinearLayout panel, Dialog dialog, String label, Runnable action) {
-        Button b = Ui.button(this, label, Ui.Kind.SOFT);
+        Button b = Ui.gridButton(this, label, Ui.Kind.SOFT);
         b.setOnClickListener(v -> { dialog.dismiss(); action.run(); });
-        panel.addView(b, Ui.row(this, Ui.S2, 0));
+        addGridButton(panel, b);
+    }
+
+    private static final String GRID_ROW_TAG = "grid_row", GRID_SPACER_TAG = "grid_spacer";
+
+    /**
+     * תפריט בשתי עמודות: כפתורים שנוספים ברצף לאותו מיכל מתחברים בזוגות לשורה.
+     * כפתור בודד בסוף תופס חצי רוחב, כדי שהרשת תישאר אחידה.
+     */
+    private void addGridButton(LinearLayout container, Button button) {
+        int gap = Ui.dp(this, Ui.S1);
+        View last = container.getChildCount() > 0 ? container.getChildAt(container.getChildCount() - 1) : null;
+        if (last instanceof LinearLayout && GRID_ROW_TAG.equals(last.getTag())) {
+            LinearLayout row = (LinearLayout) last;
+            if (row.getChildCount() == 2 && GRID_SPACER_TAG.equals(row.getChildAt(1).getTag())) {
+                row.removeViewAt(1);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
+                lp.setMarginStart(gap);
+                row.addView(button, lp);
+                return;
+            }
+        }
+        LinearLayout row = new LinearLayout(this);
+        row.setTag(GRID_ROW_TAG);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        row.addView(button, new LinearLayout.LayoutParams(0, -1, 1f));
+        View spacer = new View(this);
+        spacer.setTag(GRID_SPACER_TAG);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 1, 1f);
+        lp.setMarginStart(gap);
+        row.addView(spacer, lp);
+        container.addView(row, Ui.row(this, gap, 0));
+    }
+
+    private void addGridButtons(LinearLayout container, Button... buttons) {
+        for (Button b : buttons) addGridButton(container, b);
     }
 
     private void beginAddAccount() {
@@ -3077,12 +3107,11 @@ public class MainActivity extends Activity {
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "איחוד " + chosen.size() + " רשימות מסומנות", Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "כמויות של מוצרים זהים יסוכמו.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button keep = Ui.button(this, "רשימה מאוחדת חדשה (המקוריות נשמרות)", Ui.Kind.PRIMARY);
+        Button keep = Ui.gridButton(this, "רשימה מאוחדת חדשה (המקוריות נשמרות)", Ui.Kind.SOFT);
         keep.setOnClickListener(v -> { dialog.dismiss(); mergeIntoNewList(chosen, false); });
-        panel.addView(keep, Ui.row(this, Ui.S1, Ui.S1));
-        Button replace = Ui.button(this, "איחוד ומחיקת המקוריות", Ui.Kind.SOFT);
+        Button replace = Ui.gridButton(this, "איחוד ומחיקת המקוריות", Ui.Kind.SOFT);
         replace.setOnClickListener(v -> { dialog.dismiss(); mergeIntoNewList(chosen, true); });
-        panel.addView(replace, Ui.row(this, 0, 0));
+        addGridButtons(panel, keep, replace);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
@@ -3183,14 +3212,13 @@ public class MainActivity extends Activity {
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "לאן להוסיף את ההזמנה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button asNew = Ui.button(this, "רשימה חדשה", Ui.Kind.PRIMARY);
+        Button asNew = Ui.gridButton(this, "רשימה חדשה", Ui.Kind.SOFT);
         asNew.setOnClickListener(v -> { dialog.dismiss(); saveHistoricalOrder(id, title, historyRow, null); });
-        panel.addView(asNew, Ui.row(this, Ui.S2, Ui.S1));
-        Button toExisting = Ui.button(this, "הוספה לרשימה קיימת", Ui.Kind.SOFT);
+        Button toExisting = Ui.gridButton(this, "הוספה לרשימה קיימת", Ui.Kind.SOFT);
         toExisting.setEnabled(!savedListStore.list().isEmpty());
         toExisting.setOnClickListener(v -> { dialog.dismiss();
             pickSavedList("הוספה לרשימה", "", entry -> saveHistoricalOrder(id, title, historyRow, entry)); });
-        panel.addView(toExisting, Ui.row(this, Ui.S1, Ui.S1));
+        addGridButtons(panel, asNew, toExisting);
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
         panel.addView(cancel, Ui.row(this, Ui.S3, 0));
@@ -3270,19 +3298,16 @@ public class MainActivity extends Activity {
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "רשימה חדשה", Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "מאיפה להביא את הרשימה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button history = Ui.button(this, "מהזמנה קודמת באתר", Ui.Kind.PRIMARY);
+        Button history = Ui.gridButton(this, "מהזמנה קודמת באתר", Ui.Kind.SOFT);
         history.setEnabled(!connectedAccounts().isEmpty());
         history.setOnClickListener(v -> { dialog.dismiss(); showOrderHistoryScreen(Screen.SAVED_LISTS); });
-        panel.addView(history, Ui.row(this, Ui.S1, Ui.S1));
-        Button cloud = Ui.button(this, "מהענן לפי מספר", Ui.Kind.SOFT);
+        Button cloud = Ui.gridButton(this, "מהענן לפי מספר", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); showCloudFetchDialog(); });
-        panel.addView(cloud, Ui.row(this, 0, Ui.S1));
-        Button file = Ui.button(this, "ייבוא מקובץ", Ui.Kind.SOFT);
+        Button file = Ui.gridButton(this, "ייבוא מקובץ", Ui.Kind.SOFT);
         file.setOnClickListener(v -> { dialog.dismiss(); openImportPicker(); });
-        panel.addView(file, Ui.row(this, 0, Ui.S1));
-        Button blank = Ui.button(this, "רשימה ריקה", Ui.Kind.SOFT);
+        Button blank = Ui.gridButton(this, "רשימה ריקה", Ui.Kind.SOFT);
         blank.setOnClickListener(v -> { dialog.dismiss(); createBlankSavedList(); });
-        panel.addView(blank, Ui.row(this, 0, 0));
+        addGridButtons(panel, history, cloud, file, blank);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
@@ -3485,18 +3510,15 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this, heading, Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה. שמות חשבונות לא נשלחים.", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, Ui.S2));
-        Button cloud = Ui.button(this, entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל רשימה)", Ui.Kind.PRIMARY);
+        Button cloud = Ui.gridButton(this, entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל רשימה)", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); shareEntriesToCloud(entries); });
-        Button json = Ui.button(this, "קובץ JSON", Ui.Kind.SOFT);
+        Button json = Ui.gridButton(this, "קובץ JSON", Ui.Kind.SOFT);
         json.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "json"); });
-        Button txt = Ui.button(this, "קובץ טקסט (TXT)", Ui.Kind.SOFT);
+        Button txt = Ui.gridButton(this, "קובץ טקסט (TXT)", Ui.Kind.SOFT);
         txt.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "txt"); });
-        Button zip = Ui.button(this, "קובץ ZIP עם תמונות", Ui.Kind.SOFT);
+        Button zip = Ui.gridButton(this, "קובץ ZIP עם תמונות", Ui.Kind.SOFT);
         zip.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "zip"); });
-        panel.addView(cloud, Ui.row(this, Ui.S1, Ui.S1));
-        panel.addView(json, Ui.row(this, 0, Ui.S1));
-        panel.addView(txt, Ui.row(this, 0, Ui.S1));
-        panel.addView(zip, Ui.row(this, 0, 0));
+        addGridButtons(panel, cloud, json, txt, zip);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
@@ -3586,21 +3608,21 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this, heading, Ui.T_NAME, Ui.P900, true));
         TextView details = Ui.text(this, file == null ? message : file.getName(), Ui.T_BODY, Ui.INK, file == null);
         panel.addView(details, Ui.row(this, Ui.S1, Ui.S2));
-        Button whatsapp = Ui.button(this, "וואטסאפ", Ui.Kind.PRIMARY);
+        Button whatsapp = Ui.gridButton(this, "וואטסאפ", Ui.Kind.SOFT);
         whatsapp.setOnClickListener(v -> { dialog.dismiss(); sendShare("whatsapp", file, message); });
-        Button sms = Ui.button(this, "SMS", Ui.Kind.SOFT);
+        Button sms = Ui.gridButton(this, "SMS", Ui.Kind.SOFT);
         sms.setOnClickListener(v -> { dialog.dismiss(); sendShare("sms", file, message); });
-        Button mail = Ui.button(this, "במייל", Ui.Kind.SOFT);
+        Button mail = Ui.gridButton(this, "במייל", Ui.Kind.SOFT);
         mail.setOnClickListener(v -> { dialog.dismiss(); sendShare("mail", file, message); });
-        panel.addView(buttonPair(whatsapp, sms), Ui.row(this, Ui.S1, Ui.S1));
+        addGridButtons(panel, whatsapp, sms, mail);
         if (file != null) {
-            Button save = Ui.button(this, "שמירה במכשיר", Ui.Kind.SOFT);
+            Button save = Ui.gridButton(this, "שמירה במכשיר", Ui.Kind.SOFT);
             save.setOnClickListener(v -> { dialog.dismiss(); saveShareFile(file); });
-            panel.addView(buttonPair(mail, save), Ui.row(this, 0, Ui.S1));
-        } else panel.addView(mail, Ui.row(this, 0, Ui.S1));
-        Button other = Ui.button(this, "אפליקציה אחרת", Ui.Kind.SOFT);
+            addGridButton(panel, save);
+        }
+        Button other = Ui.gridButton(this, "אפליקציה אחרת", Ui.Kind.SOFT);
         other.setOnClickListener(v -> { dialog.dismiss(); sendShare("other", file, message); });
-        panel.addView(other, Ui.row(this, 0, 0));
+        addGridButton(panel, other);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);

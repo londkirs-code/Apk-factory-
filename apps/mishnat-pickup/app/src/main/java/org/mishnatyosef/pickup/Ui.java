@@ -186,10 +186,34 @@ final class Ui {
     }
 
     /**
+     * כפתור לתפריט בשתי עמודות, כמו מסך אפליקציות: אימוג׳י גדול למעלה והשם מתחת, ממורכז.
+     */
+    static Button gridButton(Context c,String label,Kind kind) {
+        Button b=button(c,label,kind);
+        String clean=label==null?"":label.trim();
+        String decorated=withEmoji(clean);
+        String emoji=decorated.equals(clean)?"":decorated.substring(0,decorated.indexOf("  "));
+        if(emoji.isEmpty()) b.setText(clean);
+        else {
+            android.text.SpannableString text=new android.text.SpannableString(emoji+"\n"+clean);
+            text.setSpan(new android.text.style.RelativeSizeSpan(1.6f),0,emoji.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            b.setText(text);
+        }
+        b.setGravity(Gravity.CENTER);
+        b.setMaxLines(Integer.MAX_VALUE); // טקסט לעולם לא נחתך
+        b.setMinHeight(dp(c,88));
+        b.setMinimumHeight(dp(c,88));
+        b.setPadding(dp(c,S2),dp(c,S2),dp(c,S2),dp(c,S2));
+        b.setLineSpacing(dp(c,2),1f);
+        return b;
+    }
+
+    /**
      * אימוג׳י שמתאים לטקסט הכפתור, לפי מילות מפתח (הכלל הראשון שמתאים קובע).
      * "סגירה" ו"ביטול" נשארים בלי אימוג׳י, כי הם מוחלפים אוטומטית בכפתור X.
      */
     private static final String[][] BUTTON_EMOJI = {
+            {"הזמנה קודמת", "🕘"}, {"רשימה ריקה", "📝"}, {"הוספה לרשימה קיימת", "📋"},
             {"וואטסאפ", "💬"}, {"SMS", "📱"}, {"במייל", "📧"}, {"שמירה במכשיר", "💾"}, {"אפליקציה אחרת", "📤"},
             {"קובץ JSON", "🗂️"}, {"קובץ טקסט", "📄"}, {"קובץ ZIP", "🗜️"},
             {"בענן", "☁️"}, {"מהענן", "☁️"}, {"שרת הענן", "☁️"}, {"שליחת המספר", "📨"}, {"מדריך המקשים", "⌨️"},
