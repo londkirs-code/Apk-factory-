@@ -503,7 +503,7 @@ public class MainActivity extends Activity {
         root.addView(loginSubtitle, Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildNativeLoginForm());
         if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S2));
-        Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.PRIMARY);
+        Button savedLists = Ui.button(this, "ניהול רשימות", Ui.Kind.PRIMARY);
         savedLists.setOnClickListener(v -> showSavedListsScreen(true));
         root.addView(savedLists, Ui.row(this, Ui.S2, Ui.S2));
         Button importOffline = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
@@ -1933,6 +1933,7 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• מרווחים נעימים בין כל הכפתורים הגדולים. \"ניהול רשימות\" (לשעבר רשימות שמורות) עם \"ייבוא\". שיתוף ישיר באפליקציה אחרת.\n"
             + "• בראש ההגדרות: שלושה ריבועים - 🎨 תצוגה וצליל, ⌨️ מדריך המקשים, ✨ מה חדש.\n"
             + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
             + "• 🔄 סנכרון לכל הזמנה מהאתר, גם מההיסטוריה, עם הודעה על שינויים. אפשר לכבות סנכרון לרשימה מסוימת בתפריט שלה.\n"
@@ -1974,8 +1975,8 @@ public class MainActivity extends Activity {
         content.addView(Ui.section(this, title));
         LinearLayout card = Ui.column(this);
         card.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
-        card.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2));
-        content.addView(card, Ui.row(this, 0, Ui.S1));
+        card.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S3));
+        content.addView(card, Ui.row(this, 0, Ui.S3));
         return card;
     }
 
@@ -2022,7 +2023,7 @@ public class MainActivity extends Activity {
         Button[] tiles = {displaySettings, keysHelp, whatsNew};
         for (int i = 0; i < tiles.length; i++) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
-            if (i > 0) lp.setMarginStart(Ui.dp(this, Ui.S1));
+            if (i > 0) lp.setMarginStart(Ui.dp(this, Ui.GRID_GAP));
             shortcuts.addView(tiles[i], lp);
         }
         content.addView(shortcuts, Ui.row(this, Ui.S3, 0));
@@ -2050,29 +2051,20 @@ public class MainActivity extends Activity {
         add.setOnClickListener(v -> beginAddAccount());
         addGridButton(accounts, add);
 
-        // 2. רשימות: הפעולות היומיומיות, וכניסה למסך "תצוגה וצליל".
-        LinearLayout lists = settingsCard(content, "רשימות");
-        Button savedLists = Ui.gridButton(this, "רשימות שמורות", Ui.Kind.SOFT);
+        // 2. רשימות ונתונים (הזמנות קודמות וייבוא נמצאים בתוך "ניהול רשימות").
+        LinearLayout data = settingsCard(content, "רשימות ונתונים");
+        Button savedLists = Ui.gridButton(this, "ניהול רשימות", Ui.Kind.SOFT);
         savedLists.setOnClickListener(v -> showSavedListsScreen(Screen.SETTINGS));
-        Button history = Ui.gridButton(this, "הזמנות קודמות", Ui.Kind.SOFT);
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v -> showOrderHistoryScreen(Screen.SETTINGS));
         Button sync = Ui.gridButton(this, "סנכרון עם האתר", Ui.Kind.SOFT);
         // הסנכרון מתבצע מול מסך הרשימה, כדי שההתקדמות וההודעות יוצגו למשתמש.
         sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
-        addGridButtons(lists, savedLists, history, sync);
-
-        // 3. ייבוא ונתונים.
-        LinearLayout data = settingsCard(content, "ייבוא ונתונים");
-        Button importFile = Ui.gridButton(this, "ייבוא קובץ", Ui.Kind.SOFT);
-        importFile.setOnClickListener(v -> openImportPicker());
         Button cloudServer = Ui.gridButton(this, "כתובת שרת הענן", Ui.Kind.SOFT);
         cloudServer.setOnClickListener(v -> showCloudServerDialog());
         Button clearImages = Ui.gridButton(this, "מחיקת מטמון התמונות", Ui.Kind.SOFT);
         clearImages.setOnClickListener(v -> confirmClearImageCache());
         Button clear = Ui.gridButton(this, "מחיקת כל הנתונים", Ui.Kind.SOFT); // מוגן בחלון אישור
         clear.setOnClickListener(v -> confirmClearSavedData());
-        addGridButtons(data, importFile, cloudServer, clearImages, clear);
+        addGridButtons(data, savedLists, sync, cloudServer, clearImages, clear);
         TextView dataStatus = Ui.text(this, (cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר")
                 + " · מטמון התמונות: מחשב…", Ui.T_NOTE, Ui.MUTED, false);
         data.addView(dataStatus, Ui.row(this, Ui.S2, Ui.S1));
@@ -2219,7 +2211,7 @@ public class MainActivity extends Activity {
         }
         addSourceAction(panel, dialog, SourceRegistry.KIND_IMPORTED.equals(source.kind)
                         ? "הסר רשימה מהמכשיר" : "הסר חיבור ורשימה מהמכשיר",
-                () -> showModernConfirm("הסרת מקור", "החיבור והעותק הפעיל יוסרו מהמכשיר. רשימות שכבר נשמרו בארכיון יישארו במסך רשימות שמורות עד למחיקה ידנית.", "הסר", () -> removeSource(source.id)));
+                () -> showModernConfirm("הסרת מקור", "החיבור והעותק הפעיל יוסרו מהמכשיר. רשימות שכבר נשמרו בארכיון יישארו במסך ניהול רשימות עד למחיקה ידנית.", "הסר", () -> removeSource(source.id)));
         Button cancel = Ui.button(this, "סגירה", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
         panel.addView(cancel, Ui.row(this, Ui.S2, 0));
@@ -2459,7 +2451,7 @@ public class MainActivity extends Activity {
      * כפתור בודד בסוף תופס חצי רוחב, כדי שהרשת תישאר אחידה.
      */
     private void addGridButton(LinearLayout container, Button button) {
-        int gap = Ui.dp(this, Ui.S1);
+        int gap = Ui.dp(this, Ui.GRID_GAP);
         View last = container.getChildCount() > 0 ? container.getChildAt(container.getChildCount() - 1) : null;
         if (last instanceof LinearLayout && GRID_ROW_TAG.equals(last.getTag())) {
             LinearLayout row = (LinearLayout) last;
@@ -2966,12 +2958,12 @@ public class MainActivity extends Activity {
         LinearLayout top=Ui.column(this);
         int pad=Ui.dp(this,Ui.screenPad(this));
         top.setPadding(pad,Ui.dp(this,Ui.S3),pad,Ui.dp(this,Ui.S2));
-        top.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S1));
+        top.addView(buildSubScreenHeader("ניהול רשימות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S1));
         List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
         Button history=Ui.tile(this,Ui.IC_HISTORY,"הזמנות קודמות");
         history.setEnabled(!connectedAccounts().isEmpty());
         history.setOnClickListener(v->showOrderHistoryScreen(Screen.SAVED_LISTS));
-        Button create=Ui.tile(this,Ui.IC_PLUS,"רשימה חדשה");
+        Button create=Ui.tile(this,Ui.IC_PLUS,"ייבוא");
         create.setOnClickListener(v->createNewSavedList());
         Button mergeLists=Ui.tile(this,Ui.IC_MERGE,"איחוד");
         mergeLists.setEnabled(entries.size()>=2);
@@ -3447,10 +3439,10 @@ public class MainActivity extends Activity {
             if (row == null || (narrow && i == 2)) {
                 row = new LinearLayout(this);
                 row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-                column.addView(row, Ui.row(this, i == 0 ? 0 : Ui.S1, 0));
+                column.addView(row, Ui.row(this, i == 0 ? 0 : Ui.GRID_GAP, 0));
             }
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
-            if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(this, Ui.S1));
+            if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(this, Ui.GRID_GAP));
             row.addView(tiles[i], lp);
         }
         return column;
@@ -3734,7 +3726,7 @@ public class MainActivity extends Activity {
                         SavedListStore.Entry updated=findSavedEntry(target.id);
                         // הרשימה שעודכנה נפתחת, כדי שהמוצרים החדשים יוצגו מיד.
                         if(updated!=null){openSavedList(updated);return;}
-                    } else Toast.makeText(this,"ההזמנה נשמרה כרשימה חדשה במסך רשימות שמורות.",Toast.LENGTH_LONG).show();
+                    } else Toast.makeText(this,"ההזמנה נשמרה כרשימה חדשה במסך ניהול רשימות.",Toast.LENGTH_LONG).show();
                     if(screen==Screen.HISTORY)leaveHistoryScreen();
                 });
             } catch(Exception e) {String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"שמירת ההזמנה נכשלה: "+error,Toast.LENGTH_LONG).show());}
@@ -3773,7 +3765,7 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "רשימה חדשה", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "ייבוא רשימה", Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "מאיפה להביא את הרשימה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         Button history = Ui.gridButton(this, "מהזמנה קודמת באתר", Ui.Kind.SOFT);
         history.setEnabled(!connectedAccounts().isEmpty());
@@ -4010,11 +4002,34 @@ public class MainActivity extends Activity {
         zip.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "zip", self); });
         Button qr = Ui.gridButton(this, "קוד QR לסריקה", Ui.Kind.SOFT);
         qr.setOnClickListener(v -> { dialog.dismiss(); showShareQr(entries); });
-        addGridButtons(panel, qr, cloud, json, txt, zip);
+        // שיתוף ישיר באפליקציה אחרת: הרשימה כטקסט וגם כקובץ TXT, דרך חלון השיתוף של המכשיר.
+        Button other = Ui.gridButton(this, "שיתוף באפליקציה אחרת", Ui.Kind.SOFT);
+        other.setOnClickListener(v -> { dialog.dismiss(); shareToOtherApp(entries); });
+        addGridButtons(panel, other, qr, cloud, json, txt, zip);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
         cloud.requestFocus();
+    }
+
+    private void shareToOtherApp(List<SavedListStore.Entry> entries) {
+        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " רשימות";
+        cacheWorker.execute(() -> {
+            try {
+                String text = ListExporter.text(exportsFor(entries));
+                File dir = ShareFileProvider.shareDir(this);
+                String safe = base.replaceAll("[\\\\/:*?\"<>|\\n\\r]", "_").trim();
+                if (safe.length() > 50) safe = safe.substring(0, 50);
+                File file = new File(dir, "משנת אוסף - " + safe + ".txt");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                    out.write(text.getBytes(StandardCharsets.UTF_8));
+                }
+                mainHandler.post(() -> sendShare("other", file, text));
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
+            }
+        });
     }
 
     /** שיתוף בקודי QR על המסך: טלפון אחר סורק בלי אינטרנט. הזמנה גדולה או כמה הזמנות - כמה קודים. */
@@ -4470,7 +4485,7 @@ public class MainActivity extends Activity {
         // לחיצה ארוכה על השם: שינוי שם לרשימה הנוכחית.
         title.setOnLongClickListener(v -> {
             if (combinedView || currentOrderId.isEmpty()) {
-                showActionToast("שינוי שם לרשימה נעשה ממסך רשימות שמורות");
+                showActionToast("שינוי שם לרשימה נעשה ממסך ניהול רשימות");
                 return true;
             }
             showRenameDialog(activeOwner, currentOrderId, homeDisplayTitle(), currentOrderTitle, this::refreshHomeTitle);
@@ -4676,7 +4691,7 @@ public class MainActivity extends Activity {
     }
 
     private void confirmClearSavedData() {
-        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק את המטמון הפעיל, התמונות וסימוני האיסוף? הרשימות שבארכיון יישארו עד למחיקה ידנית במסך רשימות שמורות.", "מחיקה", this::clearAllSavedData);
+        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק את המטמון הפעיל, התמונות וסימוני האיסוף? הרשימות שבארכיון יישארו עד למחיקה ידנית במסך ניהול רשימות.", "מחיקה", this::clearAllSavedData);
     }
 
     private void clearAllSavedData() {
