@@ -2932,10 +2932,12 @@ public class MainActivity extends Activity {
         Runnable reopen = this::showListSwitcher;
         // שינוי ✓ מרענן את המסך הראשי כשהחלון נסגר.
         final boolean[] checksChanged = {false};
-        final Button[] deleteRef = {null};
+        final Button[] deleteRef = {null}, mergeRef = {null};
         Runnable groupChanged = () -> {
             checksChanged[0] = true;
-            if (deleteRef[0] != null) deleteRef[0].setVisibility(checkedEntries().size() >= 2 ? View.VISIBLE : View.GONE);
+            int visibility = checkedEntries().size() >= 2 ? View.VISIBLE : View.GONE;
+            if (deleteRef[0] != null) deleteRef[0].setVisibility(visibility);
+            if (mergeRef[0] != null) mergeRef[0].setVisibility(visibility);
         };
         dialog.setOnDismissListener(d -> { if (checksChanged[0] && screen == Screen.HOME) showHomeScreen(false); });
 
@@ -2945,17 +2947,18 @@ public class MainActivity extends Activity {
         history.setOnClickListener(v -> { dialog.dismiss(); showOrderHistoryScreen(Screen.SAVED_LISTS); });
         Button create = Ui.tile(this, Ui.IC_PLUS, "רשימה חדשה");
         create.setOnClickListener(v -> { dialog.dismiss(); createNewSavedList(); });
+        // "איחוד" ו"מחיקה" מופיעים רק כשמסומנות (✓) לפחות שתי רשימות, ופועלים על המסומנות.
+        boolean twoChecked = checkedEntries().size() >= 2;
         Button merge = Ui.tile(this, Ui.IC_MERGE, "איחוד");
-        merge.setEnabled(entries.size() >= 2);
+        merge.setVisibility(twoChecked ? View.VISIBLE : View.GONE);
         merge.setOnClickListener(v -> { dialog.dismiss(); mergeTileClicked(); });
         // "מחיקה" מופיע רק כשמסומנות (✓) שתי רשימות או יותר, ומוחק את המסומנות.
         Button deleteTile = Ui.tile(this, Ui.IC_CLOSE, "מחיקה");
         deleteTile.setVisibility(checkedEntries().size() >= 2 ? View.VISIBLE : View.GONE);
         deleteTile.setOnClickListener(v -> { dialog.dismiss(); confirmDeleteChecked(); });
         deleteRef[0] = deleteTile;
-        Button settings = Ui.tile(this, Ui.IC_SETTINGS, "הגדרות");
-        settings.setOnClickListener(v -> { dialog.dismiss(); showSettingsScreen(); });
-        panel.addView(tileRow(history, create, merge, deleteTile, settings), Ui.row(this, Ui.S2, 0));
+        mergeRef[0] = merge;
+        panel.addView(tileRow(history, create, merge, deleteTile), Ui.row(this, Ui.S2, 0));
 
         if (listGroupActive()) {
             Button leave = Ui.button(this, "ביטול כל הסימונים ויציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
