@@ -194,6 +194,13 @@ final class Ui {
         TextView note=text(c,"",compact?12:T_NOTE*scale,MUTED,false);
         note.setMaxLines(grid?2:MAX_NOTE_LINES);
         note.setLayoutParams(row(c,1,0));
+        // A name/note that starts with Latin letters (e.g. "Pasta") gets an LTR paragraph and was
+        // left-aligned. Align to the card's (RTL) start; the text's own bidi order is kept.
+        // Set before any text: TextView only applies a new alignment when it lays the text out again.
+        if (android.os.Build.VERSION.SDK_INT >= 17 && !grid) {
+            name.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+            note.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+        }
         details.addView(name); details.addView(note);
 
         TextView amount=text(c,"",grid?19:(compact?17:T_AMOUNT*scale),P800,true);
@@ -218,12 +225,6 @@ final class Ui {
 
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {
         Context c=v.root.getContext(); v.name.setText(name); v.note.setText(note);
-        // A name/note that starts with Latin letters (e.g. "Pasta") gets an LTR paragraph and was
-        // left-aligned. Align to the card's (RTL) start instead; the text's own bidi order is kept.
-        if (android.os.Build.VERSION.SDK_INT >= 17) {
-            v.name.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-            v.note.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-        }
         v.note.setVisibility(note==null||note.isEmpty()?View.GONE:View.VISIBLE);
         v.amount.setText(amount);
         int flags=v.name.getPaintFlags();
