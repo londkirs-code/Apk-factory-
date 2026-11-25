@@ -118,7 +118,7 @@ class DriverTests(unittest.TestCase):
         known = {"launch", "stop", "force_stop", "clear_data", "wait", "sleep", "wait_for", "wait_gone", "tap", "click",
                  "long_press", "double_tap", "type", "key", "press", "back", "home", "swipe", "scroll_to", "screenshot",
                  "assert_text", "assert_visible", "assert_not_visible", "assert_no_text", "assert_foreground", "dump",
-                 "rotate", "open_url", "grant", "shell", "explore"}
+                 "rotate", "open_url", "grant", "shell", "explore", "push"}
         root = Path(__file__).resolve().parents[3]
         files = list((root / "tools/ui-testing/scenarios").glob("*.json")) + list(root.glob("apps/*/ui-tests/*.json")) + list(root.glob("ui-tests/*/*.json"))
         self.assertTrue(files)

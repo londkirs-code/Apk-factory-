@@ -1,0 +1,4 @@
+# UI test fixture list: 3 products, 6 units
+לחם
+חלב | 2 | ליטר | 3% שומן
+מלפפון | 3 | יח' |  | ירקות

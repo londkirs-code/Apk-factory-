@@ -45,6 +45,11 @@ on:
         required: false
         default: ""
         type: string
+      build_from_source:
+        description: "Build a debug APK from apps/<app> on the selected branch instead of using downloads/ (tests unmerged code)"
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       app: { type: string, required: true }
@@ -53,6 +58,7 @@ on:
       explore_actions: { type: string, required: false, default: "30" }
       api_level: { type: string, required: false, default: "33" }
       locale: { type: string, required: false, default: "" }
+      build_from_source: { type: boolean, required: false, default: false }
       apk_artifact:
         description: "Name of an artifact from the calling run that contains the APKs"
         type: string
@@ -66,7 +72,7 @@ on:
     branches-ignore: [main, master, ui-test-results]
     paths:
       - "ui-tests/**"
-      - "apps/*/ui-tests/**"
+      - "apps/**"
   workflow_run:
     # Automatic test after a successful build — only when the repository
     # variable UI_TEST_AFTER_BUILD is set to "true" (off by default).
@@ -111,13 +117,15 @@ jobs:
           IN_APK_URL: ${{ inputs.apk_url }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           PUSH_BEFORE: ${{ github.event.before }}
+          IN_BUILD: ${{ inputs.build_from_source }}
           VAR_APPS: ${{ vars.UI_TEST_APPS }}
         run: |
           set -euo pipefail
-          APPS="" MODE="auto" SCENARIO="" ACTIONS="30" API="33" LOCALE="" APK_URL=""
+          APPS="" MODE="auto" SCENARIO="" ACTIONS="30" API="33" LOCALE="" APK_URL="" BUILD_APPS=""
           if [[ -n "$IN_APP" ]]; then
             APPS="$IN_APP"; MODE="${IN_MODE:-auto}"; SCENARIO="$IN_SCENARIO"
             ACTIONS="${IN_ACTIONS:-30}"; API="${IN_API:-33}"; LOCALE="$IN_LOCALE"; APK_URL="$IN_APK_URL"
+            [[ "$IN_BUILD" == "true" ]] && BUILD_APPS="$APPS"
           elif [[ "$EVENT_NAME" == "issue_comment" ]]; then
             # /ui-test <app> [auto|scenario|explore|both|path/to/scenario.json] [explore-actions]
             read -r CMD APPS ARG2 ARG3 _ <<< "$(printf '%s' "$COMMENT_BODY" | head -n1 | tr -d '\r')" || true
@@ -129,13 +137,30 @@ jobs:
             [[ -n "${ARG3:-}" ]] && ACTIONS="$ARG3"
           elif [[ "$EVENT_NAME" == "push" ]]; then
             # Test every app whose scenarios changed in this push: scenarios + a short exploration.
-            git fetch --quiet --depth=50 origin "$GITHUB_REF" || true
+            git fetch --quiet --depth=50 origin "$GITHUB_REF" main:refs/remotes/origin/main || true
             if [[ -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
               CHANGED="$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA")"
             else
               CHANGED="$(git show --name-only --pretty=format: "$GITHUB_SHA")"
             fi
-            APPS="$(printf '%s\n' "$CHANGED" | sed -nE 's#^ui-tests/([^/]+)/.*#\1#p; s#^apps/([^/]+)/ui-tests/.*#\1#p' | sort -u | tr '\n' ' ')"
+            # Apps whose scenarios changed, plus apps with scenarios whose source changed.
+            # Source changes are tested against a debug APK built from this branch.
+            has_scenarios() { compgen -G "ui-tests/$1/*.json" >/dev/null || compgen -G "apps/$1/ui-tests/*.json" >/dev/null; }
+            declare -A SEL=() BLD=()
+            while IFS= read -r path; do
+              case "$path" in
+                ui-tests/*/*) a="${path#ui-tests/}"; SEL["${a%%/*}"]=1 ;;
+                apps/*/ui-tests/*) a="${path#apps/}"; SEL["${a%%/*}"]=1 ;;
+                apps/*/*.md) ;;
+                apps/*/*) a="${path#apps/}"; a="${a%%/*}"; if has_scenarios "$a"; then SEL["$a"]=1; BLD["$a"]=1; fi ;;
+              esac
+            done <<< "$CHANGED"
+            APPS="${!SEL[*]}"; BUILD_APPS="${!BLD[*]}"
+            # A scenario-only change still tests the branch's own code if it differs from main.
+            for a in $APPS; do
+              if [[ -f "apps/$a/app/build.gradle" ]] && ! git diff --quiet "origin/main" -- "apps/$a" 2>/dev/null; then BLD["$a"]=1; fi
+            done
+            BUILD_APPS="${!BLD[*]}"
             MODE=both; ACTIONS=20
           else
             # workflow_run: apps from the UI_TEST_APPS variable, else apps that have scenarios.
@@ -159,8 +184,10 @@ jobs:
           {
             echo "skip=false"; echo "apps=$APPS"; echo "mode=$MODE"; echo "scenario=$SCENARIO"
             echo "actions=$ACTIONS"; echo "api=$API"; echo "locale=$LOCALE"; echo "apk_url=$APK_URL"
+            echo "build_apps=$(echo $BUILD_APPS)"
           } >> "$GITHUB_OUTPUT"
-          echo "Apps: $APPS | mode: $MODE | scenario: ${SCENARIO:-auto} | API $API"
+          for a in $BUILD_APPS; do [[ -f "apps/$a/app/build.gradle" ]] || { echo "::error::Cannot build $a from source: apps/$a/app/build.gradle not found"; exit 1; }; done
+          echo "Apps: $APPS | mode: $MODE | scenario: ${SCENARIO:-auto} | API $API | built from source: ${BUILD_APPS:-none}"
 
       - name: Acknowledge issue command
         if: github.event_name == 'issue_comment' && steps.resolve.outputs.skip != 'true'
@@ -187,6 +214,38 @@ jobs:
         with:
           name: ${{ inputs.apk_artifact }}
           path: ${{ runner.temp }}/apks
+
+      - name: Set up JDK (build from source)
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.build_apps != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle (build from source)
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.build_apps != ''
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APKs from this branch
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.build_apps != ''
+        shell: bash
+        env:
+          BUILD_APPS: ${{ steps.resolve.outputs.build_apps }}
+        run: |
+          set -euo pipefail
+          # Debug build: no signing secrets are needed or exposed. Same applicationId as release.
+          for app in $BUILD_APPS; do
+            echo "::group::Building $app (debug) from $GITHUB_SHA"
+            (cd "apps/$app" && gradle --build-cache --console=plain assembleDebug)
+            APK="$(find "apps/$app/app/build/outputs/apk/debug" -name '*.apk' | head -n1)"
+            [[ -s "$APK" ]] || { echo "::error::No debug APK produced for $app"; exit 1; }
+            mkdir -p "$RUNNER_TEMP/apks/$app"
+            cp "$APK" "$RUNNER_TEMP/apks/$app/app.apk"
+            echo "- **$app**: tested APK built from branch \`$GITHUB_REF_NAME\` @ \`${GITHUB_SHA:0:7}\` (debug)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::endgroup::"
+          done
 
       - name: Enable KVM
         if: steps.resolve.outputs.skip != 'true'

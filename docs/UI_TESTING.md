@@ -27,6 +27,7 @@
    - `apk_url`: לבדוק APK מקישור HTTPS במקום הקובץ שב־`downloads/`.
    - `api_level`: ברירת המחדל היא 33.
    - `locale`: למשל `he-IL` לבדיקה בעברית.
+   - `build_from_source`: בונה APK (debug) מהקוד של הענף שנבחר, במקום להשתמש בקובץ שב־`downloads/`. כך אפשר לבדוק תיקון לפני מיזוג. הבנייה לא משתמשת במפתח החתימה ולא חושפת אותו.
 2. **תגובה ב־[issue #1](https://github.com/londkirs-code/Apk-factory-/issues/1)** (רק בעל המאגר):
    ```
    /ui-test monopoly
@@ -40,7 +41,9 @@
 
    הבדיקה משתמשת ב־APK מתוך ה־Artifact של אותה בנייה.
 
-4. **Push לענף פיתוח** (לא `main`) שמשנה קובץ תחת `ui-tests/<app>/`: נבדקת מיד האפליקציה שהתרחיש שלה השתנה (תרחישים וסריקה קצרה).
+4. **Push לענף פיתוח** (לא `main`):
+   - שינוי תרחיש תחת `ui-tests/<app>/` מפעיל מיד בדיקה של אותה אפליקציה (התרחישים וסריקה קצרה).
+   - שינוי קוד תחת `apps/<app>/` באפליקציה שיש לה תרחישים מפעיל בנייה של APK מהענף ובדיקה שלו.
 
 שימוש מתוך workflow אחר: `uses: ./.github/workflows/ui-test-apk.yml` עם `app` ו־`apk_artifact`.
 
@@ -94,6 +97,7 @@
 | `wait` | `seconds` |
 | `rotate` | `to`: portrait/landscape |
 | `open_url` | `url` (deep link) |
+| `push` | `src` (קובץ בדיקה, נתיב יחסי לקובץ התרחיש), `dest` (ברירת מחדל: `/sdcard/Download/`). אחרי ההעתקה הקובץ נסרק כדי שיופיע בבורר הקבצים |
 | `stop`, `clear_data`, `grant`, `dump`, `shell` | פעולות עזר |
 | `explore` | `max_actions`: סריקה אוטומטית מהמסך הנוכחי |
 

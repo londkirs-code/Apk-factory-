@@ -34,7 +34,7 @@ from typing import Any
 DEFAULT_AVOID = (
     r"delete|remove|uninstall|log ?out|sign ?out|reset|wipe|erase|pay|purchase|buy|"
     r"subscribe|send|submit|report abuse|"
-    r"מחק|מחיקה|הסר|התנתק|יציאה מהחשבון|איפוס|אפס|תשלום|רכישה|קנה|שלח|שליחה|דווח"
+    r"מחק|מחיק|הסר|התנתק|יציאה מהחשבון|איפוס|אפס|תשלום|רכישה|קנה|שלח|שליחה|דווח"
 )
 KEYCODES = {
     "BACK": 4, "HOME": 3, "ENTER": 66, "TAB": 61, "DEL": 67, "MENU": 82,
@@ -268,6 +268,7 @@ class Runner:
         self.counter = 0
         self.size = (1080, 1920)
         self._seen_crash_lines: set[str] = set()
+        self.scenario_dir = Path.cwd()
 
     # ---------------------------------------------------------------- helpers
     def slug(self, name: str) -> str:
@@ -512,6 +513,19 @@ class Runner:
             out = self.adb.shell(str(s["cmd"]), check=not s.get("ignore_errors"))
             if s.get("expect") and str(s["expect"]) not in out:
                 raise StepError(f"shell output does not contain {s['expect']!r}: {out[:300]!r}")
+        elif action == "push":
+            # Copy a fixture file (path relative to the scenario file) onto the device,
+            # then ask MediaStore to index it so system file pickers can show it.
+            src = (self.scenario_dir / str(s["src"])).resolve()
+            if not src.is_file():
+                raise StepError(f"push: fixture not found: {src}")
+            dest = str(s.get("dest", "/sdcard/Download/" + src.name))
+            self.adb.shell(f"mkdir -p '{dest.rsplit('/', 1)[0]}'", check=False)
+            self.adb.run("push", str(src), dest, timeout=120)
+            if s.get("media_scan", dest.startswith("/sdcard/")):
+                self.adb.shell(f"am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://{dest}'", check=False)
+                self.adb.shell("content call --uri content://media --method scan_volume --arg external_primary", check=False, timeout=90)
+                self.settle(1.5)
         elif action == "explore":
             self.explore(int(s.get("max_actions", 25)))
         else:
@@ -809,6 +823,8 @@ def main(argv: list[str] | None = None) -> int:
     runner = Runner(adb, args.out, package, args.app or scenario.get("name", package), mode,
                     shot_every_step=bool(args.screenshot_every_step or scenario.get("screenshot_every_step")),
                     avoid=scenario.get("avoid", args.avoid))
+    if args.scenario:
+        runner.scenario_dir = args.scenario.resolve().parent
     runner.prepare_device(disable_animations=scenario.get("disable_animations", True))
     runner.collect_device_info()
 
