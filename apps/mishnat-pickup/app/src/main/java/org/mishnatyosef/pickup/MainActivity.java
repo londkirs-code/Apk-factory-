@@ -1935,6 +1935,7 @@ public class MainActivity extends Activity {
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
             + "• בראש ההגדרות: שלושה ריבועים - 🎨 תצוגה וצליל, ⌨️ מדריך המקשים, ✨ מה חדש.\n"
             + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
+            + "• 🔄 סנכרון לכל הזמנה מהאתר, גם מההיסטוריה, עם הודעה על שינויים. אפשר לכבות סנכרון לרשימה מסוימת בתפריט שלה.\n"
             + "• 🔄 ההזמנה העדכנית מהאתר מסומנת, עם הסבר על הסנכרון. הזמנה חדשה או שינוי באתר מוצגים בהודעה, והוספות שלך נשמרות בעותק ולא נמחקות.\n"
             + "• חזרה תמיד חוזרת שלב אחד אחורה, גם מחלונות שנפתחו מתוך חלונות.\n"
             + "• שיתוף כטקסט בוואטסאפ, SMS ומייל נשלח כהודעה רגילה. \"רשימה חדשה\" כולל גם קבלה בבלוטות' והדבקת טקסט.\n"
@@ -2257,22 +2258,113 @@ public class MainActivity extends Activity {
 
     // ---- סנכרון עם האתר: סימון ההזמנה העדכנית, הגנה על שינויים, והודעה על הזמנה חדשה או שינוי ----
 
-    /** האם הרשימה היא ההזמנה העדכנית של חשבון מחובר, שמתעדכנת מהאתר בכל סנכרון. */
-    private boolean isSyncedEntry(SavedListStore.Entry entry) {
-        if (entry == null || sourceRegistry == null) return false;
+    /** מזהה ההזמנה באתר, אם הרשימה היא הזמנה של חשבון מחובר (עדכנית או מההיסטוריה); אחרת -1. */
+    private long serverOrderId(SavedListStore.Entry entry) {
+        if (entry == null || sourceRegistry == null) return -1;
         SourceRegistry.Source source = sourceRegistry.find(entry.sourceId);
-        if (source == null || !SourceRegistry.KIND_ACCOUNT.equals(source.kind)) return false;
-        return entry.orderId.equals(sourceRegistry.prefs(source.id).getString(DataGuard.K_ORDER, ""));
+        if (source == null || !SourceRegistry.KIND_ACCOUNT.equals(source.kind)) return -1;
+        try {
+            long id = Long.parseLong(entry.orderId);
+            // רשימות שנוצרו באפליקציה (חדשה, איחוד, עותק) מקבלות מזהה לפי זמן - מספר ארוך בהרבה.
+            return id > 0 && id < 100_000_000_000L ? id : -1;
+        } catch (Exception e) { return -1; }
     }
 
+    private boolean syncDisabled(String entryId) {
+        return uiPreferences != null && uiPreferences.getBoolean("nosync_" + entryId, false);
+    }
+
+    /** האם הרשימה מתעדכנת מהאתר בכל סנכרון (הזמנה מהאתר, והסנכרון לא כובה לה). */
+    private boolean isSyncedEntry(SavedListStore.Entry entry) {
+        return serverOrderId(entry) > 0 && !syncDisabled(entry.id);
+    }
+
+    private long lastEntrySync(SavedListStore.Entry entry) {
+        long own = uiPreferences == null ? 0 : uiPreferences.getLong("lastsync_" + entry.id, 0);
+        if (entry.orderId.equals(sourceRegistry.prefs(entry.sourceId).getString(DataGuard.K_ORDER, ""))) {
+            SourceRegistry.Source source = sourceRegistry.find(entry.sourceId);
+            if (source != null) own = Math.max(own, source.lastSyncAt);
+        }
+        return own;
+    }
+
+    /** שורה קצרה: מצב הסנכרון ומועד הבדיקה האחרונה. */
     private String syncedDetails(SavedListStore.Entry entry) {
-        if (!isSyncedEntry(entry)) return "";
-        SourceRegistry.Source source = sourceRegistry.find(entry.sourceId);
-        String when = source != null && source.lastSyncAt > 0
-                ? new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(new Date(source.lastSyncAt)) : "עוד לא";
-        return "🔄 מסונכרן: ההזמנה העדכנית מהאתר. מתעדכנת בכל סנכרון (אחרון: " + when + "). "
-                + "אם ההזמנה באתר משתנה, המוצרים מתעדכנים וסימוני האיסוף נשמרים, ותופיע הודעה. "
-                + "הוספות שלך נשמרות בעותק נפרד, כדי שהסנכרון לא ימחק אותן.";
+        if (serverOrderId(entry) <= 0) return "";
+        if (syncDisabled(entry.id)) return "⏸ הסנכרון כבוי לרשימה הזו";
+        long last = lastEntrySync(entry);
+        return "🔄 מסונכרן · בדיקה אחרונה: " + (last > 0
+                ? new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(new Date(last)) : "עוד לא");
+    }
+
+    private void setEntrySync(SavedListStore.Entry entry, boolean enabled) {
+        uiPreferences.edit().putBoolean("nosync_" + entry.id, !enabled).apply();
+        showActionToast(enabled ? "הסנכרון הופעל לרשימה" : "הסנכרון כובה לרשימה");
+        refreshHomeTitle();
+        if (screen == Screen.SAVED_LISTS) refreshSavedListsScreen();
+    }
+
+    /**
+     * סנכרון הזמנות שמורות מהאתר (מההיסטוריה ומהזמנות קודמות), בזמן סנכרון החשבון. רץ על תהליך הרשת.
+     * מחזיר הודעות על שינויים. רשימה ישנה שהמשתמש הוסיף לה מוצרים - הסנכרון שלה נכבה, כדי שלא יימחק כלום.
+     * עד 12 הזמנות אחרונות בכל סנכרון.
+     */
+    private List<String> syncSavedOrders(String sourceId, long latestId, RequestSession session) {
+        List<String> notices = new ArrayList<>();
+        List<SavedListStore.Entry> candidates = new ArrayList<>();
+        for (SavedListStore.Entry e : savedListStore.list()) {
+            long id = serverOrderId(e);
+            if (e.sourceId.equals(sourceId) && id > 0 && id != latestId && !syncDisabled(e.id)) candidates.add(e);
+        }
+        java.util.Collections.sort(candidates, (a, b) -> Long.compare(b.archivedAt, a.archivedAt));
+        int checked = 0;
+        for (SavedListStore.Entry e : candidates) {
+            if (checked++ >= 12 || !session.isCurrent(this)) break;
+            try {
+                JSONObject order = unwrapOrder(apiGetObject("/api/orders/" + e.orderId, session));
+                List<ProductRow> rows = parseProducts(order);
+                if (rows.isEmpty()) continue;
+                sortByCategory(rows, null);
+                JSONObject data = savedListStore.readEntry(e.id);
+                JSONArray old = data.optJSONArray("products");
+                List<ProductRow> before = new ArrayList<>();
+                Map<String, String> imageFiles = new HashMap<>();
+                Set<String> serverKeys = new HashSet<>();
+                for (ProductRow r : rows) serverKeys.add(r.key);
+                boolean userAdded = false;
+                if (old != null) for (int i = 0; i < old.length(); i++) {
+                    JSONObject o = old.optJSONObject(i); if (o == null) continue;
+                    ProductRow p = new ProductRow(first(o, "key"), first(o, "name"), first(o, "image_url"), first(o, "amount"),
+                            first(o, "note"), "", first(o, "category"), o.optInt("category_order", 0));
+                    before.add(p);
+                    imageFiles.put(p.key, first(o, "image_file"));
+                    if (!serverKeys.contains(p.key)) userAdded = true;
+                }
+                String serverPrint = DataGuard.fingerprint(rows);
+                String lastPrint = data.optString("_server_print", "");
+                uiPreferences.edit().putLong("lastsync_" + e.id, System.currentTimeMillis()).apply();
+                if (serverPrint.equals(lastPrint)) continue;
+                if (lastPrint.isEmpty()) {
+                    // סנכרון ראשון של רשימה ישנה: אם הוסיפו לה מוצרים - לא נוגעים בה, ומכבים לה סנכרון.
+                    if (userAdded) { uiPreferences.edit().putBoolean("nosync_" + e.id, true).apply(); continue; }
+                    if (DataGuard.fingerprint(before).equals(serverPrint)) { savedListStore.setServerPrint(e.id, serverPrint); continue; }
+                }
+                JSONArray items = new JSONArray();
+                for (ProductRow p : rows) {
+                    String file = imageFiles.get(p.key);
+                    items.put(new JSONObject().put("key", p.key).put("name", p.name).put("image_url", p.imageUrl)
+                            .put("amount", p.amount).put("note", p.note).put("category", p.category)
+                            .put("category_order", p.categoryOrder).put("image_file", file == null ? "" : file));
+                }
+                if (savedListStore.replaceProducts(e.id, items, serverPrint)) {
+                    String changes = describeOrderChanges(before, rows);
+                    notices.add("🔄 \"" + displayTitle(e) + "\" עודכנה באתר." + changes);
+                }
+            } catch (Exception error) {
+                if (isAuthError(safeError(error))) break;
+            }
+        }
+        return notices;
     }
 
     /**
@@ -2927,6 +3019,10 @@ public class MainActivity extends Activity {
         String sync=syncedDetails(entry);
         if(!sync.isEmpty())panel.addView(Ui.text(this,sync,Ui.T_NOTE,Ui.P700,false),Ui.row(this,0,Ui.S2));
         currentMenuReopen=()->showSavedListActions(entry,back);
+        if(serverOrderId(entry)>0){
+            boolean off=syncDisabled(entry.id);
+            addSourceAction(panel,dialog,off?"הפעלת סנכרון":"כיבוי סנכרון",()->setEntrySync(entry,off));
+        }
         addListEntryActions(panel,dialog,entry,back==null?this::refreshSavedListsScreen:this::refreshHomeTitle,true);
         currentMenuReopen=null;
         dialog.setContentView(panel);dialog.show();
@@ -3786,7 +3882,8 @@ public class MainActivity extends Activity {
         if (currentOrderId.isEmpty()) return "";
         String id = savedEntryId(activeSourceId, activeOwner, currentOrderId);
         String badge = cloudBadge(id);
-        boolean synced = !showingSavedList && SourceRegistry.KIND_ACCOUNT.equals(
+        SavedListStore.Entry shownEntry = findSavedEntry(id);
+        boolean synced = shownEntry != null ? isSyncedEntry(shownEntry) : !showingSavedList && SourceRegistry.KIND_ACCOUNT.equals(
                 sourceRegistry.find(activeSourceId) == null ? "" : sourceRegistry.find(activeSourceId).kind);
         return (synced ? "  🔄" : "") + (badge.isEmpty() ? "" : "  " + badge);
     }
@@ -4805,10 +4902,14 @@ public class MainActivity extends Activity {
                 // This request is deliberately detached from the order flow: product data
                 // is rendered as soon as it arrives, while the account name loads quietly.
                 fetchAccountProfileName(requestSourceId, session.token);
+                // גם הזמנות שמורות מההיסטוריה מתעדכנות מהאתר (רשימות שהסנכרון לא כובה להן).
+                final List<String> savedNotices = syncSavedOrders(requestSourceId, id, session);
                 final String resolvedOwner = owner;
                 final String resolvedToken = session.token;
-                mainHandler.post(() -> onFreshOrder(session.generation, resolvedToken,
-                        resolvedOwner, id, order, parsed, orderTitle, pickupInfo));
+                mainHandler.post(() -> {
+                    syncNotices.addAll(savedNotices);
+                    onFreshOrder(session.generation, resolvedToken, resolvedOwner, id, order, parsed, orderTitle, pickupInfo);
+                });
             } catch (Exception error) {
                 String message = safeError(error);
                 mainHandler.post(() -> onOrderLoadError(session, message));
@@ -4973,6 +5074,14 @@ public class MainActivity extends Activity {
 
         String fingerprint = DataGuard.fingerprint(rows);
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
+        // הסנכרון כובה להזמנה הזו: שינוי באתר לא מחליף את הרשימה במכשיר.
+        if (verdict == DataGuard.Verdict.CONTENT_CHANGED
+                && syncDisabled(savedEntryId(activeSourceId, stableOwner, String.valueOf(orderId)))) {
+            sourceRegistry.markSynced(activeSourceId);
+            showSyncMessage("", false);
+            mainHandler.post(this::advanceSyncQueue);
+            return;
+        }
         // הודעה למשתמש: הזמנה חדשה, או שינוי בהזמנה הקיימת (כדי ששום דבר לא ישתנה בלי שהוא יודע).
         if (verdict == DataGuard.Verdict.NEW_ORDER || verdict == DataGuard.Verdict.CONTENT_CHANGED) {
             SourceRegistry.Source noticeSource = sourceRegistry.find(activeSourceId);
