@@ -1,0 +1,270 @@
+name: UI test APK on emulator
+
+# Optional, on-demand UI testing: boots an Android emulator, installs an APK,
+# runs a JSON scenario (tap / type / swipe / assert) or an automatic exploration,
+# and publishes screenshots + report to the `ui-test-results` branch.
+# It never runs on ordinary pushes, so normal APK builds stay fast.
+# Docs: docs/UI_TESTING.md · AI procedure: skills/ui-test-apk/SKILL.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "App id(s), space-separated (folder under apps/ or downloads/, e.g. monopoly or NotifAI)"
+        required: true
+        type: string
+      mode:
+        description: "auto = scenarios if present, else explore"
+        required: false
+        default: auto
+        type: choice
+        options: [auto, scenario, explore, both]
+      scenario:
+        description: "Optional scenario JSON path in the repo (default: apps/<app>/ui-tests/*.json)"
+        required: false
+        default: ""
+        type: string
+      explore_actions:
+        description: "Max taps in explore mode"
+        required: false
+        default: "30"
+        type: string
+      apk_url:
+        description: "Optional HTTPS URL of the APK to test instead of downloads/<app>"
+        required: false
+        default: ""
+        type: string
+      api_level:
+        description: "Emulator Android API level"
+        required: false
+        default: "33"
+        type: string
+      locale:
+        description: "Optional emulator locale, e.g. he-IL"
+        required: false
+        default: ""
+        type: string
+  workflow_call:
+    inputs:
+      app: { type: string, required: true }
+      mode: { type: string, required: false, default: auto }
+      scenario: { type: string, required: false, default: "" }
+      explore_actions: { type: string, required: false, default: "30" }
+      api_level: { type: string, required: false, default: "33" }
+      locale: { type: string, required: false, default: "" }
+      apk_artifact:
+        description: "Name of an artifact from the calling run that contains the APKs"
+        type: string
+        required: false
+        default: ""
+  issue_comment:
+    types: [created]
+  workflow_run:
+    # Automatic test after a successful build — only when the repository
+    # variable UI_TEST_AFTER_BUILD is set to "true" (off by default).
+    workflows: ["Build Android APKs"]
+    types: [completed]
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+
+jobs:
+  ui-test:
+    if: >-
+      format('{0}', inputs.app) != '' ||
+      (github.event_name == 'issue_comment' && github.event.issue.number == 1 &&
+       startsWith(github.event.comment.body, '/ui-test') &&
+       github.event.comment.user.login == github.repository_owner) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+       vars.UI_TEST_AFTER_BUILD == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Manual runs use the selected branch (so new scenarios can be tried before merge).
+          ref: ${{ (github.event_name == 'issue_comment' || github.event_name == 'workflow_run') && 'main' || github.ref }}
+          fetch-depth: 1
+
+      - name: Resolve request
+        id: resolve
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          IN_APP: ${{ inputs.app }}
+          IN_MODE: ${{ inputs.mode }}
+          IN_SCENARIO: ${{ inputs.scenario }}
+          IN_ACTIONS: ${{ inputs.explore_actions }}
+          IN_API: ${{ inputs.api_level }}
+          IN_LOCALE: ${{ inputs.locale }}
+          IN_APK_URL: ${{ inputs.apk_url }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          VAR_APPS: ${{ vars.UI_TEST_APPS }}
+        run: |
+          set -euo pipefail
+          APPS="" MODE="auto" SCENARIO="" ACTIONS="30" API="33" LOCALE="" APK_URL=""
+          if [[ -n "$IN_APP" ]]; then
+            APPS="$IN_APP"; MODE="${IN_MODE:-auto}"; SCENARIO="$IN_SCENARIO"
+            ACTIONS="${IN_ACTIONS:-30}"; API="${IN_API:-33}"; LOCALE="$IN_LOCALE"; APK_URL="$IN_APK_URL"
+          elif [[ "$EVENT_NAME" == "issue_comment" ]]; then
+            # /ui-test <app> [auto|scenario|explore|both|path/to/scenario.json] [explore-actions]
+            read -r CMD APPS ARG2 ARG3 _ <<< "$(printf '%s' "$COMMENT_BODY" | head -n1 | tr -d '\r')" || true
+            case "${ARG2:-}" in
+              ""|auto|scenario|explore|both) MODE="${ARG2:-auto}" ;;
+              *.json) SCENARIO="$ARG2"; MODE=scenario ;;
+              *) echo "::error::Unknown argument '$ARG2'"; exit 1 ;;
+            esac
+            [[ -n "${ARG3:-}" ]] && ACTIONS="$ARG3"
+          else
+            # workflow_run: apps from the UI_TEST_APPS variable, else apps that have scenarios.
+            APPS="$(printf '%s' "${VAR_APPS:-}" | tr ',' ' ')"
+            if [[ -z "${APPS// }" ]]; then
+              APPS="$(find apps -mindepth 3 -maxdepth 3 -path '*/ui-tests/*.json' | cut -d/ -f2 | sort -u | tr '\n' ' ')"
+            fi
+          fi
+          APPS="$(echo $APPS)"
+          [[ -n "$APPS" ]] || { echo "::notice::No apps to test."; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          for a in $APPS; do [[ "$a" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "::error::Invalid app id: $a"; exit 1; }; done
+          [[ "$MODE" =~ ^(auto|scenario|explore|both)$ ]] || { echo "::error::Invalid mode"; exit 1; }
+          [[ "$ACTIONS" =~ ^[0-9]{1,3}$ ]] || { echo "::error::explore_actions must be a number"; exit 1; }
+          [[ "$API" =~ ^[0-9]{2}$ ]] || { echo "::error::api_level must be a number"; exit 1; }
+          if [[ -n "$SCENARIO" ]]; then
+            [[ "$SCENARIO" =~ ^[A-Za-z0-9_./-]+\.json$ && "$SCENARIO" != *..* ]] || { echo "::error::Invalid scenario path"; exit 1; }
+            [[ -f "$SCENARIO" ]] || { echo "::error::Scenario not found on main: $SCENARIO"; exit 1; }
+          fi
+          [[ -z "$APK_URL" || "$APK_URL" =~ ^https:// ]] || { echo "::error::apk_url must be HTTPS"; exit 1; }
+          [[ -z "$LOCALE" || "$LOCALE" =~ ^[a-z]{2,3}(-[A-Z]{2})?$ ]] || { echo "::error::Invalid locale"; exit 1; }
+          {
+            echo "skip=false"; echo "apps=$APPS"; echo "mode=$MODE"; echo "scenario=$SCENARIO"
+            echo "actions=$ACTIONS"; echo "api=$API"; echo "locale=$LOCALE"; echo "apk_url=$APK_URL"
+          } >> "$GITHUB_OUTPUT"
+          echo "Apps: $APPS | mode: $MODE | scenario: ${SCENARIO:-auto} | API $API"
+
+      - name: Acknowledge issue command
+        if: github.event_name == 'issue_comment' && steps.resolve.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          APPS: ${{ steps.resolve.outputs.apps }}
+          MODE: ${{ steps.resolve.outputs.mode }}
+        run: |
+          gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body "UI test started for \`$APPS\` ($MODE): $RUN_URL"
+
+      - name: Download APKs from the triggering build
+        if: steps.resolve.outputs.skip != 'true' && github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apks
+          path: ${{ runner.temp }}/apks
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Download APKs from the calling workflow
+        if: steps.resolve.outputs.skip != 'true' && inputs.apk_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.apk_artifact }}
+          path: ${{ runner.temp }}/apks
+
+      - name: Enable KVM
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Cache emulator snapshot
+        if: steps.resolve.outputs.skip != 'true'
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-v1-api${{ steps.resolve.outputs.api }}-google_apis-x86_64
+
+      - name: Create emulator snapshot (first run per API level only)
+        if: steps.resolve.outputs.skip != 'true' && steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ steps.resolve.outputs.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Emulator snapshot generated."
+
+      - name: Run UI tests on the emulator
+        if: steps.resolve.outputs.skip != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          UI_APPS: ${{ steps.resolve.outputs.apps }}
+          UI_MODE: ${{ steps.resolve.outputs.mode }}
+          UI_SCENARIO: ${{ steps.resolve.outputs.scenario }}
+          UI_EXPLORE_ACTIONS: ${{ steps.resolve.outputs.actions }}
+          UI_APK_URL: ${{ steps.resolve.outputs.apk_url }}
+          UI_LOCALE: ${{ steps.resolve.outputs.locale }}
+          UI_APK_DIR: ${{ runner.temp }}/apks
+          UI_OUT_ROOT: ${{ runner.temp }}/ui-results
+        with:
+          api-level: ${{ steps.resolve.outputs.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash tools/ui-testing/run-ci.sh
+
+      - name: Upload results artifact
+        if: always() && steps.resolve.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ui-results
+            !${{ runner.temp }}/ui-results/.apk
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish screenshots and report to the ui-test-results branch
+        id: publish
+        if: always() && steps.resolve.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RES="$RUNNER_TEMP/ui-results"
+          [[ -d "$RES" ]] || { echo "No results to publish."; exit 0; }
+          RUN_NAME="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          DEST="$(bash tools/ui-testing/publish-results.sh "$RES" "$RUN_NAME" | tail -n1)"
+          BASE="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/ui-test-results/$DEST"
+          echo "url=$BASE/summary.md" >> "$GITHUB_OUTPUT"
+          {
+            echo "## UI test results"
+            echo
+            echo "Report with screenshots: $BASE/summary.md"
+            echo
+            sed -E "s#\]\(([^)]+report\.md)\)#]($BASE/\1)#" "$RES/summary.md" | tail -n +3
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report back on the issue
+        if: always() && github.event_name == 'issue_comment' && steps.resolve.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULTS_URL: ${{ steps.publish.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          APPS: ${{ steps.resolve.outputs.apps }}
+        run: |
+          STATUS="$(cat "$RUNNER_TEMP/ui-results/status" 2>/dev/null || echo error)"
+          gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body "UI test **$STATUS** for \`$APPS\`. Screenshots/report: ${RESULTS_URL:-not published} · Run: $RUN_URL"
+
+      - name: Fail the job if a test failed
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          STATUS="$(cat "$RUNNER_TEMP/ui-results/status" 2>/dev/null || echo error)"
+          echo "UI test status: $STATUS"
+          [[ "$STATUS" == "passed" ]]
