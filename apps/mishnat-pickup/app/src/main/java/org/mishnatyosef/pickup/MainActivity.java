@@ -1930,6 +1930,7 @@ public class MainActivity extends Activity {
             "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
             + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
             + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
+            + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
             + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
@@ -3895,11 +3896,26 @@ public class MainActivity extends Activity {
         txt.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "txt", self); });
         Button zip = Ui.gridButton(this, "קובץ ZIP עם תמונות", Ui.Kind.SOFT);
         zip.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "zip", self); });
-        addGridButtons(panel, cloud, json, txt, zip);
+        Button qr = Ui.gridButton(this, "קוד QR לסריקה", Ui.Kind.SOFT);
+        qr.setOnClickListener(v -> { dialog.dismiss(); showShareQr(entries); });
+        addGridButtons(panel, qr, cloud, json, txt, zip);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
         cloud.requestFocus();
+    }
+
+    /** שיתוף בקודי QR על המסך: טלפון אחר סורק בלי אינטרנט. הזמנה גדולה או כמה הזמנות - כמה קודים. */
+    private void showShareQr(List<SavedListStore.Entry> entries) {
+        cacheWorker.execute(() -> {
+            try {
+                List<String> chunks = ListExporter.qrChunks(exportsFor(entries), 900);
+                mainHandler.post(() -> new QrDisplay(this, chunks).show());
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("יצירת הקוד נכשלה", error));
+            }
+        });
     }
 
     private List<ListExporter.Export> exportsFor(List<SavedListStore.Entry> entries) throws Exception {

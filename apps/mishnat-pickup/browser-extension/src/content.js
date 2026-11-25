@@ -110,11 +110,12 @@
         <img alt="קוד QR של רשימת האיסוף">
         <div class="qrnav">
           <button type="button" class="qrprev">→ הקודם</button>
+          <button type="button" class="qrauto">▶ אוטומטי</button>
           <button type="button" class="qrnext">הבא ←</button>
         </div>
-        <p class="qrhelp">סורקים את הקודים בטלפון, לפי הסדר. בלי אינטרנט: סורק ה-QR של המצלמה ← העתקה ←
-          באפליקציה "רשימה חדשה" ← "הדבקת טקסט". אפשר להדביק כמה קודים אחד אחרי השני באותו חלון,
-          והם יתחברו לרשימה אחת. תמונות לא עוברות ב-QR (הן ייטענו כשיהיה אינטרנט).</p>
+        <p class="qrhelp">באפליקציה: "רשימה חדשה" ← "סריקת קוד QR", ומחזיקים את הטלפון מול המסך. כשיש כמה קודים הם
+          מתחלפים לבד, והאפליקציה אוספת אותם בכל סדר. בלי הסורק של האפליקציה: סורק המצלמה ← העתקה ← "הדבקת טקסט"
+          (כמה קודים באותו חלון מתחברים לרשימה אחת). תמונות לא עוברות ב-QR, והן ייטענו כשיהיה אינטרנט.</p>
         <div class="qrnav"><button type="button" class="qrback">חזרה לבחירת הזמנות</button></div>
       </div>
       <div class="status" role="status" aria-live="polite"></div>
@@ -237,7 +238,15 @@
   }
 
   // ---------- QR ----------
-  let qrChunks = [], qrIndex = 0;
+  let qrChunks = [], qrIndex = 0, qrTimer = null;
+
+  // החלפה אוטומטית כל 2.5 שניות: הסורק באפליקציה אוסף את הקודים בכל סדר.
+  function setAuto(on) {
+    if (qrTimer) { clearInterval(qrTimer); qrTimer = null; }
+    if (on && qrChunks.length > 1) qrTimer = setInterval(() => { qrIndex = (qrIndex + 1) % qrChunks.length; renderQr(); }, 2500);
+    $('.qrauto').textContent = qrTimer ? '⏸ עצירה' : '▶ אוטומטי';
+    $('.qrauto').disabled = qrChunks.length < 2;
+  }
 
   function renderQr() {
     const text = qrChunks[qrIndex];
@@ -257,19 +266,22 @@
     qrChunks = chunks; qrIndex = 0;
     root.classList.add('showqr');
     renderQr();
+    setAuto(chunks.length > 1);
     setStatus(chunks.length > 1 ? 'ההזמנות חולקו ל-' + chunks.length + ' קודים, כדי שיהיה קל לסרוק במצלמה פשוטה.' : '');
     ($('.qrnext').disabled ? $('.qrback') : $('.qrnext')).focus();
   }
 
   function hideQr() {
+    setAuto(false);
     root.classList.remove('showqr');
     setStatus('');
     const b = list.querySelector('input:checked') || list.querySelector('input');
     if (b) b.focus();
   }
 
-  $('.qrprev').addEventListener('click', () => { if (qrIndex > 0) { qrIndex--; renderQr(); } });
-  $('.qrnext').addEventListener('click', () => { if (qrIndex < qrChunks.length - 1) { qrIndex++; renderQr(); } });
+  $('.qrprev').addEventListener('click', () => { setAuto(false); if (qrIndex > 0) { qrIndex--; renderQr(); } });
+  $('.qrnext').addEventListener('click', () => { setAuto(false); if (qrIndex < qrChunks.length - 1) { qrIndex++; renderQr(); } });
+  $('.qrauto').addEventListener('click', () => setAuto(!qrTimer));
   $('.qrback').addEventListener('click', hideQr);
   root.addEventListener('keydown', (e) => {
     if (!root.classList.contains('showqr')) return;
@@ -315,6 +327,7 @@
   }
 
   function open() {
+    setAuto(false);
     root.classList.remove('showqr');
     root.classList.add('open');
     if (rowsById.size === 0) loadPage();
@@ -322,6 +335,7 @@
   }
 
   function close() {
+    setAuto(false);
     root.classList.remove('open');
     fab.focus();
   }

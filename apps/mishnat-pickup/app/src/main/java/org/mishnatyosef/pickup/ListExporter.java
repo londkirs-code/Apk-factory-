@@ -130,6 +130,67 @@ final class ListExporter {
         }
     }
 
+    /**
+     * חלוקה לקודי QR - זהה לגמרי ל-toQrChunks בתוסף (browser-extension/src/core.js), כדי שקודים
+     * מהטלפון ומהמחשב ייסרקו באותה צורה. כל קוד הוא טקסט שהייבוא מקבל:
+     * "#משנת אוסף 1/3", "## הזמנה", "### קטגוריה", "שם | כמות | | הערה".
+     */
+    static List<String> qrChunks(List<Export> exports, int maxBytes) throws Exception {
+        int limit = maxBytes > 0 ? maxBytes : 900;
+        JSONArray lists = json(exports, null).getJSONArray("lists");
+        List<String> chunks = new java.util.ArrayList<>();
+        List<String> lines = new java.util.ArrayList<>();
+        int[] size = {0};
+        for (int l = 0; l < lists.length(); l++) {
+            JSONObject list = lists.getJSONObject(l);
+            String name = oneLine(list.getJSONObject("order").optString("name", ""));
+            String title = "## " + (name.isEmpty() ? "רשימה" : name);
+            String category = null;
+            if (size[0] + utf8(title) + 40 > limit) flush(chunks, lines, size);
+            push(lines, size, title);
+            JSONArray items = list.getJSONArray("items");
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.getJSONObject(i);
+                String itemCategory = oneLine(item.optString("category", ""));
+                String line = cell(item.optString("name")) + " | " + Quantities.format(item.optDouble("quantity", 1));
+                String note = item.optString("note", "");
+                if (!note.isEmpty()) line += " | | " + cell(note);
+                String catLine = itemCategory.equals(category == null ? "" : category) ? null : "### " + (itemCategory.isEmpty() ? "-" : itemCategory);
+                int need = utf8(line) + 1 + (catLine != null ? utf8(catLine) + 1 : 0);
+                if (size[0] + need > limit - 24) {
+                    // קוד חדש: מתחיל בשם ההזמנה ובקטגוריה של המוצר הבא.
+                    flush(chunks, lines, size);
+                    category = null;
+                    push(lines, size, title);
+                    catLine = itemCategory.isEmpty() ? null : "### " + itemCategory;
+                }
+                if (catLine != null) { category = itemCategory.isEmpty() ? null : itemCategory; push(lines, size, catLine); }
+                push(lines, size, line);
+            }
+        }
+        flush(chunks, lines, size);
+        List<String> out = new java.util.ArrayList<>();
+        for (int i = 0; i < chunks.size(); i++) out.add("#משנת אוסף " + (i + 1) + "/" + chunks.size() + "\n" + chunks.get(i));
+        return out;
+    }
+
+    private static void push(List<String> lines, int[] size, String line) {
+        lines.add(line);
+        size[0] += utf8(line) + 1;
+    }
+
+    private static void flush(List<String> chunks, List<String> lines, int[] size) {
+        if (!lines.isEmpty()) {
+            StringBuilder joined = new StringBuilder();
+            for (String line : lines) joined.append(joined.length() == 0 ? "" : "\n").append(line);
+            chunks.add(joined.toString());
+        }
+        lines.clear();
+        size[0] = 0;
+    }
+
+    private static int utf8(String text) { return text.getBytes(StandardCharsets.UTF_8).length; }
+
     private static String title(String value) {
         String t = limit(value, 200);
         return t.isEmpty() ? "רשימה משותפת" : t;

@@ -65,6 +65,24 @@ public class ExtensionCompatibilityTest {
         assertEquals("קטניות ושימורים", bundle.lists.get(1).items.get(1).category);
     }
 
+    /** קודי QR מהאפליקציה זהים לגמרי לקודים מהתוסף (אותם נתונים, אותה חלוקה). */
+    @Test public void appQrChunksMatchExtension() throws Exception {
+        org.json.JSONArray products = new org.json.JSONArray()
+                .put(new org.json.JSONObject().put("key", "11").put("name", "בטטות").put("amount", "1").put("category", "ירקות"))
+                .put(new org.json.JSONObject().put("key", "421").put("name", "קווקר הכנה מהירה").put("amount", "2").put("category", "קטניות ושימורים"))
+                .put(new org.json.JSONObject().put("key", "6385").put("name", "שישיית נייר סופג").put("amount", "1").put("category", "טיפוח ונקיון"))
+                .put(new org.json.JSONObject().put("key", "160").put("name", "ביצים גודל M").put("amount", "1").put("category", "ביצים"));
+        org.json.JSONArray firstTwo = new org.json.JSONArray().put(products.get(0)).put(products.get(1));
+        java.util.List<ListExporter.Export> exports = java.util.Arrays.asList(
+                new ListExporter.Export("וישלח תשפ\"ז", products),
+                new ListExporter.Export("הזמנה | שנייה\nלבדיקה", firstTwo));
+        java.util.List<String> chunks = ListExporter.qrChunks(exports, 160);
+        StringBuilder joined = new StringBuilder();
+        for (String c : chunks) joined.append(joined.length() == 0 ? "" : "\n").append(c);
+        String expected = new String(java.nio.file.Files.readAllBytes(fixture("export-qr.txt").toPath()), "UTF-8");
+        assertEquals(expected, joined.toString());
+    }
+
     @Test public void zipFromExtensionImportsWithImages() throws Exception {
         ImportParser.Bundle bundle = parse("export.zip");
         assertOrders(bundle);
