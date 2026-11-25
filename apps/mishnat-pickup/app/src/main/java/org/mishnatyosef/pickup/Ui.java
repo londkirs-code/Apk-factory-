@@ -194,13 +194,6 @@ final class Ui {
         TextView note=text(c,"",compact?12:T_NOTE*scale,MUTED,false);
         note.setMaxLines(grid?2:MAX_NOTE_LINES);
         note.setLayoutParams(row(c,1,0));
-        // A name/note that starts with Latin letters (e.g. "Pasta") gets an LTR paragraph and was
-        // left-aligned. Align to the card's (RTL) start; the text's own bidi order is kept.
-        // Set before any text: TextView only applies a new alignment when it lays the text out again.
-        if (android.os.Build.VERSION.SDK_INT >= 17 && !grid) {
-            name.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-            note.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-        }
         details.addView(name); details.addView(note);
 
         TextView amount=text(c,"",grid?19:(compact?17:T_AMOUNT*scale),P800,true);
@@ -223,8 +216,17 @@ final class Ui {
         if (v.image instanceof RoundedImageView) ((RoundedImageView) v.image).setRing(focused);
     }
 
+    /**
+     * A name/note that starts with Latin letters (e.g. "Pasta") would get a left-to-right paragraph:
+     * left-aligned in the RTL card and with Hebrew parts ordered left-to-right. A leading invisible
+     * RIGHT-TO-LEFT MARK makes it an RTL paragraph like every Hebrew line. Display only; data is unchanged.
+     */
+    static String rtlParagraph(String text) {
+        return text == null || text.isEmpty() || text.charAt(0) == '\u200F' ? (text == null ? "" : text) : "\u200F" + text;
+    }
+
     static void bindProduct(CardViews v,String name,String note,String amount,boolean collected) {
-        Context c=v.root.getContext(); v.name.setText(name); v.note.setText(note);
+        Context c=v.root.getContext(); v.name.setText(rtlParagraph(name)); v.note.setText(rtlParagraph(note));
         v.note.setVisibility(note==null||note.isEmpty()?View.GONE:View.VISIBLE);
         v.amount.setText(amount);
         int flags=v.name.getPaintFlags();

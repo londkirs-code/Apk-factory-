@@ -184,6 +184,7 @@ def matches(node: Node, sel: dict[str, Any]) -> bool:
     exact = bool(sel.get("exact", False))
 
     def cmp(value: str, wanted: str) -> bool:
+        value = strip_bidi(value)
         if exact:
             return value == wanted
         return wanted.casefold() in value.casefold()
@@ -207,6 +208,14 @@ def matches(node: Node, sel: dict[str, Any]) -> bool:
     if node.area == 0:
         return False
     return True
+
+
+_BIDI_MARKS = dict.fromkeys(map(ord, "\u200e\u200f\u061c\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"))
+
+
+def strip_bidi(text: str) -> str:
+    """Remove invisible direction marks apps add for RTL layout, so 'Pasta' matches '\u200fPasta'."""
+    return text.translate(_BIDI_MARKS)
 
 
 SELECTOR_KEYS = ("text", "desc", "id", "any", "class", "regex")

@@ -67,6 +67,8 @@ class DriverTests(unittest.TestCase):
         self.assertTrue(any(d.matches(n, {"id": "settings"}) for n in nodes))
         self.assertTrue(any(d.matches(n, {"any": "search"}) for n in nodes))
         self.assertFalse(any(d.matches(n, {"text": "Sett", "exact": True}) for n in nodes))
+        rlm = d.Node({"text": "\u200fPasta", "class": "x"}, (0, 0, 10, 10))
+        self.assertTrue(d.matches(rlm, {"text": "Pasta", "exact": True}))
 
     def test_point_fraction_and_pixels(self):
         self.assertEqual(self.r.point(0.5, 0.25), (540, 600))
