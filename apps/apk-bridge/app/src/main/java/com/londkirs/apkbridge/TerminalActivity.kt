@@ -809,7 +809,6 @@ class TerminalActivity : Activity() {
 
     // endregion
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     companion object {
         private const val MAX_MESSAGES = 200

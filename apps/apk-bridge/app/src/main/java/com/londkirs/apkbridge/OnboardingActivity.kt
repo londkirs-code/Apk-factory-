@@ -190,13 +190,12 @@ class OnboardingActivity : Activity() {
         Compat.focusRing(this, 0xFF75451F.toInt())
     }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     companion object {
-        private val INK = 0xFF30251D.toInt()
-        private val MUTED = 0xFF8A7868.toInt()
-        private val ACCENT = 0xFFF09A45.toInt()
-        private val BACKGROUND = 0xFFFFF9F3.toInt()
+        private val INK = Theme.INK
+        private val MUTED = Theme.MUTED
+        private val ACCENT = Theme.ACCENT
+        private val BACKGROUND = Theme.BACKGROUND
 
         /** First launch only, and not for users who already paired with an older version. */
         fun shouldShow(context: Context): Boolean =

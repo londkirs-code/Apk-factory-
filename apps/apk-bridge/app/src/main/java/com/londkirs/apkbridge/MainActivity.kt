@@ -464,39 +464,13 @@ class MainActivity : Activity() {
         tip.addView(body(tr("אפשר גם לפתוח או לשתף קובץ APK מכל אפליקציה (מנהל קבצים, דפדפן, וואטסאפ, טלגרם) ולבחור באפליקציית הבוס — והוא יותקן לפי ההגדרות.", "You can also open or share an APK file from any app (file manager, browser, WhatsApp, Telegram) and choose The Boss — it will be installed according to the settings.")), matchWrap(0))
     }
 
-    private fun card(parent: LinearLayout) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(12))
-        background = GradientDrawable().apply {
-            cornerRadius = dp(18).toFloat()
-            setColor(0xFFFFFFFF.toInt())
-            setStroke(dp(1), 0xFFF2E2D2.toInt())
-        }
-        elevation = dp(1).toFloat()
-        parent.addView(this, matchWrap(14))
-    }
+    private fun card(parent: LinearLayout) = Ui.card(parent)
 
-    private fun heading(value: String) = TextView(this).apply {
-        text = value
-        textSize = 18f
-        typeface = Typeface.DEFAULT_BOLD
-        setTextColor(INK)
-        setPadding(0, 0, 0, dp(6))
-    }
+    private fun heading(value: String) = Ui.heading(this, value)
 
-    private fun body(value: String) = TextView(this).apply {
-        text = value
-        textSize = 14f
-        setTextColor(0xFF55483E.toInt())
-        setLineSpacing(0f, 1.1f)
-    }
+    private fun body(value: String) = Ui.body(this, value)
 
-    private fun note(value: String) = TextView(this).apply {
-        text = value
-        textSize = 12f
-        setTextColor(MUTED)
-        setPadding(0, dp(4), 0, 0)
-    }
+    private fun note(value: String) = Ui.note(this, value)
 
     private fun field(hintText: String, type: Int) = EditText(this).apply {
         hint = hintText
@@ -521,20 +495,7 @@ class MainActivity : Activity() {
     }
 
 
-    private fun button(textValue: String, primary: Boolean, action: () -> Unit) = Button(this).apply {
-        text = textValue
-        textSize = 15f
-        isAllCaps = false
-        stateListAnimator = null
-        setTextColor(if (primary) 0xFFFFFFFF.toInt() else 0xFF75451F.toInt())
-        background = GradientDrawable().apply {
-            cornerRadius = dp(14).toFloat()
-            setColor(if (primary) ACCENT else 0xFFFFE7D1.toInt())
-        }
-        setPadding(dp(12), dp(12), dp(12), dp(12))
-        setOnClickListener { action() }
-        Compat.focusRing(this, 0xFF75451F.toInt())
-    }
+    private fun button(textValue: String, primary: Boolean, action: () -> Unit) = Ui.button(this, textValue, primary, action)
 
     private fun Button.busyAware() = also { busyViews += it }
 
@@ -942,7 +903,6 @@ class MainActivity : Activity() {
     }.getOrDefault("?")
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun matchWrap(bottom: Int = 9) = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
     ).apply { bottomMargin = dp(bottom) }
@@ -957,9 +917,9 @@ class MainActivity : Activity() {
         private const val KEY_SHOWN_SEQ = "shown_install_seq"
         private const val KEY_TAB = "tab"
 
-        private val INK = 0xFF30251D.toInt()
-        private val MUTED = 0xFF8A7868.toInt()
-        private val ACCENT = 0xFFF09A45.toInt()
-        private val BACKGROUND = 0xFFFFF9F3.toInt()
+        private val INK = Theme.INK
+        private val MUTED = Theme.MUTED
+        private val ACCENT = Theme.ACCENT
+        private val BACKGROUND = Theme.BACKGROUND
     }
 }

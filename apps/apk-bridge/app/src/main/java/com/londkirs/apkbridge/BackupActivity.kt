@@ -566,20 +566,15 @@ class BackupActivity : Activity() {
 
     // region views
 
-    private fun card(parent: LinearLayout) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(0xFFFFFFFF.toInt()); setStroke(dp(1), 0xFFF2E2D2.toInt()) }
-        parent.addView(this, wrap(14))
-    }
+    private fun card(parent: LinearLayout) = Ui.card(parent)
 
     private fun section(parent: LinearLayout, t: String) = parent.addView(TextView(this).apply {
         text = t; textSize = 15.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(INK); setPadding(0, dp(10), 0, dp(2))
     })
 
-    private fun heading(t: String) = TextView(this).apply { text = t; textSize = 19f; typeface = Typeface.DEFAULT_BOLD; setTextColor(INK) }
-    private fun body(t: String) = TextView(this).apply { text = t; textSize = 14.5f; setTextColor(0xFF55483E.toInt()) }
-    private fun note(t: String) = TextView(this).apply { text = t; textSize = 13f; setTextColor(MUTED) }
+    private fun heading(t: String) = Ui.heading(this, t)
+    private fun body(t: String) = Ui.body(this, t)
+    private fun note(t: String) = Ui.note(this, t)
 
     private fun box(t: String) = TextView(this).apply {
         text = t
@@ -596,20 +591,9 @@ class BackupActivity : Activity() {
         parent.addView(this, wrap(0))
     }
 
-    private fun button(label: String, primary: Boolean, action: () -> Unit) = Button(this).apply {
-        text = label
-        textSize = 15f
-        isAllCaps = false
-        stateListAnimator = null
-        setTextColor(if (primary) 0xFFFFFFFF.toInt() else 0xFF75451F.toInt())
-        background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(if (primary) ACCENT else 0xFFFFE7D1.toInt()) }
-        setPadding(dp(12), dp(12), dp(12), dp(12))
-        setOnClickListener { action() }
-        Compat.focusRing(this, 0xFF75451F.toInt())
-    }
+    private fun button(label: String, primary: Boolean, action: () -> Unit) = Ui.button(this, label, primary, action)
 
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun wrap(bottom: Int) = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(bottom) }
 
     // endregion
@@ -617,10 +601,10 @@ class BackupActivity : Activity() {
     companion object {
         private const val REQUEST_BACKUP = 6101
         private const val REQUEST_RESTORE = 6102
-        private val INK = 0xFF30251D.toInt()
-        private val MUTED = 0xFF8A7868.toInt()
-        private val ACCENT = 0xFFF09A45.toInt()
-        private val LINK = 0xFFB4621E.toInt()
-        private val BACKGROUND = 0xFFFFF9F3.toInt()
+        private val INK = Theme.INK
+        private val MUTED = Theme.MUTED
+        private val ACCENT = Theme.ACCENT
+        private val LINK = Theme.LINK
+        private val BACKGROUND = Theme.BACKGROUND
     }
 }

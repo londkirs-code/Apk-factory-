@@ -739,7 +739,6 @@ class AppsActivity : Activity() {
         Compat.focusRing(this, 0xFFFFFFFF.toInt())
     }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun wrap(bottom: Int) = LinearLayout.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
     ).apply { bottomMargin = dp(bottom) }
@@ -747,9 +746,9 @@ class AppsActivity : Activity() {
     companion object {
         private const val REQUEST_SAVE = 5101
         private const val REQUEST_FOLDER = 5102
-        private val INK = 0xFF30251D.toInt()
-        private val MUTED = 0xFF8A7868.toInt()
-        private val ACCENT = 0xFFF09A45.toInt()
-        private val BACKGROUND = 0xFFFFF9F3.toInt()
+        private val INK = Theme.INK
+        private val MUTED = Theme.MUTED
+        private val ACCENT = Theme.ACCENT
+        private val BACKGROUND = Theme.BACKGROUND
     }
 }
