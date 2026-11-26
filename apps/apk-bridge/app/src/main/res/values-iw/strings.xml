@@ -1,0 +1,5 @@
+<resources>
+    <!-- Hebrew device language: the app is called הבוס. Other languages: The Boss (values/strings.xml). -->
+    <string name="app_name">הבוס</string>
+    <string name="a11y_label">הבוס — צימוד אוטומטי</string>
+</resources>

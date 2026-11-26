@@ -255,7 +255,7 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(10) })
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titles.addView(TextView(this).apply {
-            text = "הבוס"
+            text = getString(R.string.app_name)
             textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
@@ -599,7 +599,7 @@ class MainActivity : Activity() {
             .setTitle("צימוד אוטומטי")
             .setMessage(
                 "הבוס יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד הצימוד והפורט ויבצע את הצימוד בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n" +
-                    "במסך הבא: בחר \"הבוס\" ← הפעל.\n\n" +
+                    "במסך הבא: בחר \"הבוס\" (או The Boss) ← הפעל.\n\n" +
                     "אם האפשרות אפורה (Android 13+): פתח פרטי אפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", וחזור לכאן."
             )
             .setPositiveButton("להגדרות נגישות") { _, _ -> openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) }
@@ -935,7 +935,7 @@ class MainActivity : Activity() {
 
     private fun versionName(): String = runCatching {
         val info = packageManager.getPackageInfo(packageName, 0)
-        "${info.versionName} (${Compat.versionCode(info)})"
+        info.versionName ?: "?"
     }.getOrDefault("?")
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()

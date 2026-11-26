@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">הבוס</string>
+    <string name="app_name">The Boss</string>
     <string name="channel_pairing">צימוד Wireless Debugging</string>
     <string name="pair_title">צימוד הבוס</string>
     <string name="pair_done_title">הבוס צומד בהצלחה</string>
@@ -12,6 +12,6 @@
     <string name="pair_enter_code">הזן קוד</string>
     <string name="pair_code_hint">קוד צימוד בן 6 ספרות</string>
     <string name="pair_cancel">ביטול</string>
-    <string name="a11y_label">הבוס — צימוד אוטומטי</string>
+    <string name="a11y_label">The Boss — automatic pairing</string>
     <string name="a11y_description">קורא רק את מסכי ההגדרות של Android כדי לזהות את קוד הצימוד ואת הפורט של ניפוי הבאגים האלחוטי, ומבצע את הצימוד אוטומטית. שום מידע לא נשמר ולא נשלח מחוץ למכשיר.</string>
 </resources>
