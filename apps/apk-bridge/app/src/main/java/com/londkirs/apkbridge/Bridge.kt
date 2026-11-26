@@ -85,7 +85,7 @@ object Bridge {
     private const val PLAY_STORE = "com.android.vending"
     private const val INSTALL_CHANNEL = "installs"
     const val LEGACY_PORT = 5555
-    val LEGACY_HELP = "ב־Android ${Build.VERSION.RELEASE} אין ניפוי באגים אלחוטי עם קוד זיווג (קיים רק מ־Android 11). " +
+    val LEGACY_HELP = "ב־Android ${Build.VERSION.RELEASE} אין ניפוי באגים אלחוטי עם קוד חיבור (קיים רק מ־Android 11). " +
         "כדי להשתמש ב־APK Bridge: הפעל \"ניפוי באגים ב־USB\" באפשרויות למפתחים, חבר פעם אחת למחשב והרץ: adb tcpip 5555 — " +
         "ואז אפשר לנתק את הכבל. יש לחזור על כך אחרי כל הפעלה מחדש של המכשיר."
     const val WIFI_HELPER_PKG = "com.londkirs.apkbridge.wifihelper"
@@ -194,7 +194,7 @@ object Bridge {
         File(app.filesDir, "adbkey.pub").delete()
         isPaired = false
         savedConnectPort = 0
-        log("הזיווג נמחק. בפעם הבאה יידרש זיווג חדש.")
+        log("החיבור נמחק. בפעם הבאה יידרש חיבור חדש.")
     }
 
     var logExpanded: Boolean
@@ -507,46 +507,46 @@ object Bridge {
 
     suspend fun pairNow(host: String, port: Int?, code: String): Boolean {
         val cleanCode = code.filter(Char::isDigit)
-        require(cleanCode.length == 6) { "קוד הזיווג חייב להכיל 6 ספרות." }
+        require(cleanCode.length == 6) { "קוד החיבור חייב להכיל 6 ספרות." }
         val target = host.trim().ifBlank { LOCAL_HOST }
         val pairPort = port ?: run {
-            log("מחפש את פורט הזיווג ברשת (mDNS)…")
+            log("מחפש את פורט החיבור ברשת (mDNS)…")
             discover(PAIRING_SERVICE, target, 8_000)?.port
-        } ?: error("לא נמצא שירות זיווג פעיל. ודא שחלון \"התאמת מכשיר עם קוד התאמה\" פתוח, או הזן את הפורט ידנית.")
-        log("מזווג מול $target:$pairPort…")
+        } ?: error("לא נמצא שירות חיבור פעיל. ודא שחלון \"התאמת מכשיר עם קוד התאמה\" פתוח, או הזן את הפורט ידנית.")
+        log("מתחבר מול $target:$pairPort…")
         val result = withContext(Dispatchers.IO) {
             withTimeout(30_000) { AdbClient.pairTls(target, pairPort, cleanCode, keyProvider()) }
         }
         val error = result.exceptionOrNull()
         if (error != null) {
-            log("הזיווג נכשל: ${explain(error)}")
+            log("החיבור נכשל: ${explain(error)}")
             return false
         }
         isPaired = true
         targetHost = target
-        log("הזיווג הצליח. המפתח נשמר באחסון הפרטי של האפליקציה.")
+        log("החיבור הצליח. המפתח נשמר באחסון הפרטי של האפליקציה.")
         return true
     }
 
-    fun pair(host: String, port: Int?, code: String) = runJob("הזיווג") {
-        status("מבצע זיווג מאובטח…")
+    fun pair(host: String, port: Int?, code: String) = runJob("החיבור") {
+        status("מבצע חיבור מאובטח…")
         if (pairNow(host, port, code)) {
-            status("הזיווג הצליח. מנסה להתחבר…")
+            status("הקוד אושר. מתחבר…")
             withClient { describeDevice(it) }
         } else {
-            status("הזיווג נכשל. בדוק את הקוד ושהחלון עדיין פתוח, ונסה שוב.")
+            status("החיבור נכשל. בדוק את הקוד ושהחלון עדיין פתוח, ונסה שוב.")
         }
     }
 
     /** Called by the accessibility service when it reads a pairing code off the Settings screen. */
-    fun autoPair(port: Int, code: String) = runJob("הזיווג האוטומטי") {
-        status("זוהה קוד זיווג במסך — מזווג אוטומטית…")
+    fun autoPair(port: Int, code: String) = runJob("החיבור האוטומטי") {
+        status("זוהה קוד חיבור במסך — מתחבר אוטומטית…")
         if (pairNow(LOCAL_HOST, port, code)) {
-            notifyInfo("APK Bridge זווג בהצלחה", "הזיווג האוטומטי הצליח. אפשר לחזור ל־APK Bridge ולהתקין.", null)
-            status("הזיווג האוטומטי הצליח. בודק חיבור…")
+            notifyInfo("APK Bridge התחבר בהצלחה", "החיבור האוטומטי הצליח. אפשר לחזור ל־APK Bridge ולהתקין.", null)
+            status("החיבור האוטומטי הצליח. בודק חיבור…")
             withClient { describeDevice(it) }
         } else {
-            status("הזיווג האוטומטי נכשל. אם הקוד התחלף, הוא ינוסה שוב אוטומטית.")
+            status("החיבור האוטומטי נכשל. אם הקוד התחלף, הוא ינוסה שוב אוטומטית.")
         }
     }
 
@@ -597,7 +597,7 @@ object Bridge {
                 }
             } catch (e: AdbException.NotPaired) {
                 isPaired = false
-                throw IllegalStateException("המכשיר דחה את המפתח של APK Bridge. יש לבצע זיווג מחדש.", e)
+                throw IllegalStateException("המכשיר דחה את המפתח של APK Bridge. יש לבצע חיבור מחדש.", e)
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 lastError = e
                 log("החיבור ל־${ep.port} לא הגיב בזמן.")
@@ -729,7 +729,7 @@ object Bridge {
             }.getOrNull().orEmpty()
             val list = (current.split(':').filter { it.isNotBlank() } + me).distinct().joinToString(":")
             run(
-                "שירות הנגישות לזיווג אוטומטי",
+                "שירות הנגישות לחיבור אוטומטי",
                 "settings put secure enabled_accessibility_services '$list' && settings put secure accessibility_enabled 1",
             )
         }
@@ -1206,7 +1206,7 @@ object Bridge {
     fun explain(e: Throwable): String {
         val msg = generateSequence(e) { it.cause }.mapNotNull { it.message }.firstOrNull().orEmpty()
         return when {
-            e is AdbException.NotPaired -> "המכשיר דחה את המפתח — יש לבצע זיווג מחדש."
+            e is AdbException.NotPaired -> "המכשיר דחה את המפתח — יש לבצע חיבור מחדש."
             e is java.net.ConnectException -> "החיבור נדחה (הפורט סגור). ייתכן שהפורט השתנה או שניפוי הבאגים כבוי."
             e is java.net.SocketTimeoutException || e is kotlinx.coroutines.TimeoutCancellationException -> "תם הזמן להמתנה לתשובה."
             msg.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") -> "חתימת ה־APK שונה מזו של האפליקציה המותקנת. יש להסיר את הגרסה הקיימת קודם (לשונית אפליקציות ← הסר)."

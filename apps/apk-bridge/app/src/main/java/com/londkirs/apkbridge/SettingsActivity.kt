@@ -80,7 +80,7 @@ class SettingsActivity : Activity() {
             Bridge.autoInstallUpdatesOnly = it
         }
         auto.addView(updatesOnly, matchWrap(0))
-        auto.addView(note("התקנה אוטומטית פועלת רק אחרי שבוצע זיווג. קובץ שאינו עדכון (כשהאפשרות למעלה מסומנת) ייבחר בלבד, ותוצג שאלה."), matchWrap())
+        auto.addView(note("התקנה אוטומטית פועלת רק אחרי שבוצע חיבור. קובץ שאינו עדכון (כשהאפשרות למעלה מסומנת) ייבחר בלבד, ותוצג שאלה."), matchWrap())
 
         // After install
         val after = card(page)
@@ -96,12 +96,12 @@ class SettingsActivity : Activity() {
 
         // Pairing & connection
         val pair = card(page)
-        pair.addView(heading("זיווג וחיבור"), matchWrap())
+        pair.addView(heading("חיבור"), matchWrap())
         pair.addView(checkBox("הגדרה אוטומטית אחרי חיבור מוצלח (הרשאות, נגישות, סוללה, עזר Wi‑Fi)", Bridge.autoSetupEnabled) {
             Bridge.autoSetupEnabled = it
         }, matchWrap(0))
         pair.addView(note("אחרי חיבור ADB ראשון APK Bridge נותן לעצמו דרך ADB: הדלקה אוטומטית של ניפוי באגים, התראות, התקנת אפליקציות, החרגה מחיסכון בסוללה ושירות הנגישות — ומתקין את עזר ה־Wi‑Fi."), matchWrap(12))
-        pair.addView(checkBox("זיווג אוטומטי: לזהות את קוד הזיווג מהמסך (נגישות)", Bridge.accessibilityAutoPair) {
+        pair.addView(checkBox("חיבור אוטומטי: לזהות את קוד החיבור מהמסך (נגישות)", Bridge.accessibilityAutoPair) {
             Bridge.accessibilityAutoPair = it
             refresh()
         }, matchWrap(0))
@@ -134,11 +134,11 @@ class SettingsActivity : Activity() {
             Bridge.savedConnectPort = 0
             toast("הפורט נמחק; הוא יאותר מחדש בחיבור הבא.")
         }, matchWrap())
-        pair.addView(button("שכח זיווג (מחק מפתח ADB)", false) {
+        pair.addView(button("שכח חיבור (מחק מפתח ADB)", false) {
             AlertDialog.Builder(this)
-                .setTitle("לשכוח את הזיווג?")
-                .setMessage("מפתח ה־ADB של APK Bridge יימחק ויהיה צורך לזווג מחדש. מומלץ גם למחוק את \"APK Bridge\" מרשימת המכשירים המזווגים בהגדרות ניפוי הבאגים האלחוטי.")
-                .setPositiveButton("מחק") { _, _ -> Bridge.forgetPairing(); toast("הזיווג נמחק.") }
+                .setTitle("לשכוח את החיבור?")
+                .setMessage("מפתח ה־ADB של APK Bridge יימחק ויהיה צורך להתחבר מחדש. מומלץ גם למחוק את \"APK Bridge\" מרשימת המכשירים המחוברים בהגדרות ניפוי הבאגים האלחוטי.")
+                .setPositiveButton("מחק") { _, _ -> Bridge.forgetPairing(); toast("החיבור נמחק.") }
                 .setNegativeButton("ביטול", null)
                 .show()
         }, matchWrap())
