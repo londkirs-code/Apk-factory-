@@ -82,8 +82,8 @@ object Bridge {
     const val CONNECT_SERVICE = "_adb-tls-connect._tcp."
     const val LOCAL_HOST = "127.0.0.1"
     private const val PREFS = "bridge"
-    private const val PLAY_STORE = "com.android.vending"
-    private const val INSTALL_CHANNEL = "installs"
+    internal const val PLAY_STORE = "com.android.vending"
+    internal const val INSTALL_CHANNEL = "installs"
     const val LEGACY_PORT = 5555
     val LEGACY_HELP = tr("ב־Android ${Build.VERSION.RELEASE} אין ניפוי באגים אלחוטי עם קוד צימוד (קיים רק מ־Android 11). ", "Android ${Build.VERSION.RELEASE} has no wireless debugging with a pairing code (only from Android 11). ") +
         tr("כדי להשתמש באפליקציית הבוס: הפעל \"ניפוי באגים ב־USB\" באפשרויות למפתחים, חבר פעם אחת למחשב והרץ: adb tcpip 5555 — ", "To use The Boss: turn on \"USB debugging\" in Developer options, connect once to a computer and run: adb tcpip 5555 — ") +
@@ -91,10 +91,10 @@ object Bridge {
     const val WIFI_HELPER_PKG = "com.londkirs.apkbridge.wifihelper"
     private const val WIFI_HELPER_ACTION = "com.londkirs.apkbridge.wifihelper.ENABLE_WIFI"
     private const val WIFI_HELPER_ASSET = "wifi-helper.apk"
-    private val KNOWN_ABIS = listOf("arm64_v8a", "armeabi_v7a", "armeabi", "x86_64", "x86", "mips64", "mips")
+    internal val KNOWN_ABIS = listOf("arm64_v8a", "armeabi_v7a", "armeabi", "x86_64", "x86", "mips64", "mips")
 
-    private lateinit var app: Context
-    private val main = Handler(Looper.getMainLooper())
+    internal lateinit var app: Context
+    internal val main = Handler(Looper.getMainLooper())
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val logLines = ArrayDeque<String>()
@@ -149,7 +149,7 @@ object Bridge {
 
     // region preferences
 
-    private val prefs get() = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    internal val prefs get() = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     var targetHost: String
         get() = prefs.getString("target_host", LOCAL_HOST).orEmpty().ifBlank { LOCAL_HOST }
@@ -334,18 +334,18 @@ object Bridge {
         main.post { logListeners.forEach { it(line) } }
     }
 
-    private fun update(transform: (BridgeState) -> BridgeState) {
+    internal fun update(transform: (BridgeState) -> BridgeState) {
         val next = synchronized(this) { transform(state).also { state = it } }
         main.post { stateListeners.forEach { it(next) } }
     }
 
-    private fun status(text: String, progress: Int = -1) {
+    internal fun status(text: String, progress: Int = -1) {
         log(text)
         update { it.copy(status = text, progress = progress) }
     }
 
     /** Runs [block] as the single active bridge job; refuses to start a second one. */
-    private fun runJob(name: String, block: suspend () -> Unit): Boolean {
+    internal fun runJob(name: String, block: suspend () -> Unit): Boolean {
         synchronized(this) {
             if (currentJob?.isActive == true) {
                 log(tr("פעולה אחרת עדיין רצה — המתן לסיומה.", "Another action is still running — wait for it to finish."))
@@ -417,10 +417,10 @@ object Bridge {
         }
     }
 
-    private fun isLocalTarget(host: String) =
+    internal fun isLocalTarget(host: String) =
         host == LOCAL_HOST || host.equals("localhost", true) || host == "::1"
 
-    private fun localAddresses(): Set<String> = runCatching {
+    internal fun localAddresses(): Set<String> = runCatching {
         NetworkInterface.getNetworkInterfaces().toList()
             .flatMap { it.inetAddresses.toList() }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
@@ -428,94 +428,11 @@ object Bridge {
     }.getOrDefault(emptySet())
 
     @Suppress("DEPRECATION")
-    private fun addressesOf(info: NsdServiceInfo): List<InetAddress> =
+    internal fun addressesOf(info: NsdServiceInfo): List<InetAddress> =
         if (Build.VERSION.SDK_INT >= 34) info.hostAddresses else listOfNotNull(info.host)
 
     // endregion
 
-    // region mDNS discovery
-
-    /**
-     * Finds a Wireless Debugging service via mDNS. For the local device the
-     * returned host is 127.0.0.1, which adbd accepts and which survives Wi‑Fi IP changes.
-     */
-    @Suppress("DEPRECATION")
-    suspend fun discover(serviceType: String, host: String, timeoutMs: Long): Endpoint? {
-        val nsd = app.getSystemService(NsdManager::class.java) ?: return null
-        val wantLocal = isLocalTarget(host)
-        val locals = localAddresses()
-        val result = CompletableDeferred<Endpoint?>()
-        val lock = Any()
-        val queue = ArrayDeque<NsdServiceInfo>()
-        var resolving = false
-        var fallback: Endpoint? = null
-
-        fun accept(info: NsdServiceInfo) {
-            val addrs = addressesOf(info).mapNotNull { it.hostAddress?.substringBefore('%') }
-            val port = info.port
-            if (port <= 0) return
-            val matches = if (wantLocal) addrs.any { it in locals } else addrs.any { it == host }
-            val endpointHost = if (wantLocal) LOCAL_HOST
-                else addrs.firstOrNull { it == host } ?: addrs.firstOrNull() ?: host
-            val ep = Endpoint(endpointHost, port)
-            if (matches) result.complete(ep) else synchronized(lock) { if (fallback == null) fallback = ep }
-        }
-
-        fun resolveNext() {
-            val next = synchronized(lock) {
-                if (resolving || result.isCompleted) null else queue.removeFirstOrNull()?.also { resolving = true }
-            } ?: return
-            // A fresh listener per call: NsdManager rejects re-using one that is still registered,
-            // and older Android versions only resolve one service at a time.
-            val listener = object : NsdManager.ResolveListener {
-                override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
-                    synchronized(lock) { resolving = false }
-                    resolveNext()
-                }
-                override fun onServiceResolved(info: NsdServiceInfo) {
-                    synchronized(lock) { resolving = false }
-                    accept(info)
-                    resolveNext()
-                }
-            }
-            runCatching { nsd.resolveService(next, listener) }.onFailure {
-                synchronized(lock) { resolving = false }
-            }
-        }
-
-        val discovery = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(serviceType: String) {}
-            override fun onDiscoveryStopped(serviceType: String) {}
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                log(tr("גילוי mDNS נכשל (קוד $errorCode).", "mDNS discovery failed (code $errorCode)."))
-                result.complete(null)
-            }
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
-            override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                synchronized(lock) { queue.addLast(serviceInfo) }
-                resolveNext()
-            }
-        }
-
-        val multicast = runCatching {
-            (app.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager)
-                .createMulticastLock("apkbridge-mdns").apply { setReferenceCounted(false); acquire() }
-        }.getOrNull()
-        var started = false
-        try {
-            started = runCatching {
-                nsd.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, discovery)
-            }.isSuccess
-            if (!started) return null
-            return withTimeoutOrNull(timeoutMs) { result.await() } ?: synchronized(lock) { fallback }
-        } finally {
-            if (started) runCatching { nsd.stopServiceDiscovery(discovery) }
-            runCatching { multicast?.release() }
-        }
-    }
-
-    // endregion
 
     // region pairing
 
@@ -525,7 +442,7 @@ object Bridge {
         val target = host.trim().ifBlank { LOCAL_HOST }
         val pairPort = port ?: run {
             log(tr("מחפש את פורט הצימוד ברשת (mDNS)…", "Looking for the pairing port on the network (mDNS)…"))
-            discover(PAIRING_SERVICE, target, 8_000)?.port
+            Mdns.discover(PAIRING_SERVICE, target, 8_000)?.port
         } ?: error(tr("לא נמצא שירות צימוד פעיל. ודא שחלון \"התאמת מכשיר עם קוד התאמה\" פתוח, או הזן את הפורט ידנית.", "No active pairing service found. Make sure the \"Pair device with pairing code\" window is open, or enter the port manually."))
         log(tr("מבצע צימוד מול $target:$pairPort…", "Pairing with $target:$pairPort…"))
         val result = withContext(Dispatchers.IO) {
@@ -643,7 +560,7 @@ object Bridge {
         if (saved > 0) client = attemptAll(saved)
         if (client == null) {
             log(tr("מאתר את פורט Wireless Debugging (mDNS)…", "Finding the Wireless Debugging port (mDNS)…"))
-            val found = discover(CONNECT_SERVICE, host, 10_000)
+            val found = Mdns.discover(CONNECT_SERVICE, host, 10_000)
             if (found == null) log(tr("גילוי mDNS לא מצא את שירות החיבור.", "mDNS discovery didn't find the connection service."))
             else {
                 log(tr("mDNS מצא את פורט ${found.port}.", "mDNS found port ${found.port}."))
@@ -892,247 +809,6 @@ object Bridge {
 
     // endregion
 
-    // region install
-
-    private class InstallUnit(val label: String, val apks: List<File>, val obbs: List<Pair<String, File>>, val packageName: String?)
-
-    fun install(uris: List<Uri>, options: InstallOptions) = runJob(tr("ההתקנה", "Install")) {
-        require(uris.isNotEmpty()) { tr("לא נבחרו קבצים.", "No files selected.") }
-        val work = File(app.cacheDir, "install-work").apply { deleteRecursively(); mkdirs() }
-        try {
-            status(tr("מכין ${uris.size} קבצים…", "Preparing ${uris.size} files…"))
-            val units = prepareUnits(uris, work)
-            var ok = 0
-            withClient { client ->
-                for ((i, unit) in units.withIndex()) {
-                    val prefix = if (units.size > 1) "(${i + 1}/${units.size}) " else ""
-                    installUnit(client, unit, options, prefix)
-                    ok++
-                }
-            }
-            if (units.size > 1) status(tr("הותקנו בהצלחה $ok מתוך ${units.size} חבילות.", "Installed $ok of ${units.size} packages successfully."), 100)
-        } finally {
-            withContext(Dispatchers.IO) { work.deleteRecursively() }
-        }
-    }
-
-    private suspend fun installUnit(client: AdbClient, unit: InstallUnit, options: InstallOptions, prefix: String) {
-        val flags = buildList {
-            add("-r")
-            if (options.allowDowngrade) add("-d")
-            if (options.grantPermissions) add("-g")
-            if (options.allowTestPackages) add("-t")
-            if (options.bypassLowTargetSdk && Build.VERSION.SDK_INT >= 34) add("--bypass-low-target-sdk-block")
-            if (options.registerPlayInstaller) { add("-i"); add(PLAY_STORE) }
-        }
-        val total = unit.apks.sumOf { it.length() }
-        status(tr("${prefix}מתקין ${unit.label} (${unit.apks.size} APK, ${formatSize(total)})…", "${prefix}Installing ${unit.label} (${unit.apks.size} APK, ${formatSize(total)})…"), 0)
-        val flow = if (unit.apks.size == 1) {
-            client.install.install(RandomAccessSource.of(unit.apks[0]), flags)
-        } else {
-            client.install.installMultiple(unit.apks.map { it.name to RandomAccessSource.of(it) }, flags)
-        }
-        var lastPercent = -1
-        flow.collect { p ->
-            val percent = p.percentage.toInt()
-            if (percent != lastPercent) {
-                lastPercent = percent
-                update { it.copy(progress = percent, status = tr("${prefix}מעביר ${unit.label}: $percent%", "${prefix}Transferring ${unit.label}: $percent%")) }
-            }
-        }
-        log(tr("${prefix}Package Manager החזיר Success.", "${prefix}Package Manager returned Success."))
-
-        val pkg = unit.packageName
-        if (pkg != null && unit.obbs.isNotEmpty()) pushObbs(client, pkg, unit.obbs)
-        if (pkg == null) {
-            status(tr("${prefix}ההתקנה הסתיימה בהצלחה.", "${prefix}Install finished successfully."), 100)
-            return
-        }
-        val line = client.shell("pm list packages -i --show-versioncode $pkg").stdoutText
-            .lines().map { it.trim() }
-            .firstOrNull { it == "package:$pkg" || it.startsWith("package:$pkg ") }
-        val installer = line?.substringAfter("installer=", "")?.substringBefore(' ')?.takeIf { it.isNotBlank() && it != "null" }
-        val version = line?.substringAfter("versionCode:", "")?.substringBefore(' ')?.takeIf { it.isNotBlank() }
-        update { it.copy(lastInstalledPackage = pkg) }
-        val installerText = when {
-            installer == PLAY_STORE -> tr("מקור ההתקנה הרשום: Google Play (com.android.vending)", "Recorded install source: Google Play (com.android.vending)")
-            installer != null -> tr("מקור ההתקנה הרשום: $installer", "Recorded install source: $installer")
-            else -> tr("מקור ההתקנה: לא רשום", "Install source: not recorded")
-        }
-        val label = appLabel(pkg) ?: pkg
-        status(
-            tr("${prefix}✔ $label ($pkg) הותקן בהצלחה", "${prefix}✔ $label ($pkg) installed successfully") + (version?.let { " (versionCode $it)" } ?: "") + ".\n$installerText",
-            100,
-        )
-        update { it.copy(lastInstalledPackage = pkg, installSeq = it.installSeq + 1) }
-        // When the app screen is not visible, offer "open" through a notification instead of a dialog.
-        if (stateListeners.isEmpty() && installNotifications) {
-            val launch = app.packageManager.getLaunchIntentForPackage(pkg)?.takeIf { openAfterInstall != "never" }
-            notifyInfo(tr("✔ $label הותקן", "✔ $label installed"), if (launch != null) tr("הקש כדי לפתוח את האפליקציה.", "Tap to open the app.") else tr("ההתקנה הושלמה.", "Install complete."), launch)
-        }
-    }
-
-    fun appLabel(pkg: String): String? = runCatching {
-        val pm = app.packageManager
-        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-    }.getOrNull()
-
-    private fun notifyInfo(title: String, text: String, target: android.content.Intent?) {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) return
-        val nm = app.getSystemService(android.app.NotificationManager::class.java) ?: return
-        if (nm.getNotificationChannel(INSTALL_CHANNEL) == null) {
-            nm.createNotificationChannel(
-                android.app.NotificationChannel(INSTALL_CHANNEL, tr("תוצאות התקנה", "Install results"), android.app.NotificationManager.IMPORTANCE_DEFAULT)
-            )
-        }
-        val intent = (target ?: android.content.Intent(app, MainActivity::class.java))
-            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        val pending = android.app.PendingIntent.getActivity(
-            app, title.hashCode(), intent,
-            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val n = android.app.Notification.Builder(app, INSTALL_CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_bridge)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setContentIntent(pending)
-            .setAutoCancel(true)
-            .build()
-        nm.notify(title.hashCode(), n)
-    }
-
-    /** Reads name/version of a single selected .apk and compares it to the installed version. */
-    suspend fun preview(uri: Uri): ApkPreview? = withContext(Dispatchers.IO) {
-        runCatching {
-            val size = sizeOf(uri)
-            if (size > 400L * 1024 * 1024) return@runCatching null
-            val file = File(app.cacheDir, "preview.apk")
-            app.contentResolver.openInputStream(uri)?.use { input ->
-                file.outputStream().use { input.copyTo(it, 256 * 1024) }
-            } ?: return@runCatching null
-            try {
-                val pm = app.packageManager
-                val info = pm.getPackageArchiveInfo(file.absolutePath, 0) ?: return@runCatching null
-                val ai = info.applicationInfo
-                val label = if (ai != null) {
-                    ai.sourceDir = file.absolutePath
-                    ai.publicSourceDir = file.absolutePath
-                    pm.getApplicationLabel(ai).toString()
-                } else info.packageName
-                val installed = runCatching { pm.getPackageInfo(info.packageName, 0) }.getOrNull()
-                ApkPreview(
-                    label = label,
-                    packageName = info.packageName,
-                    versionName = info.versionName,
-                    versionCode = Compat.versionCode(info),
-                    installedVersionName = installed?.versionName,
-                    installedVersionCode = installed?.let { Compat.versionCode(it) },
-                )
-            } finally {
-                file.delete()
-            }
-        }.getOrNull()
-    }
-
-    private suspend fun pushObbs(client: AdbClient, pkg: String, obbs: List<Pair<String, File>>) {
-        val dir = "/sdcard/Android/obb/$pkg"
-        client.shell("mkdir -p '$dir'")
-        for ((name, file) in obbs) {
-            val safe = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
-            log(tr("מעתיק קובץ OBB: $safe (${formatSize(file.length())})", "Copying OBB file: $safe (${formatSize(file.length())})"))
-            val size = file.length().coerceAtLeast(1)
-            FileInputStream(file).use { input ->
-                client.sync.push(input, "$dir/$safe") { done ->
-                    update { it.copy(progress = (done * 100 / size).toInt(), status = tr("מעתיק OBB: ${done * 100 / size}%", "Copying OBB: ${done * 100 / size}%")) }
-                }
-            }
-        }
-        log(tr("קובצי OBB הועתקו אל $dir.", "OBB files copied to $dir."))
-    }
-
-    private suspend fun prepareUnits(uris: List<Uri>, work: File): List<InstallUnit> = withContext(Dispatchers.IO) {
-        val bundles = mutableListOf<InstallUnit>()
-        val loose = mutableListOf<File>()
-        for ((index, uri) in uris.withIndex()) {
-            val name = displayName(uri)
-            val copy = File(work, "src-$index-${sanitize(name)}")
-            app.contentResolver.openInputStream(uri)?.use { input ->
-                copy.outputStream().use { input.copyTo(it, 256 * 1024) }
-            } ?: error(tr("לא ניתן לקרוא את הקובץ $name", "Can't read the file $name"))
-            if (copy.length() == 0L) error(tr("הקובץ $name ריק.", "The file $name is empty."))
-            log(tr("נקרא $name (${formatSize(copy.length())}).", "Read $name (${formatSize(copy.length())})."))
-
-            val entries = runCatching { ZipFile(copy).use { z -> z.entries().toList().filter { !it.isDirectory }.map { it.name } } }
-                .getOrElse { error(tr("$name אינו APK או חבילת APKS/XAPK/APKM תקינה.", "$name isn't a valid APK or APKS/XAPK/APKM package.")) }
-            if ("AndroidManifest.xml" in entries) {
-                loose += copy
-                continue
-            }
-            val apkEntries = entries.filter { it.endsWith(".apk", ignoreCase = true) }
-            if (apkEntries.isEmpty()) error(tr("$name אינו מכיל קובצי APK. ייתכן שהוא מוצפן או פגום.", "$name contains no APK files. It may be encrypted or damaged."))
-            val dir = File(work, "bundle-$index").apply { mkdirs() }
-            val apks = mutableListOf<File>()
-            val obbs = mutableListOf<Pair<String, File>>()
-            ZipFile(copy).use { zip ->
-                for ((n, entryName) in entries.withIndex()) {
-                    val isApk = entryName.endsWith(".apk", true)
-                    val isObb = entryName.endsWith(".obb", true)
-                    if (!isApk && !isObb) continue
-                    val out = File(dir, "$n-${sanitize(entryName.substringAfterLast('/'))}")
-                    zip.getInputStream(zip.getEntry(entryName)).use { input -> out.outputStream().use { input.copyTo(it, 256 * 1024) } }
-                    if (isApk) apks += out else obbs += entryName to out
-                }
-            }
-            copy.delete()
-            val filtered = filterAbiSplits(apks)
-            val pkg = filtered.firstNotNullOfOrNull { packageNameOf(it) }
-            log(tr("$name: חבילה עם ${filtered.size} קובצי APK", "$name: package with ${filtered.size} APK files") + (if (obbs.isNotEmpty()) tr(" ו־${obbs.size} קובצי OBB", " and ${obbs.size} OBB files") else "") + (pkg?.let { " ($it)" } ?: "") + ".")
-            bundles += InstallUnit(pkg ?: name, filtered, obbs, pkg)
-        }
-
-        if (loose.isNotEmpty()) {
-            val byPkg = linkedMapOf<String, MutableList<File>>()
-            val unknown = mutableListOf<File>()
-            for (f in loose) {
-                val pkg = packageNameOf(f)
-                if (pkg == null) unknown += f else byPkg.getOrPut(pkg) { mutableListOf() } += f
-            }
-            when {
-                unknown.isNotEmpty() && byPkg.size == 1 -> byPkg.values.first() += unknown
-                unknown.isNotEmpty() && byPkg.isEmpty() -> byPkg["?"] = unknown
-                unknown.isNotEmpty() -> error(tr("לא ניתן לזהות את שם החבילה של ${unknown.size} מהקבצים שנבחרו.", "Can't identify the package name of ${unknown.size} of the selected files."))
-            }
-            for ((pkg, files) in byPkg) {
-                val real = pkg.takeIf { it != "?" }
-                bundles += InstallUnit(real ?: files.first().name, filterAbiSplits(files), emptyList(), real)
-            }
-        }
-        bundles
-    }
-
-    /** Drops native-library splits for ABIs this device cannot run. */
-    private fun filterAbiSplits(apks: List<File>): List<File> {
-        val supported = Build.SUPPORTED_ABIS.map { it.replace('-', '_').lowercase() }.toSet()
-        fun abiOf(f: File): String? {
-            val n = f.name.lowercase()
-            return KNOWN_ABIS.firstOrNull { n.contains("config.$it.") || n.endsWith(".$it.apk") || n.endsWith("_$it.apk") }
-        }
-        val abiSplits = apks.filter { abiOf(it) != null }
-        if (abiSplits.isEmpty()) return apks
-        val keep = abiSplits.filter { abiOf(it) in supported }
-        if (keep.isEmpty()) return apks
-        val dropped = abiSplits - keep.toSet()
-        if (dropped.isNotEmpty()) log(tr("דילוג על ${dropped.size} חלקי ABI שאינם מתאימים למעבד של המכשיר.", "Skipping ${dropped.size} ABI parts that don't match the device's processor."))
-        return apks.filter { abiOf(it) == null || it in keep }
-    }
-
-    private fun packageNameOf(file: File): String? = runCatching {
-        app.packageManager.getPackageArchiveInfo(file.absolutePath, 0)?.packageName
-    }.getOrNull()
-
-    // endregion
 
     // region tools
 
@@ -1249,6 +925,36 @@ object Bridge {
 
     // endregion
 
+    /** A notification with a tap action (used when no screen of the app is open). */
+    internal fun notifyInfo(title: String, text: String, target: android.content.Intent?) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        val nm = app.getSystemService(android.app.NotificationManager::class.java) ?: return
+        if (nm.getNotificationChannel(INSTALL_CHANNEL) == null) {
+            nm.createNotificationChannel(
+                android.app.NotificationChannel(INSTALL_CHANNEL, tr("תוצאות התקנה", "Install results"), android.app.NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val intent = (target ?: android.content.Intent(app, MainActivity::class.java))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = android.app.PendingIntent.getActivity(
+            app, title.hashCode(), intent,
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val n = android.app.Notification.Builder(app, INSTALL_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_bridge)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(title.hashCode(), n)
+    }
+
+    /** True while a screen of the app is open and listening to the state. */
+    internal val isScreenListening get() = stateListeners.isNotEmpty()
+
     // region utilities
 
     fun displayName(uri: Uri): String = runCatching {
@@ -1263,7 +969,7 @@ object Bridge {
         }
     }.getOrNull() ?: -1L
 
-    private fun sanitize(name: String) = name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+    internal fun sanitize(name: String) = name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
 
     fun formatSize(bytes: Long): String = when {
         bytes < 0 -> "?"

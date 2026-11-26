@@ -62,7 +62,7 @@ class PairingService : Service() {
         job?.cancel()
         job = Bridge.scope.launch {
             Bridge.log(tr("שירות הצימוד פעיל: מחפש חלון צימוד פתוח…", "Pairing service is on: looking for an open pairing window…"))
-            val ep = Bridge.discover(Bridge.PAIRING_SERVICE, Bridge.LOCAL_HOST, SEARCH_TIMEOUT_MS)
+            val ep = Mdns.discover(Bridge.PAIRING_SERVICE, Bridge.LOCAL_HOST, SEARCH_TIMEOUT_MS)
             if (ep == null) {
                 Bridge.log(tr("לא נמצא חלון צימוד פתוח בזמן שהוקצב.", "No open pairing window found in the allotted time."))
                 notifyFinal(tr("לא נמצא חלון צימוד פתוח. פתח את הבוס ונסה שוב.", "No open pairing window found. Open The Boss and try again."), success = false)

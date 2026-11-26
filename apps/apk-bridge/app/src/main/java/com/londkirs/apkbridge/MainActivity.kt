@@ -569,7 +569,7 @@ class MainActivity : Activity() {
                 return
             }
         }
-        val label = Bridge.appLabel(pkg) ?: pkg
+        val label = Installer.appLabel(pkg) ?: pkg
         android.app.AlertDialog.Builder(this)
             .setTitle(tr("✔ $label הותקן", "✔ $label installed"))
             .setMessage(tr("לפתוח את האפליקציה עכשיו?", "Open the app now?"))
@@ -861,14 +861,14 @@ class MainActivity : Activity() {
             return
         }
         Bridge.scope.launch {
-            val p = Bridge.preview(only)
+            val p = Installer.preview(only)
             runOnUiThread {
                 if (selected != files) return@runOnUiThread
                 val installed = p?.installedVersionCode
                 when {
                     p == null || installed == null -> confirmInstall(files, tr("זו אינה אפליקציה שכבר מותקנת, ולכן היא לא מותקנת אוטומטית.", "This isn't an app that's already installed, so it isn't installed automatically."))
                     installed >= p.versionCode -> confirmInstall(files, tr("זה לא עדכון לגרסה חדשה יותר, ולכן זה לא מותקן אוטומטית.", "This isn't an update to a newer version, so it isn't installed automatically."))
-                    mode == "auto" -> Bridge.install(files, InstallOptions(
+                    mode == "auto" -> Installer.install(files, InstallOptions(
                         allowDowngrade = false, grantPermissions = false, allowTestPackages = false,
                         bypassLowTargetSdk = false, registerPlayInstaller = Bridge.loadOptions().registerPlayInstaller,
                     ))
@@ -894,7 +894,7 @@ class MainActivity : Activity() {
         val only = selected.singleOrNull() ?: return
         if (!Bridge.displayName(only).endsWith(".apk", ignoreCase = true)) return
         previewJob = Bridge.scope.launch {
-            val p = Bridge.preview(only) ?: return@launch
+            val p = Installer.preview(only) ?: return@launch
             val text = buildString {
                 append(tr("${p.label} · ${p.packageName}\nגרסה ${p.versionName ?: "?"} (${p.versionCode})", "${p.label} · ${p.packageName}\nVersion ${p.versionName ?: "?"} (${p.versionCode})"))
                 val installedCode = p.installedVersionCode
@@ -919,7 +919,7 @@ class MainActivity : Activity() {
             chooseFiles()
             return
         }
-        Bridge.install(selected, Bridge.loadOptions())
+        Installer.install(selected, Bridge.loadOptions())
     }
 
     private fun openInstalledApp() {
