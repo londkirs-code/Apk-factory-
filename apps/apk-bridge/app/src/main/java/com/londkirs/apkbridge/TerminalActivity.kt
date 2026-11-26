@@ -424,7 +424,7 @@ class TerminalActivity : Activity() {
                 }
                 renderMeta(msg)
                 if (currentReply == null) {
-                    addMessage(Message(false, now(), if (code == null) tr("הפקודה לא הושלמה. הסיבה מופיעה ביומן של הבוס.", "The command didn't complete. The reason is in The Boss's log.") else tr("(אין פלט)", "(no output)")))
+                    addMessage(Message(false, now(), if (code == null) tr("הפקודה לא הושלמה. הסיבה מופיעה ביומן של הבוס.", "The command didn't complete. The reason is in The Boss's log.") else if (code == 0) tr("✔ בוצע (אין פלט)", "✔ Done (no output)") else tr("(אין פלט, קוד יציאה $code)", "(no output, exit code $code)")))
                 }
                 current = null
                 currentReply = null
@@ -567,6 +567,7 @@ class TerminalActivity : Activity() {
         }.getOrElse { return defaults() }
         // Lists saved by older versions: give each item a category and add the new built-in shortcuts once.
         if (prefs().getInt("shortcuts_v", 1) < SHORTCUTS_VERSION) {
+            list.forEach { sc -> FIXED_COMMANDS[sc.command]?.let { sc.command = it } }
             val byCommand = DEFAULT_SHORTCUTS.associate { it.command to it.group }
             list.forEach { if (it.group.isBlank()) it.group = byCommand[it.command] ?: MINE }
             val have = list.map { it.command }.toSet()
@@ -867,7 +868,20 @@ class TerminalActivity : Activity() {
 
         private val DANGEROUS = listOf("rm -r", "rm -f", "reboot", "wipe", "pm uninstall", "pm clear", "format", "dd ", "mkfs", "svc power")
         private const val MINE = "mine"
-        private const val SHORTCUTS_VERSION = 4
+        private const val SHORTCUTS_VERSION = 5
+
+        /** Built-in commands fixed in 1.4.3: lists saved by 1.4–1.4.2 get the new version (index into DEFAULT_SHORTCUTS by label). */
+        private val FIXED_COMMANDS: Map<String, String> by lazy {
+            mapOf(
+                "dumpsys battery | awk -F': ' '/ level:/{print \"Level: \"$2\"%\"} /temperature:/{printf \"Temperature: %.1f C\\n\",$2/10} " +
+                    "/health:/{h=$2; print \"Health: \" (h==2?\"Good\":h==3?\"Overheat\":h==4?\"Dead\":h==5?\"Over voltage\":h==7?\"Cold\":\"Unknown\")} " +
+                    "/voltage:/{print \"Voltage: \"$2\" mV\"} /status:/{st=$2; print \"Status: \" (st==2?\"Charging\":st==3?\"Discharging\":st==5?\"Full\":\"Not charging\")}'; " +
+                    "f=/sys/class/power_supply/battery; [ -r \$f/cycle_count ] && echo \"Charge cycles: $(cat \$f/cycle_count)\"; " +
+                    "if [ -r \$f/charge_full ] && [ -r \$f/charge_full_design ]; then echo \"Capacity left: $(( $(cat \$f/charge_full) * 100 / $(cat \$f/charge_full_design) ))% of original\"; fi" to "🔋 Battery health",
+                "du -sh /sdcard/* /sdcard/Android/media/* 2>/dev/null | sort -rh | head -12" to "📂 Largest folders",
+                "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'" to "Foreground app",
+            ).mapValues { (_, en) -> DEFAULT_SHORTCUTS.first { it.en == en }.command }
+        }
         private val GROUP_ORDER = listOf("toggles", "screen", "info", "maint", "tools", MINE)
         private fun groupLabel(id: String) = when (id) {
             "toggles" -> tr("מתגים", "Toggles")
@@ -932,7 +946,7 @@ class TerminalActivity : Activity() {
             Def("info", "אחסון", "Storage", "df -h /data /sdcard"),
             Def("info", "זיכרון", "Memory", "cat /proc/meminfo | head -5"),
             Def("info", "רשת", "Network", "ip addr show wlan0"),
-            Def("info", "אפליקציה פתוחה", "Foreground app", "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'"),
+            Def("info", "אפליקציה פתוחה", "Foreground app", "dumpsys activity activities 2>/dev/null | grep -m1 -E 'mResumedActivity|topResumedActivity'"),
             Def("info", "זמן פעילות", "Uptime", "uptime"),
             Def("info", "תהליכים", "Processes", "top -b -n 1 | head -25"),
             Def("info", "לוג", "Log", "logcat -d -t 100"),
@@ -945,11 +959,7 @@ class TerminalActivity : Activity() {
             Def("maint", "🧹 נקה מטמון לכל האפליקציות", "🧹 Clear cache of all apps",
                 "b=$(df /data | awk 'NR==2{print $4}'); pm trim-caches 999G; a=$(df /data | awk 'NR==2{print $4}'); echo \"Cache cleared. Freed: $(( (a-b)/1024 )) MB\""),
             Def("maint", "🔋 בריאות סוללה", "🔋 Battery health",
-                "dumpsys battery | awk -F': ' '/ level:/{print \"Level: \"$2\"%\"} /temperature:/{printf \"Temperature: %.1f C\\n\",$2/10} " +
-                    "/health:/{h=$2; print \"Health: \" (h==2?\"Good\":h==3?\"Overheat\":h==4?\"Dead\":h==5?\"Over voltage\":h==7?\"Cold\":\"Unknown\")} " +
-                    "/voltage:/{print \"Voltage: \"$2\" mV\"} /status:/{st=$2; print \"Status: \" (st==2?\"Charging\":st==3?\"Discharging\":st==5?\"Full\":\"Not charging\")}'; " +
-                    "f=/sys/class/power_supply/battery; [ -r \$f/cycle_count ] && echo \"Charge cycles: $(cat \$f/cycle_count)\"; " +
-                    "if [ -r \$f/charge_full ] && [ -r \$f/charge_full_design ]; then echo \"Capacity left: $(( $(cat \$f/charge_full) * 100 / $(cat \$f/charge_full_design) ))% of original\"; fi"),
+                "dumpsys battery | awk -F': *' '{k=$1; gsub(/^ +/,\"\",k); v[k]=$2} END {print \"Level: \" v[\"level\"] \"%\"; st=v[\"status\"]; print \"Status: \" (st==2?\"Charging\":st==3?\"Discharging\":st==4?\"Not charging\":st==5?\"Full\":\"Unknown\"); h=v[\"health\"]; print \"Health: \" (h==2?\"Good\":h==3?\"Overheat\":h==4?\"Dead\":h==5?\"Over voltage\":h==6?\"Failure\":h==7?\"Cold\":\"Unknown\"); t=v[\"temperature\"]/10; printf \"Temperature: %.1f C%s\\n\", t, (t<5?\" (unusual — the sensor may report in other units)\":\"\"); print \"Voltage: \" v[\"voltage\"] \" mV\"}'; f=/sys/class/power_supply/battery; c=$(cat \$f/cycle_count 2>/dev/null); [ -n \"\$c\" ] && [ \"\$c\" -gt 1 ] && echo \"Charge cycles: \$c\"; cf=$(cat \$f/charge_full 2>/dev/null); cd=$(cat \$f/charge_full_design 2>/dev/null); if [ -n \"\$cf\" ] && [ -n \"\$cd\" ] && [ \"\$cd\" -gt 0 ]; then echo \"\$cf \$cd\" | awk '{r=$1/$2; while (r > 1.2) r/=10; while (r < 0.12) r*=10; p=int(r*100+0.5); if (p>=30 && p<=110) printf \"Capacity left: %d%% of original\\n\", p}'; fi"),
             Def("maint", "🌡 טמפרטורות", "🌡 Temperatures",
                 "for z in /sys/class/thermal/thermal_zone*; do t=$(cat \$z/temp 2>/dev/null); n=$(cat \$z/type 2>/dev/null); [ -n \"\$t\" ] && [ \"\$t\" -gt 0 ] && echo \"\$n: $((t/1000)) C\"; done | head -15"),
             Def("maint", "💾 ניצול אחסון", "💾 Storage usage",
@@ -957,7 +967,7 @@ class TerminalActivity : Activity() {
                     "dumpsys diskstats | grep -E '^(App Size|App Data Size|App Cache Size|Photos Size|Videos Size|Audio Size|Downloads Size|System Size|Other Size):' | " +
                     "awk -F': ' '{printf \"%-16s %.2f GB\\n\", $1, $2/1073741824}'"),
             Def("maint", "📂 התיקיות הגדולות", "📂 Largest folders",
-                "du -sh /sdcard/* /sdcard/Android/media/* 2>/dev/null | sort -rh | head -12"),
+                "du -sk /sdcard/* /sdcard/Android/media/* 2>/dev/null | sort -rn | head -12 | awk '{s=$1; $1=\"\"; sub(/^ /,\"\"); if (s>=1048576) printf \"%6.1f GB  %s\\n\", s/1048576, $0; else printf \"%6.0f MB  %s\\n\", s/1024, $0}'"),
         )
     }
 }
