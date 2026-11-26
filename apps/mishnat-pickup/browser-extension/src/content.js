@@ -429,12 +429,14 @@
 
   /**
    * שורת הזמנה: תיבת הסימון בהתחלה (בצד ימין, לפני "יום איסוף"),
-   * והכפתורים ברווח שלפני "סה״כ" ו"לצפיה בהזמנה".
+   * והכפתורים באמצע הרווח שבין פרטי ההזמנה לבין "סה״כ" ו"לצפיה בהזמנה".
    */
   function decorateRow(card, id, viewButton) {
-    const actions = viewButton.parentElement;
+    // החלק של השורה שמכיל את "לצפיה בהזמנה" (בן ישיר של השורה). הכפתורים נכנסים לפניו ותופסים את כל הרווח.
+    let actions = viewButton;
+    while (actions.parentElement && actions.parentElement !== card) actions = actions.parentElement;
     const oldCheck = card.querySelector(':scope > [data-mishnat-osef-check]');
-    const oldButtons = actions.querySelector(':scope > [data-mishnat-osef-row]');
+    const oldButtons = card.querySelector(':scope > [data-mishnat-osef-row]');
     if (oldCheck && oldButtons && oldCheck.dataset.mishnatOsefCheck === id && oldButtons.dataset.mishnatOsefRow === id) return;
     if (oldCheck) oldCheck.remove();
     if (oldButtons) oldButtons.remove();
@@ -456,7 +458,7 @@
 
     const rowHost = document.createElement('div');
     rowHost.dataset.mishnatOsefRow = id;
-    rowHost.style.cssText = 'flex:none;display:flex;align-items:center;';
+    rowHost.style.cssText = 'flex:1 1 auto;display:flex;align-items:center;justify-content:center;margin:6px 12px;';
     const rowShadow = rowHost.attachShadow({ mode: 'closed' });
     rowShadow.innerHTML = '<style>' + ROW_STYLE + ' .bar{margin:0;padding:0;background:none;border:0;gap:4px;flex-wrap:nowrap;}</style><div class="bar"></div>';
     const bar = rowShadow.querySelector('.bar');
@@ -468,7 +470,7 @@
       pageButtons.add(b);
       bar.appendChild(b);
     });
-    actions.insertBefore(rowHost, actions.firstChild);
+    card.insertBefore(rowHost, actions);
   }
 
   function decoratePage() {
