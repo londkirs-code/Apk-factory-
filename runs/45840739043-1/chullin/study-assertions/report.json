@@ -1,0 +1,88 @@
+{
+  "app": "chullin",
+  "package": "com.londkirs.chullin",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "he-IL",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 40.4,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 3.92,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='חולין'",
+      "status": "passed",
+      "seconds": 2.81,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "assert_text",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.58,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 6.65,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "assert_text",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 2.63,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "screenshot",
+      "detail": "name='study-start'",
+      "status": "passed",
+      "seconds": 3.27,
+      "error": "",
+      "screenshot": "screenshots/001-study-start.png"
+    },
+    {
+      "index": 7,
+      "action": "tap",
+      "detail": "text='גמרא'",
+      "status": "failed",
+      "seconds": 11.47,
+      "error": "element not found within 10s: text='גמרא'",
+      "screenshot": "screenshots/002-step7-tap-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-study-start.png",
+    "002-step7-tap-FAILED.png",
+    "003-final.png"
+  ]
+}

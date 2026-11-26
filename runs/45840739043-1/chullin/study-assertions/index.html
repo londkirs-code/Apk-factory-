@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8">
+<title>UI test — chullin</title>
+<style>body{font-family:system-ui,sans-serif;margin:24px;background:#f6f7f9}
+.grid{display:flex;flex-wrap:wrap;gap:16px}figure{margin:0;background:#fff;padding:8px;border-radius:8px;box-shadow:0 1px 3px #0002}
+img{width:240px;display:block}figcaption{font-size:12px;margin-top:4px}table{border-collapse:collapse;background:#fff}
+td,th{border:1px solid #ddd;padding:4px 8px;font-size:13px;text-align:left}tr.failed{background:#fde8e8}tr.skipped{background:#fff7e0}
+pre{background:#222;color:#eee;padding:12px;overflow:auto}</style>
+<h1>UI test — chullin (scenario): FAILED</h1>
+<p>Package <code>com.londkirs.chullin</code> · {&quot;model&quot;: &quot;sdk_gphone64_x86_64&quot;, &quot;sdk&quot;: &quot;33&quot;, &quot;release&quot;: &quot;13&quot;, &quot;abi&quot;: &quot;x86_64&quot;, &quot;locale&quot;: &quot;he-IL&quot;, &quot;screen&quot;: &quot;1080x2400&quot;}</p>
+<table><tr><th>#</th><th>Action</th><th>Detail</th><th>Result</th><th>Error</th></tr><tr class='passed'><td>1</td><td>launch</td><td>clear_data=True</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>2</td><td>wait_for</td><td>text=&#x27;חולין&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>3</td><td>assert_text</td><td>text=&#x27;הכל שוחטין&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>4</td><td>scroll_to</td><td>text=&#x27;הבא&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>5</td><td>assert_text</td><td>text=&#x27;הבא&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>6</td><td>screenshot</td><td>name=&#x27;study-start&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>7</td><td>tap</td><td>text=&#x27;גמרא&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;גמרא&#x27;</td></tr></table>
+<h2>Screenshots</h2><div class="grid"><figure><a href="screenshots/001-study-start.png"><img src="screenshots/001-study-start.png" loading="lazy"></a><figcaption>001-study-start.png</figcaption></figure>
+<figure><a href="screenshots/002-step7-tap-FAILED.png"><img src="screenshots/002-step7-tap-FAILED.png" loading="lazy"></a><figcaption>002-step7-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/003-final.png"><img src="screenshots/003-final.png" loading="lazy"></a><figcaption>003-final.png</figcaption></figure></div>
