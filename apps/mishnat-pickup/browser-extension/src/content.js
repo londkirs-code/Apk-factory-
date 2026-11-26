@@ -386,7 +386,7 @@
   });
   trayShadow.querySelector('.clear').addEventListener('click', () => {
     pageSelected.clear();
-    document.querySelectorAll('[data-mishnat-osef-row]').forEach((h) => { if (h.__mishnatBox) h.__mishnatBox.checked = false; });
+    document.querySelectorAll('[data-mishnat-osef-check]').forEach((h) => { if (h.__mishnatBox) h.__mishnatBox.checked = false; });
     updateTray();
   });
 
@@ -427,23 +427,39 @@
     return null;
   }
 
-  function decorateRow(card, id) {
-    const old = card.querySelector(':scope > [data-mishnat-osef-row]');
-    if (old && old.dataset.mishnatOsefRow === id) return;
-    if (old) old.remove();
-    const rowHost = document.createElement('div');
-    rowHost.dataset.mishnatOsefRow = id;
-    const rowShadow = rowHost.attachShadow({ mode: 'closed' });
-    rowShadow.innerHTML = '<style>' + ROW_STYLE + '</style><div class="bar"></div>';
-    const bar = rowShadow.querySelector('.bar');
-    const label = document.createElement('label');
+  /**
+   * שורת הזמנה: תיבת הסימון בהתחלה (בצד ימין, לפני "יום איסוף"),
+   * והכפתורים ברווח שלפני "סה״כ" ו"לצפיה בהזמנה".
+   */
+  function decorateRow(card, id, viewButton) {
+    const actions = viewButton.parentElement;
+    const oldCheck = card.querySelector(':scope > [data-mishnat-osef-check]');
+    const oldButtons = actions.querySelector(':scope > [data-mishnat-osef-row]');
+    if (oldCheck && oldButtons && oldCheck.dataset.mishnatOsefCheck === id && oldButtons.dataset.mishnatOsefRow === id) return;
+    if (oldCheck) oldCheck.remove();
+    if (oldButtons) oldButtons.remove();
+
+    const checkHost = document.createElement('div');
+    checkHost.dataset.mishnatOsefCheck = id;
+    checkHost.style.cssText = 'flex:none;display:flex;align-items:center;margin-inline-end:12px;';
+    const checkShadow = checkHost.attachShadow({ mode: 'closed' });
+    checkShadow.innerHTML = '<style>' + ROW_STYLE + ' input{width:22px;height:22px;margin:0;cursor:pointer;}</style>';
     const box = document.createElement('input');
     box.type = 'checkbox';
+    box.title = 'סימון להורדה יחד עם הזמנות אחרות';
+    box.setAttribute('aria-label', 'סימון הזמנה ' + id + ' להורדה לאפליקציה');
     box.checked = pageSelected.has(id);
     box.addEventListener('change', () => { if (box.checked) pageSelected.add(id); else pageSelected.delete(id); updateTray(); });
-    label.append(box, document.createTextNode('לאפליקציה'));
-    bar.appendChild(label);
-    rowHost.__mishnatBox = box;
+    checkShadow.appendChild(box);
+    checkHost.__mishnatBox = box;
+    card.insertBefore(checkHost, card.firstChild);
+
+    const rowHost = document.createElement('div');
+    rowHost.dataset.mishnatOsefRow = id;
+    rowHost.style.cssText = 'flex:none;display:flex;align-items:center;';
+    const rowShadow = rowHost.attachShadow({ mode: 'closed' });
+    rowShadow.innerHTML = '<style>' + ROW_STYLE + ' .bar{margin:0;padding:0;background:none;border:0;gap:4px;flex-wrap:nowrap;}</style><div class="bar"></div>';
+    const bar = rowShadow.querySelector('.bar');
     FORMATS.forEach(([format, text]) => {
       const b = document.createElement('button');
       b.type = 'button'; b.textContent = text; b.title = 'הורדת ההזמנה הזו (' + format.toUpperCase() + ')';
@@ -452,7 +468,7 @@
       pageButtons.add(b);
       bar.appendChild(b);
     });
-    card.appendChild(rowHost);
+    actions.insertBefore(rowHost, actions.firstChild);
   }
 
   function decoratePage() {
@@ -463,7 +479,7 @@
       const card = rowFor(button);
       if (!card || seen.has(card)) return;
       seen.add(card);
-      decorateRow(card, rowOrderId(card));
+      decorateRow(card, rowOrderId(card), button);
     });
     pageButtons.forEach((b) => { if (!b.isConnected) pageButtons.delete(b); });
   }
@@ -471,7 +487,7 @@
   let decorateTimer = null;
   const observer = new MutationObserver((mutations) => {
     // שינויים שלנו (בתוך הכפתורים שהוספנו) לא מפעילים סריקה חוזרת.
-    if (mutations.every((m) => m.target && m.target.closest && m.target.closest('[data-mishnat-osef-row]'))) return;
+    if (mutations.every((m) => m.target && m.target.closest && m.target.closest('[data-mishnat-osef-row],[data-mishnat-osef-check]'))) return;
     if (decorateTimer) return;
     decorateTimer = setTimeout(() => { decorateTimer = null; decoratePage(); }, 300);
   });

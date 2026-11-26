@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "משנת אוסף – הורדה לאפליקציה",
   "short_name": "משנת אוסף",
-  "version": "1.5",
+  "version": "1.6",
   "description": "הורדת הזמנות מאתר משנת יוסף לקובץ TXT, JSON, ZIP עם תמונות או קוד QR לסריקה, לייבוא באפליקציית משנת אוסף גם בלי אינטרנט. תוסף לא רשמי.",
   "permissions": [],
   "host_permissions": [
