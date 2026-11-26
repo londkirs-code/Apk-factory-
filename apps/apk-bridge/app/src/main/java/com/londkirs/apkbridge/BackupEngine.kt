@@ -321,7 +321,7 @@ object BackupEngine {
         return Inspection(tree, folder, manifest, available, sets, apps)
     }
 
-    fun restore(context: Context, inspection: Inspection, items: Set<String>, apps: Set<String>?, fileSets: Set<String>, onDone: (Result?) -> Unit): Boolean {
+    fun restore(context: Context, inspection: Inspection, items: Set<String>, apps: Set<String>?, fileSets: Set<String>, markPlay: Boolean = true, onDone: (Result?) -> Unit): Boolean {
         val app = context.applicationContext
         val cr = app.contentResolver
         val tree = inspection.tree
@@ -336,7 +336,7 @@ object BackupEngine {
                 fun stepPct() = (step * 100 / steps.coerceAtLeast(1)).coerceIn(0, 99)
                 Bridge.withClient { c ->
                     if (APPS in items) {
-                        val (ok, skipped) = restoreApps(c, app, tree, folder, apps) { label, i, total ->
+                        val (ok, skipped) = restoreApps(c, app, tree, folder, apps, markPlay) { label, i, total ->
                             Bridge.progress(tr("משחזר אפליקציות: $label ($i/$total)", "Restoring apps: $label ($i/$total)"), stepPct())
                         }
                         lines += tr("📦 אפליקציות: הותקנו $ok", "📦 Apps: installed $ok") + if (skipped > 0) tr(", $skipped כבר היו מותקנות (הוחזרו ההרשאות)", ", $skipped were already installed (permissions restored)") else ""
@@ -393,7 +393,8 @@ object BackupEngine {
         }
     }
 
-    private suspend fun restoreApps(c: AdbClient, context: Context, tree: Uri, folder: Uri, only: Set<String>?, onProgress: (String, Int, Int) -> Unit): Pair<Int, Int> {
+    /** [markPlay]: record Google Play as the installer (as if installed from Play), for every restored app. */
+    private suspend fun restoreApps(c: AdbClient, context: Context, tree: Uri, folder: Uri, only: Set<String>?, markPlay: Boolean, onProgress: (String, Int, Int) -> Unit): Pair<Int, Int> {
         val cr = context.contentResolver
         val pm = context.packageManager
         val appsDir = Saf.child(cr, tree, folder, "apps")?.uri ?: return 0 to 0
@@ -410,11 +411,13 @@ object BackupEngine {
             val want = meta?.optLong("versionCode") ?: 0L
             if (have != null && have >= want) {
                 skipped++
+                // Already installed: only the recorded installer changes.
+                if (markPlay && pkg.matches(JAVA_NAME)) runCatching { c.shell("pm set-installer $pkg $PLAY 2>/dev/null") }
             } else {
                 val apks = files.filter { it.name.endsWith(".apk") }.sortedBy { if (it.name == "base.apk") 0 else 1 }
                 val flags = buildList {
                     add("-r"); add("-t")
-                    if (meta?.optString("installer") == "com.android.vending") { add("-i"); add("com.android.vending") }
+                    if (markPlay || meta?.optString("installer") == PLAY) { add("-i"); add(PLAY) }
                 }
                 val pfds = apks.map { cr.openFileDescriptor(it.uri, "r") ?: error(tr("לא ניתן לקרוא ${it.name}", "Can't read ${it.name}")) }
                 try {
@@ -573,6 +576,8 @@ object BackupEngine {
         }
         return failed
     }
+
+    private const val PLAY = "com.android.vending"
 
     /** Package and permission names (com.example.app, android.permission.CAMERA). */
     private val JAVA_NAME = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+")

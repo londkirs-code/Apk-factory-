@@ -50,6 +50,7 @@ class BackupActivity : BossActivity() {
     private val restoreBoxes = linkedMapOf<String, CheckBox>()
     private val restoreFileBoxes = linkedMapOf<String, CheckBox>()
     private var restoreApps: Set<String>? = null
+    private var markPlayBox: CheckBox? = null
     private var inspection: BackupEngine.Inspection? = null
     private lateinit var termuxRestoreStatus: LinearLayout
 
@@ -296,13 +297,16 @@ class BackupActivity : BossActivity() {
         setOnClickListener { onClick() }
         Compat.focusRing(this, LINK, 8f)
         parent.addView(this, wrap(0))
-        if (under != null) {
-            visibility = if (under.isChecked) View.VISIBLE else View.GONE
-            @Suppress("UNCHECKED_CAST") val previous = under.tag as? (Boolean) -> Unit
-            val show: (Boolean) -> Unit = { on -> visibility = if (on) View.VISIBLE else View.GONE; previous?.invoke(on) }
-            under.tag = show
-            under.setOnCheckedChangeListener { _, on -> show(on) }
-        }
+        if (under != null) showWhileChecked(this, under)
+    }
+
+    /** Shows [view] only while [under] is checked (several views can follow the same checkbox). */
+    private fun showWhileChecked(view: View, under: CheckBox) {
+        view.visibility = if (under.isChecked) View.VISIBLE else View.GONE
+        @Suppress("UNCHECKED_CAST") val previous = under.tag as? (Boolean) -> Unit
+        val show: (Boolean) -> Unit = { on -> view.visibility = if (on) View.VISIBLE else View.GONE; previous?.invoke(on) }
+        under.tag = show
+        under.setOnCheckedChangeListener { _, on -> show(on) }
     }
 
     // endregion
@@ -472,11 +476,23 @@ class BackupActivity : BossActivity() {
         restoreInfo.text = ins.description()
         restoreOptions.removeAllViews()
         restoreBoxes.clear()
+        markPlayBox = null
         restoreFileBoxes.clear()
         val counts = ins.manifest.optJSONObject("items")
         fun count(key: String) = counts?.optInt(key, -1)?.takeIf { it >= 0 }?.let { " ($it)" } ?: ""
         if (BackupEngine.APPS in ins.available) {
             restoreBoxes[BackupEngine.APPS] = check(restoreOptions, tr("📦 אפליקציות${count(BackupEngine.APPS)}", "📦 Apps${count(BackupEngine.APPS)}"), true)
+            // Indented under "Apps", shown while it is checked; the choice is remembered.
+            markPlayBox = CheckBox(this).apply {
+                text = tr("▶ לסמן כהותקנו מ־Google Play", "▶ Mark as installed from Google Play")
+                textSize = 14f
+                setTextColor(INK)
+                textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                isChecked = getSharedPreferences("bridge", MODE_PRIVATE).getBoolean("restore_mark_play", true)
+                setOnCheckedChangeListener { _, on -> getSharedPreferences("bridge", MODE_PRIVATE).edit().putBoolean("restore_mark_play", on).apply() }
+            }
+            restoreOptions.addView(markPlayBox, wrap(0).apply { marginStart = dp(28) })
+            showWhileChecked(markPlayBox!!, restoreBoxes.getValue(BackupEngine.APPS))
             if (ins.apps.isNotEmpty()) {
                 val pick = link(restoreOptions, restoreBoxes[BackupEngine.APPS]) {}
                 fun label() {
@@ -527,7 +543,7 @@ class BackupActivity : BossActivity() {
                     tr("• טרמוקס: הקבצים שלו יוחלפו בקבצים מהגיבוי, והוא יופעל מחדש. השאר את המסך פתוח עד הסוף.", "• Termux: its files are replaced with the backup's, and it's restarted. Keep the screen open until the end.")
             )
             .setPositiveButton(tr("שחזר", "Restore")) { _, _ ->
-                val started = BackupEngine.restore(this, ins, items, restoreApps, files) { result ->
+                val started = BackupEngine.restore(this, ins, items, restoreApps, files, markPlayBox?.isChecked ?: true) { result ->
                     if (result == null || isFinishing) return@restore
                     result.contactsVcf?.let { importContacts(it) }
                     AlertDialog.Builder(this).setTitle(tr("✔ השחזור הסתיים", "✔ Restore finished")).setMessage(result.summary.substringAfter('\n'))
