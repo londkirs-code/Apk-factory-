@@ -30,6 +30,94 @@
       "name": "study-start"
     },
     {
+      "action": "scroll_to",
+      "text": "מתני' הכל שוחטין",
+      "direction": "up",
+      "max_swipes": 6
+    },
+    {
+      "action": "tap",
+      "text": "מתני' הכל שוחטין"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "assert_text",
+      "text": "נלמדו 1 מתוך 6"
+    },
+    {
+      "action": "tap",
+      "text": "מתני' הכל שוחטין"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "assert_text",
+      "text": "נלמדו 0 מתוך 6"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "tap",
+      "text": "⚙",
+      "exact": true
+    },
+    {
+      "action": "wait_for",
+      "text": "ערכת נושא",
+      "timeout": 10
+    },
+    {
+      "action": "tap",
+      "text": "כהה",
+      "exact": true
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "dark-theme"
+    },
+    {
+      "action": "tap",
+      "text": "⚙",
+      "exact": true
+    },
+    {
+      "action": "wait_for",
+      "text": "ערכת נושא",
+      "timeout": 10
+    },
+    {
+      "action": "tap",
+      "text": "בהיר",
+      "exact": true
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "light-theme"
+    },
+    {
       "action": "swipe",
       "direction": "down"
     },
