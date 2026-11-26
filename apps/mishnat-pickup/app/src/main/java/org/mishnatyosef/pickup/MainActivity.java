@@ -1841,7 +1841,7 @@ public class MainActivity extends Activity {
                     if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא צורף להזמנה הנוכחית; העותקים המקוריים נשמרו.");
                 mainHandler.post(()->{
                     ImportParser.delete(bundle.workDir);showSavedListsScreen(false);
-                    
+
                 });
             }catch(Exception e){
                 String error=safeError(e);mainHandler.post(()->{
@@ -2301,7 +2301,7 @@ public class MainActivity extends Activity {
                     long before = images.diskCacheBytes();
                     images.clear();
                     mainHandler.post(() -> {
-                        
+
                         if (screen == Screen.SETTINGS) showSettingsScreen();
                     });
                 }));
@@ -2899,7 +2899,7 @@ public class MainActivity extends Activity {
         option.setFocusable(true);
         option.setOnCheckedChangeListener((button, checked) -> {
             uiPreferences.edit().putBoolean(key, checked).apply();
-            
+
         });
         return option;
     }
@@ -3908,7 +3908,7 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
         SavedListStore.Entry result = findSavedEntry(id);
         if (merged == 0 || result == null) { Toast.makeText(this, "האיחוד נכשל; ההזמנות המקוריות לא השתנו.", Toast.LENGTH_LONG).show(); return; }
-        
+
         if (deleteOriginals) {
             List<SavedListStore.Entry> originals = new ArrayList<>();
             for (SavedListStore.Entry entry : chosen) if (!entry.id.equals(result.id)) originals.add(entry);
@@ -3963,7 +3963,7 @@ public class MainActivity extends Activity {
         final SavedListStore.Entry target=targetIn==null?null:editableCopyIfSynced(targetIn);
         if(targetIn!=null&&target==null){Toast.makeText(this,"יצירת העותק נכשלה.",Toast.LENGTH_LONG).show();return;}
         final RequestSession session=new RequestSession(authGeneration,accessToken);
-        
+
         network.execute(()->{
             try {
                 JSONObject order=unwrapOrder(apiGetObject("/api/orders/"+id,session));List<ProductRow> rows=parseProducts(order);
@@ -3986,7 +3986,7 @@ public class MainActivity extends Activity {
                 if(!session.isCurrent(this))return;
                 mainHandler.post(()->{
                     if(target!=null){
-                        
+
                         SavedListStore.Entry updated=findSavedEntry(target.id);
                         // הרשימה שעודכנה נפתחת, כדי שהמוצרים החדשים יוצגו מיד.
                         if(updated!=null){openSavedList(updated);return;}
@@ -4198,7 +4198,7 @@ public class MainActivity extends Activity {
     /** הרשימה מהשרת עוברת במסלול הייבוא הרגיל: חלון סיכום ואז שמירה כרשימה או כמקור. */
     private void fetchCloudList(int number) {
         final String server = cloudUrl();
-        
+
         network.execute(() -> {
             try {
                 CloudShare.Fetched fetched = CloudShare.fetch(server, number);

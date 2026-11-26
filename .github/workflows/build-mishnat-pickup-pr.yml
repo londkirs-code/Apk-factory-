@@ -201,7 +201,7 @@ jobs:
             echo "APK unchanged; nothing to commit."
             exit 0
           fi
-          git commit -m "build(mishnat-pickup): APK for PR #${{ github.event.pull_request.number }}"
+          git commit -m "build(mishnat-pickup): APK for PR #${{ github.event.pull_request.number }} [skip ci]"
           git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
 
       - name: Comment the download link on the PR
