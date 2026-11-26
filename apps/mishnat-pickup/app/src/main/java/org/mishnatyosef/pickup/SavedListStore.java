@@ -67,6 +67,19 @@ final class SavedListStore {
         }catch(Exception e){return "";}
     }
 
+    /** מצב האיסוף שכבר שמור בהזמנה (אם קיימת), או null. */
+    private static String[] existingProgress(File target) {
+        if (target == null || !target.isFile()) return null;
+        try (FileInputStream in = new FileInputStream(target)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+            JSONObject old = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            if (!old.has("_collected_ticks") && !old.has("_partial_quantities")) return null;
+            return new String[]{old.optString("_collected_ticks", "[]"), old.optString("_partial_quantities", "{}")};
+        } catch (Exception e) { return null; }
+    }
+
     synchronized boolean archive(String sourceId, String sourceLabel, File orderFile,
                                  SharedPreferences prefs) {
         if (sourceId == null || sourceId.isEmpty() || orderFile == null || !orderFile.isFile()) return false;
@@ -93,11 +106,16 @@ final class SavedListStore {
             data.put("_source_id", sourceId);
             data.put("_source_label", sourceLabel == null ? "רשימה שמורה" : sourceLabel);
             data.put("_archived_at", System.currentTimeMillis());
-            if (prefs != null) {
+            File target = new File(root, safeName(id) + ".json");
+            // מצב האיסוף שמור בהזמנה עצמה (נאסף ברשימת איסוף): עדכון מהאתר לא דורס אותו.
+            String[] kept = existingProgress(target);
+            if (kept != null) {
+                data.put("_collected_ticks", kept[0]);
+                data.put("_partial_quantities", kept[1]);
+            } else if (prefs != null) {
                 data.put("_collected_ticks", prefs.getString(DataGuard.COLLECTED_PREFIX + orderId, "[]"));
                 data.put("_partial_quantities", prefs.getString("partial_" + orderId, "{}"));
             }
-            File target = new File(root, safeName(id) + ".json");
             File temp = new File(root, target.getName() + ".tmp");
             try (FileOutputStream out = new FileOutputStream(temp)) {
                 out.write(data.toString().getBytes(StandardCharsets.UTF_8));
@@ -134,11 +152,13 @@ final class SavedListStore {
             data.put("_saved_list_id",id).put("_source_id",sourceId)
                 .put("_source_label",sourceLabel==null?"רשימה שמורה":sourceLabel)
                 .put("_archived_at",System.currentTimeMillis());
-            if(prefs!=null) {
+            File target=new File(root,safeName(id)+".json"),temp=new File(root,safeName(id)+".json.tmp");
+            String[] kept=existingProgress(target);
+            if(kept!=null){data.put("_collected_ticks",kept[0]);data.put("_partial_quantities",kept[1]);}
+            else if(prefs!=null) {
                 data.put("_collected_ticks",prefs.getString(DataGuard.COLLECTED_PREFIX+orderId,"[]"));
                 data.put("_partial_quantities",prefs.getString("partial_"+orderId,"{}"));
             }
-            File target=new File(root,safeName(id)+".json"),temp=new File(root,safeName(id)+".json.tmp");
             try(FileOutputStream out=new FileOutputStream(temp)) {
                 out.write(data.toString().getBytes(StandardCharsets.UTF_8));out.getFD().sync();
             }
