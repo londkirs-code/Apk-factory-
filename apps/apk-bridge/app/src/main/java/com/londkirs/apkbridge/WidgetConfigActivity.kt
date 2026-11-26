@@ -64,7 +64,7 @@ class WidgetConfigActivity : Activity() {
         // Switches: one tap flips them, and the button lights up green while on.
         section(page, tr("🔀 מתגים — לחיצה משנה מצב", "🔀 Switches — a tap flips them"), ShortcutWidget.Toggle.ALL.map { it.pin })
         section(page, tr("🕴 פעולות באפליקציה", "🕴 App actions"), ShortcutWidget.appActions())
-        for ((group, pins) in TerminalActivity.shortcutChoices(this, exclude = setOf(TerminalActivity.TOGGLES_GROUP))) section(page, "💬 $group", pins)
+        for ((group, pins) in TerminalShortcuts.choices(this, exclude = setOf(TerminalShortcuts.TOGGLES_GROUP))) section(page, "💬 $group", pins)
 
         summary = TextView(this).apply { textSize = 13.5f; setTextColor(INK); setPadding(dp(4), dp(8), dp(4), dp(8)) }
         val save = Button(this).apply {

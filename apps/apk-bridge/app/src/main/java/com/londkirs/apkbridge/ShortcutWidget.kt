@@ -172,12 +172,10 @@ open class ShortcutWidget : AppWidgetProvider() {
         private fun resolve(context: Context, pin: Pin): Pin = when (pin.command) {
             WIFI_TOGGLE -> Toggle.ALL[0].pin
             BT_TOGGLE -> Toggle.ALL[1].pin
-            else -> Toggle.of(pin.command)?.pin ?: resolveRam(context, pin)
+            // "@ram" stands for the terminal's (regular) RAM shortcut; its command lives there.
+            "@ram" -> Pin(pin.label, TerminalShortcuts.FREE_RAM)
+            else -> Toggle.of(pin.command)?.pin ?: pin
         }
-
-        private fun resolveRam(context: Context, pin: Pin): Pin = if (pin.command != "@ram") pin else
-            TerminalActivity.shortcutChoices(context).flatMap { it.second }.firstOrNull { it.command.contains("send-trim-memory") }
-                ?.let { Pin(pin.label, it.command) } ?: pin
 
         private fun readStates(context: Context, out: String) {
             val edit = prefs(context).edit()
