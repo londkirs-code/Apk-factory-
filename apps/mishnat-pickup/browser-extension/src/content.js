@@ -1,5 +1,5 @@
 /*
- * משנת אוסף – הורדה לאפליקציה: כפתור וחלון באתר משנת יוסף.
+ * משנת אוסף – הורדה לאפליקציה: כפתור וחלון באתר משנת יוסף, וכפתורים על כל הזמנה בעמוד היסטוריית ההזמנות.
  * בוחרים הזמנות ופורמט (TXT / JSON / ZIP עם תמונות) ומורידים קובץ שנפתח באפליקציה
  * גם במכשיר בלי אינטרנט: "רשימה חדשה" ← "ייבוא מקובץ".
  *
@@ -290,42 +290,191 @@
     else if (e.key === 'ArrowRight') { e.preventDefault(); $('.qrprev').click(); }
   });
 
-  async function exportOrders(format) {
-    if (busy) return;
-    const ids = selectedIds();
-    if (ids.length === 0) { setStatus('סמנו לפחות הזמנה אחת.', true); return; }
-    if (ids.length > 20) { setStatus('אפשר להוריד עד 20 הזמנות בקובץ אחד.', true); return; }
+  /**
+   * ייצוא הזמנות. ids - מהחלון או מהכפתורים בעמוד היסטוריית ההזמנות; report - איפה להציג הודעות.
+   */
+  async function exportOrders(format, ids = selectedIds(), report = setStatus) {
+    if (busy) { report('ההורדה הקודמת עוד לא הסתיימה.', true); return; }
+    if (ids.length === 0) { report('סמנו לפחות הזמנה אחת.', true); return; }
+    if (ids.length > 20) { report('אפשר להוריד עד 20 הזמנות בקובץ אחד.', true); return; }
     busy = true;
-    root.querySelectorAll('.formats button').forEach((b) => { b.disabled = true; });
+    setBusyButtons(true);
     try {
       const exports = [];
       for (let i = 0; i < ids.length; i++) {
-        setStatus('טוען הזמנה ' + (i + 1) + ' מתוך ' + ids.length + '…');
+        report('טוען הזמנה ' + (i + 1) + ' מתוך ' + ids.length + '…');
         const order = core.unwrapOrder(await api('/orders/' + ids[i]));
         const products = core.sortByCategory(core.parseProducts(order));
         const listed = rowsById.get(ids[i]);
         const title = core.saleName(order) || (listed ? core.orderTitle(listed.order) : 'הזמנה ' + ids[i]);
         exports.push({ title, products });
       }
-      if (format === 'qr') { showQr(core.toQrChunks(exports, 900)); return; }
+      if (format === 'qr') {
+        report('');
+        if (!root.classList.contains('open')) { root.classList.add('open'); if (rowsById.size === 0) loadPage(); }
+        showQr(core.toQrChunks(exports, 900));
+        return;
+      }
       if (format === 'txt') download(fileName(ids, 'txt'), core.toText(exports), 'text/plain;charset=utf-8');
       else if (format === 'json') download(fileName(ids, 'json'), JSON.stringify(core.toJson(exports), null, 2), 'application/json');
       else {
         let done = 0;
         const bytes = await core.toZip(exports, async (url) => {
-          setStatus('מוריד תמונות… ' + (++done));
+          report('מוריד תמונות… ' + (++done));
           return loadImage(url);
         });
         download(fileName(ids, 'zip'), bytes, 'application/zip');
       }
-      setStatus('✅ הקובץ ירד. מעבירים אותו לטלפון ופותחים באפליקציה: "רשימה חדשה" ← "ייבוא מקובץ".');
+      report('✅ הקובץ ירד. מעבירים אותו לטלפון ופותחים באפליקציה: "רשימה חדשה" ← "ייבוא מקובץ".');
     } catch (e) {
-      setStatus(e.message || 'ההורדה נכשלה.', true);
+      report(e.message || 'ההורדה נכשלה.', true);
     } finally {
       busy = false;
-      root.querySelectorAll('.formats button').forEach((b) => { b.disabled = false; });
+      setBusyButtons(false);
     }
   }
+
+  function setBusyButtons(on) {
+    root.querySelectorAll('.formats button').forEach((b) => { b.disabled = on; });
+    pageButtons.forEach((b) => { if (b.isConnected) b.disabled = on; });
+  }
+
+  // ---------- כפתורים על כל הזמנה בעמוד היסטוריית ההזמנות ----------
+  // בכל שורת הזמנה: סימון לבחירה מרובה וכפתורי TXT / JSON / ZIP / QR להזמנה הזו.
+  // כשמסמנים הזמנות מופיע פס בתחתית המסך להורדה של כולן יחד.
+
+  const pageButtons = new Set();
+  const pageSelected = new Set();
+  const ROW_STYLE = `
+    :host { all: initial; display: block; }
+    * { box-sizing: border-box; font-family: "Segoe UI", Arial, sans-serif; }
+    .bar { direction: rtl; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px;
+      padding: 6px 8px; border-radius: 10px; background: #F4EFFC; border: 1px solid #E2D8F5; color: #2C1A4D; }
+    label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; cursor: pointer; margin-left: 6px; }
+    input { width: 18px; height: 18px; accent-color: #5E3FA3; }
+    button { border: 0; border-radius: 8px; padding: 5px 10px; background: #fff; color: #4A2F86; font-size: 13px; font-weight: 700;
+      cursor: pointer; border: 1px solid #DCD0F2; }
+    button:hover, button:focus-visible { background: #5E3FA3; color: #fff; outline: none; }
+    button:disabled { opacity: .5; cursor: default; }
+    .t { font-size: 12px; color: #7A6A99; }`;
+  const FORMATS = [['txt', '📄 TXT'], ['json', '🗂️ JSON'], ['zip', '🗜️ ZIP'], ['qr', '📱 QR']];
+
+  const tray = document.createElement('div');
+  tray.id = 'mishnat-osef-tray';
+  const trayShadow = tray.attachShadow({ mode: 'closed' });
+  trayShadow.innerHTML = `<style>${ROW_STYLE}
+    .tray { position: fixed; z-index: 2147483645; right: 50%; transform: translateX(50%); bottom: 16px; direction: rtl;
+      display: none; flex-direction: column; gap: 6px; padding: 10px 14px; background: #FBF9FE; border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(30,10,70,.35); border: 1px solid #E2D8F5; max-width: calc(100vw - 24px); }
+    .tray.show { display: flex; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .count { font-weight: 700; font-size: 15px; margin-left: 6px; }
+    .msg { font-size: 13px; color: #4A2F86; min-height: 0; }
+    .msg.error { color: #B3261E; }
+  </style>
+  <div class="tray" role="region" aria-label="הזמנות מסומנות">
+    <div class="row"><span class="count"></span><span class="formats-b"></span><button type="button" class="clear">ניקוי סימון</button></div>
+    <div class="msg" role="status" aria-live="polite"></div>
+  </div>`;
+  const trayBox = trayShadow.querySelector('.tray'), trayMsg = trayShadow.querySelector('.msg');
+  FORMATS.forEach(([format, text]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = text;
+    b.addEventListener('click', () => exportOrders(format, [...pageSelected], trayReport));
+    pageButtons.add(b);
+    trayShadow.querySelector('.formats-b').appendChild(b);
+  });
+  trayShadow.querySelector('.clear').addEventListener('click', () => {
+    pageSelected.clear();
+    document.querySelectorAll('[data-mishnat-osef-row]').forEach((h) => { if (h.__mishnatBox) h.__mishnatBox.checked = false; });
+    updateTray();
+  });
+
+  let trayHideTimer = null;
+  function trayReport(text, error) {
+    trayMsg.textContent = text || '';
+    trayMsg.classList.toggle('error', !!error);
+    if (text) trayBox.classList.add('show');
+    if (trayHideTimer) clearTimeout(trayHideTimer);
+    if (text && !busy && pageSelected.size === 0) trayHideTimer = setTimeout(() => { trayMsg.textContent = ''; updateTray(); }, 8000);
+  }
+
+  function updateTray() {
+    const n = pageSelected.size;
+    trayShadow.querySelector('.count').textContent = n === 1 ? 'הזמנה אחת מסומנת' : n + ' הזמנות מסומנות';
+    trayShadow.querySelector('.formats-b').style.display = n ? '' : 'none';
+    trayShadow.querySelector('.clear').style.display = n ? '' : 'none';
+    trayShadow.querySelector('.count').style.display = n ? '' : 'none';
+    trayBox.classList.toggle('show', n > 0 || !!trayMsg.textContent);
+  }
+
+  /** מספר ההזמנה משורה בעמוד: הטקסט שאחרי "מספר הזמנה". */
+  function rowOrderId(card) {
+    for (const p of card.querySelectorAll('p')) {
+      if (p.textContent.trim() !== 'מספר הזמנה') continue;
+      const value = p.nextElementSibling ? p.nextElementSibling.textContent.trim() : '';
+      if (/^\d{3,}$/.test(value)) return value;
+    }
+    return '';
+  }
+
+  /** השורה של הזמנה: האב הקרוב של "לצפיה בהזמנה" שיש בו גם מספר הזמנה. */
+  function rowFor(button) {
+    let node = button.parentElement;
+    for (let depth = 0; node && depth < 8; depth++, node = node.parentElement) {
+      if (rowOrderId(node)) return node;
+    }
+    return null;
+  }
+
+  function decorateRow(card, id) {
+    const old = card.querySelector(':scope > [data-mishnat-osef-row]');
+    if (old && old.dataset.mishnatOsefRow === id) return;
+    if (old) old.remove();
+    const rowHost = document.createElement('div');
+    rowHost.dataset.mishnatOsefRow = id;
+    const rowShadow = rowHost.attachShadow({ mode: 'closed' });
+    rowShadow.innerHTML = '<style>' + ROW_STYLE + '</style><div class="bar"></div>';
+    const bar = rowShadow.querySelector('.bar');
+    const label = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = pageSelected.has(id);
+    box.addEventListener('change', () => { if (box.checked) pageSelected.add(id); else pageSelected.delete(id); updateTray(); });
+    label.append(box, document.createTextNode('לאפליקציה'));
+    bar.appendChild(label);
+    rowHost.__mishnatBox = box;
+    FORMATS.forEach(([format, text]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = text; b.title = 'הורדת ההזמנה הזו (' + format.toUpperCase() + ')';
+      b.disabled = busy;
+      b.addEventListener('click', () => exportOrders(format, [id], trayReport));
+      pageButtons.add(b);
+      bar.appendChild(b);
+    });
+    card.appendChild(rowHost);
+  }
+
+  function decoratePage() {
+    if (!/\/orders-history/.test(location.pathname)) return;
+    const seen = new Set();
+    document.querySelectorAll('button').forEach((button) => {
+      if (!button.textContent.includes('לצפיה בהזמנה')) return;
+      const card = rowFor(button);
+      if (!card || seen.has(card)) return;
+      seen.add(card);
+      decorateRow(card, rowOrderId(card));
+    });
+    pageButtons.forEach((b) => { if (!b.isConnected) pageButtons.delete(b); });
+  }
+
+  let decorateTimer = null;
+  const observer = new MutationObserver((mutations) => {
+    // שינויים שלנו (בתוך הכפתורים שהוספנו) לא מפעילים סריקה חוזרת.
+    if (mutations.every((m) => m.target && m.target.closest && m.target.closest('[data-mishnat-osef-row]'))) return;
+    if (decorateTimer) return;
+    decorateTimer = setTimeout(() => { decorateTimer = null; decoratePage(); }, 300);
+  });
 
   function open() {
     setAuto(false);
@@ -354,4 +503,8 @@
   });
 
   (document.body || document.documentElement).appendChild(host);
+  (document.body || document.documentElement).appendChild(tray);
+  updateTray();
+  decoratePage();
+  observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
 })();
