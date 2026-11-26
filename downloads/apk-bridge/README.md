@@ -1,1 +1,1 @@
-APK for apk-bridge, versionName 1.4.1, versionCode 35, built from commit 2134e52e303c3576cc390e80d5c23e14cc3d6b65.
+APK for apk-bridge, versionName 1.4.2, versionCode 36, built from commit 66774fca34d8b3a6b4b4cfe6969dd0f6d48a2c7d.
