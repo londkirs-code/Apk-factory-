@@ -11,8 +11,8 @@ android {
         applicationId 'org.mishnatyosef.pickup'
         minSdk 19
         targetSdk 35
-        versionCode 148
-        versionName '2.48'
+        versionCode 149
+        versionName '2.49'
     }
     // בדיקות יחידה רצות על המחשב (JVM). org.json האמיתי מחליף את הגרסה הריקה של android.jar.
     testOptions { unitTests.returnDefaultValues = true }

@@ -31,30 +31,43 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-/** ריכוז מלא של צבעים, מידות, אייקונים ורכיבי ממשק. */
+/**
+ * ערכת העיצוב של האפליקציה: צבעים, מידות, טיפוגרפיה, אייקונים ורכיבים.
+ * כל המסכים נבנים רק מהרכיבים שכאן, כדי שהמראה יהיה אחיד בכל מקום.
+ *
+ * עקרונות:
+ * - משטחים נקיים (לבן / אפור כהה), צבע מותג אחד (סגול-אינדיגו) לפעולות ולמצב פעיל.
+ * - כל כפתור מקבל אייקון וקטורי לפי המשמעות שלו (לא אימוג׳י), כך שהמראה חד בכל מכשיר.
+ * - פוקוס של מקלדת תמיד ברור: מסגרת עבה בצבע המותג ומילוי כהה יותר.
+ * - פינות מעוגלות ואחידות: כפתורים 16, כרטיסים 20, חלונות 28.
+ */
 final class Ui {
     private Ui() {}
 
     // ---------------------------------------------------------------------
     // פלטות צבע. כל הממשק משתמש בתפקידים (P25 משטח ... P900 כותרות, INK טקסט, MUTED טקסט משני),
-    // ולכן מצב לילה הוא פשוט פלטה הפוכה: משטחים כהים, טקסט ואקצנטים בהירים.
-    //   בהיר: רקע לבנדר בהיר מאוד, משטחים לבנים, סגול עמוק לפעולות ולכותרות.
-    //   כהה: רקע סגול-שחור, משטחים כהים מעט יותר בהירים, לבנדר רך לפעולות (ניגודיות AA לפחות).
+    // ולכן מצב לילה הוא פשוט פלטה אחרת לאותם תפקידים.
+    //   בהיר: רקע אפור-קריר בהיר, משטחים לבנים, סגול-אינדיגו לפעולות.
+    //   כהה: רקע כמעט שחור, משטחים כהים, סגול בהיר לפעולות (ניגודיות AA לפחות).
     // ---------------------------------------------------------------------
     private static final int[] LIGHT = {
-            0xFFFFFFFF, 0xFFF6F3FB, 0xFFEEE8F8, 0xFFE0D7F1, 0xFFC8B8E8, 0xFFA488D8,
-            0xFF8662C7, 0xFF6B45AE, 0xFF56348F, 0xFF412670, 0xFF2C1A4D,
-            /* INK */ 0xFF1C1529, /* MUTED */ 0xFF4B4459, /* ON_DARK */ 0xFFFFFFFF};
+            /* P25  משטח */ 0xFFFFFFFF, /* P50  רקע */ 0xFFF4F4F8, /* P100 גוון רך */ 0xFFEEEBFC,
+            /* P200 קו */ 0xFFE2DEF3, /* P300 */ 0xFFCBC2EF, /* P400 */ 0xFFA697EA,
+            /* P500 */ 0xFF836DE4, /* P600 מותג */ 0xFF6548D9, /* P700 פוקוס */ 0xFF5233C2,
+            /* P800 */ 0xFF3F2699, /* P900 כותרת */ 0xFF1E1938,
+            /* INK */ 0xFF17151F, /* MUTED */ 0xFF5E5B6E, /* ON_DARK */ 0xFFFFFFFF};
     private static final int[] DARK = {
-            0xFF1C1828, 0xFF121019, 0xFF262036, 0xFF342C4A, 0xFF4A3F68, 0xFF6E5E9C,
-            0xFF8F7BC8, 0xFFA996E3, 0xFFC2B3F2, 0xFFD9CFFA, 0xFFEEE9FF,
-            /* INK */ 0xFFECE8F4, /* MUTED */ 0xFFADA4BF, /* ON_DARK */ 0xFF18122A};
+            0xFF1C1B24, 0xFF111017, 0xFF282539, 0xFF322F45, 0xFF433D62, 0xFF5F5596,
+            0xFF7F6FD6, 0xFF9C8BF3, 0xFFB5A8FF, 0xFFCFC6FF, 0xFFF1EEFF,
+            /* INK */ 0xFFEDEBF5, /* MUTED */ 0xFFA9A5BA, /* ON_DARK */ 0xFF130F24};
 
     static boolean dark = false;
     static int P25, P50, P100, P200, P300, P400, P500, P600, P700, P800, P900;
     static int INK, MUTED;
     /** BG רקע מסך, SURFACE כרטיסים וחלונות, LINE קווים, FOCUS מסגרת פוקוס, ON_DARK טקסט על כפתור ראשי. */
     static int BG, SURFACE, LINE, FOCUS, ON_DARK;
+    /** צבעים למשמעות: הצלחה (נאסף) ואזהרה (מחיקה). */
+    static int SUCCESS, DANGER;
     static { applyTheme(false); }
 
     /** מחליף את הפלטה. מסכים שנבנים מעכשיו משתמשים בצבעים החדשים. */
@@ -65,26 +78,30 @@ final class Ui {
         P500 = p[6]; P600 = p[7]; P700 = p[8]; P800 = p[9]; P900 = p[10];
         INK = p[11]; MUTED = p[12]; ON_DARK = p[13];
         BG = P50; SURFACE = P25; LINE = P200; FOCUS = P700;
+        SUCCESS = night ? 0xFF5FD08A : 0xFF1F8A4C;
+        DANGER = night ? 0xFFFF8A80 : 0xFFC62828;
     }
     static final int IMAGE_FOCUS_OUTER=2, IMAGE_FOCUS_INSET=4, IMAGE_FOCUS_INNER=1;
-    static final int SCRIM=0xEB2A1D45;
+    static final int SCRIM=0xEB1E1938;
 
     static final int S1=4, S2=8, S3=12, S4=16, S5=20, S6=24, S8=32;
     /** רווח בין כפתורים גדולים ברשת (שורות ועמודות): מספיק כדי שלא ייראו צמודים, בלי לבזבז מקום. */
     static final int GRID_GAP=10;
-    static final int R_CARD=16, R_BUTTON=14, R_IMAGE=12, R_DIALOG=22;
+    static final int R_CARD=20, R_BUTTON=16, R_IMAGE=12, R_DIALOG=28;
     // גדלי טקסט בסיסיים. בפועל הם מותאמים לרוחב המסך (textScale), כדי שגם במסך קטן של
     // טלפון מקשים הטקסט יהיה גדול וברור אבל ייכנס בלי להיחתך.
-    static final float T_TITLE=24, T_SECTION=16, T_BODY=18, T_NAME=19, T_AMOUNT=26,
-            T_NOTE=16, T_BUTTON=17;
-    static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=400,
+    static final float T_TITLE=24, T_SECTION=17, T_BODY=18, T_NAME=19, T_AMOUNT=26,
+            T_NOTE=16, T_BUTTON=17, T_HINT=15;
+    static final int TAP_MIN=60, PERCENT_WIDTH=64, DIALOG_MAX_WIDTH=420,
             DIALOG_SIDE_MARGIN=24, IMAGE_SAMPLE_MIN=78, MAX_NAME_LINES=3, MAX_NOTE_LINES=2;
     /** גודל אחיד לכל כפתורי האייקון בכותרות. במסכים צרים (מכשירי מקשים) הכפתורים קטנים מעט. */
     static final int ICON_BUTTON=48, ICON_GLYPH=24;
+    /** עובי מסגרת הפוקוס (dp). */
+    static final int FOCUS_STROKE=3;
 
     static int iconButtonDp(Context c) {
         int w=c.getResources().getConfiguration().screenWidthDp;
-        return w < 300 ? 36 : (w < 340 ? 40 : ICON_BUTTON);
+        return w < 300 ? 38 : (w < 340 ? 42 : ICON_BUTTON);
     }
 
     /** האם יש מספיק רוחב לכותרת ולכפתורי האייקון באותה שורה. */
@@ -125,19 +142,23 @@ final class Ui {
         return g;
     }
 
+    /**
+     * רקע לרכיב לחיץ. בפוקוס ובלחיצה: מילוי כהה יותר ומסגרת עבה בצבע הפוקוס, כך שתמיד רואים
+     * איפה המקלדת נמצאת. רכיב מושבת: אפור שקט.
+     */
     static StateListDrawable interactive(Context c,int fill,int border,int fillFocus,int borderFocus,int radiusDp) {
         StateListDrawable s=new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused},shape(c,fillFocus,radiusDp,6,borderFocus));
-        s.addState(new int[]{android.R.attr.state_pressed},shape(c,fillFocus,radiusDp,6,borderFocus));
+        s.addState(new int[]{android.R.attr.state_focused},shape(c,fillFocus,radiusDp,FOCUS_STROKE,borderFocus));
+        s.addState(new int[]{android.R.attr.state_pressed},shape(c,fillFocus,radiusDp,FOCUS_STROKE,borderFocus));
         s.addState(new int[]{-android.R.attr.state_enabled},shape(c,P50,radiusDp,1,P200));
-        s.addState(new int[]{},shape(c,fill,radiusDp,1,border));
+        s.addState(new int[]{},shape(c,fill,radiusDp,border==fill?0:1,border));
         return s;
     }
 
-    /** רקע לשדות טקסט: מסגרת דקה במנוחה, מסגרת סגולה עבה כשהשדה בפוקוס. */
+    /** רקע לשדות טקסט: מסגרת דקה במנוחה, מסגרת עבה בצבע המותג כשהשדה בפוקוס. */
     static StateListDrawable inputBackground(Context c) {
         StateListDrawable s=new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused},shape(c,SURFACE,R_BUTTON,3,P700));
+        s.addState(new int[]{android.R.attr.state_focused},shape(c,SURFACE,R_BUTTON,FOCUS_STROKE,P700));
         s.addState(new int[]{},shape(c,SURFACE,R_BUTTON,1,P300));
         return s;
     }
@@ -145,7 +166,7 @@ final class Ui {
     /** מסגרת פוקוס לרכיבים שאינם כפתורים (מתגים ומחוונים), כדי שיהיה ברור איפה המקלדת נמצאת. */
     static StateListDrawable focusFrame(Context c) {
         StateListDrawable s=new StateListDrawable();
-        s.addState(new int[]{android.R.attr.state_focused},shape(c,P100,R_BUTTON,3,P700));
+        s.addState(new int[]{android.R.attr.state_focused},shape(c,P100,R_BUTTON,FOCUS_STROKE,P700));
         s.addState(new int[]{android.R.attr.state_pressed},shape(c,P100,R_BUTTON,0,0));
         s.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));
         return s;
@@ -182,16 +203,38 @@ final class Ui {
         t.setLayoutParams(row(c,S2,S4)); return t;
     }
 
+    /** כותרת קטע: טקסט מודגש כהה עם מרווח מעל, בלי קווים וקישוטים. */
     static TextView section(Context c,String value) {
-        TextView t=text(c,value,T_SECTION,P700,true);
+        TextView t=text(c,stripEmoji(value),T_SECTION,P900,true);
         t.setLayoutParams(row(c,S5,S2)); return t;
     }
 
+    /** הודעה בולטת: כרטיס בגוון רך עם אייקון מידע. */
     static TextView banner(Context c,String value) {
-        TextView t=text(c,value,T_NOTE,P900,false);
+        TextView t=text(c,"",T_NOTE,INK,false);
+        t.setText(withIcon(c,IC_INFO,value,20));
         t.setBackground(shape(c,P100,R_BUTTON,0,0));
         t.setPadding(dp(c,S4),dp(c,S3),dp(c,S4),dp(c,S3));
         t.setLayoutParams(row(c,0,S3)); return t;
+    }
+
+    /**
+     * הסבר קצר בתוך המסך: שורה או שתיים בטקסט משני, עם אייקון מידע קטן.
+     * מופיע מתחת לכותרות כדי שיהיה ברור מה עושים במסך, בלי חלונות עזרה.
+     */
+    static TextView hint(Context c,String value) {
+        TextView t=text(c,"",T_HINT,MUTED,false);
+        t.setText(withIcon(c,IC_INFO,value,16));
+        t.setLayoutParams(row(c,0,S2));
+        return t;
+    }
+
+    /** כרטיס: משטח לבן עם פינות מעוגלות וקו עדין, לקיבוץ תוכן. */
+    static LinearLayout card(Context c) {
+        LinearLayout l=column(c);
+        l.setBackground(shape(c,SURFACE,R_CARD,1,LINE));
+        l.setPadding(dp(c,S4),dp(c,S3),dp(c,S4),dp(c,S3));
+        return l;
     }
 
     static void styleProgress(Context c,ProgressBar p) {
@@ -203,93 +246,148 @@ final class Ui {
         // בממשק מימין לשמאל אנדרואיד הופך את הפס ואז הוא מתמלא משמאל. נועלים את הכיוון,
         // כך שהמילוי צמוד לימין ומתקדם שמאלה בכל המכשירים.
         if(android.os.Build.VERSION.SDK_INT>=17)p.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        p.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(c,10)));
+        p.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(c,8)));
     }
+
+    static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
+            IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
+            IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13, IC_MORE=14,
+            IC_PLUS=15, IC_MERGE=16, IC_CLOUD=17, IC_SHARE=18,
+            IC_BOX=19, IC_BASKET=20, IC_DOWNLOAD=21, IC_QR=22, IC_BLUETOOTH=23, IC_CLIPBOARD=24,
+            IC_FILE=25, IC_USER=26, IC_TRASH=27, IC_EDIT=28, IC_CHECK=29, IC_PLAY=30, IC_EYE=31,
+            IC_SYNC=32, IC_SUN=33, IC_MOON=34, IC_KEYBOARD=35, IC_SPARKLE=36, IC_LOGOUT=37,
+            IC_KEY=38, IC_SAVE=39, IC_MAIL=40, IC_CHAT=41, IC_MENU=42, IC_CHEVRON_FORWARD=43,
+            IC_FOLDER=44, IC_SEND=45, IC_ARROW_UP=46, IC_ARROW_DOWN=47, IC_MINUS=48, IC_PALETTE=49,
+            IC_COPY=50, IC_HOME=51;
 
     enum Kind { PRIMARY, SOFT, STRONG }
 
+    /** כפתור רגיל: אייקון לפי המשמעות ואחריו הטקסט, במרכז. */
     static Button button(Context c,String label,Kind kind) {
-        return styleButton(c,new Button(c),withEmoji(label),kind);
-    }
-
-    /**
-     * כפתור לתפריט בשתי עמודות, כמו מסך אפליקציות: אימוג׳י גדול למעלה והשם מתחת, ממורכז.
-     */
-    static Button gridButton(Context c,String label,Kind kind) {
-        Button b=button(c,label,kind);
-        String clean=label==null?"":label.trim();
-        String decorated=withEmoji(clean);
-        String emoji=decorated.equals(clean)?"":decorated.substring(0,decorated.indexOf("  "));
-        if(emoji.isEmpty()) b.setText(clean);
-        else {
-            android.text.SpannableString text=new android.text.SpannableString(emoji+"\n"+clean);
-            text.setSpan(new android.text.style.RelativeSizeSpan(1.6f),0,emoji.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            b.setText(text);
-        }
-        b.setGravity(Gravity.CENTER);
-        b.setMaxLines(Integer.MAX_VALUE); // טקסט לעולם לא נחתך
-        b.setMinHeight(dp(c,76));
-        b.setMinimumHeight(dp(c,76));
-        b.setPadding(dp(c,S3),dp(c,S2),dp(c,S3),dp(c,S2));
-        b.setLineSpacing(dp(c,2),1f);
+        Button b=styleButton(c,new Button(c),"",kind);
+        String clean=stripEmoji(label);
+        int icon=iconFor(clean);
+        b.setText(icon==0?clean:withIcon(c,icon,clean,20));
+        b.setContentDescription(clean);
         return b;
     }
 
     /**
-     * אימוג׳י שמתאים לטקסט הכפתור, לפי מילות מפתח (הכלל הראשון שמתאים קובע).
-     * "סגירה" ו"ביטול" נשארים בלי אימוג׳י, כי הם מוחלפים אוטומטית בכפתור X.
+     * כפתור לתפריט בשתי עמודות, כמו מסך אפליקציות: אייקון גדול למעלה והשם מתחת, ממורכז.
      */
-    private static final String[][] BUTTON_EMOJI = {
-            {"מחיקת המסומנות", "🗑️"}, {"סיום ניהול", "✅"}, {"הפיכה לרשימת איסוף", "📋"}, {"צירוף לרשימת האיסוף", "➕"}, {"צירוף הזמנה מהעבר", "🕘"},
-            {"יציאה מרשימת האיסוף", "🚪"}, {"הזמנה מאוחדת חדשה", "🧩"}, {"רשימה מאוחדת חדשה", "🧩"}, {"הבאת ההזמנה", "☁️"}, {"הבאת הרשימה", "☁️"}, {"הבנתי ומסכים", "✅"},
-            {"הזמנות והגדרות", "⚙️"}, {"פעולות להזמנה", "⚙️"},
-            {"קבלה בבלוטות'", "📲"}, {"בלוטות'", "📲"}, {"הדבקת טקסט", "✍️"}, {"הדבקה", "✍️"},
-            {"הזמנה קודמת", "🕘"}, {"הזמנה ריקה", "📝"}, {"רשימה ריקה", "📝"}, {"צירוף להזמנה קיימת", "📋"}, {"הוספה לרשימה קיימת", "📋"},
-            {"סריקת קוד QR", "📷"}, {"כיבוי סנכרון", "⏸"}, {"הפעלת סנכרון", "🔄"}, {"מה חדש", "✨"}, {"קוד QR לסריקה", "📱"}, {"תצוגה וצליל", "🎨"}, {"איפוס לברירת המחדל", "♻️"}, {"בהיר", "☀️"}, {"כהה", "🌙"}, {"לפי המכשיר", "📱"},
-            {"וואטסאפ", "💬"}, {"SMS", "📱"}, {"במייל", "📧"}, {"שמירה במכשיר", "💾"}, {"העתקה ללוח", "📋"}, {"אפליקציה אחרת", "📤"},
-            {"קובץ JSON", "🗂️"}, {"קובץ טקסט", "📄"}, {"קובץ ZIP", "🗜️"},
-            {"בענן", "☁️"}, {"מהענן", "☁️"}, {"שרת הענן", "☁️"}, {"שליחת המספר", "📨"}, {"מדריך המקשים", "⌨️"},
-            {"חזרה להזמנה העדכנית", "🛒"}, {"ההזמנה העדכנית", "🛒"}, {"חזרה להגדרות", "⚙️"},
-            {"ייבוא הזמנה", "🕘"}, {"הזמנות קודמות", "🕘"}, {"הוספת ההזמנה", "🧾"},
-            {"התחבר מחדש", "🔑"}, {"התנתק", "🚪"}, {"התחבר", "🔐"}, {"ניהול חיבורים", "👥"},
-            {"הפוך לחשבון הפעיל", "⭐"}, {"הוספת חשבון", "👤"}, {"הוסף חשבון", "👤"},
-            {"סנכרן", "🔄"}, {"סנכרון", "🔄"}, {"לנסות שוב", "🔁"}, {"החלפה", "🔁"}, {"טוען", "⏳"},
-            {"ניהול רשימות", "📚"}, {"ניהול הזמנות", "📦"}, {"רשימות איסוף", "📋"}, {"שיתוף באפליקציה אחרת", "📤"}, {"רשימות שמורות", "📚"}, {"כל הרשימות", "📚"}, {"הצגת הרשימה השמורה", "📋"},
-            {"רשימה חדשה", "➕"}, {"יצירת", "➕"}, {"איחוד", "🔗"}, {"מיזוג", "🔀"}, {"מזג", "🔀"},
-            {"ייצוא", "📤"}, {"מתיקיית", "📁"}, {"ייבוא", "📥"}, {"ייבא", "📥"},
-{"מחיקת", "🗑"}, {"מחיקה", "🗑"}, {"מחק", "🗑"}, {"הסר", "🗑"}, {"שינוי שם", "✏️"},
-            {"פתיחת המיקום", "📍"}, {"חיוג", "📞"}, {"פתיחה", "📂"}, {"פתיחת", "📂"},
-            {"שמירה", "💾"}, {"שמור", "💾"}, {"אישור", "✅"}, {"איפוס", "♻️"},
-            {"הוסף", "➕"}, {"הוספה", "➕"}, {"עדכן", "🔄"}, {"פעולות", "⋯"},
-            {"הגדרות", "⚙️"}, {"מה חדש", "✨"}, {"מנותק", "👤"}, {"מחובר", "👤"}, {"פעיל", "👤"},
-            {"מיובאת", "📄"}};
+    static Button gridButton(Context c,String label,Kind kind) {
+        Button b=styleButton(c,new Button(c),"",kind);
+        String clean=stripEmoji(label);
+        int icon=iconFor(clean);
+        b.setText(icon==0?clean:iconAbove(c,icon,clean,28));
+        b.setContentDescription(clean);
+        b.setGravity(Gravity.CENTER);
+        b.setMaxLines(Integer.MAX_VALUE); // טקסט לעולם לא נחתך
+        b.setMinHeight(dp(c,84));
+        b.setMinimumHeight(dp(c,84));
+        b.setPadding(dp(c,S3),dp(c,S3),dp(c,S3),dp(c,S3));
+        b.setLineSpacing(dp(c,3),1f);
+        return b;
+    }
 
-    static String withEmoji(String label) {
-        if (label == null) return "";
+    /**
+     * אייקון לכל כפתור לפי מילות מפתח בטקסט שלו (הכלל הראשון שמתאים קובע).
+     * "סגירה" ו"ביטול" נשארים בלי אייקון, כי הם מוחלפים אוטומטית בכפתור X.
+     */
+    private static final Object[][] BUTTON_ICONS = {
+            {"מחיקת המסומנות", IC_TRASH}, {"סיום", IC_CHECK}, {"הבנתי", IC_CHECK}, {"אישור", IC_CHECK},
+            {"פתיחה לאיסוף", IC_PLAY}, {"לאיסוף", IC_PLAY}, {"פתיחת רשימת", IC_PLAY},
+            {"רשימת איסוף", IC_BASKET}, {"רשימות איסוף", IC_BASKET}, {"לרשימת", IC_BASKET}, {"לרשימה", IC_BASKET},
+            {"יציאה", IC_LOGOUT}, {"מאוחדת", IC_MERGE}, {"איחוד", IC_MERGE}, {"מיזוג", IC_MERGE}, {"מזג", IC_MERGE},
+            {"מחיקת", IC_TRASH}, {"מחיקה", IC_TRASH}, {"מחק", IC_TRASH}, {"הסר", IC_TRASH},
+            {"הוצאה", IC_MINUS}, {"הבאת", IC_CLOUD}, {"ענן", IC_CLOUD},
+            {"בלוטות'", IC_BLUETOOTH}, {"הדבקת", IC_CLIPBOARD}, {"הדבקה", IC_CLIPBOARD}, {"העתקה", IC_COPY},
+            {"קודמת", IC_HISTORY}, {"קודמות", IC_HISTORY}, {"מהעבר", IC_HISTORY},
+            {"QR", IC_QR}, {"מה חדש", IC_SPARKLE}, {"תצוגה", IC_PALETTE}, {"לברירת המחדל", IC_RESET},
+            {"בהיר", IC_SUN}, {"כהה", IC_MOON}, {"לפי המכשיר", IC_PHONE},
+            {"וואטסאפ", IC_CHAT}, {"SMS", IC_CHAT}, {"מייל", IC_MAIL}, {"שמירה במכשיר", IC_SAVE},
+            {"אפליקציה אחרת", IC_SEND}, {"שליחת", IC_SEND}, {"קובץ טקסט", IC_FILE}, {"TXT", IC_FILE},
+            {"ZIP", IC_FOLDER}, {"מקובץ", IC_FILE}, {"קובץ", IC_FILE},
+            {"מקשים", IC_KEYBOARD}, {"הגדרות", IC_SETTINGS},
+            {"ייבוא", IC_DOWNLOAD}, {"ייבא", IC_DOWNLOAD},
+            {"התחבר מחדש", IC_KEY}, {"התנתק", IC_LOGOUT}, {"התחבר", IC_KEY}, {"התחברות", IC_KEY},
+            {"חיבורים", IC_USER}, {"חשבון", IC_USER}, {"מנותק", IC_USER}, {"מחובר", IC_USER},
+            {"סנכר", IC_SYNC}, {"לנסות שוב", IC_SYNC}, {"עדכן", IC_SYNC}, {"החלפה", IC_SYNC},
+            {"שיתוף", IC_SHARE}, {"ייצוא", IC_SHARE},
+            {"הוספת הזמנ", IC_PLUS}, {"הזמנה חדשה", IC_PLUS}, {"חדשה", IC_PLUS}, {"יצירת", IC_PLUS},
+            {"הוסף", IC_PLUS}, {"הוספה", IC_PLUS}, {"צירוף", IC_PLUS},
+            {"הזמנות", IC_BOX}, {"הזמנה", IC_BOX},
+            {"שינוי שם", IC_EDIT}, {"שם", IC_EDIT}, {"עריכ", IC_EDIT},
+            {"המיקום", IC_MAP}, {"חיוג", IC_PHONE}, {"הצגת", IC_EYE}, {"פתיחת", IC_PLAY}, {"פתיחה", IC_PLAY},
+            {"שמירה", IC_SAVE}, {"שמור", IC_SAVE}, {"איפוס", IC_RESET},
+            {"למעלה", IC_ARROW_UP}, {"למטה", IC_ARROW_DOWN}, {"פעולות", IC_MORE}, {"תמונות", IC_PHOTO},
+            {"חזרה", IC_BACK}};
+
+    /** האייקון שמתאים לטקסט של כפתור, או 0. */
+    static int iconFor(String label) {
+        if (label == null) return 0;
         String clean = label.trim();
-        if (clean.isEmpty() || "סגירה".equals(clean) || "ביטול".equals(clean)) return label;
-        // כבר מתחיל באימוג׳י או בסמל - לא מוסיפים שוב.
-        if (Character.isSurrogate(clean.charAt(0)) || clean.charAt(0) > 0x2000 && clean.charAt(0) < 0x2BFF) return label;
-        for (String[] rule : BUTTON_EMOJI) if (clean.contains(rule[0])) return rule[1] + "  " + clean;
-        return label;
+        if (clean.isEmpty() || "סגירה".equals(clean) || "ביטול".equals(clean)) return 0;
+        for (Object[] rule : BUTTON_ICONS) if (clean.contains((String) rule[0])) return (Integer) rule[1];
+        return 0;
+    }
+
+    /** מסיר אימוג׳י או סמל מתחילת טקסט (הכפתורים מקבלים אייקון וקטורי במקומם). */
+    static String stripEmoji(String label) {
+        if (label == null) return "";
+        String s = label.trim();
+        int i = 0;
+        while (i < s.length()) {
+            char ch = s.charAt(i);
+            if (Character.isSurrogate(ch) || (ch >= 0x2000 && ch <= 0x2BFF) || ch == 0xFE0F || ch == 0x200D) { i++; continue; }
+            break;
+        }
+        return i == 0 ? s : s.substring(i).trim();
+    }
+
+    /** תאימות: בעבר הוסיף אימוג׳י; היום מחזיר את הטקסט הנקי (האייקון מצויר בכפתור עצמו). */
+    static String withEmoji(String label) { return stripEmoji(label); }
+
+    /** טקסט עם אייקון וקטורי בתחילתו, באותו צבע של הטקסט. */
+    static CharSequence withIcon(Context c, int icon, String text, int sizeDp) {
+        android.text.SpannableStringBuilder s = new android.text.SpannableStringBuilder("￼  ");
+        s.setSpan(new IconSpan(new IconDrawable(c, icon, INK, sizeDp, 1f), dp(c, sizeDp)), 0, 1,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        s.append(text == null ? "" : text);
+        return s;
+    }
+
+    /** אייקון בשורה משלו ומתחתיו הטקסט (לאריחים ולכפתורי רשת). */
+    static CharSequence iconAbove(Context c, int icon, String text, int sizeDp) {
+        android.text.SpannableStringBuilder s = new android.text.SpannableStringBuilder("￼\n");
+        s.setSpan(new IconSpan(new IconDrawable(c, icon, INK, sizeDp, 1f), dp(c, sizeDp)), 0, 1,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        s.append(text == null ? "" : text);
+        return s;
+    }
+
+    /** צבעי טקסט לכפתור: רגיל, ומושבת (חיוור). האייקון בטקסט מקבל את אותו צבע. */
+    private static ColorStateList buttonText(int color) {
+        int disabled = (color & 0x00FFFFFF) | 0x66000000;
+        return new ColorStateList(new int[][]{{-android.R.attr.state_enabled}, {}}, new int[]{disabled, color});
     }
 
     private static Button styleButton(Context c,Button b,String label,Kind kind) {
         int fill,border,focusFill,focusBorder,color;
         switch(kind) {
             case PRIMARY: fill=P600;border=P600;focusFill=P700;focusBorder=P900;color=ON_DARK;break;
-            case STRONG: fill=P900;border=P900;focusFill=P800;focusBorder=P400;color=ON_DARK;break;
-            default: fill=P100;border=P300;focusFill=P200;focusBorder=P700;color=P800;break;
+            case STRONG: fill=P800;border=P800;focusFill=P900;focusBorder=P400;color=ON_DARK;break;
+            default: fill=P100;border=P100;focusFill=P200;focusBorder=FOCUS;color=P800;break;
         }
         b.setId(View.generateViewId()); b.setText(label);
         b.setAllCaps(false); b.setTextSize(TypedValue.COMPLEX_UNIT_SP,T_BUTTON*textScale(c));
-        b.setTypeface(FONT_MEDIUM); b.setTextColor(color);
+        b.setTypeface(FONT_MEDIUM); b.setTextColor(buttonText(color));
         b.setIncludeFontPadding(true); b.setLineSpacing(0f,1.08f);
         if(Build.VERSION.SDK_INT>=21) b.setStateListAnimator(null);
         b.setFocusable(true); b.setFocusableInTouchMode(false);
         b.setBackground(interactive(c,fill,border,focusFill,focusBorder,R_BUTTON));
         // גובה מינימלי נוח ללחיצה ולפוקוס במקלדת; טקסט ארוך יורד שורה ולא נחתך.
-        b.setMinHeight(dp(c,48)); b.setMinimumHeight(dp(c,48));
+        b.setMinHeight(dp(c,50)); b.setMinimumHeight(dp(c,50));
         // Default breathing room for every vertically stacked action button.
         // Call sites in horizontal button groups provide their own side margins.
         b.setLayoutParams(row(c,S2,S2));
@@ -312,15 +410,61 @@ final class Ui {
     // ולכן הם חדים בכל גודל ובכל צפיפות מסך, ואינם תלויים בגופן האימוג׳י של המכשיר.
     // ---------------------------------------------------------------------
 
-    static final int IC_SETTINGS=1, IC_RESET=2, IC_LIST_SINGLE=3, IC_LIST_STACK=4,
-            IC_BACK=5, IC_CLOSE=6, IC_SEARCH=7, IC_PHOTO=8, IC_HISTORY=9, IC_INFO=10,
-            IC_MAP=11, IC_PHONE=12, IC_CHEVRON_DOWN=13, IC_MORE=14,
-            IC_PLUS=15, IC_MERGE=16, IC_CLOUD=17, IC_SHARE=18;
+
+    /** אייקון כטקסט בתוך שורה: ממורכז לגובה השורה ובצבע הטקסט שמסביבו. */
+    static final class IconSpan extends android.text.style.ReplacementSpan {
+        private final IconDrawable icon;
+        private final int size;
+        IconSpan(IconDrawable icon, int sizePx) { this.icon = icon; this.size = sizePx; }
+        @Override public int getSize(Paint paint, CharSequence text, int start, int end, Paint.FontMetricsInt fm) {
+            if (fm != null) {
+                Paint.FontMetricsInt p = paint.getFontMetricsInt();
+                int textHeight = p.descent - p.ascent;
+                int extra = Math.max(0, size - textHeight);
+                fm.ascent = p.ascent - extra / 2; fm.top = Math.min(p.top, fm.ascent);
+                fm.descent = p.descent + (extra - extra / 2); fm.bottom = Math.max(p.bottom, fm.descent);
+            }
+            return size;
+        }
+        @Override public void draw(Canvas canvas, CharSequence text, int start, int end, float x,
+                                   int top, int y, int bottom, Paint paint) {
+            Paint.FontMetricsInt p = paint.getFontMetricsInt();
+            float centerY = y + (p.ascent + p.descent) / 2f;
+            int l = Math.round(x), t = Math.round(centerY - size / 2f);
+            icon.setColor(paint.getColor());
+            icon.setBounds(l, t, l + size, t + size);
+            icon.draw(canvas);
+        }
+    }
+
+    /** עיגול בגוון רך עם אייקון באמצע: לתחילת שורות ברשימה. */
+    static final class IconBubble extends Drawable {
+        private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final IconDrawable icon;
+        private final int size;
+        IconBubble(Context c, int iconId, int bgColor, int iconColor, int sizeDp) {
+            bg.setColor(bgColor);
+            icon = new IconDrawable(c, iconId, iconColor, 0, 0.56f);
+            size = dp(c, sizeDp);
+        }
+        @Override public void draw(Canvas canvas) {
+            Rect b = getBounds();
+            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), Math.min(b.width(), b.height()) / 2f, bg);
+            icon.setBounds(b);
+            icon.draw(canvas);
+        }
+        @Override public void setAlpha(int alpha) { bg.setAlpha(alpha); icon.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) { bg.setColorFilter(filter); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+        @Override public int getIntrinsicWidth() { return size; }
+        @Override public int getIntrinsicHeight() { return size; }
+    }
 
     static final class IconDrawable extends Drawable {
         private final Paint stroke=new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint fill=new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path=new Path();
+        private final Path cut=new Path();
         private final RectF box=new RectF();
         private final int icon, intrinsic;
         private final float fraction;
@@ -334,7 +478,10 @@ final class Ui {
             fill.setStyle(Paint.Style.FILL); fill.setColor(color);
         }
 
-        void setColor(int color) { stroke.setColor(color); fill.setColor(color); invalidateSelf(); }
+        void setColor(int color) {
+            if (stroke.getColor() == color) return;
+            stroke.setColor(color); fill.setColor(color); invalidateSelf();
+        }
 
         @Override public void draw(Canvas canvas) {
             Rect b=getBounds();
@@ -374,6 +521,8 @@ final class Ui {
                     canvas.drawPath(path,stroke); canvas.drawCircle(12f,9.5f,2.4f,stroke); break;
                 case IC_PLUS:
                     canvas.drawLine(12f,5f,12f,19f,stroke); canvas.drawLine(5f,12f,19f,12f,stroke); break;
+                case IC_MINUS:
+                    canvas.drawCircle(12f,12f,9f,stroke); canvas.drawLine(8f,12f,16f,12f,stroke); break;
                 case IC_MERGE:
                     path.reset();
                     path.moveTo(6f,3.5f); path.lineTo(6f,9f); path.lineTo(12f,15f); path.lineTo(12f,20.5f);
@@ -398,12 +547,194 @@ final class Ui {
                 case IC_CHEVRON_DOWN:
                     path.reset(); path.moveTo(6f,9.5f); path.lineTo(12f,15.5f); path.lineTo(18f,9.5f);
                     stroke.setStrokeWidth(2.4f); canvas.drawPath(path,stroke); break;
+                case IC_CHEVRON_FORWARD:
+                    // "קדימה" בעברית: חץ שמאלה.
+                    path.reset(); path.moveTo(14.5f,6f); path.lineTo(8.5f,12f); path.lineTo(14.5f,18f);
+                    stroke.setStrokeWidth(2.4f); canvas.drawPath(path,stroke); break;
                 case IC_PHONE:
                     box.set(7f,2.5f,17f,21.5f); canvas.drawRoundRect(box,2.2f,2.2f,stroke);
                     canvas.drawLine(10.5f,18.3f,13.5f,18.3f,stroke); break;
+                case IC_BOX:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(3.5f,7.5f); path.lineTo(12f,3f); path.lineTo(20.5f,7.5f);
+                    path.lineTo(20.5f,16.5f); path.lineTo(12f,21f); path.lineTo(3.5f,16.5f); path.close();
+                    path.moveTo(3.5f,7.5f); path.lineTo(12f,12f); path.lineTo(20.5f,7.5f);
+                    path.moveTo(12f,12f); path.lineTo(12f,21f);
+                    path.moveTo(7.8f,5.2f); path.lineTo(16.2f,9.8f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_BASKET:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(2.8f,9.5f); path.lineTo(21.2f,9.5f); path.lineTo(19f,19.8f);
+                    path.lineTo(5f,19.8f); path.close();
+                    path.moveTo(7.5f,9.5f); path.lineTo(10.5f,4f);
+                    path.moveTo(16.5f,9.5f); path.lineTo(13.5f,4f);
+                    path.moveTo(9f,12.8f); path.lineTo(9.4f,16.6f);
+                    path.moveTo(12f,12.8f); path.lineTo(12f,16.6f);
+                    path.moveTo(15f,12.8f); path.lineTo(14.6f,16.6f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_DOWNLOAD:
+                    path.reset(); path.moveTo(12f,3.5f); path.lineTo(12f,14.5f);
+                    path.moveTo(7.5f,10f); path.lineTo(12f,14.5f); path.lineTo(16.5f,10f);
+                    path.moveTo(4f,15.5f); path.lineTo(4f,19.5f); path.lineTo(20f,19.5f); path.lineTo(20f,15.5f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_QR:
+                    stroke.setStrokeWidth(1.7f);
+                    box.set(3.5f,3.5f,9.5f,9.5f); canvas.drawRoundRect(box,1.2f,1.2f,stroke);
+                    box.set(14.5f,3.5f,20.5f,9.5f); canvas.drawRoundRect(box,1.2f,1.2f,stroke);
+                    box.set(3.5f,14.5f,9.5f,20.5f); canvas.drawRoundRect(box,1.2f,1.2f,stroke);
+                    canvas.drawRect(5.6f,5.6f,7.4f,7.4f,fill); canvas.drawRect(16.6f,5.6f,18.4f,7.4f,fill);
+                    canvas.drawRect(5.6f,16.6f,7.4f,18.4f,fill);
+                    canvas.drawRect(14.5f,14.5f,16.5f,16.5f,fill); canvas.drawRect(18.5f,14.5f,20.5f,16.5f,fill);
+                    canvas.drawRect(16.5f,16.5f,18.5f,18.5f,fill); canvas.drawRect(14.5f,18.5f,16.5f,20.5f,fill);
+                    canvas.drawRect(18.5f,18.5f,20.5f,20.5f,fill); break;
+                case IC_BLUETOOTH:
+                    path.reset(); path.moveTo(7f,7.5f); path.lineTo(17f,16.5f); path.lineTo(12f,21f);
+                    path.lineTo(12f,3f); path.lineTo(17f,7.5f); path.lineTo(7f,16.5f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_CLIPBOARD:
+                    stroke.setStrokeWidth(1.8f);
+                    box.set(5f,4.5f,19f,21f); canvas.drawRoundRect(box,2f,2f,stroke);
+                    box.set(9f,2.5f,15f,6.5f); canvas.drawRoundRect(box,1.2f,1.2f,stroke);
+                    canvas.drawLine(8.5f,11f,15.5f,11f,stroke); canvas.drawLine(8.5f,15f,13.5f,15f,stroke); break;
+                case IC_COPY:
+                    stroke.setStrokeWidth(1.8f);
+                    box.set(8f,8f,20f,20f); canvas.drawRoundRect(box,2f,2f,stroke);
+                    path.reset(); path.moveTo(16f,8f); path.lineTo(16f,5.5f); path.quadTo(16f,4f,14.5f,4f);
+                    path.lineTo(5.5f,4f); path.quadTo(4f,4f,4f,5.5f); path.lineTo(4f,14.5f); path.quadTo(4f,16f,5.5f,16f); path.lineTo(8f,16f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_FILE:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(6f,2.5f); path.lineTo(14f,2.5f); path.lineTo(19f,7.5f);
+                    path.lineTo(19f,21.5f); path.lineTo(6f,21.5f); path.close();
+                    path.moveTo(14f,2.5f); path.lineTo(14f,7.5f); path.lineTo(19f,7.5f);
+                    canvas.drawPath(path,stroke);
+                    canvas.drawLine(9f,12.5f,16f,12.5f,stroke); canvas.drawLine(9f,16.5f,14f,16.5f,stroke); break;
+                case IC_FOLDER:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(3f,6f); path.lineTo(9.5f,6f); path.lineTo(11.5f,8.5f);
+                    path.lineTo(21f,8.5f); path.lineTo(21f,19f); path.lineTo(3f,19f); path.close();
+                    canvas.drawPath(path,stroke); break;
+                case IC_USER:
+                    canvas.drawCircle(12f,8f,4f,stroke);
+                    path.reset(); path.moveTo(4.5f,20.5f); path.cubicTo(5f,15.6f,8.4f,13.6f,12f,13.6f);
+                    path.cubicTo(15.6f,13.6f,19f,15.6f,19.5f,20.5f); canvas.drawPath(path,stroke); break;
+                case IC_TRASH:
+                    stroke.setStrokeWidth(1.8f);
+                    canvas.drawLine(4f,6.5f,20f,6.5f,stroke);
+                    path.reset(); path.moveTo(9.5f,6.5f); path.lineTo(9.5f,3.8f); path.lineTo(14.5f,3.8f); path.lineTo(14.5f,6.5f);
+                    path.moveTo(6f,6.5f); path.lineTo(7f,20.5f); path.lineTo(17f,20.5f); path.lineTo(18f,6.5f);
+                    canvas.drawPath(path,stroke);
+                    canvas.drawLine(10f,10.5f,10f,16.5f,stroke); canvas.drawLine(14f,10.5f,14f,16.5f,stroke); break;
+                case IC_EDIT:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(4f,20f); path.lineTo(4.8f,16.2f); path.lineTo(15.5f,5.5f);
+                    path.lineTo(18.5f,8.5f); path.lineTo(7.8f,19.2f); path.close();
+                    path.moveTo(13.3f,7.7f); path.lineTo(16.3f,10.7f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_CHECK:
+                    path.reset(); path.moveTo(5f,12.5f); path.lineTo(10f,17.5f); path.lineTo(19f,7f);
+                    stroke.setStrokeWidth(2.4f); canvas.drawPath(path,stroke); break;
+                case IC_PLAY:
+                    path.reset(); path.moveTo(8f,5f); path.lineTo(19f,12f); path.lineTo(8f,19f); path.close();
+                    canvas.drawPath(path,stroke); break;
+                case IC_EYE:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(2.5f,12f); path.cubicTo(5f,7f,8.5f,5f,12f,5f);
+                    path.cubicTo(15.5f,5f,19f,7f,21.5f,12f); path.cubicTo(19f,17f,15.5f,19f,12f,19f);
+                    path.cubicTo(8.5f,19f,5f,17f,2.5f,12f); path.close();
+                    canvas.drawPath(path,stroke); canvas.drawCircle(12f,12f,3f,stroke); break;
+                case IC_SYNC:
+                    drawArrowArc(canvas,-160f,150f); drawArrowArc(canvas,20f,150f); break;
+                case IC_SUN:
+                    canvas.drawCircle(12f,12f,4f,stroke);
+                    for(int k=0;k<8;k++){double a=Math.toRadians(k*45);
+                        canvas.drawLine((float)(12+7*Math.cos(a)),(float)(12+7*Math.sin(a)),
+                                (float)(12+9.5*Math.cos(a)),(float)(12+9.5*Math.sin(a)),stroke);} break;
+                case IC_MOON:
+                    path.reset(); path.addCircle(11f,13f,8f,Path.Direction.CW);
+                    cut.reset(); cut.addCircle(16.5f,8f,6.5f,Path.Direction.CW);
+                    if(Build.VERSION.SDK_INT>=19) path.op(cut,Path.Op.DIFFERENCE);
+                    canvas.drawPath(path,stroke); break;
+                case IC_KEYBOARD:
+                    stroke.setStrokeWidth(1.8f);
+                    box.set(2.5f,6.5f,21.5f,18f); canvas.drawRoundRect(box,2f,2f,stroke);
+                    for(int k=0;k<5;k++){canvas.drawCircle(6f+k*3f,10f,0.9f,fill);canvas.drawCircle(6f+k*3f,12.8f,0.9f,fill);}
+                    canvas.drawLine(8.5f,15.4f,15.5f,15.4f,stroke); break;
+                case IC_SPARKLE:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(11f,3f); path.lineTo(12.8f,9.2f); path.lineTo(19f,11f);
+                    path.lineTo(12.8f,12.8f); path.lineTo(11f,19f); path.lineTo(9.2f,12.8f); path.lineTo(3f,11f);
+                    path.lineTo(9.2f,9.2f); path.close(); canvas.drawPath(path,stroke);
+                    canvas.drawLine(19f,16f,19f,21f,stroke); canvas.drawLine(16.5f,18.5f,21.5f,18.5f,stroke); break;
+                case IC_LOGOUT:
+                    path.reset(); path.moveTo(13f,4f); path.lineTo(5f,4f); path.lineTo(5f,20f); path.lineTo(13f,20f);
+                    path.moveTo(10f,12f); path.lineTo(20f,12f); path.moveTo(16.5f,8.5f); path.lineTo(20f,12f); path.lineTo(16.5f,15.5f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_KEY:
+                    canvas.drawCircle(8f,12f,4f,stroke);
+                    path.reset(); path.moveTo(12f,12f); path.lineTo(21f,12f); path.moveTo(18f,12f); path.lineTo(18f,15.5f);
+                    path.moveTo(15f,12f); path.lineTo(15f,14.5f); canvas.drawPath(path,stroke); break;
+                case IC_SAVE:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(4f,4f); path.lineTo(17f,4f); path.lineTo(20f,7f); path.lineTo(20f,20f);
+                    path.lineTo(4f,20f); path.close(); path.moveTo(8f,4f); path.lineTo(8f,9f); path.lineTo(15f,9f); path.lineTo(15f,4f);
+                    canvas.drawPath(path,stroke); box.set(7f,13.5f,17f,20f); canvas.drawRect(box,stroke); break;
+                case IC_MAIL:
+                    stroke.setStrokeWidth(1.8f);
+                    box.set(3f,5.5f,21f,18.5f); canvas.drawRoundRect(box,2f,2f,stroke);
+                    path.reset(); path.moveTo(3.8f,6.8f); path.lineTo(12f,13f); path.lineTo(20.2f,6.8f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_CHAT:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(7f,4f); path.lineTo(17f,4f); path.quadTo(21f,4f,21f,8f); path.lineTo(21f,12.5f);
+                    path.quadTo(21f,16.5f,17f,16.5f); path.lineTo(11.5f,16.5f); path.lineTo(6.5f,20.5f); path.lineTo(7f,16.5f);
+                    path.quadTo(3f,16.5f,3f,12.5f); path.lineTo(3f,8f); path.quadTo(3f,4f,7f,4f); path.close();
+                    canvas.drawPath(path,stroke); break;
+                case IC_MENU:
+                    canvas.drawLine(4f,6.5f,20f,6.5f,stroke); canvas.drawLine(4f,12f,20f,12f,stroke);
+                    canvas.drawLine(4f,17.5f,20f,17.5f,stroke); break;
+                case IC_SEND:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(3f,11f); path.lineTo(21f,3f); path.lineTo(14f,21f); path.lineTo(11f,13.5f); path.close();
+                    path.moveTo(11f,13.5f); path.lineTo(21f,3f); canvas.drawPath(path,stroke); break;
+                case IC_ARROW_UP:
+                    path.reset(); path.moveTo(12f,19f); path.lineTo(12f,5f); path.moveTo(6.5f,10.5f); path.lineTo(12f,5f); path.lineTo(17.5f,10.5f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_ARROW_DOWN:
+                    path.reset(); path.moveTo(12f,5f); path.lineTo(12f,19f); path.moveTo(6.5f,13.5f); path.lineTo(12f,19f); path.lineTo(17.5f,13.5f);
+                    canvas.drawPath(path,stroke); break;
+                case IC_PALETTE:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(12f,3f); path.cubicTo(6.5f,3f,3f,7f,3f,12f); path.cubicTo(3f,17f,7f,21f,11.5f,21f);
+                    path.cubicTo(13f,21f,13.5f,19.8f,12.8f,18.6f); path.cubicTo(12f,17.2f,12.8f,15.6f,14.5f,15.6f);
+                    path.lineTo(17f,15.6f); path.cubicTo(19.4f,15.6f,21f,14f,21f,11.5f); path.cubicTo(21f,6.8f,17f,3f,12f,3f); path.close();
+                    canvas.drawPath(path,stroke);
+                    canvas.drawCircle(7.8f,11f,1.3f,fill); canvas.drawCircle(10.5f,7.2f,1.3f,fill); canvas.drawCircle(15.5f,7.8f,1.3f,fill); break;
+                case IC_HOME:
+                    stroke.setStrokeWidth(1.8f);
+                    path.reset(); path.moveTo(3.5f,11f); path.lineTo(12f,3.8f); path.lineTo(20.5f,11f);
+                    path.moveTo(6f,9f); path.lineTo(6f,20f); path.lineTo(18f,20f); path.lineTo(18f,9f);
+                    canvas.drawPath(path,stroke); break;
                 default: break;
             }
             canvas.restoreToCount(save);
+        }
+
+        /** קשת עם ראש חץ בסופה (לסנכרון). */
+        private void drawArrowArc(Canvas canvas,float start,float sweep) {
+            float r=7.6f;
+            box.set(12-r,12-r,12+r,12+r);
+            canvas.drawArc(box,start,sweep,false,stroke);
+            double end=Math.toRadians(start+sweep);
+            float px=(float)(12+r*Math.cos(end)), py=(float)(12+r*Math.sin(end));
+            float tx=(float)-Math.sin(end), ty=(float)Math.cos(end);
+            float nx=(float)Math.cos(end), ny=(float)Math.sin(end);
+            path.reset();
+            path.moveTo(px+tx*3f,py+ty*3f);
+            path.lineTo(px+nx*2.7f-tx*0.5f,py+ny*2.7f-ty*0.5f);
+            path.lineTo(px-nx*2.7f-tx*0.5f,py-ny*2.7f-ty*0.5f);
+            path.close();
+            canvas.drawPath(path,fill);
         }
 
         private void drawGear(Canvas canvas) {
@@ -490,6 +821,7 @@ final class Ui {
         @Override public int getIntrinsicHeight() { return intrinsic; }
     }
 
+
     /** כפתור שמצייר אייקון וקטורי במרכזו, עם אותו רקע, פוקוס והודעת פעולה כמו שאר הכפתורים. */
     static final class IconButton extends Button {
         private final IconDrawable icon;
@@ -508,25 +840,39 @@ final class Ui {
         }
     }
 
-    /** כפתור אייקון בגודל אחיד. active מסמן מצב בחירה (למשל מצב התצוגה הפעיל). */
+    /** כפתור אייקון עגול בגודל אחיד. active מסמן מצב בחירה (למשל מצב התצוגה הפעיל). */
     static Button iconButton(Context c,int icon,String description,boolean active) {
-        IconButton b=new IconButton(c,new IconDrawable(c,icon,active?P900:P700,ICON_GLYPH,1f),ICON_GLYPH);
+        IconButton b=new IconButton(c,new IconDrawable(c,icon,active?ON_DARK:P800,ICON_GLYPH,1f),ICON_GLYPH);
         styleButton(c,b,"",Kind.SOFT);
         b.setPadding(0,0,0,0);
         b.setMinWidth(0); b.setMinimumWidth(0);
+        b.setMinHeight(0); b.setMinimumHeight(0);
         b.setContentDescription(description);
-        b.setBackground(interactive(c,active?P200:SURFACE,active?P600:P200,
-                active?P300:P100,active?P900:P700,R_BUTTON));
-        b.setLayoutParams(new LinearLayout.LayoutParams(dp(c,iconButtonDp(c)),dp(c,iconButtonDp(c))));
+        int size=iconButtonDp(c);
+        b.setBackground(interactive(c,active?P600:P100,active?P600:P100,
+                active?P700:P200,active?P900:FOCUS,size/2));
+        b.setLayoutParams(new LinearLayout.LayoutParams(dp(c,size),dp(c,size)));
         return b;
     }
 
-    /** אריח פעולה: אייקון ומתחתיו תווית קצרה. כמה אריחים בשורה אחת מקבצים פעולות קבועות בראש מסך. */
     /**
-     * אריח ריבועי גדול למסך הפתיחה: מעבר צבעים, פינות מעוגלות, צל, אימוג׳י שנושם בעדינות,
+     * אריח ריבועי גדול (מסך הבית כשאין עדיין הזמנות): מעבר צבעים, פינות מעוגלות, צל, אייקון שנושם בעדינות,
      * והגדלה קלה עם מסגרת בהירה כשהוא בפוקוס או נלחץ.
      */
     static View heroTile(Context c, String emoji, String title, String subtitle) {
+        TextView icon = text(c, emoji, 56, 0xFFFFFFFF, false);
+        icon.setGravity(Gravity.CENTER);
+        return heroTileWith(c, icon, title, subtitle);
+    }
+
+    static View heroTile(Context c, int iconId, String title, String subtitle) {
+        ImageView icon = new ImageView(c);
+        icon.setImageDrawable(new IconDrawable(c, iconId, 0xFFFFFFFF, 0, 1f));
+        icon.setLayoutParams(new LinearLayout.LayoutParams(dp(c, 60), dp(c, 60)));
+        return heroTileWith(c, icon, title, subtitle);
+    }
+
+    private static View heroTileWith(Context c, View icon, String title, String subtitle) {
         final LinearLayout tile = new LinearLayout(c);
         tile.setOrientation(LinearLayout.VERTICAL);
         tile.setGravity(Gravity.CENTER);
@@ -534,12 +880,12 @@ final class Ui {
         tile.setContentDescription(title + ". " + subtitle);
         int pad = dp(c, S4);
         tile.setPadding(pad, pad, pad, pad);
-        GradientDrawable normal = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{P500, P700, P900});
+        GradientDrawable normal = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{P500, P600, P800});
         normal.setCornerRadius(dp(c, 32));
-        GradientDrawable focused = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{lighten(P500, .15f), P600, P800});
+        GradientDrawable focused = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{lighten(P500, .15f), P600, P700});
         focused.setCornerRadius(dp(c, 32));
-        focused.setStroke(dp(c, 4), 0xFFFFFFFF);
-        GradientDrawable pressed = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{P700, P800, darken(P900, .2f)});
+        focused.setStroke(dp(c, 4), dark ? P900 : 0xFF1E1938);
+        GradientDrawable pressed = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{P600, P700, darken(P800, .2f)});
         pressed.setCornerRadius(dp(c, 32));
         pressed.setStroke(dp(c, 4), lighten(P300, .3f));
         StateListDrawable states = new StateListDrawable();
@@ -547,11 +893,11 @@ final class Ui {
         states.addState(new int[]{android.R.attr.state_focused}, focused);
         states.addState(new int[]{}, normal);
         tile.setBackground(states);
-        if (Build.VERSION.SDK_INT >= 21) tile.setElevation(dp(c, 10));
+        if (Build.VERSION.SDK_INT >= 21) tile.setElevation(dp(c, 8));
 
-        final TextView icon = text(c, emoji, 56, 0xFFFFFFFF, false);
-        icon.setGravity(Gravity.CENTER);
-        tile.addView(icon, new LinearLayout.LayoutParams(-2, -2));
+        if (icon.getLayoutParams() instanceof LinearLayout.LayoutParams)
+            ((LinearLayout.LayoutParams) icon.getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
+        tile.addView(icon, icon.getLayoutParams() == null ? new LinearLayout.LayoutParams(-2, -2) : icon.getLayoutParams());
         TextView name = text(c, title, 21, 0xFFFFFFFF, true);
         name.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(-1, -2);
@@ -561,11 +907,11 @@ final class Ui {
         sub.setGravity(Gravity.CENTER);
         tile.addView(sub, new LinearLayout.LayoutParams(-1, -2));
 
-        // האימוג׳י "נושם" לאט, כדי למשוך את העין לכפתור.
-        android.animation.ObjectAnimator sx = android.animation.ObjectAnimator.ofFloat(icon, "scaleX", 1f, 1.1f);
-        android.animation.ObjectAnimator sy = android.animation.ObjectAnimator.ofFloat(icon, "scaleY", 1f, 1.1f);
+        // האייקון "נושם" לאט, כדי למשוך את העין לכפתור.
+        android.animation.ObjectAnimator sx = android.animation.ObjectAnimator.ofFloat(icon, "scaleX", 1f, 1.08f);
+        android.animation.ObjectAnimator sy = android.animation.ObjectAnimator.ofFloat(icon, "scaleY", 1f, 1.08f);
         for (android.animation.ObjectAnimator a : new android.animation.ObjectAnimator[]{sx, sy}) {
-            a.setDuration(1100); a.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            a.setDuration(1200); a.setRepeatCount(android.animation.ValueAnimator.INFINITE);
             a.setRepeatMode(android.animation.ValueAnimator.REVERSE); a.start();
         }
         tile.setOnFocusChangeListener((v, has) -> v.animate().scaleX(has ? 1.04f : 1f).scaleY(has ? 1.04f : 1f).setDuration(160).start());
@@ -579,42 +925,144 @@ final class Ui {
         return tile;
     }
 
+    /** אריח פעולה: אייקון ומתחתיו תווית קצרה. כמה אריחים בשורה אחת מקבצים פעולות קבועות בראש מסך. */
     static Button tile(Context c,int icon,String label) {
-        Button b=styleButton(c,new Button(c),label,Kind.SOFT);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,13*textScale(c));
-        IconDrawable glyph=new IconDrawable(c,icon,P700,20,1f);
-        glyph.setBounds(0,0,dp(c,20),dp(c,20));
-        b.setCompoundDrawables(null,glyph,null,null);
-        b.setCompoundDrawablePadding(dp(c,1));
-        b.setPadding(dp(c,2),dp(c,S1),dp(c,2),dp(c,S1));
-        b.setMinHeight(dp(c,52)); b.setMinimumHeight(dp(c,52));
-        b.setContentDescription(label);
+        Button b=styleButton(c,new Button(c),"",Kind.SOFT);
+        String clean=label==null?"":label.trim();
+        b.setText(iconAbove(c,icon,clean,22));
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,13.5f*textScale(c));
+        b.setLineSpacing(dp(c,2),1f);
+        b.setPadding(dp(c,2),dp(c,S2),dp(c,2),dp(c,S2));
+        b.setMinHeight(dp(c,64)); b.setMinimumHeight(dp(c,64));
+        b.setContentDescription(clean);
         return b;
     }
 
     /** שורת רשימה: שם בולט ומתחתיו פרטים בגופן קטן יותר, על כרטיס לבן. */
     static Button listRow(Context c,String name,String details,boolean highlighted) {
+        return listItem(c,0,name,details,highlighted,false);
+    }
+
+    /**
+     * פריט ברשימה: עיגול אייקון בהתחלה, שם מודגש ומתחתיו שורת פרטים, וחץ "קדימה" בסוף כשהלחיצה פותחת מסך.
+     * פריט מודגש (למשל הרשימה הפתוחה) מקבל רקע בגוון המותג.
+     */
+    static Button listItem(Context c,int icon,String name,String details,boolean highlighted,boolean chevron) {
         Button b=styleButton(c,new Button(c),"",Kind.SOFT);
-        android.text.SpannableStringBuilder text=new android.text.SpannableStringBuilder(name);
-        text.setSpan(new android.text.style.StyleSpan(Typeface.BOLD),0,name.length(),0);
-        text.setSpan(new android.text.style.ForegroundColorSpan(P900),0,name.length(),0);
+        String title=name==null?"":name;
+        android.text.SpannableStringBuilder text=new android.text.SpannableStringBuilder(rtlParagraph(title));
+        text.setSpan(new android.text.style.StyleSpan(Typeface.BOLD),0,text.length(),0);
+        text.setSpan(new android.text.style.ForegroundColorSpan(INK),0,text.length(),0);
         if(details!=null&&!details.isEmpty()){
-            int start=text.length()+1;
-            // הפרטים באותה שורה עם השם (יורדים שורה רק כשאין מקום) - כרטיס נמוך יותר.
-            text.append("  ").append(details);
-            text.setSpan(new android.text.style.RelativeSizeSpan(0.8f),start,text.length(),0);
+            text.append("\n");
+            int start=text.length();
+            text.append(rtlParagraph(details));
+            text.setSpan(new android.text.style.RelativeSizeSpan(0.84f),start,text.length(),0);
             text.setSpan(new android.text.style.ForegroundColorSpan(MUTED),start,text.length(),0);
         }
         b.setText(text);
         b.setTypeface(FONT_REGULAR);
         b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
         b.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-        b.setBackground(interactive(c,highlighted?P100:SURFACE,highlighted?P400:LINE,P100,FOCUS,R_CARD));
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,16*textScale(c));
-        b.setPadding(dp(c,S3),dp(c,6),dp(c,S3),dp(c,6));
-        b.setMinHeight(dp(c,44)); b.setMinimumHeight(dp(c,44));
-        b.setContentDescription(name);
+        b.setBackground(interactive(c,highlighted?P100:SURFACE,highlighted?P300:LINE,P100,FOCUS,R_CARD));
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP,17*textScale(c));
+        b.setLineSpacing(dp(c,2),1f);
+        b.setPadding(dp(c,S3),dp(c,S3),dp(c,S3),dp(c,S3));
+        b.setMinHeight(dp(c,60)); b.setMinimumHeight(dp(c,60));
+        Drawable start=null,end=null;
+        if(icon!=0){
+            start=new IconBubble(c,icon,highlighted?P600:P100,highlighted?ON_DARK:P700,40);
+            start.setBounds(0,0,start.getIntrinsicWidth(),start.getIntrinsicHeight());
+        }
+        if(chevron){
+            end=new IconDrawable(c,IC_CHEVRON_FORWARD,MUTED,18,1f);
+            end.setBounds(0,0,dp(c,18),dp(c,18));
+        }
+        b.setCompoundDrawablesRelative(start,null,end,null);
+        b.setCompoundDrawablePadding(dp(c,S3));
+        b.setContentDescription(title+(details==null||details.isEmpty()?"":", "+details));
         return b;
+    }
+
+    /** מתג (פעיל / כבוי) לשורות הגדרה. בעברית: פעיל - העיגול משמאל. */
+    static final class ToggleDrawable extends Drawable {
+        private final Paint track=new Paint(Paint.ANTI_ALIAS_FLAG), knob=new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF box=new RectF();
+        private final boolean on;
+        private final int w,h;
+        ToggleDrawable(Context c,boolean on){
+            this.on=on; w=dp(c,40); h=dp(c,24);
+            track.setColor(on?P600:P300); knob.setColor(on?ON_DARK:SURFACE);
+        }
+        @Override public void draw(Canvas canvas){
+            Rect b=getBounds();
+            float cy=b.exactCenterY();
+            box.set(b.left,cy-h/2f,b.left+w,cy+h/2f);
+            canvas.drawRoundRect(box,h/2f,h/2f,track);
+            float r=h/2f-dp2(3);
+            float cx=on?box.left+h/2f:box.right-h/2f;
+            canvas.drawCircle(cx,cy,r,knob);
+        }
+        private float dp2(int v){return v*(h/24f);}
+        @Override public void setAlpha(int alpha){track.setAlpha(alpha);knob.setAlpha(alpha);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+        @Override public int getIntrinsicWidth(){return w;}
+        @Override public int getIntrinsicHeight(){return h;}
+    }
+
+    /** שורת הגדרה עם מתג בסופה: אייקון, שם, הסבר קצר, ומצב פעיל/כבוי. */
+    static Button toggleItem(Context c,int icon,String name,String details,boolean on) {
+        Button b=listItem(c,icon,name,details,false,false);
+        Drawable[] current=b.getCompoundDrawablesRelative();
+        Drawable toggle=new ToggleDrawable(c,on);
+        toggle.setBounds(0,0,toggle.getIntrinsicWidth(),toggle.getIntrinsicHeight());
+        b.setCompoundDrawablesRelative(current[0],null,toggle,null);
+        b.setContentDescription(name+", "+(on?"פעיל":"כבוי")+(details==null||details.isEmpty()?"":". "+details));
+        return b;
+    }
+
+    /** מצב ריק: עיגול אייקון גדול, כותרת והסבר, ממורכזים. */
+    static LinearLayout emptyState(Context c,int icon,String title,String body) {
+        LinearLayout l=column(c);
+        l.setGravity(Gravity.CENTER_HORIZONTAL);
+        l.setPadding(dp(c,S4),dp(c,S5),dp(c,S4),dp(c,S5));
+        ImageView bubble=new ImageView(c);
+        bubble.setImageDrawable(new IconBubble(c,icon,P100,P600,72));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(c,72),dp(c,72));
+        lp.gravity=Gravity.CENTER_HORIZONTAL;
+        l.addView(bubble,lp);
+        TextView t=text(c,title,T_NAME,P900,true);
+        t.setGravity(Gravity.CENTER);
+        l.addView(t,row(c,S3,S1));
+        if(body!=null&&!body.isEmpty()){
+            TextView d=text(c,body,T_HINT,MUTED,false);
+            d.setGravity(Gravity.CENTER);
+            l.addView(d,row(c,0,0));
+        }
+        return l;
+    }
+
+    /** פס פעולות בתחתית מסך: משטח עם קו עליון דק. */
+    static LinearLayout bottomBar(Context c) {
+        LinearLayout bar=new LinearLayout(c);
+        bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        LayerDrawable bg=new LayerDrawable(new Drawable[]{new ColorDrawable(LINE),new ColorDrawable(SURFACE)});
+        bg.setLayerInset(1,0,dp(c,1),0,0);
+        bar.setBackground(bg);
+        int pad=dp(c,screenPad(c));
+        bar.setPadding(pad,dp(c,S2),pad,dp(c,S2));
+        return bar;
+    }
+
+    /** תג קטן (מספר או מצב) ליד כותרת קטע. */
+    static TextView chip(Context c,String value) {
+        TextView t=text(c,value,13,P800,true);
+        t.setBackground(shape(c,P100,12,0,0));
+        t.setPadding(dp(c,S2),dp(c,2),dp(c,S2),dp(c,2));
+        t.setGravity(Gravity.CENTER);
+        return t;
     }
 
     /** תמונת מקום למוצר שאין לו תמונה: מסגרת תמונה עדינה בגוון סגול בהיר. */
@@ -823,7 +1271,7 @@ final class Ui {
     }
 
     static LinearLayout dialogPanel(Context c) {
-        LinearLayout l=column(c); l.setBackground(shape(c,SURFACE,R_DIALOG,1,LINE));
+        LinearLayout l=column(c); l.setBackground(shape(c,SURFACE,R_DIALOG,dark?1:0,LINE));
         l.setPadding(dp(c,S5),dp(c,S5),dp(c,S5),dp(c,S4)); return l;
     }
 
@@ -834,7 +1282,7 @@ final class Ui {
         if(Build.VERSION.SDK_INT>=21){
             // גרסאות שלא תומכות בסמלים כהים בשורת המצב מקבלות צבע כהה, כדי שהסמלים הלבנים ייראו.
             w.setStatusBarColor(dark||Build.VERSION.SDK_INT>=23?BG:P800);
-            w.setNavigationBarColor(dark||Build.VERSION.SDK_INT>=26?BG:P800);
+            w.setNavigationBarColor(dark||Build.VERSION.SDK_INT>=26?SURFACE:P800);
         }
         if(!dark&&Build.VERSION.SDK_INT>=23)flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         if(!dark&&Build.VERSION.SDK_INT>=26)flags|=View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
