@@ -67,6 +67,39 @@ final class SavedListStore {
         }catch(Exception e){return "";}
     }
 
+    /**
+     * הזמנה ששונתה במכשיר (צירוף, מיזוג, ייבוא לתוכה) מסומנת "_user_edited":
+     * שמירה מחדש מהאתר שומרת את המוצרים שלה, וסנכרון לא מחליף אותם.
+     */
+    private static void keepUserEdits(File target, JSONObject data) {
+        if (target == null || !target.isFile()) return;
+        try (FileInputStream in = new FileInputStream(target)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+            JSONObject old = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            if (!old.optBoolean("_user_edited", false)) return;
+            data.put("products", old.optJSONArray("products") == null ? new JSONArray() : old.optJSONArray("products"));
+            data.put("_user_edited", true);
+            if (old.has("_merged_sources")) data.put("_merged_sources", old.opt("_merged_sources"));
+            if (old.has("_server_print")) data.put("_server_print", old.optString("_server_print", ""));
+        } catch (Exception ignored) { }
+    }
+
+    synchronized boolean isUserEdited(String id) {
+        try { return readEntry(id).optBoolean("_user_edited", false); } catch (Exception e) { return false; }
+    }
+
+    synchronized boolean setUserEdited(String id, boolean edited) {
+        File file = fileFor(id);
+        if (!file.isFile()) return false;
+        try {
+            JSONObject data = read(file);
+            if (edited) data.put("_user_edited", true); else data.remove("_user_edited");
+            return writeAtomic(file, data);
+        } catch (Exception e) { return false; }
+    }
+
     /** מצב האיסוף שכבר שמור בהזמנה (אם קיימת), או null. */
     private static String[] existingProgress(File target) {
         if (target == null || !target.isFile()) return null;
@@ -107,6 +140,7 @@ final class SavedListStore {
             data.put("_source_label", sourceLabel == null ? "רשימה שמורה" : sourceLabel);
             data.put("_archived_at", System.currentTimeMillis());
             File target = new File(root, safeName(id) + ".json");
+            keepUserEdits(target, data);
             // מצב האיסוף שמור בהזמנה עצמה (נאסף ברשימת איסוף): עדכון מהאתר לא דורס אותו.
             String[] kept = existingProgress(target);
             if (kept != null) {
@@ -153,6 +187,7 @@ final class SavedListStore {
                 .put("_source_label",sourceLabel==null?"רשימה שמורה":sourceLabel)
                 .put("_archived_at",System.currentTimeMillis());
             File target=new File(root,safeName(id)+".json"),temp=new File(root,safeName(id)+".json.tmp");
+            keepUserEdits(target,data);
             String[] kept=existingProgress(target);
             if(kept!=null){data.put("_collected_ticks",kept[0]);data.put("_partial_quantities",kept[1]);}
             else if(prefs!=null) {
@@ -312,6 +347,7 @@ final class SavedListStore {
             JSONObject origin=new JSONObject().put("order_id",source.optString("order_id",""))
                     .put("order_name",sourceName).put("merged_at",System.currentTimeMillis());
             origins.put(origin);target.put("_merged_sources",origins);
+            target.put("_user_edited",true);
 
             if(!changed.isEmpty()) {
                 JSONObject partial;
@@ -357,6 +393,7 @@ final class SavedListStore {
             File file = fileFor(id);
             if (!file.isFile()) return false;
             JSONObject data = read(file);
+            if (data.optBoolean("_user_edited", false)) return false; // שינויים מהמכשיר לא נדרסים
             data.put("products", products);
             data.put("_server_print", serverPrint == null ? "" : serverPrint);
             return writeAtomic(file, data);

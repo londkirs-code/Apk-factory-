@@ -1559,8 +1559,14 @@ public class MainActivity extends Activity {
         super.onBackPressed();
     }
 
+    /** המסך שממנו נכנסו להגדרות (מסך הפתיחה או המסך הראשי). */
+    private Screen settingsReturn = Screen.HOME;
+
     private void closeSettings() {
         accountsScreenVisible = false;
+        boolean noSources = sourceRegistry == null || sourceRegistry.all().isEmpty();
+        if (settingsReturn == Screen.LOGIN && noSources) { settingsReturn = Screen.HOME; showLoginScreen(""); return; }
+        settingsReturn = Screen.HOME;
         // בלי חשבון ובלי רשימות חוזרים למסך הפתיחה.
         if ((sourceRegistry == null || sourceRegistry.all().isEmpty()) && !hasCachedOrder()) { showLoginScreen(""); return; }
         showHomeScreen(false);
@@ -1813,7 +1819,6 @@ public class MainActivity extends Activity {
                                 ? "import-"+DataGuard.sha256(item.name).substring(0,16) : item.id;
                         String note=item.note==null?"":item.note;
                         if(item.unit!=null&&!item.unit.trim().isEmpty())note=note.isEmpty()?item.unit:note+" · "+item.unit;
-                        if(item.category!=null&&!item.category.trim().isEmpty())note=note.isEmpty()?item.category:note+" · "+item.category;
                         String imagePath="";
                         File image=bundle.imageFile(item.image);
                         if(image!=null&&image.isFile())imagePath=image.getAbsolutePath();
@@ -1840,8 +1845,8 @@ public class MainActivity extends Activity {
                 if(mergeCurrent)for(String id:archived)
                     if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא צורף להזמנה הנוכחית; העותקים המקוריים נשמרו.");
                 mainHandler.post(()->{
-                    ImportParser.delete(bundle.workDir);showSavedListsScreen(false);
-
+                    ImportParser.delete(bundle.workDir);
+                    if(mergeCurrent)showSavedListsScreen(false);else showImportedOrders(archived);
                 });
             }catch(Exception e){
                 String error=safeError(e);mainHandler.post(()->{
@@ -1938,6 +1943,8 @@ public class MainActivity extends Activity {
                 for(File[] pair:committed)ImportParser.delete(pair[1]);
                 ImportParser.delete(bundle.workDir);
                 String last=targetIds.isEmpty()?"":targetIds.get(targetIds.size()-1);
+                final List<String> importedEntries=new ArrayList<>();
+                for(PreparedImport item:prepared)importedEntries.add(savedEntryId(item.source.id,item.owner,item.orderId));
                 mainHandler.post(() -> {
                     try {
                         if(!last.isEmpty()) {
@@ -1946,7 +1953,7 @@ public class MainActivity extends Activity {
                             accessToken=readEncryptedToken();activeOwner=preferences.getString(DataGuard.K_OWNER,"");
                             cacheTrusted=isCacheManifestValid(activeOwner);clearOrderMemory();
                         }
-                        showHomeScreen(false);showSyncMessage("הייבוא הושלם בהצלחה.",false);
+                        showHomeScreen(false);showImportedOrders(importedEntries);
                     } catch(Exception e){showSyncMessage("ההזמנות נשמרו, אך לא ניתן לפתוח אותן כרגע.",false);}
                 });
             } catch(Exception e) {
@@ -2040,6 +2047,9 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• אחרי ייבוא: הזמנה אחת נפתחת בחלון שלה; כמה הזמנות - מסומנות בניהול הזמנות כדי ליצור מהן רשימת איסוף.\n"
+            + "• שינויים שעשית בהזמנה מסונכרנת (צירוף, מיזוג, ייבוא לתוכה) לא נמחקים בסנכרון: השינוי נשמר בהזמנה עצמה והסנכרון שלה נכבה.\n"
+            + "• ניקוי כפילויות: חלון ההזמנות הישן הוסר; \"הזמנות\" פותח את ניהול הזמנות, וחזרה ממנו חוזרת לחלון רשימות האיסוף.\n"
             + "• כפתור ייבוא (+) במסך הראשי, ליד ההגדרות ואיפוס הליקוט.\n"
             + "• הזמנה נפתחת בחלון גדול עם אותם כרטיסים כמו באיסוף (תמונה, שם, כמות, קטגוריה), לצפייה בלבד.\n"
             + "• בעריכת רשימת איסוף: כל הכפתורים בשורה אחת; לחיצה על הזמנה מציגה אותה, ✏ משנה את שמה. הסנכרון נקבע לכל הזמנה.\n"            + "• בשיתוף: \"העתקה ללוח\" במקום קובץ JSON (מדביקים באפליקציה ב\"הדבקת טקסט\").\n"
@@ -2122,6 +2132,8 @@ public class MainActivity extends Activity {
     private void showSettingsScreen() {
         if (sourceMergeInProgress) { showSyncMessage("המקור מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו.", false); return; }
+        if (screen == Screen.LOGIN) settingsReturn = Screen.LOGIN;
+        else if (screen == Screen.HOME) settingsReturn = Screen.HOME;
         accountsScreenVisible = true;
         logoutButton = null;
         LinearLayout content = Ui.screen(this);
@@ -2418,8 +2430,17 @@ public class MainActivity extends Activity {
     }
 
     private void setEntrySync(SavedListStore.Entry entry, boolean enabled) {
+        if (enabled && savedListStore.isUserEdited(entry.id)) {
+            showModernConfirm("הפעלת סנכרון", "ההזמנה שונתה במכשיר. בסנכרון הבא היא תוחלף בגרסה שבאתר, והשינויים שעשית יימחקו.",
+                    "הפעלת סנכרון", () -> { savedListStore.setUserEdited(entry.id, false); applyEntrySync(entry, true); });
+            return;
+        }
+        applyEntrySync(entry, enabled);
+    }
+
+    private void applyEntrySync(SavedListStore.Entry entry, boolean enabled) {
         uiPreferences.edit().putBoolean("nosync_" + entry.id, !enabled).apply();
-        showActionToast(enabled ? "הסנכרון הופעל להזמנה" : "הסנכרון כובה להזמנה");
+        importantToast(enabled ? "הסנכרון הופעל להזמנה" : "הסנכרון כובה להזמנה");
         refreshHomeTitle();
         if (screen == Screen.SAVED_LISTS) refreshSavedListsScreen();
     }
@@ -2464,6 +2485,15 @@ public class MainActivity extends Activity {
                 String lastPrint = data.optString("_server_print", "");
                 uiPreferences.edit().putLong("lastsync_" + e.id, System.currentTimeMillis()).apply();
                 if (serverPrint.equals(lastPrint)) continue;
+                // ההזמנה שונתה במכשיר אחרי הסנכרון הקודם (הוסיפו, מחקו או שינו מוצרים): לא דורסים.
+                // הסנכרון שלה נכבה, ומודיעים שבאתר יש עדכון.
+                boolean editedHere = data.optBoolean("_user_edited", false)
+                        || (!lastPrint.isEmpty() && !DataGuard.fingerprint(before).equals(lastPrint));
+                if (editedHere) {
+                    uiPreferences.edit().putBoolean("nosync_" + e.id, true).apply();
+                    notices.add("⏸ \"" + displayTitle(e) + "\" עודכנה באתר, אבל שינית אותה במכשיר. השינויים שלך נשמרו והסנכרון שלה כובה.");
+                    continue;
+                }
                 if (lastPrint.isEmpty()) {
                     // סנכרון ראשון של רשימה ישנה: אם הוסיפו לה מוצרים - לא נוגעים בה, ומכבים לה סנכרון.
                     if (userAdded) { uiPreferences.edit().putBoolean("nosync_" + e.id, true).apply(); continue; }
@@ -2488,22 +2518,16 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * לפני שינוי תוכן של רשימה: אם זו ההזמנה העדכנית מהאתר, השינוי נעשה בעותק נפרד,
-     * כי הסנכרון הבא היה דורס אותו. מחזיר את הרשימה שאפשר לשנות.
+     * לפני שינוי תוכן של הזמנה מסונכרנת: השינוי נעשה בהזמנה עצמה, והסנכרון שלה נכבה,
+     * כדי שעדכון מהאתר לא ימחק את מה שהוסיפו. אפשר להפעיל אותו שוב בפעולות של ההזמנה.
      */
     private SavedListStore.Entry editableCopyIfSynced(SavedListStore.Entry entry) {
-        if (!isSyncedEntry(entry)) return entry;
-        try {
-            JSONObject data = savedListStore.readEntry(entry.id);
-            long id = System.currentTimeMillis();
-            String title = "עותק של " + displayTitle(entry);
-            data.put("order_id", id).put("order_name", title).put("imported", true);
-            SourceRegistry.Source source = sourceRegistry.find(entry.sourceId);
-            if (source == null || !savedListStore.archiveSnapshot(source.id, source.label, data, null)) return null;
-            SavedListStore.Entry copy = findSavedEntry(savedEntryId(source.id, entry.owner, String.valueOf(id)));
-            if (copy != null) Toast.makeText(this, "ההזמנה העדכנית מתעדכנת מהאתר, לכן השינוי נשמר בעותק נפרד: " + title, Toast.LENGTH_LONG).show();
-            return copy;
-        } catch (Exception e) { return null; }
+        if (entry == null) return null;
+        if (isSyncedEntry(entry)) {
+            uiPreferences.edit().putBoolean("nosync_" + entry.id, true).apply();
+            importantToast("ההזמנה שונתה, ולכן הסנכרון שלה כובה כדי לשמור את השינויים");
+        }
+        return entry;
     }
 
     private final List<String> syncNotices = new ArrayList<>();
@@ -3147,6 +3171,16 @@ public class MainActivity extends Activity {
         performFeedback(false, quantity > 0);checkCelebration();
     }
     private void showSavedListsScreen() { showSavedListsScreen(savedListsReturn); }
+
+    /** חלון לפתוח שוב ביציאה ממסך ניהול ההזמנות (חזרה צעד אחד), למשל חלון רשימות האיסוף. */
+    private Runnable savedListsReturnDialog;
+
+    /** מסך ניהול ההזמנות מתוך חלון; "חזרה" ממנו פותח שוב את אותו חלון. */
+    private void openOrdersScreen(Runnable reopenDialog) {
+        Screen back = screen == Screen.LOGIN ? Screen.LOGIN : screen == Screen.SETTINGS ? Screen.SETTINGS : Screen.HOME;
+        savedListsReturnDialog = reopenDialog;
+        showSavedListsScreen(back);
+    }
     private void showSavedListsScreen(boolean fromLogin) { showSavedListsScreen(fromLogin ? Screen.LOGIN : Screen.HOME); }
     /** רענון מסך הרשימות השמורות בלי לשנות את המסך שאליו חוזרים ממנו. */
     private void refreshSavedListsScreen() { showSavedListsScreen(savedListsReturn); }
@@ -3253,15 +3287,7 @@ public class MainActivity extends Activity {
      */
     private void addListEntryActions(LinearLayout panel, Dialog dialog, SavedListStore.Entry entry,
                                      Runnable afterRename, boolean includeOpen) {
-        if (includeOpen && !isDisplayedList(entry))
-            addSourceAction(panel, dialog, "פתיחת ההזמנה", () -> openSavedList(entry));
-        addSourceAction(panel, dialog, "הפיכה לרשימת איסוף", () -> {
-            List<String> one = new ArrayList<>(); one.add(entry.id);
-            askGroupName(displayTitle(entry), name -> {
-                PickupGroups.Group g = groups.create(name.isEmpty() ? displayTitle(entry) : name, one);
-                activateGroup(g);
-            });
-        });
+        // פתיחה והפיכה לרשימת איסוף נמצאות בחלון ההזמנה עצמו (לחיצה על ההזמנה).
         addSourceAction(panel, dialog, "צירוף הזמנה מהעבר", () -> importHistoryInto(entry));
         addSourceAction(panel, dialog, "שינוי שם", () -> showRenameDialog(entry.owner, entry.orderId,
                 displayTitle(entry), entry.title, afterRename));
@@ -3271,20 +3297,6 @@ public class MainActivity extends Activity {
                 "ההזמנה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק הזמנה",
                 () -> deleteSavedListEntry(entry)));
     }
-
-    /** פעולות כלליות על רשימות: אותן פעולות שבראש מסך הרשימות השמורות. */
-    private void addGeneralListActions(LinearLayout panel, Dialog dialog) {
-        if (showingSavedList && !connectedAccounts().isEmpty())
-            addSourceAction(panel, dialog, "חזרה להזמנה העדכנית מהאתר", this::returnToLatestOrder);
-        if (!connectedAccounts().isEmpty())
-            addSourceAction(panel, dialog, "הזמנות קודמות מהאתר", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
-        addSourceAction(panel, dialog, "ייבוא הזמנה", this::createNewSavedList);
-        addSourceAction(panel, dialog, "הבאה מהענן לפי מספר", this::showCloudFetchDialog);
-        if (savedListStore.list().size() >= 2)
-            addSourceAction(panel, dialog, "איחוד הזמנות", this::showMergeListsDialog);
-        addSourceAction(panel, dialog, "כל ההזמנות", () -> showSavedListsScreen(Screen.HOME));
-    }
-
 
     private void showOrderHistoryScreen() { showOrderHistoryScreen(Screen.SAVED_LISTS); }
 
@@ -3552,117 +3564,6 @@ public class MainActivity extends Activity {
         if (first != null) first.requestFocus(); else cancel.requestFocus();
     }
 
-    /**
-     * לחיצה על שם הרשימה בכותרת. פריסה נקייה:
-     * למעלה (קבוע, לא נגלל): אריחי פעולות - הזמנות קודמות, רשימה חדשה, איחוד, הגדרות;
-     * מתחתיו הרשימה המוצגת עם כפתור ⋮ לכל הפעולות שלה.
-     * למטה (נגלל): שאר הרשימות השמורות - לחיצה פותחת, ⋮ לפעולות.
-     */
-    private void showListSwitcher() {
-        List<SavedListStore.Entry> entries = savedListStore.list();
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "הזמנות", Ui.T_NAME, Ui.P900, true));
-        Runnable reopen = this::showListSwitcher;
-        // שינוי ✓ מרענן את המסך הראשי כשהחלון נסגר.
-        final boolean[] checksChanged = {false};
-        final Button[] deleteRef = {null}, mergeRef = {null};
-        final Button[] groupRef = {null};
-        Runnable groupChanged = () -> {
-            int visibility = checkedEntries().size() >= 2 ? View.VISIBLE : View.GONE;
-            if (deleteRef[0] != null) deleteRef[0].setVisibility(visibility);
-            if (mergeRef[0] != null) mergeRef[0].setVisibility(visibility);
-            if (groupRef[0] != null) groupRef[0].setVisibility(checkedEntries().isEmpty() ? View.GONE : View.VISIBLE);
-        };
-
-        // פעולות קבועות למעלה
-        Button history = Ui.tile(this, Ui.IC_HISTORY, "הזמנות קודמות");
-        history.setOnClickListener(v -> { dialog.dismiss(); if (requireLoginForHistory()) return; openChild(this::showListSwitcher, () -> showOrderHistoryScreen(Screen.HOME)); });
-        Button create = Ui.tile(this, Ui.IC_PLUS, "ייבוא");
-        create.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, this::createNewSavedList); });
-        // "איחוד" ו"מחיקה" מופיעים רק כשמסומנות (✓) לפחות שתי רשימות, ופועלים על המסומנות.
-        boolean twoChecked = checkedEntries().size() >= 2;
-        Button merge = Ui.tile(this, Ui.IC_MERGE, "איחוד");
-        merge.setVisibility(twoChecked ? View.VISIBLE : View.GONE);
-        merge.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, this::mergeTileClicked); });
-        // "מחיקה" מופיע רק כשמסומנות (✓) שתי רשימות או יותר, ומוחק את המסומנות.
-        Button deleteTile = Ui.tile(this, Ui.IC_CLOSE, "מחיקה");
-        deleteTile.setVisibility(checkedEntries().size() >= 2 ? View.VISIBLE : View.GONE);
-        deleteTile.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, this::confirmDeleteChecked); });
-        deleteRef[0] = deleteTile;
-        mergeRef[0] = merge;
-        // "שיתוף" תמיד מופיע: משתף את הרשימות המסומנות, ואם אין - את הרשימה המוצגת.
-        Button shareTile = Ui.tile(this, Ui.IC_SHARE, "שיתוף");
-        final SavedListStore.Entry shownForShare = combinedView ? null : findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
-        shareTile.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, () -> shareTileClicked(shownForShare)); });
-        Button groupTile = Ui.tile(this, Ui.IC_LIST_STACK, "רשימת איסוף");
-        groupTile.setContentDescription("יצירת רשימת איסוף מההזמנות המסומנות");
-        groupTile.setVisibility(checkedEntries().isEmpty() ? View.GONE : View.VISIBLE);
-        groupTile.setOnClickListener(v -> { dialog.dismiss(); createGroupFromSelection(); });
-        groupRef[0] = groupTile;
-        panel.addView(tileRow(history, create, shareTile, groupTile, merge, deleteTile), Ui.row(this, Ui.S2, 0));
-        Button groupsButton = Ui.button(this, "📋 רשימות איסוף · " + groups.all().size(), Ui.Kind.SOFT);
-        groupsButton.setOnClickListener(v -> { dialog.dismiss(); showGroupsDialog(this::showListSwitcher); });
-        panel.addView(groupsButton, Ui.row(this, Ui.S1, 0));
-
-        if (listGroupActive()) {
-            PickupGroups.Group activeGroup = groups.active();
-            Button manageGroup = Ui.button(this, "הזמנות והגדרות: " + activeGroup.name, Ui.Kind.SOFT);
-            manageGroup.setOnClickListener(v -> { dialog.dismiss(); showGroupEditor(activeGroup, this::showListSwitcher); });
-            Button leave = Ui.button(this, "יציאה מרשימת האיסוף (היא נשמרת)", Ui.Kind.SOFT);
-            leave.setOnClickListener(v -> { dialog.dismiss(); leaveListGroup(); showHomeScreen(false); });
-            panel.addView(buttonPair(manageGroup, leave), Ui.row(this, Ui.S1, 0));
-        }
-        if (showingSavedList && !connectedAccounts().isEmpty()) {
-            Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
-            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
-            panel.addView(latest, Ui.row(this, Ui.S2, 0));
-        }
-
-        SavedListStore.Entry current = null;
-        if (!combinedView && !currentOrderId.isEmpty()) {
-            archiveCurrentSnapshot(activeSourceId);
-            current = findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
-        }
-        View focus = null;
-        if (current != null) {
-            final SavedListStore.Entry shown = current;
-            panel.addView(compactSection("מוצגת עכשיו"));
-            LinearLayout line = buildListLine(shown, homeDisplayTitle(), withBadge(withBadge(shown.itemCount + " פריטים", cloudBadge(shown.id)), isSyncedEntry(shown) ? "🔄 מסונכרן" : ""), true,
-                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); },
-                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); }, groupChanged);
-            panel.addView(line, Ui.row(this, 0, 0));
-        }
-
-        // שאר הרשימות - נגללות
-        int others = 0;
-        LinearLayout body = Ui.column(this);
-        for (SavedListStore.Entry entry : entries) {
-            if (isDisplayedList(entry)) continue;
-            others++;
-            LinearLayout line = buildListLine(entry, displayTitle(entry), withBadge(withBadge(entry.itemCount + " פריטים", cloudBadge(entry.id)), isSyncedEntry(entry) ? "🔄 מסונכרן" : ""), false,
-                    () -> { dialog.dismiss(); showOrderPreview(entry, this::showListSwitcher); },
-                    () -> { dialog.dismiss(); showSavedListActions(entry, reopen); }, groupChanged);
-            body.addView(line, Ui.row(this, 0, Ui.S1));
-            if (focus == null) focus = line.getChildAt(0);
-        }
-        panel.addView(compactSection(others == 0 ? "אין הזמנות נוספות" : "הזמנות · " + others));
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        dialog.setContentView(panel);
-        dialog.show();
-        styleConfirmWindow(dialog);
-        // חלון צף גדול: כמעט כל רוחב המסך (עד 640dp) ו-94% מהגובה.
-        if (dialog.getWindow() != null) {
-            android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-            int width = Math.min(metrics.widthPixels - Ui.dp(this, 16), Ui.dp(this, 640));
-            dialog.getWindow().setLayout(width, (int) (metrics.heightPixels * 0.94f));
-        }
-        if (focus != null) focus.requestFocus(); else history.requestFocus();
-    }
-
     /** כותרת קטע קומפקטית לחלונות ולרשימות. */
     private TextView compactSection(String text) {
         TextView t = Ui.text(this, text, Ui.T_NOTE, Ui.P700, true);
@@ -3755,17 +3656,6 @@ public class MainActivity extends Activity {
     }
 
 
-    /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */
-    private void returnToLatestOrder() {
-        leaveListGroup();
-        showingSavedList = false;
-        if (listSourceCount() > 1) { showHomeScreen(false); syncAllAccounts(); return; }
-        if (accessToken.isEmpty()) {
-            String other = firstConnectedAccountId();
-            if (!other.isEmpty()) { switchSource(other, () -> showHomeScreen(true)); return; }
-        }
-        showHomeScreen(!accessToken.isEmpty());
-    }
 
     /** איחוד כמה רשימות שמורות לרשימה חדשה. הרשימות המקוריות נשארות כמו שהן. */
     private void showMergeListsDialog() {
@@ -4043,9 +3933,7 @@ public class MainActivity extends Activity {
         bluetooth.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showBluetoothReceive); });
         Button paste = Ui.gridButton(this, "הדבקת טקסט", Ui.Kind.SOFT);
         paste.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showPasteImport); });
-        Button blank = Ui.gridButton(this, "הזמנה ריקה", Ui.Kind.SOFT);
-        blank.setOnClickListener(v -> { dialog.dismiss(); createBlankSavedList(); });
-        addGridButtons(panel, history, qr, cloud, file, bluetooth, paste, blank);
+        addGridButtons(panel, history, qr, cloud, file, bluetooth, paste);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
@@ -4058,6 +3946,21 @@ public class MainActivity extends Activity {
         loginFormVisible = true;
         showLoginScreen("כדי לייבא הזמנות קודמות מהאתר צריך להתחבר לחשבון משנת יוסף.");
         return true;
+    }
+
+    /**
+     * אחרי ייבוא: הזמנה אחת נפתחת בחלון שלה (ומשם "לרשימת איסוף");
+     * כמה הזמנות - מסך ניהול ההזמנות, כשהן כבר מסומנות, כדי ליצור מהן רשימת איסוף בלחיצה.
+     */
+    private void showImportedOrders(List<String> entryIds) {
+        List<SavedListStore.Entry> found = new ArrayList<>();
+        for (String id : entryIds) { SavedListStore.Entry e = findSavedEntry(id); if (e != null) found.add(e); }
+        if (found.isEmpty()) { showSavedListsScreen(false); return; }
+        selectedOrders.clear();
+        for (SavedListStore.Entry e : found) selectedOrders.add(e.id);
+        showSavedListsScreen(screen == Screen.LOGIN ? Screen.LOGIN : Screen.HOME);
+        if (found.size() == 1) showOrderPreview(found.get(0), null);
+        else importantToast("יובאו " + found.size() + " הזמנות. הן מסומנות: \"רשימת איסוף\" יוצר מהן רשימה.");
     }
 
     private void createBlankSavedList() {
@@ -4765,9 +4668,11 @@ public class MainActivity extends Activity {
     private void leaveSavedListsScreen() {
         Screen target=savedListsReturn;
         savedListsScreenVisible=false;savedListsReturnToLogin=false;savedListsReturn=Screen.HOME;
+        Runnable dialogBack=savedListsReturnDialog;savedListsReturnDialog=null;
         if(target==Screen.LOGIN)showLoginScreen("");
         else if(target==Screen.SETTINGS)showSettingsScreen();
         else showHomeScreen(false);
+        if(dialogBack!=null)dialogBack.run();
     }
 
     private void deleteSavedListEntry(SavedListStore.Entry entry) {
@@ -4803,8 +4708,7 @@ public class MainActivity extends Activity {
 
     /** פתיחת הזמנה: חלון צף לצפייה. איסוף נעשה רק ברשימת איסוף. */
     private void openSavedList(SavedListStore.Entry entry) {
-        Runnable parent = screen == Screen.SAVED_LISTS ? null : this::showListSwitcher;
-        showOrderPreview(entry, parent);
+        showOrderPreview(entry, null);
     }
 
     /** הדרך הישנה: טעינת הזמנה בודדת למסך הראשי (לא בשימוש מאז שהאיסוף רק ברשימות איסוף). */
@@ -4897,9 +4801,9 @@ public class MainActivity extends Activity {
         // שני כפתורי התצוגה: רשימה מאוחדת ורשימה לפי חשבון. הכפתור של התצוגה הפעילה מודגש.
         boolean unifiedMode = sourceRegistry != null && "COMBINED_SUM".equals(sourceRegistry.viewMode());
         Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת", unifiedMode);
-        Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון", !unifiedMode);
+        Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי הזמנה", !unifiedMode);
         // עם חשבון אחד בלבד שתי התצוגות זהות, ולכן הכפתורים מוסתרים (המקום נשמר כדי שהשם יישאר באמצע).
-        boolean multipleSources = sourceRegistry != null && (listGroupActive() ? listGroup().size() > 1 : listSourceCount() > 1);
+        boolean multipleSources = sourceRegistry != null && listGroupActive() && listGroup().size() > 1;
         unified.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
         byAccount.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
 
@@ -7079,7 +6983,7 @@ public class MainActivity extends Activity {
         create.setContentDescription("רשימת איסוף חדשה");
         create.setOnClickListener(v -> { dialog.dismiss(); showGroupEditor(null, self); });
         Button orders = Ui.tile(this, Ui.IC_LIST_SINGLE, "הזמנות");
-        orders.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showListSwitcher); });
+        orders.setOnClickListener(v -> { dialog.dismiss(); openOrdersScreen(self); });
         PickupGroups.Group openGroup = groups.active();
         Button manageOpen = Ui.tile(this, Ui.IC_SETTINGS, "ניהול");
         manageOpen.setContentDescription("הזמנות והגדרות של רשימת האיסוף הפתוחה");
