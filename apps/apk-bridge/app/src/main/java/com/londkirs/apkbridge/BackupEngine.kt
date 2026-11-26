@@ -317,7 +317,7 @@ object BackupEngine {
     /** Pulls every file of a shared-storage folder over ADB (works for Android/media too). */
     private suspend fun backupFiles(c: AdbClient, context: Context, filesDir: Uri, set: FileSet, onProgress: (Int, Int) -> Unit): Int {
         val cr = context.contentResolver
-        val list = c.shell("find '${set.path}' -type f 2>/dev/null").stdoutText.lines()
+        val list = c.shell("find ${q(set.path)} -type f 2>/dev/null").stdoutText.lines()
             .map { it.trim() }.filter { it.isNotEmpty() && !it.contains("/.") }
         if (list.isEmpty()) return 0
         val root = withContext(Dispatchers.IO) { Saf.mkdir(cr, filesDir, set.key) }
@@ -386,7 +386,7 @@ object BackupEngine {
             runCatching {
                 val arr = JSONArray(Saf.readText(cr, doc.uri))
                 (0 until arr.length()).map { arr.getJSONObject(it) }
-                    .associate { o -> o.getString("key") to FileSet(o.getString("key"), o.optString("label"), o.getString("path")) }
+                    .associate { o -> o.getString("key") to FileSet(o.getString("key"), o.optString("label"), safeRestorePath(o.getString("path"), o.optString("label"))) }
             }.getOrNull()
         } ?: emptyMap()
         val sets = if ("files" in names) {
@@ -517,8 +517,11 @@ object BackupEngine {
             // Give back the runtime permissions the app had.
             val perms = meta?.optJSONArray("permissions")
             if (perms != null && perms.length() > 0) {
-                val cmd = (0 until perms.length()).joinToString(" ; ") { "pm grant $pkg ${perms.getString(it)} 2>/dev/null" }
-                runCatching { c.shell(cmd) }
+                // Names come from the backup's files: only well-formed ones reach the shell.
+                val names = (0 until perms.length()).map { perms.optString(it) }.filter { it.matches(JAVA_NAME) }
+                if (pkg.matches(JAVA_NAME) && names.isNotEmpty()) {
+                    runCatching { c.shell(names.joinToString(" ; ") { "pm grant $pkg $it 2>/dev/null" }) }
+                }
             }
         }
         return installed to skipped
@@ -595,6 +598,8 @@ object BackupEngine {
             val target = if (rel.isEmpty()) set.path else "${set.path}/$rel"
             if (children.any { !it.isDir }) c.shell("mkdir -p ${q(target)}")
             for (ch in children) {
+                // A name from the backup can't climb out of the target folder.
+                if (!isSafeName(ch.name)) { Bridge.log(tr("דילוג על שם קובץ לא תקין: ${ch.name}", "Skipped an invalid file name: ${ch.name}")); continue }
                 if (ch.isDir) {
                     walk(ch.uri, if (rel.isEmpty()) ch.name else "$rel/${ch.name}")
                 } else {
@@ -836,6 +841,26 @@ object BackupEngine {
             failed += Regex("FAIL").findAll(out).count()
         }
         return failed
+    }
+
+    /** Package and permission names (com.example.app, android.permission.CAMERA). */
+    private val JAVA_NAME = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+")
+
+    /** A file or folder name that stays inside its folder (no "..", no "/"). */
+    private fun isSafeName(name: String) = name.isNotEmpty() && name != "." && name != ".." && '/' !in name && '\u0000' !in name
+
+    /**
+     * A restore target read from a backup's files.json. A backup may come from anywhere, so only
+     * shared storage is allowed (/sdcard, /storage/…), without "..". Anything else goes to
+     * /sdcard/Restored/<name>.
+     */
+    private fun safeRestorePath(path: String, label: String): String {
+        val parts = path.split('/').filter { it.isNotEmpty() }
+        val ok = (path.startsWith("/sdcard/") || path.startsWith("/storage/")) && parts.size >= 2 && parts.all(::isSafeName) &&
+            path.none { it.isISOControl() }
+        if (ok) return "/" + parts.joinToString("/")
+        val name = label.filter { it.isLetterOrDigit() || it == ' ' || it == '_' || it == '-' }.trim().ifEmpty { "folder" }
+        return "/sdcard/Restored/$name"
     }
 
     /** Single-quotes a value for the device shell. */
