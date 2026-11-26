@@ -1,5 +1,5 @@
 # Latest UI test: chullin
 
-Run: [45833041346-1](../runs/45833041346-1/summary.md)
+Run: [45839639364-1](../runs/45839639364-1/summary.md)
 
-- [explore](../runs/45833041346-1/chullin/explore/report.md)
+- [study-assertions](../runs/45839639364-1/chullin/study-assertions/report.md)

@@ -1,0 +1,6 @@
+[ok] 01 launch clear_data=True
+[ok] 02 wait_for text='חולין'
+[ok] 03 assert_text text='הכל שוחטין'
+[FAIL] 04 assert_text text='הבא' element not found within 5s: text='הבא'
+
+Result: FAILED — 4 steps, 2 screenshots, 0 crashes

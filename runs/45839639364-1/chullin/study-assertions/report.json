@@ -1,0 +1,60 @@
+{
+  "app": "chullin",
+  "package": "com.londkirs.chullin",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "he-IL",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 23.5,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 4.51,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='חולין'",
+      "status": "passed",
+      "seconds": 2.96,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "assert_text",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.53,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "assert_text",
+      "detail": "text='הבא'",
+      "status": "failed",
+      "seconds": 5.57,
+      "error": "element not found within 5s: text='הבא'",
+      "screenshot": "screenshots/001-step4-assert_text-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-step4-assert_text-FAILED.png",
+    "002-final.png"
+  ]
+}
