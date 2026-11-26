@@ -227,7 +227,7 @@ class TerminalActivity : Activity() {
             running -> "מריץ…"
             state.busy -> "עסוק…"
             Bridge.isPaired || Bridge.keepAdbWithoutWifi -> "Android ${Build.VERSION.RELEASE} · ${Build.MODEL}"
-            else -> "לא מחובר — התחבר קודם ב־APK Bridge"
+            else -> "לא מצומד — בצע צימוד קודם ב־APK Bridge"
         }
         subtitle.setTextColor(if (running) HEADER_TEXT else HEADER_SUB)
         sendButton.text = if (running) "■" else "➤"

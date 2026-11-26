@@ -94,7 +94,7 @@ class MainActivity : Activity() {
             .setMessage(
                 "אפליקציה זעירה שמאפשרת ל־APK Bridge להדליק Wi‑Fi לבד כשהוא כבוי (ניפוי באגים אלחוטי עובד רק עם Wi‑Fi).\n\n" +
                     "ההתקנה נעשית דרך מתקין האפליקציות הרגיל של Android — בלי ניפוי באגים. ייתכן שתתבקש פעם אחת לאשר ל־APK Bridge להתקין אפליקציות.\n\n" +
-                    "אפשר להתקין גם מאוחר יותר: ⚙ הגדרות ← חיבור."
+                    "אפשר להתקין גם מאוחר יותר: ⚙ הגדרות ← צימוד וחיבור."
             )
             .setPositiveButton("התקן") { _, _ -> HelperInstaller.start(this) }
             .setNegativeButton("לא עכשיו", null)
@@ -110,7 +110,7 @@ class MainActivity : Activity() {
                     "• ניפוי באגים ב־USB יודלק (נדרש כדי ש־ADB יישאר פעיל).\n" +
                     "• המצב נמחק בהפעלה מחדש של המכשיר, ומתחדש אוטומטית בחיבור הבא דרך Wi‑Fi.\n" +
                     "• כשה־Wi‑Fi דלוק, מכשירים אחרים ברשת יוכלו לנסות להתחבר לפורט 5555 — אבל כל חיבור חדש דורש אישור שלך במסך.\n\n" +
-                    "נדרש חיבור ADB פעיל עכשיו (Wi‑Fi וחיבור)."
+                    "נדרש חיבור ADB פעיל עכשיו (Wi‑Fi וצימוד)."
             )
             .setPositiveButton("הפעל") { _, _ -> Bridge.enableKeepAdb() }
             .setNegativeButton("ביטול", null)
@@ -327,11 +327,11 @@ class MainActivity : Activity() {
 
         // Card 3: pairing — needed once.
         val pair = card(page)
-        pair.addView(heading("חיבור ראשוני (פעם אחת)"), matchWrap())
+        pair.addView(heading("צימוד (פעם אחת)"), matchWrap())
         pairStateText = body("")
         pair.addView(pairStateText, matchWrap(6))
         // Once paired, the pairing controls are folded away behind "pair again".
-        repairToggle = button("חיבור מחדש / מכשיר אחר ▾", primary = false) {
+        repairToggle = button("צימוד מחדש / מכשיר אחר ▾", primary = false) {
             pairControls.visibility = if (pairControls.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
         pair.addView(repairToggle, matchWrap(0))
@@ -339,27 +339,27 @@ class MainActivity : Activity() {
         pair.addView(pairControls)
         a11yText = body("")
         pairControls.addView(a11yText, matchWrap(6))
-        a11yButton = button("הפעל חיבור אוטומטי", primary = true) { openAccessibilitySetup() }
+        a11yButton = button("הפעל צימוד אוטומטי", primary = true) { openAccessibilitySetup() }
         pairControls.addView(a11yButton, matchWrap())
-        val notifyPair = button("חיבור עם קוד דרך התראה", primary = false) { startNotificationPairing() }.busyAware()
+        val notifyPair = button("צימוד עם קוד דרך התראה", primary = false) { startNotificationPairing() }.busyAware()
         pairControls.addView(notifyPair, matchWrap())
         if (!Compat.hasWirelessDebugging) {
             // Android 8–10: no pairing codes; the state card explains classic ADB on port 5555.
             pair.visibility = View.GONE
         }
         pairControls.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
-        pairControls.addView(button("חיבור ידני / מכשיר אחר ▾", primary = false) {
+        pairControls.addView(button("צימוד ידני / מכשיר אחר ▾", primary = false) {
             manualBox.visibility = if (manualBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }, matchWrap(0))
         manualBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setPadding(0, dp(10), 0, 0) }
-        manualBox.addView(note("127.0.0.1 הוא הטלפון הזה. אפשר להזין IP של טלפון אחר באותה רשת. פורט החיבור נמצא לבד אם משאירים ריק."), matchWrap(6))
+        manualBox.addView(note("127.0.0.1 הוא הטלפון הזה. אפשר להזין IP של טלפון אחר באותה רשת. פורט הצימוד נמצא לבד אם משאירים ריק."), matchWrap(6))
         host = field("כתובת יעד (127.0.0.1)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI).apply { setText(Bridge.targetHost) }
-        pairPort = field("פורט חיבור (לא חובה)", InputType.TYPE_CLASS_NUMBER)
-        pin = field("קוד חיבור בן 6 ספרות", InputType.TYPE_CLASS_NUMBER)
+        pairPort = field("פורט צימוד (לא חובה)", InputType.TYPE_CLASS_NUMBER)
+        pin = field("קוד צימוד בן 6 ספרות", InputType.TYPE_CLASS_NUMBER)
         manualBox.addView(host, matchWrap())
         manualBox.addView(pairPort, matchWrap())
         manualBox.addView(pin, matchWrap())
-        manualBox.addView(button("התחבר", primary = true) { manualPair() }.busyAware(), matchWrap())
+        manualBox.addView(button("בצע צימוד", primary = true) { manualPair() }.busyAware(), matchWrap())
         manualBox.addView(button("שמור כתובת יעד", primary = false) {
             Bridge.targetHost = host.text.toString()
             Bridge.savedConnectPort = 0
@@ -603,9 +603,9 @@ class MainActivity : Activity() {
             return
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("חיבור אוטומטי")
+            .setTitle("צימוד אוטומטי")
             .setMessage(
-                "APK Bridge יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד החיבור והפורט ויבצע את החיבור בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n" +
+                "APK Bridge יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד הצימוד והפורט ויבצע את הצימוד בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n" +
                     "במסך הבא: בחר \"APK Bridge\" ← הפעל.\n\n" +
                     "אם האפשרות אפורה (Android 13+): פתח פרטי אפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", וחזור לכאן."
             )
@@ -627,13 +627,13 @@ class MainActivity : Activity() {
         if (!::connectionText.isInitialized) return
         if (!Compat.hasWirelessDebugging) {
             connectionText.text = "מצב ADB קלאסי (Android ${Build.VERSION.RELEASE}).\n\n${Bridge.LEGACY_HELP}\n\n" +
-                "בחיבור הראשון יופיע \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\". אפשר גם להתקין על מכשיר אחר: חיבור ידני / מכשיר אחר ← כתובת היעד."
+                "בחיבור הראשון יופיע \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\". אפשר גם להתקין על מכשיר אחר: צימוד ידני / מכשיר אחר ← כתובת היעד."
             return
         }
         val wifi = Bridge.isOnWifi()
         val wireless = Bridge.isWirelessDebuggingOn()
         val lines = mutableListOf<String>()
-        lines += if (Bridge.isPaired) "✔ חובר בעבר למכשיר (${Bridge.targetHost})" else "✖ עדיין לא בוצע חיבור ראשוני"
+        lines += if (Bridge.isPaired) "✔ צומד בעבר עם המכשיר (${Bridge.targetHost})" else "✖ עדיין לא בוצע צימוד"
         lines += if (wifi) "✔ מחובר ל־Wi‑Fi" else "✖ אין Wi‑Fi — ניפוי באגים אלחוטי דורש Wi‑Fi"
         lines += when (wireless) {
             true -> "✔ ניפוי באגים אלחוטי פעיל"
@@ -646,15 +646,15 @@ class MainActivity : Activity() {
         connectionText.text = lines.joinToString("\n")
         val a11y = PairingAccessibilityService.isEnabled(this)
         a11yText.text = if (a11y) {
-            "✔ חיבור אוטומטי פעיל: פתח \"התאמת מכשיר עם קוד התאמה\" בהגדרות, והקוד יזוהה ויוזן לבד."
+            "✔ צימוד אוטומטי פעיל: פתח \"התאמת מכשיר עם קוד התאמה\" בהגדרות, והקוד יזוהה ויוזן לבד."
         } else {
-            "חיבור אוטומטי: APK Bridge יכול לקרוא את קוד החיבור מהמסך ולהתחבר בעצמו (דורש הפעלת שירות נגישות)."
+            "צימוד אוטומטי: APK Bridge יכול לקרוא את קוד הצימוד מהמסך ולצמד בעצמו (דורש הפעלת שירות נגישות)."
         }
         // Permission already granted → no "enable" button.
         a11yButton.visibility = if (a11y) View.GONE else View.VISIBLE
-        a11yButton.text = "הפעל חיבור אוטומטי (נגישות)"
+        a11yButton.text = "הפעל צימוד אוטומטי (נגישות)"
         val paired = Bridge.isPaired
-        pairStateText.text = if (paired) "✔ הטלפון מחובר. אין צורך להתחבר שוב." else "צריך להתחבר פעם אחת. הדרך הקלה: חיבור אוטומטי — ואז פותחים בהגדרות \"התאמת מכשיר עם קוד התאמה\"."
+        pairStateText.text = if (paired) "✔ הטלפון מצומד. אין צורך לצמד שוב." else "צריך לצמד פעם אחת. הדרך הקלה: צימוד אוטומטי — ואז פותחים בהגדרות \"התאמת מכשיר עם קוד התאמה\"."
         repairToggle.visibility = if (paired) View.VISIBLE else View.GONE
         // Not paired: show the controls. Paired: fold them away the first time (the user can open them again).
         if (!paired) pairControls.visibility = View.VISIBLE
@@ -737,7 +737,7 @@ class MainActivity : Activity() {
             toast("שים לב: ניפוי באגים אלחוטי דורש חיבור Wi‑Fi.")
         }
         PairingService.start(this)
-        Bridge.log("חיבור דרך התראה: פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\" והזן את הקוד בהתראה.")
+        Bridge.log("צימוד דרך התראה: פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\" והזן את הקוד בהתראה.")
         toast("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\", והזן את הקוד בהתראה שתופיע.")
         openDeveloperOptions()
     }
@@ -748,7 +748,7 @@ class MainActivity : Activity() {
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             startNotificationPairing()
         } else {
-            toast("בלי הרשאת התראות אפשר להשתמש בחיבור ידני (אפשר במסך מפוצל).")
+            toast("בלי הרשאת התראות אפשר להשתמש בצימוד ידני (אפשר במסך מפוצל).")
             manualBox.visibility = View.VISIBLE
         }
     }
@@ -775,7 +775,7 @@ class MainActivity : Activity() {
     private fun manualPair() {
         val code = pin.text.toString().trim()
         if (code.length != 6 || !code.all(Char::isDigit)) {
-            toast("קוד החיבור חייב להכיל 6 ספרות.")
+            toast("קוד הצימוד חייב להכיל 6 ספרות.")
             return
         }
         Bridge.pair(host.text.toString(), pairPort.text.toString().toIntOrNull(), code)
@@ -850,7 +850,7 @@ class MainActivity : Activity() {
         val mode = Bridge.autoInstallMode
         if (mode == "off") return
         if (!Bridge.isPaired) {
-            Bridge.log("התקנה אוטומטית דולגה: עדיין לא בוצע חיבור.")
+            Bridge.log("התקנה אוטומטית דולגה: עדיין לא בוצע צימוד.")
             return
         }
         if (Bridge.state.busy) return
@@ -959,9 +959,9 @@ class MainActivity : Activity() {
                 "   סמסונג: אודות הטלפון ← מידע תוכנה ← מספר Build. שיאומי: הקש על \"גרסת MIUI / HyperOS\".\n" +
                 "2. ודא שהטלפון מחובר ל־Wi‑Fi (כל רשת, גם בלי אינטרנט).\n" +
                 "3. הגדרות ← אפשרויות למפתחים ← הפעל \"ניפוי באגים אלחוטי\" ואשר.\n" +
-                "4. ב־APK Bridge לחץ \"הפעל חיבור אוטומטי\" ואשר את שירות הנגישות (פעם אחת).\n" +
-                "5. חזור ל\"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\". APK Bridge יזהה את הקוד ויתחבר לבד.\n" +
-                "   בלי חיבור אוטומטי: \"חיבור עם קוד דרך התראה\" — מקלידים את הקוד בהתראה, בלי לצאת מהמסך.\n" +
+                "4. ב־APK Bridge לחץ \"הפעל צימוד אוטומטי\" ואשר את שירות הנגישות (פעם אחת).\n" +
+                "5. חזור ל\"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\". APK Bridge יזהה את הקוד ויבצע את הצימוד לבד.\n" +
+                "   בלי צימוד אוטומטי: \"צימוד עם קוד דרך התראה\" — מקלידים את הקוד בהתראה, בלי לצאת מהמסך.\n" +
                 "6. בפעם הראשונה יופיע \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\" ואשר.\n\n" +
                 "מכאן הכול אוטומטי: החיבור נשמר גם כשה־Wi‑Fi כבוי, עד הפעלה מחדש של הטלפון, ואחרי הפעלה מחדש הוא מתחדש לבד כשיש Wi‑Fi."
 
@@ -983,10 +983,10 @@ class MainActivity : Activity() {
 
         private const val GUIDE_TROUBLESHOOT =
             "• ניפוי הבאגים האלחוטי נכבה כשה־Wi‑Fi מתנתק — הדלק שוב, או השאר את \"ADB קבוע\" פעיל (ברירת מחדל).\n" +
-                "• \"הפעל חיבור אוטומטי\" אפור (Android 13+): פרטי האפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\".\n" +
+                "• \"הפעל צימוד אוטומטי\" אפור (Android 13+): פרטי האפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\".\n" +
                 "• שיאומי / Redmi / POCO: הפעל גם \"ניפוי באגים ב־USB (הגדרות אבטחה)\" ו\"התקנה דרך USB\" באפשרויות למפתחים.\n" +
                 "• אופו / ריאלמי / ויוו: אם ההתקנה נחסמת, כבה \"ניטור הרשאות\" באפשרויות למפתחים.\n" +
-                "• החיבור נכשל שוב ושוב: מחק את APK Bridge מ\"מכשירים מותאמים\" בניפוי באגים אלחוטי, ב־APK Bridge ← הגדרות ← \"שכח חיבור\", והתחבר מחדש.\n" +
+                "• החיבור נכשל שוב ושוב: מחק את APK Bridge מ\"מכשירים מותאמים\" בניפוי באגים אלחוטי, ב־APK Bridge ← הגדרות ← \"שכח צימוד\", ובצע צימוד מחדש.\n" +
                 "• עדיין לא עובד? פתח את היומן למטה ← \"העתק יומן\" ושלח אותו."
         private val INK = 0xFF30251D.toInt()
         private val MUTED = 0xFF8A7868.toInt()

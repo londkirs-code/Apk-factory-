@@ -61,14 +61,14 @@ class PairingService : Service() {
     private fun search() {
         job?.cancel()
         job = Bridge.scope.launch {
-            Bridge.log("שירות החיבור פעיל: מחפש חלון חיבור פתוח…")
+            Bridge.log("שירות הצימוד פעיל: מחפש חלון צימוד פתוח…")
             val ep = Bridge.discover(Bridge.PAIRING_SERVICE, Bridge.LOCAL_HOST, SEARCH_TIMEOUT_MS)
             if (ep == null) {
-                Bridge.log("לא נמצא חלון חיבור פתוח בזמן שהוקצב.")
+                Bridge.log("לא נמצא חלון צימוד פתוח בזמן שהוקצב.")
                 notifyFinal(getString(R.string.pair_not_found), success = false)
                 stopSelfCleanly()
             } else {
-                Bridge.log("נמצא שירות חיבור בפורט ${ep.port}. הזן את הקוד בהתראה.")
+                Bridge.log("נמצא שירות צימוד בפורט ${ep.port}. הזן את הקוד בהתראה.")
                 notify(askForCode(ep.port, getString(R.string.pair_found, ep.port)))
             }
         }
@@ -80,11 +80,11 @@ class PairingService : Service() {
             val ok = try {
                 Bridge.pairNow(Bridge.LOCAL_HOST, port.takeIf { it > 0 }, code)
             } catch (e: TimeoutCancellationException) {
-                Bridge.log("החיבור נכשל: ${Bridge.explain(e)}"); false
+                Bridge.log("הצימוד נכשל: ${Bridge.explain(e)}"); false
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                Bridge.log("החיבור נכשל: ${Bridge.explain(e)}"); false
+                Bridge.log("הצימוד נכשל: ${Bridge.explain(e)}"); false
             }
             if (ok) {
                 notifyFinal(getString(R.string.pair_success), success = true)

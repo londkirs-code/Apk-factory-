@@ -22,7 +22,7 @@ class PairingAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Bridge.init(this)
-        Bridge.log("שירות הנגישות פעיל: קוד חיבור שיופיע בהגדרות יזוהה ויוזן אוטומטית.")
+        Bridge.log("שירות הנגישות פעיל: קוד צימוד שיופיע בהגדרות יזוהה ויוזן אוטומטית.")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -46,8 +46,8 @@ class PairingAccessibilityService : AccessibilityService() {
             // Only remember the code once a pairing job actually started (another job may be running).
             if (Bridge.autoPair(port, code)) {
                 lastPairKey = key
-                Toast.makeText(this, "APK Bridge זיהה את קוד החיבור — מתחבר…", Toast.LENGTH_SHORT).show()
-                Bridge.log("זוהה חלון חיבור במסך: פורט $port.")
+                Toast.makeText(this, "APK Bridge זיהה את קוד הצימוד — מבצע צימוד…", Toast.LENGTH_SHORT).show()
+                Bridge.log("זוהה חלון צימוד במסך: פורט $port.")
             }
         } else if (port != lastConnectPort) {
             lastConnectPort = port
