@@ -1114,6 +1114,52 @@ object Bridge {
 
     // region tools
 
+    /**
+     * Runs any shell command as the ADB "shell" user and streams its output.
+     * Accepts "adb shell …" / "adb …" prefixes as typed on a computer.
+     * [onOutput] is called on the main thread with (text, isError); [onExit] with the exit code (null = failed/cancelled).
+     */
+    fun runCommand(raw: String, onOutput: (String, Boolean) -> Unit, onExit: (Int?) -> Unit): Boolean {
+        val cmd = normalizeCommand(raw)
+        if (cmd.isBlank()) return false
+        var exit: Int? = null
+        val started = runJob("הפקודה") {
+            status("מריץ: $cmd")
+            try {
+                withClient { c ->
+                    c.shellFlow(cmd).collect { chunk ->
+                        when (chunk) {
+                            is io.github.rhythmcache.adb.ShellChunk.Stdout -> main.post { onOutput(chunk.text, false) }
+                            is io.github.rhythmcache.adb.ShellChunk.Stderr -> main.post { onOutput(chunk.text, true) }
+                            is io.github.rhythmcache.adb.ShellChunk.Exit -> exit = chunk.code
+                        }
+                    }
+                }
+                status("הפקודה הסתיימה (קוד יציאה ${exit ?: 0}).")
+                if (exit == null) exit = 0
+            } finally {
+                val code = exit
+                main.post { onExit(code) }
+            }
+        }
+        return started
+    }
+
+    /** "adb shell ls" → "ls"; "adb reboot" → "reboot"; plain commands are kept. */
+    fun normalizeCommand(raw: String): String {
+        var cmd = raw.trim()
+        if (cmd.startsWith("adb ")) {
+            cmd = cmd.removePrefix("adb ").trim()
+            cmd = when {
+                cmd.startsWith("shell ") -> cmd.removePrefix("shell ").trim()
+                cmd == "shell" -> ""
+                cmd.startsWith("reboot") -> cmd
+                else -> cmd
+            }
+        }
+        return cmd
+    }
+
     fun uninstall(pkg: String, keepData: Boolean) = runJob("הסרת ההתקנה") {
         val name = pkg.trim()
         require(name.matches(Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+"))) { "שם חבילה לא תקין." }

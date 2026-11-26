@@ -306,6 +306,9 @@ class MainActivity : Activity() {
         tools.addView(heading("3 · כלים"), matchWrap())
         tools.addView(button("📱 אפליקציות מותקנות — פתיחה, הסרה, שמירת APK", primary = true) {
             startActivity(Intent(this, AppsActivity::class.java))
+        }, matchWrap())
+        tools.addView(button("⌨ מסוף ADB — הרץ כל פקודה", primary = true) {
+            startActivity(Intent(this, TerminalActivity::class.java))
         }, matchWrap(12))
         uninstallPkg = field("שם חבילה להסרה (למשל com.example.app)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
         tools.addView(uninstallPkg, matchWrap())
