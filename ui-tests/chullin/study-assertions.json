@@ -103,6 +103,12 @@
       "exact": true
     },
     {
+      "action": "scroll_to",
+      "text": "סקירה כללית",
+      "direction": "down",
+      "max_swipes": 10
+    },
+    {
       "action": "assert_text",
       "text": "סקירה כללית"
     },
@@ -118,6 +124,12 @@
       "action": "tap",
       "text": "פרקים",
       "exact": true
+    },
+    {
+      "action": "scroll_to",
+      "text": "הכל שוחטין",
+      "direction": "down",
+      "max_swipes": 10
     },
     {
       "action": "assert_text",
