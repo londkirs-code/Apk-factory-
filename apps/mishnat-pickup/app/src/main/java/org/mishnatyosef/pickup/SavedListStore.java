@@ -387,34 +387,37 @@ final class SavedListStore {
         return true;
     }
 
-    /**
-     * החלפת המוצרים של הזמנה מסונכרנת מהחשבון. שאר השדות, כולל סימוני האיסוף, נשמרים.
-     * הזמנה ששונתה במכשיר (צירוף, מיזוג, ייבוא לתוכה) שומרת את המוצרים שנוספו לה, גם אם האתר לא מכיר אותם.
-     */
+    /** החלפת המוצרים של הזמנה מסונכרנת מהחשבון. הזמנה מהאתר לא משתנה במכשיר, לכן כל המוצרים מהאתר. */
     synchronized boolean replaceProducts(String id, JSONArray products, String serverPrint) {
         try {
             File file = fileFor(id);
             if (!file.isFile()) return false;
             JSONObject data = read(file);
-            JSONArray merged = new JSONArray();
-            java.util.Set<String> serverKeys = new java.util.HashSet<>();
-            for (int i = 0; i < products.length(); i++) {
-                JSONObject p = products.optJSONObject(i);
-                if (p == null) continue;
-                merged.put(p);
-                serverKeys.add(p.optString("key", ""));
-            }
-            if (data.optBoolean("_user_edited", false)) {
-                JSONArray old = data.optJSONArray("products");
-                if (old != null) for (int i = 0; i < old.length(); i++) {
-                    JSONObject o = old.optJSONObject(i);
-                    if (o != null && !serverKeys.contains(o.optString("key", ""))) merged.put(o);
-                }
-            }
-            data.put("products", merged);
+            data.put("products", products);
             data.put("_server_print", serverPrint == null ? "" : serverPrint);
             return writeAtomic(file, data);
         } catch (Exception e) { return false; }
+    }
+
+    /**
+     * עותק מקומי של הזמנה מהאתר: הוספות, מיזוגים וייבוא נעשים בעותק, וההזמנה המקורית נשארת כמו שהיא באתר.
+     * העותק לא מסונכרן (מזהה לפי זמן, לא מזהה אתר). מחזיר את מזהה העותק, או "" אם נכשל.
+     */
+    synchronized String copyAsLocal(String id, String title) {
+        try {
+            JSONObject data = readEntry(id);
+            String orderId = String.valueOf(System.currentTimeMillis());
+            String sourceId = data.optString("_source_id", "");
+            String newId = sourceId + "_local_" + orderId;
+            data.put("_saved_list_id", newId);
+            data.put("order_id", orderId);
+            data.put("order_name", title);
+            data.put("_archived_at", System.currentTimeMillis());
+            data.remove("_server_print");
+            data.remove("_user_edited");
+            data.remove("_merged_sources");
+            return writeAtomic(fileFor(newId), data) ? newId : "";
+        } catch (Exception e) { return ""; }
     }
 
     synchronized boolean setServerPrint(String id, String serverPrint) {

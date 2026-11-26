@@ -1871,7 +1871,7 @@ public class MainActivity extends Activity {
                 Toast.makeText(this,"לא נמצאה ההזמנה הנוכחית. הקובץ לא צורף.",Toast.LENGTH_LONG).show();
                 ImportParser.delete(bundle.workDir);return;
             }
-            SavedListStore.Entry editable=findSavedEntry(currentEntryId);
+            SavedListStore.Entry editable=localTarget(findSavedEntry(currentEntryId));
             if(editable==null){Toast.makeText(this,"יצירת העותק נכשלה. הקובץ לא מוזג.",Toast.LENGTH_LONG).show();ImportParser.delete(bundle.workDir);return;}
             currentEntryId=editable.id;
         }
@@ -2117,7 +2117,7 @@ public class MainActivity extends Activity {
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
             + "• ניווט במקשים ברשימות: למעלה/למטה נשארים באותה עמודה (✓, שם, ⚙), וכניסה לרשימה נוחתת על השם ולא על ה-✓.\n"
             + "• אחרי ייבוא: הזמנה אחת נפתחת בחלון שלה; כמה הזמנות - מסומנות בניהול הזמנות כדי ליצור מהן רשימת איסוף.\n"
-            + "• סנכרון חל רק על הזמנות מהחשבון, ולא משנה אם הן ברשימת איסוף או לא. שינויים שעשית בהזמנה (צירוף, מיזוג, ייבוא לתוכה) נשמרים, ולא נמחקים בסנכרון.\n"
+            + "• סנכרון חל רק על הזמנות מהחשבון, ולא משנה אם הן ברשימת איסוף או לא. הזמנה מהאתר לא משתנה במכשיר: צירוף, מיזוג וייבוא נעשים בעותק מקומי שלה.\n"
             + "• ניקוי כפילויות: חלון ההזמנות הישן הוסר; \"הזמנות\" פותח את ניהול הזמנות, וחזרה ממנו חוזרת לחלון רשימות האיסוף.\n"
             + "• כפתור ייבוא (+) במסך הראשי, ליד ההגדרות ואיפוס הליקוט.\n"
             + "• הזמנה נפתחת בחלון גדול עם אותם כרטיסים כמו באיסוף (תמונה, שם, כמות, קטגוריה), לצפייה בלבד.\n"
@@ -2493,6 +2493,14 @@ public class MainActivity extends Activity {
         long last = lastEntrySync(entry);
         return "🔄 מסונכרן · בדיקה אחרונה: " + (last > 0
                 ? new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(new Date(last)) : "עוד לא");
+    }
+
+    /** הזמנה מהאתר לא משתנה במכשיר: כל הוספה, מיזוג או ייבוא לתוכה נעשים בעותק מקומי שלה. */
+    private SavedListStore.Entry localTarget(SavedListStore.Entry entry) {
+        if (entry == null) return null;
+        if (serverOrderId(entry) <= 0) return entry;
+        String newId = savedListStore.copyAsLocal(entry.id, "עותק של " + displayTitle(entry));
+        return newId.isEmpty() ? null : findSavedEntry(newId);
     }
 
     /**
@@ -3847,7 +3855,7 @@ public class MainActivity extends Activity {
 
     private void saveHistoricalOrder(long id,String title,JSONObject historyRow,SavedListStore.Entry targetIn) {
         if(accessToken.isEmpty()||activeSourceId.isEmpty()){Toast.makeText(this,"אין חיבור פעיל לשמירת ההזמנה.",Toast.LENGTH_LONG).show();return;}
-        final SavedListStore.Entry target=targetIn;
+        final SavedListStore.Entry target=localTarget(targetIn);
         if(targetIn!=null&&target==null){Toast.makeText(this,"יצירת העותק נכשלה.",Toast.LENGTH_LONG).show();return;}
         final RequestSession session=new RequestSession(authGeneration,accessToken);
 
@@ -4654,7 +4662,7 @@ public class MainActivity extends Activity {
         for(SavedListStore.Entry target:savedListStore.list()) {
             if(target.id.equals(source.id))continue;choices++;
             Button choose=Ui.button(this,displayTitle(target)+" · "+target.itemCount+" פריטים",Ui.Kind.SOFT);
-            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+displayTitle(source)+"' יצורפו ל '"+displayTitle(target)+"'. כמויות של פריטים זהים יסוכמו; הזמנת המקור תישאר שמורה.","מזג הזמנות",()->{SavedListStore.Entry editable=target;boolean ok=editable!=null&&savedListStore.mergeEntries(editable.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"ההזמנות מוזגו בהצלחה.":"המיזוג נכשל; ההזמנות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
+            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+displayTitle(source)+"' יצורפו ל '"+displayTitle(target)+"'. כמויות של פריטים זהים יסוכמו; הזמנת המקור תישאר שמורה.","מזג הזמנות",()->{SavedListStore.Entry editable=localTarget(target);boolean ok=editable!=null&&savedListStore.mergeEntries(editable.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"ההזמנות מוזגו בהצלחה.":"המיזוג נכשל; ההזמנות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
             panel.addView(choose,Ui.row(this,Ui.S2,0));
         }
         if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי הזמנות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
