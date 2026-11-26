@@ -7234,11 +7234,22 @@ public class MainActivity extends Activity {
      * ומשתמשים: הוספה, שם תצוגה, סדר והסרה. group==null יוצר רשימה חדשה.
      */
     private void showGroupEditor(PickupGroups.Group existing, Runnable parent) {
+        showGroupEditor(existing, parent, false, new java.util.LinkedHashSet<>());
+    }
+
+    /**
+     * הגדרות רשימת איסוף. בשורת הכפתורים: תצוגה, כמות להזמנה, שינוי שם, + הזמנה, וניהול.
+     * במצב רגיל ההזמנות הן רשימה פשוטה (לחיצה מציגה את ההזמנה).
+     * במצב ניהול: ✓ לכל הזמנה ומחיקה של המסומנות בבת אחת, חיצים לשינוי המקום, ולחיצה על השם משנה אותו.
+     */
+    private void showGroupEditor(PickupGroups.Group existing, Runnable parent, boolean manage, Set<String> marked) {
         final PickupGroups.Group g;
         if (existing == null) {
             g = groups.create(defaultGroupName(), new ArrayList<>());
         } else g = groups.find(existing.id) != null ? groups.find(existing.id) : existing;
-        Runnable self = () -> { PickupGroups.Group fresh = groups.find(g.id); if (fresh != null) showGroupEditor(fresh, parent); };
+        marked.retainAll(g.members);
+        Runnable self = () -> { PickupGroups.Group fresh = groups.find(g.id); if (fresh != null) showGroupEditor(fresh, parent, manage, marked); };
+        Runnable normal = () -> { PickupGroups.Group fresh = groups.find(g.id); if (fresh != null) showGroupEditor(fresh, parent, false, new java.util.LinkedHashSet<>()); };
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
@@ -7255,55 +7266,77 @@ public class MainActivity extends Activity {
         Button breakdown = Ui.tile(this, Ui.IC_INFO, (g.breakdown ? "✓ " : "") + "כמות להזמנה");
         breakdown.setContentDescription("כמות לפי הזמנה בכל מוצר" + (g.breakdown ? ", פעיל" : ", כבוי"));
         breakdown.setOnClickListener(v -> { g.breakdown = !g.breakdown; groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
-        Button name = Ui.tile(this, Ui.IC_MORE, "שם");
+        Button name = Ui.tile(this, Ui.IC_MORE, "שינוי שם");
         name.setContentDescription("שינוי שם רשימת האיסוף");
         name.setOnClickListener(v -> { dialog.dismiss(); askGroupName(g.name, n -> { if (!n.isEmpty()) { g.name = n; groups.save(g); applyGroupIfActive(g); } self.run(); }, self); });
         Button add = Ui.tile(this, Ui.IC_PLUS, "הזמנה");
         add.setContentDescription("הוספת הזמנה לרשימת האיסוף");
         add.setOnClickListener(v -> { dialog.dismiss(); pickGroupMembers(g, self); });
+        Button manageTile = Ui.tile(this, Ui.IC_SETTINGS, manage ? "✓ ניהול" : "ניהול");
+        manageTile.setContentDescription(manage ? "סיום ניהול ההזמנות" : "ניהול ההזמנות: סדר, שמות ומחיקה");
+        manageTile.setEnabled(!g.members.isEmpty());
+        manageTile.setOnClickListener(v -> { dialog.dismiss(); if (manage) normal.run(); else showGroupEditor(g, parent, true, new java.util.LinkedHashSet<>()); });
         // כל הכפתורים בשורה אחת. הסנכרון נקבע לכל הזמנה בנפרד (בפעולות של ההזמנה).
-        body.addView(tileRowOneLine(combined, perUser, breakdown, name, add), Ui.row(this, 0, 0));
+        body.addView(tileRowOneLine(combined, perUser, breakdown, name, add, manageTile), Ui.row(this, 0, 0));
 
-        body.addView(compactSection(g.members.isEmpty() ? "אין הזמנות" : "הזמנות · " + g.members.size()));
+        body.addView(compactSection(g.members.isEmpty() ? "אין הזמנות"
+                : (manage ? "ניהול הזמנות · " : "הזמנות · ") + g.members.size()));
+        View firstRow = null;
+        final int deleteId = View.generateViewId();
         for (int i = 0; i < g.members.size(); i++) {
             final int index = i;
             final String entryId = g.members.get(i);
-            SavedListStore.Entry entry = findSavedEntry(entryId);
-            String original = entry == null ? "רשימה שנמחקה" : displayTitle(entry);
-            String label = g.label(entryId, original);
+            final SavedListStore.Entry entry = findSavedEntry(entryId);
+            final String original = entry == null ? "הזמנה שנמחקה" : displayTitle(entry);
+            final String label = g.label(entryId, original);
+            String details = entry == null ? "" : entry.itemCount + " פריטים" + (label.equals(original) ? "" : " · " + original);
             LinearLayout row = new LinearLayout(this);
             row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            Button user = Ui.listRow(this, "📦 " + label, entry == null ? "" : entry.itemCount + " פריטים"
-                    + (label.equals(original) ? "" : " · " + original), false);
-            // לחיצה על ההזמנה: התוכן שלה בחלון צף. ✏ משנה את השם שלה ברשימת האיסוף.
-            user.setContentDescription("הצגת ההזמנה " + label);
-            user.setOnClickListener(v -> { dialog.dismiss(); if (entry != null) showOrderPreview(entry, self); else self.run(); });
-            row.addView(user, new LinearLayout.LayoutParams(0, -2, 1f));
-            Button rename = Ui.button(this, "✏", Ui.Kind.SOFT);
-            rename.setContentDescription("שינוי השם של ההזמנה " + label);
-            rename.setPadding(0, 0, 0, 0);
-            rename.setOnClickListener(v -> { dialog.dismiss(); askGroupName(label, n -> {
-                if (n.isEmpty() || n.equals(original)) g.labels.remove(entryId); else g.labels.put(entryId, n);
-                groups.save(g); applyGroupIfActive(g); self.run(); }, self); });
-            Button up = Ui.iconButton(this, Ui.IC_CHEVRON_DOWN, "הזזה למעלה: " + label, false);
-            up.setRotation(180f);
-            Button down = Ui.iconButton(this, Ui.IC_CHEVRON_DOWN, "הזזה למטה: " + label, false);
-            Button remove = Ui.iconButton(this, Ui.IC_CLOSE, "הוצאה מרשימת האיסוף: " + label, false);
-            up.setContentDescription("הזזה למעלה: " + label);
-            down.setContentDescription("הזזה למטה: " + label);
-            remove.setContentDescription("הוצאה מרשימת האיסוף: " + label);
-            up.setEnabled(index > 0);
-            down.setEnabled(index < g.members.size() - 1);
-            up.setOnClickListener(v -> { java.util.Collections.swap(g.members, index, index - 1); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
-            down.setOnClickListener(v -> { java.util.Collections.swap(g.members, index, index + 1); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
-            remove.setOnClickListener(v -> { g.members.remove(entryId); g.labels.remove(entryId); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
-            int size = Ui.dp(this, 36), gap = Ui.dp(this, 2);
-            for (Button b : new Button[]{rename, up, down, remove}) {
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-                lp.setMarginStart(gap);
-                if (!b.isEnabled()) b.setAlpha(0.35f);
-                row.addView(b, lp);
+            if (!manage) {
+                Button order = Ui.listRow(this, "📦 " + label, details, false);
+                order.setContentDescription("הצגת ההזמנה " + label);
+                order.setOnClickListener(v -> { dialog.dismiss(); if (entry != null) showOrderPreview(entry, self); else self.run(); });
+                row.addView(order, new LinearLayout.LayoutParams(0, -2, 1f));
+                if (firstRow == null) firstRow = order;
+            } else {
+                CheckBox box = new CheckBox(this);
+                box.setChecked(marked.contains(entryId));
+                box.setContentDescription("סימון למחיקה: " + label);
+                if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
+                box.setBackground(Ui.focusFrame(this));
+                LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
+                boxLp.setMarginEnd(Ui.dp(this, Ui.S1));
+                row.addView(box, boxLp);
+                Button order = Ui.listRow(this, "✏ " + label, details, false);
+                order.setContentDescription("שינוי השם של ההזמנה " + label);
+                order.setOnClickListener(v -> { dialog.dismiss(); askGroupName(label, n -> {
+                    if (n.isEmpty() || n.equals(original)) g.labels.remove(entryId); else g.labels.put(entryId, n);
+                    groups.save(g); applyGroupIfActive(g); self.run(); }, self); });
+                row.addView(order, new LinearLayout.LayoutParams(0, -2, 1f));
+                Button up = Ui.iconButton(this, Ui.IC_CHEVRON_DOWN, "הזזה למעלה: " + label, false);
+                up.setRotation(180f);
+                Button down = Ui.iconButton(this, Ui.IC_CHEVRON_DOWN, "הזזה למטה: " + label, false);
+                up.setEnabled(index > 0);
+                down.setEnabled(index < g.members.size() - 1);
+                up.setOnClickListener(v -> { java.util.Collections.swap(g.members, index, index - 1); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+                down.setOnClickListener(v -> { java.util.Collections.swap(g.members, index, index + 1); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+                int size = Ui.dp(this, 36), gap = Ui.dp(this, 2);
+                for (Button b : new Button[]{up, down}) {
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+                    lp.setMarginStart(gap);
+                    if (!b.isEnabled()) b.setAlpha(0.35f);
+                    row.addView(b, lp);
+                }
+                if (firstRow == null) firstRow = box;
+                box.setOnCheckedChangeListener((b, checked) -> {
+                    if (checked) marked.add(entryId); else marked.remove(entryId);
+                    View del = dialog.findViewById(deleteId);
+                    if (del instanceof Button) {
+                        ((Button) del).setText(Ui.withEmoji("מחיקת המסומנות מרשימת האיסוף (" + marked.size() + ")"));
+                        del.setVisibility(marked.isEmpty() ? View.GONE : View.VISIBLE);
+                    }
+                });
             }
             body.addView(row, Ui.row(this, 0, Ui.S1));
         }
@@ -7311,16 +7344,35 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        Button open = Ui.button(this, "פתיחת רשימת האיסוף", Ui.Kind.PRIMARY);
-        open.setEnabled(!g.members.isEmpty());
-        open.setOnClickListener(v -> { dialog.dismiss(); activateGroup(g); });
-        panel.addView(open, Ui.row(this, Ui.S2, 0));
+        if (manage) {
+            Button deleteMarked = Ui.button(this, "מחיקת המסומנות מרשימת האיסוף (" + marked.size() + ")", Ui.Kind.SOFT);
+            deleteMarked.setId(deleteId);
+            deleteMarked.setVisibility(marked.isEmpty() ? View.GONE : View.VISIBLE);
+            deleteMarked.setOnClickListener(v -> {
+                for (String id : marked) { g.members.remove(id); g.labels.remove(id); }
+                groups.save(g); applyGroupIfActive(g);
+                marked.clear();
+                dialog.dismiss(); self.run();
+            });
+            panel.addView(deleteMarked, Ui.row(this, Ui.S2, 0));
+            Button done = Ui.button(this, "סיום ניהול", Ui.Kind.PRIMARY);
+            done.setOnClickListener(v -> { dialog.dismiss(); normal.run(); });
+            panel.addView(done, Ui.row(this, Ui.S1, 0));
+        } else {
+            Button open = Ui.button(this, "פתיחת רשימת האיסוף", Ui.Kind.PRIMARY);
+            open.setEnabled(!g.members.isEmpty());
+            open.setOnClickListener(v -> { dialog.dismiss(); activateGroup(g); });
+            panel.addView(open, Ui.row(this, Ui.S2, 0));
+        }
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
-        if (parent != null) addDialogBackButton(dialog, parent);
+        // חזרה ממצב ניהול: למצב הרגיל של אותו מסך.
+        if (manage) addDialogBackButton(dialog, normal);
+        else if (parent != null) addDialogBackButton(dialog, parent);
         sizeLargeDialog(dialog);
-        (g.members.isEmpty() ? add : combined).requestFocus();
+        if (manage && firstRow != null) firstRow.requestFocus();
+        else (g.members.isEmpty() ? add : combined).requestFocus();
     }
 
     /** רשימת האיסוף הפעילה השתנתה: מרעננים את המסך הראשי עם ההגדרות שלה. */
