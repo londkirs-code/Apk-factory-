@@ -576,12 +576,12 @@ public class MainActivity extends Activity {
                 + "רואים מה נשאר, ומאחדים כמה רשימות יחד."), Ui.T_BODY, Ui.INK, false);
         intro.setGravity(Gravity.CENTER);
         root.addView(intro, Ui.row(this, Ui.S2, 0));
-        TextView now = Ui.text(this, Ui.rtlParagraph("✨ אפשר להתחיל כבר עכשיו: לייבא רשימות מקובץ, מקוד QR, מהענן, בבלוטות' או מטקסט, "
+        TextView now = Ui.text(this, Ui.rtlParagraph("✨ אפשר להתחיל כבר עכשיו: לייבא הזמנות מקובץ, מקוד QR, מהענן, בבלוטות' או מטקסט, "
                 + "בלי התחברות ובלי חיבור לאינטרנט."), Ui.T_BODY, Ui.P800, true);
         now.setGravity(Gravity.CENTER);
         root.addView(now, Ui.row(this, Ui.S2, Ui.S3));
 
-        View importNow = Ui.heroTile(this, "📥", "ייבוא רשימות עכשיו", "בלי התחברות ובלי אינטרנט");
+        View importNow = Ui.heroTile(this, "📥", "ייבוא הזמנות עכשיו", "בלי התחברות ובלי אינטרנט");
         importNow.setOnClickListener(v -> createNewSavedList());
         int side = Math.min(Ui.dp(this, 240), (int) (getResources().getDisplayMetrics().widthPixels * 0.68f));
         LinearLayout.LayoutParams heroLp = new LinearLayout.LayoutParams(side, side);
@@ -591,7 +591,7 @@ public class MainActivity extends Activity {
 
         boolean noLists = savedListStore == null || savedListStore.list().isEmpty();
         if (noLists && !hasCachedOrder()) {
-            TextView empty = Ui.text(this, "📭 אין רשימות", Ui.T_NAME, Ui.MUTED, true);
+            TextView empty = Ui.text(this, "📭 אין הזמנות", Ui.T_NAME, Ui.MUTED, true);
             empty.setGravity(Gravity.CENTER);
             root.addView(empty, Ui.row(this, 0, Ui.S2));
         }
@@ -1690,7 +1690,7 @@ public class MainActivity extends Activity {
     private void startQrScan() {
         if (!getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA)
                 && !(Build.VERSION.SDK_INT >= 17 && getPackageManager().hasSystemFeature("android.hardware.camera.any"))) {
-            showInfoDialog("אין מצלמה", "במכשיר הזה אין מצלמה. אפשר להעביר את הרשימה בקובץ, בבלוטות' או בהדבקת טקסט.");
+            showInfoDialog("אין מצלמה", "במכשיר הזה אין מצלמה. אפשר להעביר את ההזמנה בקובץ, בבלוטות' או בהדבקת טקסט.");
             return;
         }
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.CAMERA)
@@ -1746,7 +1746,7 @@ public class MainActivity extends Activity {
     private void showImportSummary(ImportParser.Bundle bundle) {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel=Ui.dialogPanel(this);
-        panel.addView(Ui.text(this,"נמצאו "+bundle.lists.size()+" רשימות",Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,"נמצאו "+bundle.lists.size()+" הזמנות",Ui.T_NAME,Ui.P900,true));
         boolean replacesExisting = false;
         for(ImportParser.ImportedList list:bundle.lists) {
             String name=list.accountName.isEmpty()?"רשימה מיובאת":list.accountName;
@@ -1757,16 +1757,16 @@ public class MainActivity extends Activity {
         }
         if(replacesExisting) panel.addView(Ui.banner(this,"נמצא מקור קיים. בדקו שתאריך העדכון בקובץ אינו ישן יותר; הייבוא עשוי להחליף את הרשימה המקומית."),Ui.row(this,Ui.S2,0));
         Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
-        Button apply=Ui.gridButton(this,"ייבא רשימות כחשבון",Ui.Kind.SOFT);
+        Button apply=Ui.gridButton(this,"ייבא הזמנות כחשבון",Ui.Kind.SOFT);
         cancel.setOnClickListener(v->{dialog.dismiss();ImportParser.delete(bundle.workDir);});
         apply.setOnClickListener(v->{
             dialog.dismiss();
             if(hasConnectedImportConflict(bundle))showImportConflict(bundle);
             else commitImport(bundle,false);
         });
-        Button saveSeparate=Ui.gridButton(this,"שמור כרשימות עצמאיות",Ui.Kind.SOFT);
+        Button saveSeparate=Ui.gridButton(this,"שמור כהזמנות עצמאיות",Ui.Kind.SOFT);
         saveSeparate.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,false);});
-        Button addCurrent=Ui.gridButton(this,"הוסף לרשימה הנוכחית",Ui.Kind.SOFT);
+        Button addCurrent=Ui.gridButton(this,"צרף להזמנה הנוכחית",Ui.Kind.SOFT);
         addCurrent.setEnabled(!activeSourceId.isEmpty()&&!currentOrderId.isEmpty());
         addCurrent.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,true);});
         addGridButtons(panel,saveSeparate,addCurrent,apply);
@@ -1794,7 +1794,7 @@ public class MainActivity extends Activity {
             for(SavedListStore.Entry entry:savedListStore.list())
                 if(entry.sourceId.equals(activeSourceId)&&entry.owner.equals(activeOwner)&&entry.orderId.equals(currentOrderId)){currentEntryId=entry.id;break;}
             if(currentEntryId.isEmpty()) {
-                Toast.makeText(this,"לא נמצאה הרשימה הנוכחית בארכיון. הקובץ לא מוזג.",Toast.LENGTH_LONG).show();
+                Toast.makeText(this,"לא נמצאה ההזמנה הנוכחית. הקובץ לא צורף.",Toast.LENGTH_LONG).show();
                 ImportParser.delete(bundle.workDir);return;
             }
             SavedListStore.Entry editable=editableCopyIfSynced(findSavedEntry(currentEntryId));
@@ -1832,13 +1832,13 @@ public class MainActivity extends Activity {
                             .put("order_name",title).put("updated_at",list.updatedAt==null?"":list.updatedAt)
                             .put("imported",true).put("products",products);
                     if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))
-                        throw new Exception("לא ניתן לשמור את הרשימה '"+title+"'.");
+                        throw new Exception("לא ניתן לשמור את ההזמנה '"+title+"'.");
                     String archivedId=savedEntryId(source.id,owner,String.valueOf(syntheticId));
                     archived.add(archivedId);
                     rememberCloudOrigin(archivedId,list.accountId);
                 }
                 if(mergeCurrent)for(String id:archived)
-                    if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא מוזג לרשימה הנוכחית; העותקים המקוריים נשארו בארכיון.");
+                    if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא צורף להזמנה הנוכחית; העותקים המקוריים נשמרו.");
                 mainHandler.post(()->{
                     ImportParser.delete(bundle.workDir);showSavedListsScreen(false);
                     
@@ -1878,7 +1878,7 @@ public class MainActivity extends Activity {
     }
 
     private void commitImport(ImportParser.Bundle bundle,boolean separateConnected) {
-        showSyncMessage("שומר את הרשימות המיובאות…",false);
+        showSyncMessage("שומר את ההזמנות המיובאות…",false);
         cacheWorker.execute(() -> {
             List<String> created=new ArrayList<>();
             List<File[]> committed=new ArrayList<>();
@@ -1918,10 +1918,10 @@ public class MainActivity extends Activity {
                     File temp=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_tmp");
                     File backup=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_backup");
                     ImportParser.delete(temp);ImportParser.delete(backup);
-                    if(!copyImportTree(item.ready,temp))throw new Exception("לא ניתן להכין רשימה לשמירה.");
+                    if(!copyImportTree(item.ready,temp))throw new Exception("לא ניתן להכין הזמנה לשמירה.");
                     boolean had=root.exists();
-                    if(had&&!root.renameTo(backup))throw new Exception("לא ניתן לגבות רשימה קיימת.");
-                    if(!temp.renameTo(root)){if(had)backup.renameTo(root);throw new Exception("שמירת רשימה נכשלה.");}
+                    if(had&&!root.renameTo(backup))throw new Exception("לא ניתן לגבות הזמנה קיימת.");
+                    if(!temp.renameTo(root)){if(had)backup.renameTo(root);throw new Exception("שמירת הזמנה נכשלה.");}
                     committed.add(new File[]{root,backup});
                 }
                 for(PreparedImport item:prepared) {
@@ -1947,7 +1947,7 @@ public class MainActivity extends Activity {
                             cacheTrusted=isCacheManifestValid(activeOwner);clearOrderMemory();
                         }
                         showHomeScreen(false);showSyncMessage("הייבוא הושלם בהצלחה.",false);
-                    } catch(Exception e){showSyncMessage("הרשימות נשמרו, אך לא ניתן לפתוח אותן כרגע.",false);}
+                    } catch(Exception e){showSyncMessage("ההזמנות נשמרו, אך לא ניתן לפתוח אותן כרגע.",false);}
                 });
             } catch(Exception e) {
                 for(File[] pair:committed) {
@@ -2040,7 +2040,9 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
-            + "• בשיתוף: \"העתקה ללוח\" במקום קובץ JSON (מדביקים באפליקציה ב\"הדבקת טקסט\").\n"
+            + "• כפתור ייבוא (+) במסך הראשי, ליד ההגדרות ואיפוס הליקוט.\n"
+            + "• הזמנה נפתחת בחלון גדול עם אותם כרטיסים כמו באיסוף (תמונה, שם, כמות, קטגוריה), לצפייה בלבד.\n"
+            + "• בעריכת רשימת איסוף: כל הכפתורים בשורה אחת; לחיצה על הזמנה מציגה אותה, ✏ משנה את שמה. הסנכרון נקבע לכל הזמנה.\n"            + "• בשיתוף: \"העתקה ללוח\" במקום קובץ JSON (מדביקים באפליקציה ב\"הדבקת טקסט\").\n"
             + "• פתיחת הזמנה מציגה אותה בחלון צף לצפייה; איסוף רק ברשימת איסוף. ההזמנה האחרונה מהחשבון היא רשימת איסוף אוטומטית.\n"
             + "• בחלון רשימות האיסוף: ✓ למיזוג ושיתוף, וכפתור עריכה ישיר בכל רשימה.\n"
             + "• \"רשימה\" היא עכשיו רשימת איסוף; מה שמייבאים הוא \"הזמנה\". מסמנים הזמנות ב\"ניהול הזמנות\" ולוחצים \"רשימת איסוף\". לחיצה על הכותרת במסך הראשי בוחרת רשימת איסוף.\n"
@@ -2337,7 +2339,7 @@ public class MainActivity extends Activity {
         }
         addSourceAction(panel, dialog, SourceRegistry.KIND_IMPORTED.equals(source.kind)
                         ? "הסר רשימה מהמכשיר" : "הסר חיבור ורשימה מהמכשיר",
-                () -> showModernConfirm("הסרת מקור", "החיבור והעותק הפעיל יוסרו מהמכשיר. רשימות שכבר נשמרו בארכיון יישארו במסך ניהול רשימות עד למחיקה ידנית.", "הסר", () -> removeSource(source.id)));
+                () -> showModernConfirm("הסרת מקור", "החיבור והעותק הפעיל יוסרו מהמכשיר. הזמנות שכבר נשמרו יישארו במסך ניהול הזמנות עד למחיקה ידנית.", "הסר", () -> removeSource(source.id)));
         Button cancel = Ui.button(this, "סגירה", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
         panel.addView(cancel, Ui.row(this, Ui.S2, 0));
@@ -2409,7 +2411,7 @@ public class MainActivity extends Activity {
     /** שורה קצרה: מצב הסנכרון ומועד הבדיקה האחרונה. */
     private String syncedDetails(SavedListStore.Entry entry) {
         if (serverOrderId(entry) <= 0) return "";
-        if (syncDisabled(entry.id)) return "⏸ הסנכרון כבוי לרשימה הזו";
+        if (syncDisabled(entry.id)) return "⏸ הסנכרון כבוי להזמנה הזו";
         long last = lastEntrySync(entry);
         return "🔄 מסונכרן · בדיקה אחרונה: " + (last > 0
                 ? new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(new Date(last)) : "עוד לא");
@@ -2417,7 +2419,7 @@ public class MainActivity extends Activity {
 
     private void setEntrySync(SavedListStore.Entry entry, boolean enabled) {
         uiPreferences.edit().putBoolean("nosync_" + entry.id, !enabled).apply();
-        showActionToast(enabled ? "הסנכרון הופעל לרשימה" : "הסנכרון כובה לרשימה");
+        showActionToast(enabled ? "הסנכרון הופעל להזמנה" : "הסנכרון כובה להזמנה");
         refreshHomeTitle();
         if (screen == Screen.SAVED_LISTS) refreshSavedListsScreen();
     }
@@ -2612,20 +2614,27 @@ public class MainActivity extends Activity {
         gridEqualizePending.put(container, Boolean.TRUE);
         container.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
             @Override public void onGlobalLayout() {
-                List<Button> buttons = new ArrayList<>();
+                // כל השורות בגובה הכפתור הגבוה ביותר. מודדים את הגובה הטבעי של כל כפתור (לפי הרוחב שלו),
+                // וקובעים גובה קבוע לשורות. ממשיכים להאזין: חלון צף משנה רוחב אחרי המדידה הראשונה.
+                List<LinearLayout> rows = new ArrayList<>();
                 int max = 0;
                 for (int i = 0; i < container.getChildCount(); i++) {
                     View row = container.getChildAt(i);
-                    if (!(row instanceof LinearLayout) || !GRID_ROW_TAG.equals(row.getTag())) continue;
+                    if (!(row instanceof LinearLayout) || !GRID_ROW_TAG.equals(row.getTag()) || row.getVisibility() == View.GONE) continue;
+                    rows.add((LinearLayout) row);
                     for (int j = 0; j < ((LinearLayout) row).getChildCount(); j++) {
                         View child = ((LinearLayout) row).getChildAt(j);
-                        if (child instanceof Button) { buttons.add((Button) child); max = Math.max(max, child.getHeight()); }
+                        if (!(child instanceof Button) || child.getVisibility() == View.GONE || child.getWidth() <= 0) continue;
+                        child.measure(View.MeasureSpec.makeMeasureSpec(child.getWidth(), View.MeasureSpec.EXACTLY),
+                                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                        max = Math.max(max, child.getMeasuredHeight());
                     }
                 }
                 if (max <= 0) return; // עוד לא נמדד
-                // ממשיכים להאזין: חלון צף משנה רוחב אחרי המדידה הראשונה, וטקסט עלול לרדת שורה.
-                // כל הכפתורים מקבלים את אותו גובה מינימלי - של הגבוה ביותר.
-                for (Button b : buttons) if (b.getHeight() != max || b.getMinimumHeight() != max) { b.setMinHeight(max); b.setMinimumHeight(max); }
+                for (LinearLayout row : rows) {
+                    ViewGroup.LayoutParams lp = row.getLayoutParams();
+                    if (lp != null && lp.height != max) { lp.height = max; row.setLayoutParams(lp); }
+                }
             }
         });
     }
@@ -3192,7 +3201,7 @@ public class MainActivity extends Activity {
 
         LinearLayout content=Ui.column(this);
         content.setPadding(pad,0,pad,Ui.dp(this,Ui.S8));
-        if(entries.isEmpty())content.addView(Ui.banner(this,"אין רשימות"),Ui.row(this,Ui.S2,0));
+        if(entries.isEmpty())content.addView(Ui.banner(this,"אין הזמנות"),Ui.row(this,Ui.S2,0));
         else content.addView(compactSection(entries.size()==1?"הזמנה אחת במכשיר":entries.size()+" הזמנות במכשיר"));
         View firstOpen=null;
         for(SavedListStore.Entry entry:entries){
@@ -3240,7 +3249,7 @@ public class MainActivity extends Activity {
 
     /**
      * הפעולות על רשימה שמורה. אותה קבוצה בדיוק מופיעה גם ב"פעולות נוספות" במסך הרשימות השמורות
-     * וגם ב"פעולות לרשימה" מהכותרת, כדי שהשניים יהיו מקבילים.
+     * וגם ב"פעולות להזמנה" מהכותרת, כדי שהשניים יהיו מקבילים.
      */
     private void addListEntryActions(LinearLayout panel, Dialog dialog, SavedListStore.Entry entry,
                                      Runnable afterRename, boolean includeOpen) {
@@ -3256,10 +3265,10 @@ public class MainActivity extends Activity {
         addSourceAction(panel, dialog, "צירוף הזמנה מהעבר", () -> importHistoryInto(entry));
         addSourceAction(panel, dialog, "שינוי שם", () -> showRenameDialog(entry.owner, entry.orderId,
                 displayTitle(entry), entry.title, afterRename));
-        addSourceAction(panel, dialog, "מיזוג לתוך רשימה אחרת", () -> showMergeTargetDialog(entry));
+        addSourceAction(panel, dialog, "מיזוג לתוך הזמנה אחרת", () -> showMergeTargetDialog(entry));
 
-        addSourceAction(panel, dialog, "מחיקה מהרשימות השמורות", () -> showModernConfirm("מחיקת רשימה שמורה",
-                "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
+        addSourceAction(panel, dialog, "מחיקת ההזמנה", () -> showModernConfirm("מחיקת הזמנה",
+                "ההזמנה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק הזמנה",
                 () -> deleteSavedListEntry(entry)));
     }
 
@@ -3269,11 +3278,11 @@ public class MainActivity extends Activity {
             addSourceAction(panel, dialog, "חזרה להזמנה העדכנית מהאתר", this::returnToLatestOrder);
         if (!connectedAccounts().isEmpty())
             addSourceAction(panel, dialog, "הזמנות קודמות מהאתר", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
-        addSourceAction(panel, dialog, "יצירת רשימה חדשה", this::createNewSavedList);
+        addSourceAction(panel, dialog, "ייבוא הזמנה", this::createNewSavedList);
         addSourceAction(panel, dialog, "הבאה מהענן לפי מספר", this::showCloudFetchDialog);
         if (savedListStore.list().size() >= 2)
-            addSourceAction(panel, dialog, "איחוד רשימות", this::showMergeListsDialog);
-        addSourceAction(panel, dialog, "כל הרשימות השמורות", () -> showSavedListsScreen(Screen.HOME));
+            addSourceAction(panel, dialog, "איחוד הזמנות", this::showMergeListsDialog);
+        addSourceAction(panel, dialog, "כל ההזמנות", () -> showSavedListsScreen(Screen.HOME));
     }
 
 
@@ -3384,9 +3393,9 @@ public class MainActivity extends Activity {
         intro.addView(accountRow,Ui.row(this,0,Ui.S2));
         if(target!=null){
             // מצב ייבוא לרשימה: בחירת הזמנה מוסיפה אותה ישירות לרשימה הזו.
-            TextView into=Ui.banner(this,"בחירת הזמנה תוסיף את המוצרים שלה לרשימה: "+displayTitle(target));
+            TextView into=Ui.banner(this,"בחירת הזמנה תצרף את המוצרים שלה להזמנה: "+displayTitle(target));
             intro.addView(into,Ui.row(this,0,Ui.S1));
-        } else intro.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה חדשה או להוסיף אותה לרשימה קיימת.",Ui.T_NOTE,Ui.MUTED,false));
+        } else intro.addView(Ui.text(this,"בחרו הזמנה כדי לשמור אותה כהזמנה חדשה או לצרף אותה להזמנה קיימת.",Ui.T_NOTE,Ui.MUTED,false));
         content.addView(intro,Ui.row(this,0,Ui.S2));
         historyContent=content;historyMoreButton=null;
         content.addView(Ui.banner(this,"טוען הזמנות קודמות…"));
@@ -3528,7 +3537,7 @@ public class MainActivity extends Activity {
             body.addView(choose, Ui.row(this, Ui.S1, Ui.S1));
             if (first == null) first = choose;
         }
-        if (first == null) body.addView(Ui.text(this, "אין רשימות", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
+        if (first == null) body.addView(Ui.text(this, "אין הזמנות", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -3661,6 +3670,20 @@ public class MainActivity extends Activity {
         return t;
     }
 
+    /** כל האריחים בשורה אחת, ברוחב שווה (אריחים מוסתרים לא תופסים מקום). */
+    private LinearLayout tileRowOneLine(Button... tiles) {
+        LinearLayout row = new LinearLayout(this);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        boolean firstVisible = true;
+        for (Button tile : tiles) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
+            if (!firstVisible) lp.setMarginStart(Ui.dp(this, Ui.S1));
+            if (tile.getVisibility() != View.GONE) firstVisible = false;
+            row.addView(tile, lp);
+        }
+        return row;
+    }
+
     /** שורה של אריחים ברוחב שווה; במסך צר מאוד - שתי שורות של שניים. */
     private LinearLayout tileRow(Button... tiles) {
         // עד 4 אריחים בשורה; יותר - שורות של 3 (במסך צר מאוד: 2). אריחים מוסתרים לא תופסים מקום.
@@ -3750,8 +3773,8 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "איחוד רשימות", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "סמנו לפחות שתי רשימות. תיווצר רשימה חדשה עם כל המוצרים; כמויות של מוצרים זהים יסוכמו. הרשימות המקוריות נשמרות.",
+        panel.addView(Ui.text(this, "איחוד הזמנות", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "סמנו לפחות שתי הזמנות. תיווצר הזמנה חדשה עם כל המוצרים; כמויות של מוצרים זהים יסוכמו. ההזמנות המקוריות נשמרות.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         LinearLayout body = Ui.column(this);
         final List<CheckBox> boxes = new ArrayList<>();
@@ -3771,12 +3794,12 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        Button create = Ui.button(this, "איחוד לרשימה חדשה", Ui.Kind.PRIMARY);
+        Button create = Ui.button(this, "איחוד להזמנה חדשה", Ui.Kind.PRIMARY);
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         create.setOnClickListener(v -> {
             List<SavedListStore.Entry> chosen = new ArrayList<>();
             for (CheckBox box : boxes) if (box.isChecked()) chosen.add((SavedListStore.Entry) box.getTag());
-            if (chosen.size() < 2) { showActionToast("יש לסמן לפחות שתי רשימות"); return; }
+            if (chosen.size() < 2) { showActionToast("יש לסמן לפחות שתי הזמנות"); return; }
             dialog.dismiss();
             mergeIntoNewList(chosen);
         });
@@ -3808,9 +3831,9 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "איחוד " + chosen.size() + " רשימות מסומנות", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "איחוד " + chosen.size() + " הזמנות מסומנות", Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "כמויות של מוצרים זהים יסוכמו.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button keep = Ui.gridButton(this, "רשימה מאוחדת חדשה (המקוריות נשמרות)", Ui.Kind.SOFT);
+        Button keep = Ui.gridButton(this, "הזמנה מאוחדת חדשה (המקוריות נשמרות)", Ui.Kind.SOFT);
         keep.setOnClickListener(v -> { dialog.dismiss(); mergeIntoNewList(chosen, false); });
         Button replace = Ui.gridButton(this, "איחוד ומחיקת המקוריות", Ui.Kind.SOFT);
         replace.setOnClickListener(v -> { dialog.dismiss(); mergeIntoNewList(chosen, true); });
@@ -3823,10 +3846,10 @@ public class MainActivity extends Activity {
 
     private void confirmDeleteChecked() {
         List<SavedListStore.Entry> chosen = checkedEntries();
-        if (chosen.isEmpty()) { showActionToast("לא סומנו רשימות"); return; }
-        showModernConfirm("מחיקת " + chosen.size() + " רשימות", "למחוק את הרשימות המסומנות? אי אפשר לבטל.", "מחיקה",
+        if (chosen.isEmpty()) { showActionToast("לא סומנו הזמנות"); return; }
+        showModernConfirm("מחיקת " + chosen.size() + " הזמנות", "למחוק את ההזמנות המסומנות? אי אפשר לבטל.", "מחיקה",
                 () -> deleteEntries(chosen, () -> {
-                    showActionToast("נמחקו " + chosen.size() + " רשימות");
+                    showActionToast("נמחקו " + chosen.size() + " הזמנות");
                     if (screen == Screen.SAVED_LISTS) refreshSavedListsScreen(); else showHomeScreen(false);
                 }));
     }
@@ -3874,7 +3897,7 @@ public class MainActivity extends Activity {
         }
         String title = name.length() > 80 ? name.substring(0, 80) : name.toString();
         String id = createEmptySavedList(title);
-        if (id.isEmpty()) { Toast.makeText(this, "יצירת הרשימה המאוחדת נכשלה.", Toast.LENGTH_LONG).show(); return; }
+        if (id.isEmpty()) { Toast.makeText(this, "יצירת ההזמנה המאוחדת נכשלה.", Toast.LENGTH_LONG).show(); return; }
         int merged = 0;
         for (SavedListStore.Entry entry : chosen) if (savedListStore.mergeEntries(id, entry.id)) merged++;
         // מיזוג משנה את שם הרשימה לפי שמות המקור; מחזירים את השם שנבחר.
@@ -3884,7 +3907,7 @@ public class MainActivity extends Activity {
             savedListStore.archiveSnapshot(data.optString("_source_id"), data.optString("_source_label"), data, null);
         } catch (Exception ignored) { }
         SavedListStore.Entry result = findSavedEntry(id);
-        if (merged == 0 || result == null) { Toast.makeText(this, "האיחוד נכשל; הרשימות המקוריות לא השתנו.", Toast.LENGTH_LONG).show(); return; }
+        if (merged == 0 || result == null) { Toast.makeText(this, "האיחוד נכשל; ההזמנות המקוריות לא השתנו.", Toast.LENGTH_LONG).show(); return; }
         
         if (deleteOriginals) {
             List<SavedListStore.Entry> originals = new ArrayList<>();
@@ -3918,12 +3941,12 @@ public class MainActivity extends Activity {
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "לאן להוסיף את ההזמנה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button asNew = Ui.gridButton(this, "רשימה חדשה", Ui.Kind.SOFT);
+        Button asNew = Ui.gridButton(this, "הזמנה חדשה", Ui.Kind.SOFT);
         asNew.setOnClickListener(v -> { dialog.dismiss(); saveHistoricalOrder(id, title, historyRow, null); });
-        Button toExisting = Ui.gridButton(this, "הוספה לרשימה קיימת", Ui.Kind.SOFT);
+        Button toExisting = Ui.gridButton(this, "צירוף להזמנה קיימת", Ui.Kind.SOFT);
         toExisting.setEnabled(!savedListStore.list().isEmpty());
         toExisting.setOnClickListener(v -> { dialog.dismiss();
-            pickSavedList("הוספה לרשימה", "", entry -> saveHistoricalOrder(id, title, historyRow, entry)); });
+            pickSavedList("צירוף להזמנה", "", entry -> saveHistoricalOrder(id, title, historyRow, entry)); });
         addGridButtons(panel, asNew, toExisting);
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
@@ -3957,7 +3980,7 @@ public class MainActivity extends Activity {
                 if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
                 if(target!=null){
                     // הוספה לרשימה קיימת: הפריטים מתאחדים לתוכה, והעותק הזמני נמחק (אלא אם נשמר כבר קודם).
-                    if(!savedListStore.mergeEntries(target.id,historyEntryId))throw new Exception("ההוספה לרשימה נכשלה.");
+                    if(!savedListStore.mergeEntries(target.id,historyEntryId))throw new Exception("הצירוף להזמנה נכשל.");
                     if(!existedBefore)savedListStore.delete(historyEntryId);
                 }
                 if(!session.isCurrent(this))return;
@@ -4006,8 +4029,8 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "ייבוא רשימה", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "מאיפה להביא את הרשימה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        panel.addView(Ui.text(this, "ייבוא הזמנה", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "מאיפה להביא את ההזמנה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         Button history = Ui.gridButton(this, "מהזמנה קודמת באתר", Ui.Kind.SOFT);
         history.setOnClickListener(v -> { dialog.dismiss(); if (requireLoginForHistory()) return; openChild(self, () -> showOrderHistoryScreen(Screen.SAVED_LISTS)); });
         Button cloud = Ui.gridButton(this, "מהענן לפי מספר", Ui.Kind.SOFT);
@@ -4020,7 +4043,7 @@ public class MainActivity extends Activity {
         bluetooth.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showBluetoothReceive); });
         Button paste = Ui.gridButton(this, "הדבקת טקסט", Ui.Kind.SOFT);
         paste.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showPasteImport); });
-        Button blank = Ui.gridButton(this, "רשימה ריקה", Ui.Kind.SOFT);
+        Button blank = Ui.gridButton(this, "הזמנה ריקה", Ui.Kind.SOFT);
         blank.setOnClickListener(v -> { dialog.dismiss(); createBlankSavedList(); });
         addGridButtons(panel, history, qr, cloud, file, bluetooth, paste, blank);
         dialog.setContentView(panel);
@@ -4044,8 +4067,8 @@ public class MainActivity extends Activity {
             String owner=activeOwner;
             if(source==null||owner.isEmpty()){source=localListSource();owner=source.ownerKey;}
             long id=System.currentTimeMillis();
-            JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name","רשימה חדשה").put("imported",true).put("products",new JSONArray());
-            if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת הרשימה נכשלה.");
+            JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name","הזמנה חדשה").put("imported",true).put("products",new JSONArray());
+            if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
             refreshSavedListsScreen();
         } catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();}
     }
@@ -4141,14 +4164,14 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "הבאה מהענן", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "הקלידו את מספר הרשימה ששותפה (1 עד 1000).", Ui.T_NOTE, Ui.MUTED, false),
+        panel.addView(Ui.text(this, "הקלידו את מספר הענן של ההזמנה ששותפה (1 עד 1000).", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, 0));
-        EditText input = createLoginInput("מספר הרשימה", InputType.TYPE_CLASS_NUMBER);
+        EditText input = createLoginInput("מספר בענן", InputType.TYPE_CLASS_NUMBER);
         input.setGravity(Gravity.CENTER);
         input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4)});
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         panel.addView(input, Ui.row(this, Ui.S3, Ui.S3));
-        Button fetch = Ui.button(this, "הבאת הרשימה", Ui.Kind.PRIMARY);
+        Button fetch = Ui.button(this, "הבאת ההזמנה", Ui.Kind.PRIMARY);
         Runnable run = () -> {
             int number;
             try { number = Integer.parseInt(input.getText().toString().trim()); } catch (Exception e) { number = 0; }
@@ -4231,8 +4254,8 @@ public class MainActivity extends Activity {
         List<SavedListStore.Entry> chosen = checkedEntries();
         if (chosen.isEmpty() && shown != null) chosen.add(shown);
         if (!chosen.isEmpty()) { showShareFormats(chosen); return; }
-        if (savedListStore.list().isEmpty()) { showActionToast("אין רשימות לשיתוף"); return; }
-        pickSavedList("איזו רשימה לשתף?", "", entry -> {
+        if (savedListStore.list().isEmpty()) { showActionToast("אין הזמנות לשיתוף"); return; }
+        pickSavedList("איזו הזמנה לשתף?", "", entry -> {
             List<SavedListStore.Entry> one = new ArrayList<>();
             one.add(entry);
             showShareFormats(one);
@@ -4244,15 +4267,15 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        String heading = entries.size() == 1 ? "שיתוף \"" + displayTitle(entries.get(0)) + "\"" : "שיתוף " + entries.size() + " רשימות";
+        String heading = entries.size() == 1 ? "שיתוף \"" + displayTitle(entries.get(0)) + "\"" : "שיתוף " + entries.size() + " הזמנות";
         panel.addView(Ui.text(this, heading, Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה, עם שם הרשימה ושם המשפחה.", Ui.T_NOTE, Ui.MUTED, false),
+        panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה, עם שם ההזמנה ושם המשפחה.", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, Ui.S2));
         boolean allInCloud = true;
         for (SavedListStore.Entry entry : entries) if (cloudNumber(entry.id) == null) allInCloud = false;
         Button cloud = Ui.gridButton(this, allInCloud
                 ? (entries.size() == 1 ? "מספר בענן " + cloudNumber(entries.get(0).id)[0] : "מספרי בענן")
-                : entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל רשימה)", Ui.Kind.SOFT);
+                : entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל הזמנה)", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); shareEntriesToCloud(entries, self); });
         // העתקה ללוח בפורמט הטקסט שאפשר לייבא ("הדבקת טקסט").
         Button copy = Ui.gridButton(this, "העתקה ללוח", Ui.Kind.SOFT);
@@ -4284,7 +4307,7 @@ public class MainActivity extends Activity {
     }
 
     private void shareToOtherApp(List<SavedListStore.Entry> entries) {
-        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " רשימות";
+        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " הזמנות";
         cacheWorker.execute(() -> {
             try {
                 String text = ListExporter.text(exportsFor(entries));
@@ -4365,7 +4388,7 @@ public class MainActivity extends Activity {
     }
 
     private void buildShareFile(List<SavedListStore.Entry> entries, String format, Runnable back) {
-        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " רשימות";
+        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " הזמנות";
         showActionToast("מכין את הקובץ…");
         cacheWorker.execute(() -> {
             try {
@@ -4389,7 +4412,7 @@ public class MainActivity extends Activity {
                 String message = inline != null ? inline
                         : "רשימת איסוף ממשנת אוסף: " + base + ". לפתיחה: באפליקציה \"רשימה חדשה\" ← \"ייבוא מקובץ\".";
                 final boolean textOnly = inline != null;
-                mainHandler.post(() -> showShareTargets(textOnly ? "שליחת הרשימה כטקסט" : "שליחת הקובץ", file, message, textOnly, back));
+                mainHandler.post(() -> showShareTargets(textOnly ? "שליחת ההזמנה כטקסט" : "שליחת הקובץ", file, message, textOnly, back));
             } catch (Exception e) {
                 String error = safeError(e);
                 mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
@@ -4447,8 +4470,8 @@ public class MainActivity extends Activity {
         final int allowed = Math.max(0, MAX_CLOUD_UPLOADS - activeCloudUploads());
         if (needed > 0 && allowed == 0 && needed == entries.size()) {
             showInfoDialog("הגעת למגבלת הענן", "אפשר להחזיק עד " + MAX_CLOUD_UPLOADS
-                    + " רשימות בענן בו-זמנית. כל מספר פג אחרי 7 ימים ואז אפשר להעלות שוב.\n"
-                    + "רשימה שכבר יש לה מספר בענן אפשר לשתף שוב בלי הגבלה.");
+                    + " הזמנות בענן בו-זמנית. כל מספר פג אחרי 7 ימים ואז אפשר להעלות שוב.\n"
+                    + "הזמנה שכבר יש לה מספר בענן אפשר לשתף שוב בלי הגבלה.");
             return;
         }
         network.execute(() -> {
@@ -4467,8 +4490,8 @@ public class MainActivity extends Activity {
                     continue;
                 }
                 if (uploadedNow >= allowed) {
-                    if (firstError.isEmpty()) firstError = "הגעת למגבלה של " + MAX_CLOUD_UPLOADS + " רשימות בענן.";
-                    lines.append(labels.get(i)).append(": לא הועלתה (מגבלת ").append(MAX_CLOUD_UPLOADS).append(" רשימות בענן)\n");
+                    if (firstError.isEmpty()) firstError = "הגעת למגבלה של " + MAX_CLOUD_UPLOADS + " הזמנות בענן.";
+                    lines.append(labels.get(i)).append(": לא הועלתה (מגבלת ").append(MAX_CLOUD_UPLOADS).append(" הזמנות בענן)\n");
                     continue;
                 }
                 try {
@@ -4497,7 +4520,7 @@ public class MainActivity extends Activity {
                 refreshHomeTitle();
                 if (ok == 0) { showInfoDialog("השיתוף לא הצליח", error); return; }
                 String message = "רשימות איסוף במשנת אוסף (\"רשימה חדשה\" ← \"מהענן לפי מספר\"):\n" + summary;
-                showShareTargets(ok == 1 ? "מספר הענן של הרשימה" : ok + " מספרי ענן", null, message, true, back);
+                showShareTargets(ok == 1 ? "מספר הענן של ההזמנה" : ok + " מספרי ענן", null, message, true, back);
             });
         });
     }
@@ -4695,9 +4718,9 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "הדבקת טקסט", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "מדביקים רשימה שהתקבלה כהודעה. שורה לכל מוצר: שם | כמות.", Ui.T_NOTE, Ui.MUTED, false),
+        panel.addView(Ui.text(this, "מדביקים הזמנה שהתקבלה כהודעה. שורה לכל מוצר: שם | כמות.", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, 0));
-        EditText input = createLoginInput("הדביקו כאן את הרשימה", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        EditText input = createLoginInput("הדביקו כאן את ההזמנה", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         input.setSingleLine(false);
         input.setMinLines(5);
         input.setMaxLines(10);
@@ -4710,7 +4733,7 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) { }
         panel.addView(input, Ui.row(this, Ui.S2, Ui.S2));
-        Button go = Ui.button(this, "ייבוא הרשימה", Ui.Kind.PRIMARY);
+        Button go = Ui.button(this, "ייבוא ההזמנה", Ui.Kind.PRIMARY);
         go.setOnClickListener(v -> {
             String text = input.getText().toString().trim();
             if (text.isEmpty()) { input.setError("אין טקסט"); return; }
@@ -4727,14 +4750,14 @@ public class MainActivity extends Activity {
 
     private void showMergeTargetDialog(SavedListStore.Entry source) {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);LinearLayout panel=Ui.dialogPanel(this);
-        panel.addView(Ui.text(this,"בחר רשימת יעד למיזוג",Ui.T_NAME,Ui.P900,true));int choices=0;
+        panel.addView(Ui.text(this,"בחרו הזמנת יעד למיזוג",Ui.T_NAME,Ui.P900,true));int choices=0;
         for(SavedListStore.Entry target:savedListStore.list()) {
             if(target.id.equals(source.id))continue;choices++;
             Button choose=Ui.button(this,displayTitle(target)+" · "+target.itemCount+" פריטים",Ui.Kind.SOFT);
-            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+displayTitle(source)+"' יצורפו ל '"+displayTitle(target)+"'. כמויות של פריטים זהים יסוכמו; רשימת המקור תישאר שמורה.","מזג רשימות",()->{SavedListStore.Entry editable=editableCopyIfSynced(target);boolean ok=editable!=null&&savedListStore.mergeEntries(editable.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"הרשימות מוזגו בהצלחה.":"המיזוג נכשל; הרשימות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
+            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+displayTitle(source)+"' יצורפו ל '"+displayTitle(target)+"'. כמויות של פריטים זהים יסוכמו; הזמנת המקור תישאר שמורה.","מזג הזמנות",()->{SavedListStore.Entry editable=editableCopyIfSynced(target);boolean ok=editable!=null&&savedListStore.mergeEntries(editable.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"ההזמנות מוזגו בהצלחה.":"המיזוג נכשל; ההזמנות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
             panel.addView(choose,Ui.row(this,Ui.S2,0));
         }
-        if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי רשימות שמורות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
+        if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי הזמנות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
         Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);cancel.setOnClickListener(v->dialog.dismiss());panel.addView(cancel,Ui.row(this,Ui.S2,0));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
     }
@@ -4868,6 +4891,9 @@ public class MainActivity extends Activity {
         resetButton.setOnClickListener(v -> {
             if (!confirmResetCollection()) showActionToast("אין סימוני איסוף לאיפוס");
         });
+        // ייבוא הזמנה ישר מהמסך הראשי.
+        Button importButton = Ui.iconButton(this, Ui.IC_PLUS, "ייבוא הזמנה", false);
+        importButton.setOnClickListener(v -> createNewSavedList());
         // שני כפתורי התצוגה: רשימה מאוחדת ורשימה לפי חשבון. הכפתור של התצוגה הפעילה מודגש.
         boolean unifiedMode = sourceRegistry != null && "COMBINED_SUM".equals(sourceRegistry.viewMode());
         Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת", unifiedMode);
@@ -4883,6 +4909,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(size, size);
         resetLp.setMarginStart(gap);
         rightSide.addView(resetButton, resetLp);
+        LinearLayout.LayoutParams importLp = new LinearLayout.LayoutParams(size, size);
+        importLp.setMarginStart(gap);
+        rightSide.addView(importButton, importLp);
 
         LinearLayout leftSide = new LinearLayout(this);
         leftSide.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -4910,7 +4939,7 @@ public class MainActivity extends Activity {
         // לחיצה ארוכה על השם: שינוי שם לרשימה הנוכחית.
         title.setOnLongClickListener(v -> {
             if (combinedView || currentOrderId.isEmpty()) {
-                showActionToast("שינוי שם לרשימה נעשה ממסך ניהול רשימות");
+                showActionToast("שינוי שם להזמנה נעשה ממסך ניהול הזמנות");
                 return true;
             }
             showRenameDialog(activeOwner, currentOrderId, homeDisplayTitle(), currentOrderTitle, this::refreshHomeTitle);
@@ -4919,13 +4948,13 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         // השם מוצג במלואו; שם ארוך יורד לשורה נוספת ולא נחתך.
 
-        headerButtons.add(settings); headerButtons.add(resetButton);
+        headerButtons.add(settings); headerButtons.add(resetButton); headerButtons.add(importButton);
         if (multipleSources) { headerButtons.add(unified); headerButtons.add(byAccount); }
 
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        int sideWidth = size * 2 + gap;
+        int sideWidth = size * 3 + gap * 2;
         row.addView(rightSide, new LinearLayout.LayoutParams(sideWidth, size));
         headerStacked = !wide;
         if (wide) {
@@ -4936,7 +4965,7 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, -2, 1f);
             titleLp.setMargins(Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2), 0);
             row.addView(middle, titleLp);
-            headerButtons.add(2, title);
+            headerButtons.add(3, title);
         } else {
             row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         }
@@ -5117,7 +5146,7 @@ public class MainActivity extends Activity {
     }
 
     private void confirmClearSavedData() {
-        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק את המטמון הפעיל, התמונות וסימוני האיסוף? הרשימות שבארכיון יישארו עד למחיקה ידנית במסך ניהול רשימות.", "מחיקה", this::clearAllSavedData);
+        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק את המטמון הפעיל, התמונות וסימוני האיסוף? ההזמנות השמורות יישארו עד למחיקה ידנית במסך ניהול הזמנות.", "מחיקה", this::clearAllSavedData);
     }
 
     private void clearAllSavedData() {
@@ -5542,7 +5571,7 @@ public class MainActivity extends Activity {
             String name = orderTitle == null || orderTitle.trim().isEmpty() ? "הזמנה " + orderId : orderTitle.trim();
             if (verdict == DataGuard.Verdict.NEW_ORDER) {
                 syncNotices.add("📦 הזמנה חדשה באתר" + account + ": " + name + " · " + rows.size()
-                        + " מוצרים.\nההזמנה הקודמת נשמרה ברשימות השמורות, עם סימוני האיסוף שלה.");
+                        + " מוצרים.\nההזמנה הקודמת נשמרה בניהול הזמנות, עם סימוני האיסוף שלה.");
             } else {
                 String changes = describeOrderChanges(cachedOrderRows(), rows);
                 syncNotices.add("🔄 ההזמנה \"" + name + "\"" + account + " עודכנה באתר."
@@ -5837,11 +5866,11 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "שם לרשימה", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "שם להזמנה", Ui.T_NAME, Ui.P900, true));
         if (originalName != null && !originalName.isEmpty())
             panel.addView(Ui.text(this, "שם המקור: " + originalName + ". השאירו ריק כדי לחזור אליו.",
                     Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, 0));
-        EditText input = createLoginInput("שם לרשימה", InputType.TYPE_CLASS_TEXT);
+        EditText input = createLoginInput("שם להזמנה", InputType.TYPE_CLASS_TEXT);
         input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         input.setTextDirection(View.TEXT_DIRECTION_RTL);
         input.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
@@ -6703,7 +6732,7 @@ public class MainActivity extends Activity {
         // כשכל החשבונות מציגים את אותה מכירה, שמה מוצג בכותרת; אחרת כל השמות יחד.
         setCurrentOrderTitle(orderNames.size() <= 2 ? android.text.TextUtils.join(" · ", orderNames) : "");
         syncCompletionState();
-        if(products.isEmpty()) showSyncMessage("אין רשימות", false);
+        if(products.isEmpty()) showSyncMessage("אין הזמנות", false);
         else showSyncMessage("", false);
     }
 
@@ -6834,28 +6863,43 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, displayTitle(entry), Ui.T_NAME, Ui.P900, true));
+        TextView heading = Ui.text(this, displayTitle(entry), Ui.T_TITLE, Ui.P900, true);
+        heading.setGravity(Gravity.CENTER);
+        panel.addView(heading);
         String family = familyName(entry);
-        panel.addView(Ui.text(this, entry.itemCount + " פריטים" + (family.isEmpty() ? "" : " · " + family),
-                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        TextView sub = Ui.text(this, "📦 הזמנה · " + entry.itemCount + " פריטים" + (family.isEmpty() ? "" : " · " + family)
+                + " · לצפייה בלבד", Ui.T_NOTE, Ui.MUTED, false);
+        sub.setGravity(Gravity.CENTER);
+        panel.addView(sub, Ui.row(this, Ui.S1, Ui.S2));
+        // אותם כרטיסים כמו במסך האיסוף (תמונה, שם, הערה, כמות, צבע הקטגוריה), בלי אפשרות לסמן.
         LinearLayout body = Ui.column(this);
+        int mode = displayMode == 5 ? 3 : displayMode;
+        boolean headers = categoryHeadersEnabled();
         try {
             JSONArray rows = savedListStore.readEntry(entry.id).optJSONArray("products");
             String category = null;
             for (int i = 0; rows != null && i < rows.length(); i++) {
                 JSONObject o = rows.optJSONObject(i);
                 if (o == null) continue;
-                String cat = first(o, "category");
-                if (!cat.equals(category == null ? "\u0000" : category) && !cat.isEmpty()) {
-                    body.addView(compactSection(cat));
+                String imageFile = first(o, "image_file"), imagePath = "";
+                if (!imageFile.isEmpty()) { File image = new File(imageFile); if (image.isFile() && image.length() > 0) imagePath = image.getAbsolutePath(); }
+                ProductRow product = new ProductRow(first(o, "key"), first(o, "name"), first(o, "image_url"), first(o, "amount"),
+                        first(o, "note"), imagePath, first(o, "category"), o.optInt("category_order", 0));
+                if (product.name.isEmpty()) continue;
+                if (headers && !product.category.isEmpty() && !product.category.equals(category))
+                    body.addView(Ui.categoryHeader(this, product.category, 0), Ui.row(this, Ui.S2, Ui.S1));
+                category = product.category;
+                Ui.CardViews views = Ui.productCard(this, mode);
+                views.root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                Ui.bindProduct(views, product.name, product.note, product.amount.isEmpty() ? "1" : product.amount, false);
+                Ui.bindCategory(views, product.category);
+                if (mode != 0) {
+                    if (!product.imagePath.isEmpty()) images.loadLegacy(product, views.image);
+                    else if (!product.imageUrl.isEmpty()) images.load(product.imageUrl, views.image);
+                    else views.image.setImageDrawable(Ui.photoPlaceholder(this));
                 }
-                category = cat;
-                String amount = first(o, "amount"), note = first(o, "note");
-                TextView line = Ui.text(this, Ui.rtlParagraph("• " + first(o, "name") + "  ×" + (amount.isEmpty() ? "1" : amount)
-                        + (note.isEmpty() ? "" : "  · " + note)), Ui.T_BODY, Ui.INK, false);
-                line.setFocusable(true);
-                line.setBackground(Ui.focusFrame(this));
-                body.addView(line, Ui.row(this, 0, 2));
+                views.root.setFocusable(true);
+                body.addView(views.root, Ui.row(this, 0, Ui.S1));
             }
         } catch (Exception e) {
             body.addView(Ui.text(this, "לא ניתן לקרוא את ההזמנה.", Ui.T_BODY, Ui.MUTED, false));
@@ -6864,14 +6908,16 @@ public class MainActivity extends Activity {
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         Runnable self = () -> showOrderPreview(entry, parent);
-        Button makeGroup = Ui.gridButton(this, "הפיכה לרשימת איסוף", Ui.Kind.SOFT);
+        Button makeGroup = Ui.tile(this, Ui.IC_LIST_STACK, "לרשימת איסוף");
+        makeGroup.setContentDescription("הפיכה לרשימת איסוף");
         makeGroup.setOnClickListener(v -> {
             dialog.dismiss();
             List<String> one = new ArrayList<>(); one.add(entry.id);
             askGroupName(displayTitle(entry), name -> activateGroup(groups.create(name.isEmpty() ? displayTitle(entry) : name, one)), self);
         });
         PickupGroups.Group open = groups.active();
-        Button addToOpen = Ui.gridButton(this, "צירוף לרשימת האיסוף הפתוחה", Ui.Kind.SOFT);
+        Button addToOpen = Ui.tile(this, Ui.IC_PLUS, "לרשימה הפתוחה");
+        addToOpen.setContentDescription("צירוף לרשימת האיסוף הפתוחה");
         addToOpen.setVisibility(open != null && !open.members.contains(entry.id) ? View.VISIBLE : View.GONE);
         addToOpen.setOnClickListener(v -> {
             dialog.dismiss();
@@ -6879,17 +6925,19 @@ public class MainActivity extends Activity {
             open.members.add(entry.id); groups.save(open); applyGroupIfActive(open);
             importantToast("נוספה ל\"" + open.name + "\"");
         });
-        Button actions = Ui.gridButton(this, "פעולות להזמנה", Ui.Kind.SOFT);
+        Button actions = Ui.tile(this, Ui.IC_MORE, "פעולות");
+        actions.setContentDescription("פעולות להזמנה");
         actions.setOnClickListener(v -> { dialog.dismiss(); showSavedListActions(entry, self); });
-        LinearLayout buttons = Ui.column(this);
-        if (addToOpen.getVisibility() == View.VISIBLE) addGridButtons(buttons, makeGroup, addToOpen, actions);
-        else addGridButtons(buttons, makeGroup, actions);
-        panel.addView(buttons, Ui.row(this, Ui.S2, 0));
+        panel.addView(tileRowOneLine(makeGroup, addToOpen, actions), Ui.row(this, Ui.S2, 0));
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
         if (parent != null) addDialogBackButton(dialog, parent);
-        sizeLargeDialog(dialog);
+        // חלון גדול: כמעט כל המסך.
+        if (dialog.getWindow() != null) {
+            android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+            dialog.getWindow().setLayout(metrics.widthPixels - Ui.dp(this, 8), (int) (metrics.heightPixels * 0.96f));
+        }
         makeGroup.requestFocus();
     }
 
@@ -7211,25 +7259,14 @@ public class MainActivity extends Activity {
         Button breakdown = Ui.tile(this, Ui.IC_INFO, (g.breakdown ? "✓ " : "") + "כמות להזמנה");
         breakdown.setContentDescription("כמות לפי הזמנה בכל מוצר" + (g.breakdown ? ", פעיל" : ", כבוי"));
         breakdown.setOnClickListener(v -> { g.breakdown = !g.breakdown; groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
-        boolean anySync = false;
-        for (String id : g.members) if (!uiPreferences.getBoolean("nosync_" + id, false)) anySync = true;
-        final boolean syncOn = anySync;
-        Button sync = Ui.tile(this, Ui.IC_RESET, (syncOn ? "✓ " : "") + "סנכרון");
-        sync.setContentDescription("סנכרון מהאתר לכל ההזמנות" + (syncOn ? ", פעיל" : ", כבוי"));
-        sync.setOnClickListener(v -> {
-            SharedPreferences.Editor edit = uiPreferences.edit();
-            for (String id : g.members) edit.putBoolean("nosync_" + id, syncOn);
-            edit.apply();
-            dialog.dismiss(); self.run();
-        });
         Button name = Ui.tile(this, Ui.IC_MORE, "שם");
         name.setContentDescription("שינוי שם רשימת האיסוף");
         name.setOnClickListener(v -> { dialog.dismiss(); askGroupName(g.name, n -> { if (!n.isEmpty()) { g.name = n; groups.save(g); applyGroupIfActive(g); } self.run(); }, self); });
         Button add = Ui.tile(this, Ui.IC_PLUS, "הזמנה");
         add.setContentDescription("הוספת הזמנה לרשימת האיסוף");
         add.setOnClickListener(v -> { dialog.dismiss(); pickGroupMembers(g, self); });
-        body.addView(tileRow(combined, perUser, breakdown), Ui.row(this, 0, 0));
-        body.addView(tileRow(sync, name, add), Ui.row(this, Ui.GRID_GAP, 0));
+        // כל הכפתורים בשורה אחת. הסנכרון נקבע לכל הזמנה בנפרד (בפעולות של ההזמנה).
+        body.addView(tileRowOneLine(combined, perUser, breakdown, name, add), Ui.row(this, 0, 0));
 
         body.addView(compactSection(g.members.isEmpty() ? "אין הזמנות" : "הזמנות · " + g.members.size()));
         for (int i = 0; i < g.members.size(); i++) {
@@ -7243,11 +7280,16 @@ public class MainActivity extends Activity {
             row.setGravity(Gravity.CENTER_VERTICAL);
             Button user = Ui.listRow(this, "📦 " + label, entry == null ? "" : entry.itemCount + " פריטים"
                     + (label.equals(original) ? "" : " · " + original), false);
-            user.setContentDescription("שינוי השם של ההזמנה " + label);
-            user.setOnClickListener(v -> { dialog.dismiss(); askGroupName(label, n -> {
+            // לחיצה על ההזמנה: התוכן שלה בחלון צף. ✏ משנה את השם שלה ברשימת האיסוף.
+            user.setContentDescription("הצגת ההזמנה " + label);
+            user.setOnClickListener(v -> { dialog.dismiss(); if (entry != null) showOrderPreview(entry, self); else self.run(); });
+            row.addView(user, new LinearLayout.LayoutParams(0, -2, 1f));
+            Button rename = Ui.button(this, "✏", Ui.Kind.SOFT);
+            rename.setContentDescription("שינוי השם של ההזמנה " + label);
+            rename.setPadding(0, 0, 0, 0);
+            rename.setOnClickListener(v -> { dialog.dismiss(); askGroupName(label, n -> {
                 if (n.isEmpty() || n.equals(original)) g.labels.remove(entryId); else g.labels.put(entryId, n);
                 groups.save(g); applyGroupIfActive(g); self.run(); }, self); });
-            row.addView(user, new LinearLayout.LayoutParams(0, -2, 1f));
             Button up = Ui.iconButton(this, Ui.IC_CHEVRON_DOWN, "הזזה למעלה: " + label, false);
             up.setRotation(180f);
             Button down = Ui.iconButton(this, Ui.IC_CHEVRON_DOWN, "הזזה למטה: " + label, false);
@@ -7261,7 +7303,7 @@ public class MainActivity extends Activity {
             down.setOnClickListener(v -> { java.util.Collections.swap(g.members, index, index + 1); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
             remove.setOnClickListener(v -> { g.members.remove(entryId); g.labels.remove(entryId); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
             int size = Ui.dp(this, 36), gap = Ui.dp(this, 2);
-            for (Button b : new Button[]{up, down, remove}) {
+            for (Button b : new Button[]{rename, up, down, remove}) {
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
                 lp.setMarginStart(gap);
                 if (!b.isEnabled()) b.setAlpha(0.35f);
