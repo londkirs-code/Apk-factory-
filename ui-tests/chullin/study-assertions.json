@@ -72,6 +72,10 @@
       "direction": "down"
     },
     {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
       "action": "tap",
       "text": "⚙",
       "exact": true
@@ -93,6 +97,10 @@
     {
       "action": "screenshot",
       "name": "dark-theme"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
     },
     {
       "action": "tap",
