@@ -7085,10 +7085,6 @@ public class MainActivity extends Activity {
         manageOpen.setContentDescription("הזמנות והגדרות של רשימת האיסוף הפתוחה");
         manageOpen.setVisibility(openGroup == null ? View.GONE : View.VISIBLE);
         manageOpen.setOnClickListener(v -> { dialog.dismiss(); if (openGroup != null) showGroupEditor(openGroup, self); });
-        Button leave = Ui.tile(this, Ui.IC_CLOSE, "יציאה");
-        leave.setContentDescription("יציאה מרשימת האיסוף הפתוחה (היא נשמרת)");
-        leave.setVisibility(openGroup == null ? View.GONE : View.VISIBLE);
-        leave.setOnClickListener(v -> { dialog.dismiss(); leaveListGroup(); showHomeScreen(false); });
         // ✓ על רשימות איסוף: "מיזוג" (שתיים ומעלה) ו"שיתוף" של כל ההזמנות שבהן.
         final Button mergeGroups = Ui.tile(this, Ui.IC_MERGE, "מיזוג");
         final Button shareGroups = Ui.tile(this, Ui.IC_SHARE, "שיתוף");
@@ -7099,7 +7095,7 @@ public class MainActivity extends Activity {
         mergeGroups.setOnClickListener(v -> { dialog.dismiss(); mergeSelectedGroups(self); });
         shareGroups.setOnClickListener(v -> { dialog.dismiss(); shareSelectedGroups(self); });
         selectionChanged.run();
-        panel.addView(tileRow(create, orders, manageOpen, leave, mergeGroups, shareGroups), Ui.row(this, 0, Ui.S2));
+        panel.addView(tileRow(create, orders, manageOpen, mergeGroups, shareGroups), Ui.row(this, 0, Ui.S2));
         LinearLayout body = Ui.column(this);
         PickupGroups.Group active = groups.active();
         View focus = null;
