@@ -1,2 +1,2 @@
-APK for apk-bridge, versionName 1.5, versionCode 39, built from commit 355fe413c3355dd050c90ef9187bcbc1994f548f.
-File name: הבוס-1.5.apk
+APK for apk-bridge, versionName 1.6, versionCode 40, built from commit 149ec3d3e6d2cd51782c9350709c739e5b8507c8.
+File name: הבוס-1.6.apk
