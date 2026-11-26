@@ -1,0 +1,224 @@
+{
+  "app": "chullin",
+  "package": "com.londkirs.chullin",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "he-IL",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 80.4,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 6.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='חולין'",
+      "status": "passed",
+      "seconds": 2.69,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "assert_text",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 6.15,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "assert_text",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 2.53,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "screenshot",
+      "detail": "name='study-start'",
+      "status": "passed",
+      "seconds": 3.04,
+      "error": "",
+      "screenshot": "screenshots/001-study-start.png"
+    },
+    {
+      "index": 7,
+      "action": "scroll_to",
+      "detail": "text='גמרא'",
+      "status": "passed",
+      "seconds": 2.73,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "tap",
+      "detail": "text='גמרא'",
+      "status": "passed",
+      "seconds": 3.71,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "scroll_to",
+      "detail": "text='גמרא'",
+      "status": "passed",
+      "seconds": 2.73,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "assert_text",
+      "detail": "text='✓ גמרא'",
+      "status": "passed",
+      "seconds": 2.39,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "scroll_to",
+      "detail": "text='גמרא'",
+      "status": "passed",
+      "seconds": 2.75,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "tap",
+      "detail": "text='✓ גמרא'",
+      "status": "passed",
+      "seconds": 3.58,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "assert_not_visible",
+      "detail": "text='✓ גמרא'",
+      "status": "passed",
+      "seconds": 2.95,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 2.22,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "tap",
+      "detail": "text='הבא ←'",
+      "status": "passed",
+      "seconds": 3.43,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.19,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "screenshot",
+      "detail": "name='after-next'",
+      "status": "passed",
+      "seconds": 3.25,
+      "error": "",
+      "screenshot": "screenshots/002-after-next.png"
+    },
+    {
+      "index": 18,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 5.79,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "tap",
+      "detail": "text='→ קודם'",
+      "status": "passed",
+      "seconds": 3.58,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.09,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "tap",
+      "detail": "text='סקירה'",
+      "status": "passed",
+      "seconds": 3.44,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "assert_text",
+      "detail": "text='סקירה כללית'",
+      "status": "failed",
+      "seconds": 5.03,
+      "error": "element not found within 5s: text='סקירה כללית'",
+      "screenshot": "screenshots/003-step22-assert_text-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-study-start.png",
+    "002-after-next.png",
+    "003-step22-assert_text-FAILED.png",
+    "004-final.png"
+  ]
+}

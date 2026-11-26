@@ -1,0 +1,24 @@
+[ok] 01 launch clear_data=True
+[ok] 02 wait_for text='חולין'
+[ok] 03 assert_text text='הכל שוחטין'
+[ok] 04 scroll_to text='הבא'
+[ok] 05 assert_text text='הבא'
+[ok] 06 screenshot name='study-start'
+[ok] 07 scroll_to text='גמרא'
+[ok] 08 tap text='גמרא'
+[ok] 09 scroll_to text='גמרא'
+[ok] 10 assert_text text='✓ גמרא'
+[ok] 11 scroll_to text='גמרא'
+[ok] 12 tap text='✓ גמרא'
+[ok] 13 assert_not_visible text='✓ גמרא'
+[ok] 14 scroll_to text='הבא'
+[ok] 15 tap text='הבא ←'
+[ok] 16 wait seconds=1
+[ok] 17 screenshot name='after-next'
+[ok] 18 scroll_to text='הבא'
+[ok] 19 tap text='→ קודם'
+[ok] 20 wait seconds=1
+[ok] 21 tap text='סקירה'
+[FAIL] 22 assert_text text='סקירה כללית' element not found within 5s: text='סקירה כללית'
+
+Result: FAILED — 22 steps, 4 screenshots, 0 crashes
