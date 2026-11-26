@@ -65,7 +65,6 @@ class SettingsActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        top.addView(button("סגור", false) { finish() })
         page.addView(top, matchWrap(14))
 
         // Automatic install
@@ -170,11 +169,14 @@ class SettingsActivity : Activity() {
         display.addView(heading("תצוגה"), matchWrap())
         display.addView(checkBox("להציג את היומן פתוח", Bridge.logExpanded) { Bridge.logExpanded = it }, matchWrap(0))
 
-        val root = ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             setBackgroundColor(BACKGROUND)
             isFillViewport = true
             addView(page)
         }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BACKGROUND) }
+        root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(BottomNav.build(this, BottomNav.Tab.SETTINGS) { BottomNav.navigate(this, it) })
         Compat.applySystemBarInsets(this, root, includeIme = false)
         setContentView(root)
     }

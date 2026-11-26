@@ -47,8 +47,12 @@ class MainActivity : Activity() {
     private lateinit var host: EditText
     private lateinit var pairPort: EditText
     private lateinit var pin: EditText
-    private lateinit var uninstallPkg: EditText
-    private lateinit var keepData: CheckBox
+    private lateinit var connectionPage: LinearLayout
+    private lateinit var installPage: LinearLayout
+    private lateinit var pageScroll: ScrollView
+    private lateinit var pageTitle: TextView
+    private lateinit var navHolder: android.widget.FrameLayout
+    private var currentTab = BottomNav.Tab.CONNECT
     private lateinit var installButton: Button
     private lateinit var cancelButton: Button
     private lateinit var openAppButton: Button
@@ -124,6 +128,10 @@ class MainActivity : Activity() {
         selected = savedInstanceState?.getParcelableArrayList<Uri>(KEY_SELECTED).orEmpty()
         shownInstallSeq = savedInstanceState?.getInt(KEY_SHOWN_SEQ, Bridge.state.installSeq) ?: Bridge.state.installSeq
         buildUi()
+        // Start on Install once the device is paired, otherwise on Connection.
+        val requested = savedInstanceState?.getString(KEY_TAB) ?: intent?.getStringExtra(BottomNav.EXTRA_TAB)
+        showTab(requested?.let { runCatching { BottomNav.Tab.valueOf(it) }.getOrNull() }
+            ?: if (Bridge.isPaired || selected.isNotEmpty()) BottomNav.Tab.INSTALL else BottomNav.Tab.CONNECT)
         logText.text = Bridge.logSnapshot()
         logPreview.text = Bridge.lastLogLine()
         applyLogExpanded()
@@ -161,19 +169,23 @@ class MainActivity : Activity() {
         super.onSaveInstanceState(outState)
         outState.putParcelableArrayList(KEY_SELECTED, ArrayList(selected))
         outState.putInt(KEY_SHOWN_SEQ, shownInstallSeq)
+        outState.putString(KEY_TAB, currentTab.name)
     }
 
     /** Keypad phones: MENU opens Settings; the number keys jump to the main actions. */
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
         val focusInText = currentFocus is EditText
+        // Keypad phones: 1–5 switch tabs (like the bottom bar), 0 opens/closes the log, MENU opens Settings.
+        val tabs = BottomNav.Tab.values()
         when {
-            keyCode == android.view.KeyEvent.KEYCODE_MENU -> { openSettingsScreen(); return true }
-            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_1 -> { chooseFiles(); return true }
-            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_2 -> { installSelected(); return true }
-            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_3 -> { startActivity(Intent(this, TerminalActivity::class.java)); return true }
-            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_4 -> { startActivity(Intent(this, AppsActivity::class.java)); return true }
-            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_5 -> { Bridge.testConnection(); return true }
-            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_0 -> { Bridge.logExpanded = !Bridge.logExpanded; applyLogExpanded(); return true }
+            keyCode == android.view.KeyEvent.KEYCODE_MENU -> { onTab(BottomNav.Tab.SETTINGS); return true }
+            !focusInText && keyCode in android.view.KeyEvent.KEYCODE_1..android.view.KeyEvent.KEYCODE_5 -> {
+                onTab(tabs[keyCode - android.view.KeyEvent.KEYCODE_1]); return true
+            }
+            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_0 -> {
+                if (currentTab != BottomNav.Tab.CONNECT) showTab(BottomNav.Tab.CONNECT)
+                Bridge.logExpanded = !Bridge.logExpanded; applyLogExpanded(); return true
+            }
         }
         return super.onKeyDown(keyCode, event)
     }
@@ -181,56 +193,167 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        intent.getStringExtra(BottomNav.EXTRA_TAB)?.let { name ->
+            runCatching { BottomNav.Tab.valueOf(name) }.getOrNull()?.let(::showTab)
+        }
         handleIncoming(intent)
+    }
+
+    /** Bottom bar: Connection/Install are pages here; the other tabs open their own screens. */
+    private fun onTab(tab: BottomNav.Tab) {
+        when (tab) {
+            BottomNav.Tab.CONNECT, BottomNav.Tab.INSTALL -> showTab(tab)
+            else -> BottomNav.navigate(this, tab)
+        }
+    }
+
+    private fun showTab(tab: BottomNav.Tab) {
+        if (tab != BottomNav.Tab.CONNECT && tab != BottomNav.Tab.INSTALL) return
+        currentTab = tab
+        connectionPage.visibility = if (tab == BottomNav.Tab.CONNECT) View.VISIBLE else View.GONE
+        installPage.visibility = if (tab == BottomNav.Tab.INSTALL) View.VISIBLE else View.GONE
+        pageTitle.text = if (tab == BottomNav.Tab.CONNECT) "חיבור לטלפון" else "התקנת אפליקציות"
+        navHolder.removeAllViews()
+        navHolder.addView(BottomNav.build(this, tab, ::onTab))
+        pageScroll.scrollTo(0, 0)
     }
 
     // region UI construction
 
     private fun buildUi() {
-        val page = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        // ── Header: icon, name and the current page title.
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             layoutDirection = View.LAYOUT_DIRECTION_RTL
-            setPadding(dp(16), dp(18), dp(16), dp(24))
+            setPadding(dp(16), dp(12), dp(16), dp(8))
         }
-
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        top.addView(android.widget.ImageView(this).apply {
+        header.addView(android.widget.ImageView(this).apply {
             setImageResource(R.mipmap.ic_launcher_art)
             scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-            // The launcher bitmap has adaptive-icon padding (76 of 108dp); enlarge it to fill the header slot.
+            // The launcher bitmap has adaptive-icon padding (76 of 108dp); enlarge it to fill the slot.
             scaleX = 1.4f
             scaleY = 1.4f
-        }, LinearLayout.LayoutParams(dp(56), dp(56)).apply { marginEnd = dp(8) })
-        top.addView(TextView(this).apply {
+        }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(10) })
+        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        titles.addView(TextView(this).apply {
             text = "APK Bridge"
-            textSize = 28f
+            textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        top.addView(button("⚙ הגדרות", primary = false) { openSettingsScreen() })
-        page.addView(top, matchWrap())
-        page.addView(TextView(this).apply {
-            text = "התקנת APK, ‏APKS, ‏XAPK ו־APKM דרך Wireless Debugging — בלי מחשב ובלי Root"
-            textSize = 13f
+        })
+        pageTitle = TextView(this).apply { textSize = 13f; setTextColor(MUTED) }
+        titles.addView(pageTitle)
+        header.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        // ── Pages
+        val pages = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(14), dp(4), dp(14), dp(16))
+        }
+        connectionPage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        installPage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        pages.addView(connectionPage)
+        pages.addView(installPage)
+        buildConnectionPage(connectionPage)
+        buildInstallPage(installPage)
+        pages.addView(TextView(this).apply {
+            text = "גרסה ${versionName()}"
+            textSize = 11f
             setTextColor(MUTED)
             gravity = Gravity.CENTER
-        }, matchWrap(14))
+        }, matchWrap())
+        pageScroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(pages)
+        }
 
-        // Status card
-        val statusCard = card(page)
-        statusText = TextView(this).apply { textSize = 15f; setTextColor(INK) }
-        statusCard.addView(statusText, matchWrap(6))
+        // ── Status strip (always visible above the bottom bar): what is happening right now.
+        val status = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            background = GradientDrawable().apply { setColor(0xFFFFF1E3.toInt()) }
+        }
+        statusText = TextView(this).apply {
+            textSize = 13.5f
+            setTextColor(INK)
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        status.addView(statusText)
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             visibility = View.GONE
         }
-        statusCard.addView(progressBar, matchWrap(6))
+        status.addView(progressBar, matchWrap(2))
+        val statusButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         cancelButton = button("בטל פעולה", primary = false) { Bridge.cancelCurrent() }.apply { visibility = View.GONE }
-        statusCard.addView(cancelButton, matchWrap())
-        openAppButton = button("פתח את האפליקציה שהותקנה", primary = false) { openInstalledApp() }.apply { visibility = View.GONE }
-        statusCard.addView(openAppButton, matchWrap())
+        openAppButton = button("פתח את האפליקציה שהותקנה", primary = true) { openInstalledApp() }.apply { visibility = View.GONE }
+        statusButtons.addView(cancelButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
+        statusButtons.addView(openAppButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        status.addView(statusButtons)
 
-        // Log card — right under the status, collapsed by default (tap the header to open).
+        navHolder = android.widget.FrameLayout(this)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(BACKGROUND)
+        }
+        root.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(pageScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(status, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(navHolder, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        Compat.applySystemBarInsets(this, root, includeIme = true)
+        setContentView(root)
+    }
+
+    /** 🔗 Connection: state → pairing → log. */
+    private fun buildConnectionPage(page: LinearLayout) {
+        // Card 1: connection state + a single test button.
+        val state = card(page)
+        state.addView(heading("מצב החיבור"), matchWrap())
+        connectionText = body("")
+        state.addView(connectionText, matchWrap(8))
+        state.addView(button("בדוק חיבור", primary = true) { Bridge.testConnection() }.busyAware(), matchWrap(0))
+
+        // Card 2: pairing — needed once.
+        val pair = card(page)
+        pair.addView(heading("זיווג (פעם אחת)"), matchWrap())
+        a11yText = body("")
+        pair.addView(a11yText, matchWrap(6))
+        a11yButton = button("הפעל זיווג אוטומטי", primary = true) { openAccessibilitySetup() }
+        pair.addView(a11yButton, matchWrap())
+        val notifyPair = button("זיווג עם קוד דרך התראה", primary = false) { startNotificationPairing() }.busyAware()
+        pair.addView(notifyPair, matchWrap())
+        if (!Compat.hasWirelessDebugging) {
+            // Android 8–10: no pairing codes; the state card explains classic ADB on port 5555.
+            pair.visibility = View.GONE
+        }
+        pair.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
+        pair.addView(button("זיווג ידני / מכשיר אחר ▾", primary = false) {
+            manualBox.visibility = if (manualBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }, matchWrap(0))
+        manualBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setPadding(0, dp(10), 0, 0) }
+        manualBox.addView(note("127.0.0.1 הוא הטלפון הזה. אפשר להזין IP של טלפון אחר באותה רשת. פורט הזיווג נמצא לבד אם משאירים ריק."), matchWrap(6))
+        host = field("כתובת יעד (127.0.0.1)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI).apply { setText(Bridge.targetHost) }
+        pairPort = field("פורט זיווג (לא חובה)", InputType.TYPE_CLASS_NUMBER)
+        pin = field("קוד זיווג בן 6 ספרות", InputType.TYPE_CLASS_NUMBER)
+        manualBox.addView(host, matchWrap())
+        manualBox.addView(pairPort, matchWrap())
+        manualBox.addView(pin, matchWrap())
+        manualBox.addView(button("בצע זיווג", primary = true) { manualPair() }.busyAware(), matchWrap())
+        manualBox.addView(button("שמור כתובת יעד", primary = false) {
+            Bridge.targetHost = host.text.toString()
+            Bridge.savedConnectPort = 0
+            host.setText(Bridge.targetHost)
+            refreshConnectionInfo()
+            toast("כתובת היעד נשמרה.")
+        }, matchWrap(0))
+        pair.addView(manualBox)
+
+        // Card 3: log — collapsed by default.
         val logCard = card(page)
         logHeader = heading("").apply {
             Compat.focusRing(this, 0xFF75451F.toInt(), 8f)
@@ -265,94 +388,27 @@ class MainActivity : Activity() {
         logButtons.addView(button("נקה", primary = false) { Bridge.clearLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         logBody.addView(logButtons, matchWrap(0))
         logCard.addView(logBody, matchWrap(0))
+    }
 
-        // Connection card
-        val conn = card(page)
-        conn.addView(heading("1 · חיבור"), matchWrap())
-        connectionText = body("")
-        conn.addView(connectionText, matchWrap(8))
-        a11yText = body("")
-        conn.addView(a11yText, matchWrap(6))
-        a11yButton = button("הפעל זיווג אוטומטי (נגישות)", primary = true) { openAccessibilitySetup() }
-        conn.addView(a11yButton, matchWrap())
-        val notifyPair = button("זווג דרך התראה", primary = false) { startNotificationPairing() }.busyAware()
-        conn.addView(notifyPair, matchWrap())
-        if (!Compat.hasWirelessDebugging) {
-            // Android 8–10: no pairing codes; the connection card explains classic ADB on port 5555.
-            a11yText.visibility = View.GONE
-            a11yButton.visibility = View.GONE
-            notifyPair.visibility = View.GONE
-        }
-        conn.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
-        conn.addView(button("בדוק חיבור", primary = false) { Bridge.testConnection() }.busyAware(), matchWrap())
-        conn.addView(button("זיווג ידני / מכשיר אחר ▾", primary = false) {
-            manualBox.visibility = if (manualBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-        }, matchWrap())
-        manualBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
-        manualBox.addView(body("ברירת המחדל 127.0.0.1 היא המכשיר הזה. אפשר להזין IP של מכשיר אחר באותה רשת. פורט הזיווג נמצא אוטומטית אם משאירים ריק."), matchWrap(6))
-        host = field("כתובת יעד (127.0.0.1)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI).apply { setText(Bridge.targetHost) }
-        pairPort = field("פורט זיווג (לא חובה)", InputType.TYPE_CLASS_NUMBER)
-        pin = field("קוד זיווג בן 6 ספרות", InputType.TYPE_CLASS_NUMBER)
-        manualBox.addView(host, matchWrap())
-        manualBox.addView(pairPort, matchWrap())
-        manualBox.addView(pin, matchWrap())
-        manualBox.addView(button("בצע זיווג", primary = true) { manualPair() }.busyAware(), matchWrap())
-        manualBox.addView(button("שמור כתובת יעד", primary = false) {
-            Bridge.targetHost = host.text.toString()
-            Bridge.savedConnectPort = 0
-            host.setText(Bridge.targetHost)
-            refreshConnectionInfo()
-            toast("כתובת היעד נשמרה.")
-        }, matchWrap())
-        conn.addView(manualBox, matchWrap())
-
-        // Install card
-        val inst = card(page)
-        inst.addView(heading("2 · התקנה"), matchWrap())
+    /** 📦 Install: pick files → install; options live in Settings. */
+    private fun buildInstallPage(page: LinearLayout) {
+        val files = card(page)
+        files.addView(heading("קבצים להתקנה"), matchWrap())
         filesText = body("")
-        inst.addView(filesText, matchWrap(8))
-        inst.addView(button("בחר קבצים (APK / APKS / XAPK / APKM)", primary = false) { chooseFiles() }.busyAware(), matchWrap())
+        files.addView(filesText, matchWrap(10))
+        files.addView(button("בחר קבצים (APK / APKS / XAPK / APKM)", primary = false) { chooseFiles() }.busyAware(), matchWrap())
         installButton = button("התקן", primary = true) { installSelected() }.busyAware()
-        inst.addView(installButton, matchWrap(10))
-        optionsSummary = note("")
-        inst.addView(optionsSummary, matchWrap(4))
-        inst.addView(button("⚙ הגדרות התקנה והתקנה אוטומטית", primary = false) { openSettingsScreen() }, matchWrap())
+        files.addView(installButton, matchWrap(0))
 
-        // Tools card
-        val tools = card(page)
-        tools.addView(heading("3 · כלים"), matchWrap())
-        tools.addView(button("📱 אפליקציות מותקנות — פתיחה, הסרה, שמירת APK", primary = true) {
-            startActivity(Intent(this, AppsActivity::class.java))
-        }, matchWrap())
-        tools.addView(button("⌨ מסוף ADB — הרץ כל פקודה", primary = true) {
-            startActivity(Intent(this, TerminalActivity::class.java))
-        }, matchWrap(12))
-        uninstallPkg = field("שם חבילה להסרה (למשל com.example.app)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
-        tools.addView(uninstallPkg, matchWrap())
-        keepData = checkBox("שמור נתוני אפליקציה (‎-k)", false)
-        tools.addView(keepData, matchWrap())
-        tools.addView(button("הסר התקנה", primary = false) {
-            Bridge.uninstall(uninstallPkg.text.toString(), keepData.isChecked)
-        }.busyAware(), matchWrap(12))
-        tools.addView(body("הפעלה אוטומטית: APK Bridge יכול להדליק את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (למשל אחרי הפעלה מחדש), כך שלא צריך להיכנס להגדרות לפני כל התקנה."), matchWrap(6))
-        tools.addView(button("אפשר הפעלה אוטומטית של ניפוי באגים אלחוטי", primary = false) { Bridge.grantAutoEnable() }.busyAware(), matchWrap(12))
-        tools.addView(body("ADB קבוע: APK Bridge ימשיך לעבוד גם כשה־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר (ואז מתחדש אוטומטית בחיבור הראשון דרך Wi‑Fi)."), matchWrap(6))
-        tools.addView(button("שמור ADB גם בלי Wi‑Fi", primary = false) { confirmKeepAdb() }.busyAware(), matchWrap())
+        val opts = card(page)
+        opts.addView(heading("אפשרויות התקנה"), matchWrap())
+        optionsSummary = body("")
+        opts.addView(optionsSummary, matchWrap(8))
+        opts.addView(button("שינוי אפשרויות", primary = false) { onTab(BottomNav.Tab.SETTINGS) }, matchWrap(0))
 
-        page.addView(TextView(this).apply {
-            text = "גרסה ${versionName()}"
-            textSize = 12f
-            setTextColor(MUTED)
-            gravity = Gravity.CENTER
-        }, matchWrap())
-
-        val root = ScrollView(this).apply {
-            setBackgroundColor(BACKGROUND)
-            isFillViewport = true
-            addView(page)
-        }
-        Compat.applySystemBarInsets(this, root, includeIme = true)
-        setContentView(root)
+        val tip = card(page)
+        tip.addView(heading("טיפ"), matchWrap())
+        tip.addView(body("אפשר גם לפתוח או לשתף קובץ APK מכל אפליקציה (מנהל קבצים, דפדפן, וואטסאפ, טלגרם) ולבחור ב־APK Bridge — והוא יותקן לפי ההגדרות."), matchWrap(0))
     }
 
     private fun card(parent: LinearLayout) = LinearLayout(this).apply {
@@ -540,7 +596,7 @@ class MainActivity : Activity() {
     private fun renderSelection() {
         if (!::filesText.isInitialized) return
         filesText.text = if (selected.isEmpty()) {
-            "לא נבחרו קבצים. אפשר גם לפתוח או לשתף קובץ APK מכל מנהל קבצים או דפדפן."
+            "עדיין לא נבחרו קבצים."
         } else {
             selected.joinToString("\n") { "• ${Bridge.displayName(it)} (${Bridge.formatSize(Bridge.sizeOf(it))})" } +
                 (previewText?.let { "\n\n$it" } ?: "")
@@ -697,6 +753,7 @@ class MainActivity : Activity() {
         if (uris.isEmpty()) return
         selected = uris
         previewText = null
+        if (::installPage.isInitialized) showTab(BottomNav.Tab.INSTALL)
         renderSelection()
         loadPreview()
     }
@@ -808,6 +865,7 @@ class MainActivity : Activity() {
         private const val REQUEST_NOTIFICATIONS = 4103
         private const val KEY_SELECTED = "selected_uris"
         private const val KEY_SHOWN_SEQ = "shown_install_seq"
+        private const val KEY_TAB = "tab"
         private val INK = 0xFF30251D.toInt()
         private val MUTED = 0xFF8A7868.toInt()
         private val ACCENT = 0xFFF09A45.toInt()

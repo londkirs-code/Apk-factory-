@@ -76,7 +76,6 @@ class AppsActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        top.addView(smallButton("סגור") { finish() })
         root.addView(top, matchWrap(8))
 
         search = EditText(this).apply {
@@ -138,8 +137,11 @@ class AppsActivity : Activity() {
             setDrawSelectorOnTop(false)
         }
         root.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        Compat.applySystemBarInsets(this, root, includeIme = true)
-        setContentView(root)
+        val outer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BACKGROUND) }
+        outer.addView(root, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        outer.addView(BottomNav.build(this, BottomNav.Tab.APPS) { BottomNav.navigate(this, it) })
+        Compat.applySystemBarInsets(this, outer, includeIme = true)
+        setContentView(outer)
     }
 
     private fun rowView() = LinearLayout(this).apply {
