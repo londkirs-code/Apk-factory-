@@ -29,6 +29,29 @@
 - יומן פעולות מפורט עם העתקה, והסברים בעברית לשגיאות התקנה נפוצות.
 - הפעולות רצות ברמת התהליך, כך שסיבוב מסך או מעבר לאפליקציה אחרת לא מבטלים התקנה.
 
+## מבנה הקוד (`app/src/main/java/com/londkirs/apkbridge/`)
+
+| קובץ | תפקיד |
+|---|---|
+| `Bridge.kt` | החיבור ל־ADB (צימוד, חיבור, ADB קבוע, הגדרה אוטומטית), מצב, יומן, העדפות, הסבר שגיאות |
+| `Installer.kt` | התקנת APK / APKS / XAPK / APKM: פתיחת חבילות, בחירת חלקים, OBB, תצוגה מקדימה |
+| `Mdns.kt` | איתור שירותי ניפוי הבאגים האלחוטי ברשת |
+| `CommandParser.kt` | הבנת פקודות `adb …` שהודבקו |
+| `Shell.kt` | `shellQuote` — הגנה על ערכים בפקודות shell |
+| `Lang.kt` | עברית / אנגלית (`tr`) ובחירת שפה |
+| `Ui.kt` | צבעים ורכיבי עיצוב משותפים (כרטיס, כפתור, כותרת) |
+| `MainActivity.kt` | לשוניות חיבור והתקנה |
+| `GuideActivity.kt` / `OnboardingActivity.kt` | מדריך הצימוד / מסך הפתיחה |
+| `AppsActivity.kt` | מנהל האפליקציות |
+| `BackupActivity.kt` / `BackupEngine.kt` | מסך ומנוע הגיבוי והשחזור |
+| `TermuxBackup.kt` / `ContactSources.kt` | גיבוי טרמוקס / חשבונות וקבוצות של אנשי קשר |
+| `TerminalActivity.kt` / `TerminalShortcuts.kt` | טרמינל הצ'אט / רשימת הקיצורים, שמירה ושדרוג |
+| `ShortcutWidget.kt` / `WidgetConfigActivity.kt` | הווידג'טים (כולל מתגים) / מסך בחירת הכפתורים |
+| `SettingsActivity.kt`, `BottomNav.kt`, `StatusStrip.kt`, `Confetti.kt`, `Compat.kt`, `Saf.kt`, `TerminalIcon.kt` | הגדרות, סרגל תחתון, פס התקדמות, קונפטי, תאימות לגרסאות, גישה לתיקיות, אייקון טרמוקס |
+| `PairingService.kt`, `PairingAccessibilityService.kt`, `HelperInstaller.kt` | צימוד דרך התראה, צימוד אוטומטי, התקנת עזר ה־Wi‑Fi |
+
+סקירת האבטחה: `SECURITY.md`.
+
 ## שפות
 
 האפליקציה מלאה בעברית ובאנגלית. השפה נקבעת לפי שפת הטלפון, ואפשר לבחור אחרת בהגדרות ← 🌐 שפה.

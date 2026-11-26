@@ -555,10 +555,13 @@ class TerminalActivity : Activity() {
     // region shortcuts
 
     private fun shown(sc: Shortcut) = TerminalShortcuts.shown(sc)
-    private fun shortcuts() = TerminalShortcuts.load(this)
+    /** Parsed once and kept until the list changes (the chip bar asks for it several times per redraw). */
+    private var shortcutCache: MutableList<Shortcut>? = null
+    private fun shortcuts(): MutableList<Shortcut> = (shortcutCache ?: TerminalShortcuts.load(this).also { shortcutCache = it }).toMutableList()
 
     private fun saveShortcuts(items: List<Shortcut>) {
         TerminalShortcuts.save(this, items)
+        shortcutCache = null
         rebuildChips()
     }
 
@@ -569,7 +572,7 @@ class TerminalActivity : Activity() {
         return if (g in groups()) g else groups().first()
     }
 
-    private fun shortcutsInGroup() = shortcuts().filter { it.group == currentGroup() }
+    private fun shortcutsInGroup(): List<Shortcut> { val g = currentGroup(); return shortcuts().filter { it.group == g } }
 
     private fun rebuildChips() {
         groupChips.removeAllViews()
@@ -669,6 +672,7 @@ class TerminalActivity : Activity() {
                     items.size + 1 -> pickWidgetShortcuts()
                     items.size + 2 -> {
                         TerminalShortcuts.reset(this)
+                        shortcutCache = null
                         rebuildChips()
                     }
                     else -> shortcutDialog(tr("עריכת קיצור", "Edit shortcut"), items[which], { s ->
