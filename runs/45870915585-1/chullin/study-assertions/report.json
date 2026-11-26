@@ -1,0 +1,246 @@
+{
+  "app": "chullin",
+  "package": "com.londkirs.chullin",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "he-IL",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 107.9,
+  "crashes": [],
+  "warnings": [
+    "UI dump for 002-dark-theme.png failed: uiautomator dump failed: ",
+    "UI dump for 003-step24-tap-FAILED.png failed: uiautomator dump failed: ",
+    "UI dump for 004-final.png failed: uiautomator dump failed: "
+  ],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 4.21,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='חולין'",
+      "status": "passed",
+      "seconds": 2.84,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "assert_text",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.62,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 6.22,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "assert_text",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 2.46,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "screenshot",
+      "detail": "name='study-start'",
+      "status": "passed",
+      "seconds": 2.83,
+      "error": "",
+      "screenshot": "screenshots/001-study-start.png"
+    },
+    {
+      "index": 7,
+      "action": "scroll_to",
+      "detail": "text=\"מתני' הכל שוחטין\"",
+      "status": "passed",
+      "seconds": 2.4,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "tap",
+      "detail": "text=\"מתני' הכל שוחטין\"",
+      "status": "passed",
+      "seconds": 3.56,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.15,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "assert_text",
+      "detail": "text='נלמדו 1 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.89,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "tap",
+      "detail": "text=\"מתני' הכל שוחטין\"",
+      "status": "passed",
+      "seconds": 3.42,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "assert_text",
+      "detail": "text='נלמדו 0 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.48,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.46,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.22,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.38,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.12,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "tap",
+      "detail": "text='⚙'",
+      "status": "passed",
+      "seconds": 3.63,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "wait_for",
+      "detail": "text='ערכת נושא'",
+      "status": "passed",
+      "seconds": 2.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "tap",
+      "detail": "text='כהה'",
+      "status": "passed",
+      "seconds": 3.46,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.12,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "screenshot",
+      "detail": "name='dark-theme'",
+      "status": "passed",
+      "seconds": 12.48,
+      "error": "",
+      "screenshot": "screenshots/002-dark-theme.png"
+    },
+    {
+      "index": 23,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 24,
+      "action": "tap",
+      "detail": "text='⚙'",
+      "status": "failed",
+      "seconds": 11.89,
+      "error": "uiautomator dump failed: ",
+      "screenshot": "screenshots/003-step24-tap-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-study-start.png",
+    "002-dark-theme.png",
+    "003-step24-tap-FAILED.png",
+    "004-final.png"
+  ]
+}

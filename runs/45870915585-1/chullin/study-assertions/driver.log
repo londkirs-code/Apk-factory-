@@ -1,0 +1,26 @@
+[ok] 01 launch clear_data=True
+[ok] 02 wait_for text='חולין'
+[ok] 03 assert_text text='הכל שוחטין'
+[ok] 04 scroll_to text='הבא'
+[ok] 05 assert_text text='הבא'
+[ok] 06 screenshot name='study-start'
+[ok] 07 scroll_to text="מתני' הכל שוחטין"
+[ok] 08 tap text="מתני' הכל שוחטין"
+[ok] 09 wait seconds=1
+[ok] 10 assert_text text='נלמדו 1 מתוך 6'
+[ok] 11 tap text="מתני' הכל שוחטין"
+[ok] 12 wait seconds=1
+[ok] 13 assert_text text='נלמדו 0 מתוך 6'
+[ok] 14 swipe direction='down'
+[ok] 15 swipe direction='down'
+[ok] 16 swipe direction='down'
+[ok] 17 wait seconds=2
+[ok] 18 tap text='⚙'
+[ok] 19 wait_for text='ערכת נושא'
+[ok] 20 tap text='כהה'
+[ok] 21 wait seconds=2
+[ok] 22 screenshot name='dark-theme'
+[ok] 23 wait seconds=2
+[FAIL] 24 tap text='⚙' uiautomator dump failed:
+
+Result: FAILED — 24 steps, 4 screenshots, 0 crashes
