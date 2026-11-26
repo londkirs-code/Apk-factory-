@@ -1,0 +1,386 @@
+{
+  "app": "chullin",
+  "package": "com.londkirs.chullin",
+  "mode": "scenario",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "he-IL",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 114.6,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 3.77,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='חולין'",
+      "status": "passed",
+      "seconds": 2.82,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "assert_text",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.43,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 6.68,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "assert_text",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 3.1,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "screenshot",
+      "detail": "name='study-start'",
+      "status": "passed",
+      "seconds": 3.65,
+      "error": "",
+      "screenshot": "screenshots/001-study-start.png"
+    },
+    {
+      "index": 7,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.5,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.42,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.45,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "tap",
+      "detail": "text='גמרא'",
+      "status": "passed",
+      "seconds": 3.76,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.47,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.33,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.15,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "assert_text",
+      "detail": "text='✓ גמרא'",
+      "status": "passed",
+      "seconds": 2.6,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.41,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.55,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "tap",
+      "detail": "text='✓ גמרא'",
+      "status": "passed",
+      "seconds": 3.93,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "assert_not_visible",
+      "detail": "text='✓ גמרא'",
+      "status": "passed",
+      "seconds": 3.09,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 23,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 5.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 24,
+      "action": "tap",
+      "detail": "text='הבא ←'",
+      "status": "passed",
+      "seconds": 3.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 26,
+      "action": "screenshot",
+      "detail": "name='after-next'",
+      "status": "passed",
+      "seconds": 2.52,
+      "error": "",
+      "screenshot": "screenshots/002-after-next.png"
+    },
+    {
+      "index": 27,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 5.78,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 28,
+      "action": "tap",
+      "detail": "text='→ קודם'",
+      "status": "passed",
+      "seconds": 3.43,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 30,
+      "action": "tap",
+      "detail": "text='סקירה'",
+      "status": "passed",
+      "seconds": 3.37,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 31,
+      "action": "scroll_to",
+      "detail": "text='סקירה כללית'",
+      "status": "passed",
+      "seconds": 6.41,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 32,
+      "action": "assert_text",
+      "detail": "text='סקירה כללית'",
+      "status": "passed",
+      "seconds": 2.54,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "assert_text",
+      "detail": "text='גמורים: 0'",
+      "status": "passed",
+      "seconds": 2.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 34,
+      "action": "screenshot",
+      "detail": "name='overview'",
+      "status": "passed",
+      "seconds": 2.32,
+      "error": "",
+      "screenshot": "screenshots/003-overview.png"
+    },
+    {
+      "index": 35,
+      "action": "tap",
+      "detail": "text='פרקים'",
+      "status": "passed",
+      "seconds": 3.13,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 36,
+      "action": "scroll_to",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 37,
+      "action": "assert_text",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 38,
+      "action": "tap",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 3.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 39,
+      "action": "assert_text",
+      "detail": "text='אותו ואת בנו'",
+      "status": "skipped",
+      "seconds": 7.44,
+      "error": "element not found within 5s: text='אותו ואת בנו'",
+      "screenshot": ""
+    },
+    {
+      "index": 40,
+      "action": "screenshot",
+      "detail": "name='perakim'",
+      "status": "passed",
+      "seconds": 2.27,
+      "error": "",
+      "screenshot": "screenshots/004-perakim.png"
+    }
+  ],
+  "screenshots": [
+    "001-study-start.png",
+    "002-after-next.png",
+    "003-overview.png",
+    "004-perakim.png"
+  ]
+}
