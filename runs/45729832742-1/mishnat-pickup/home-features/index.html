@@ -1,0 +1,151 @@
+<!doctype html><meta charset="utf-8">
+<title>UI test — mishnat-pickup</title>
+<style>body{font-family:system-ui,sans-serif;margin:24px;background:#f6f7f9}
+.grid{display:flex;flex-wrap:wrap;gap:16px}figure{margin:0;background:#fff;padding:8px;border-radius:8px;box-shadow:0 1px 3px #0002}
+img{width:240px;display:block}figcaption{font-size:12px;margin-top:4px}table{border-collapse:collapse;background:#fff}
+td,th{border:1px solid #ddd;padding:4px 8px;font-size:13px;text-align:left}tr.failed{background:#fde8e8}tr.skipped{background:#fff7e0}
+pre{background:#222;color:#eee;padding:12px;overflow:auto}</style>
+<h1>UI test — mishnat-pickup (scenario): FAILED</h1>
+<p>Package <code>org.mishnatyosef.pickup</code> · {&quot;model&quot;: &quot;sdk_gphone64_x86_64&quot;, &quot;sdk&quot;: &quot;33&quot;, &quot;release&quot;: &quot;13&quot;, &quot;abi&quot;: &quot;x86_64&quot;, &quot;locale&quot;: &quot;&quot;, &quot;screen&quot;: &quot;1080x2400&quot;}</p>
+<table><tr><th>#</th><th>Action</th><th>Detail</th><th>Result</th><th>Error</th></tr><tr class='passed'><td>1</td><td>clear_data</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>2</td><td>push</td><td>src=&#x27;fixtures/ui-test-features.txt&#x27;, dest=&#x27;/sdcard/Download/ui-test-features.txt&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>3</td><td>launch</td><td></td><td>passed</td><td></td></tr>
+<tr class='failed'><td>4</td><td>wait_for</td><td>text=&#x27;כניסה לחשבון&#x27;</td><td>failed</td><td>element not found within 30s: text=&#x27;כניסה לחשבון&#x27;</td></tr>
+<tr class='failed'><td>5</td><td>scroll_to</td><td>text=&#x27;ייבוא רשימה מקובץ&#x27;</td><td>failed</td><td>not found after scrolling: text=&#x27;ייבוא רשימה מקובץ&#x27;</td></tr>
+<tr class='failed'><td>6</td><td>tap</td><td>text=&#x27;ייבוא רשימה מקובץ&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;ייבוא רשימה מקובץ&#x27;</td></tr>
+<tr class='failed'><td>7</td><td>tap</td><td>text=&#x27;ui-test-features&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;ui-test-features&#x27;</td></tr>
+<tr class='failed'><td>8</td><td>wait_for</td><td>text=&#x27;נמצאו 1 רשימות&#x27;</td><td>failed</td><td>element not found within 15s: text=&#x27;נמצאו 1 רשימות&#x27;</td></tr>
+<tr class='failed'><td>9</td><td>tap</td><td>text=&#x27;ייבא רשימות&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;ייבא רשימות&#x27;</td></tr>
+<tr class='failed'><td>10</td><td>wait_for</td><td>1+2+3+4+1.5 units</td><td>failed</td><td>element not found within 10s: text=&#x27;נאספו 0 מתוך 11.5&#x27;</td></tr>
+<tr class='passed'><td>11</td><td>screenshot</td><td>name=&#x27;imported-5-items&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>12</td><td>assert_text</td><td>decimal quantity kept</td><td>failed</td><td>element not found within 5s: text=&#x27;1.5&#x27;</td></tr>
+<tr class='failed'><td>13</td><td>tap</td><td>text=&#x27;חיפוש פריט&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;חיפוש פריט&#x27;</td></tr>
+<tr class='passed'><td>14</td><td>type</td><td>value=&#x27;Pasta&#x27;, hide_keyboard=True</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>15</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>16</td><td>screenshot</td><td>name=&#x27;search-pasta&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>17</td><td>assert_text</td><td>text=&#x27;Pasta&#x27;</td><td>failed</td><td>element not found within 5s: text=&#x27;Pasta&#x27;</td></tr>
+<tr class='passed'><td>18</td><td>assert_not_visible</td><td>search filters other items</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>19</td><td>type</td><td>class=&#x27;EditText&#x27;</td><td>failed</td><td>element not found within 10s: class=&#x27;EditText&#x27;</td></tr>
+<tr class='passed'><td>20</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>21</td><td>assert_text</td><td>cleared search shows all items</td><td>failed</td><td>element not found within 5s: text=&#x27;מלפפון&#x27;</td></tr>
+<tr class='failed'><td>22</td><td>long_press</td><td>text=&#x27;Pasta&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;Pasta&#x27;</td></tr>
+<tr class='failed'><td>23</td><td>wait_for</td><td>text=&#x27;איסוף כמות חלקית&#x27;</td><td>failed</td><td>element not found within 5s: text=&#x27;איסוף כמות חלקית&#x27;</td></tr>
+<tr class='passed'><td>24</td><td>screenshot</td><td>name=&#x27;partial-dialog&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>25</td><td>swipe</td><td>RTL slider: try to pick more units</td><td>failed</td><td>element not found within 10s: class=&#x27;SeekBar&#x27;</td></tr>
+<tr class='passed'><td>26</td><td>screenshot</td><td>name=&#x27;partial-dialog-moved&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>27</td><td>tap</td><td>text=&#x27;אישור הכמות&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;אישור הכמות&#x27;</td></tr>
+<tr class='passed'><td>28</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>29</td><td>scroll_to</td><td>the partial card sits in the collected section, below the fold</td><td>failed</td><td>not found after scrolling: text=&#x27;נאספו חלקית&#x27;</td></tr>
+<tr class='passed'><td>30</td><td>screenshot</td><td>name=&#x27;partial-collected&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>31</td><td>scroll_to</td><td>text=&#x27;נאספו 1 מתוך&#x27;</td><td>failed</td><td>not found after scrolling: text=&#x27;נאספו 1 מתוך&#x27;</td></tr>
+<tr class='failed'><td>32</td><td>tap</td><td>desc=&#x27;איפוס ליקוט&#x27;</td><td>failed</td><td>element not found within 10s: desc=&#x27;איפוס ליקוט&#x27;</td></tr>
+<tr class='failed'><td>33</td><td>wait_for</td><td>text=&#x27;להחזיר את כל המוצרים&#x27;</td><td>failed</td><td>element not found within 5s: text=&#x27;להחזיר את כל המוצרים&#x27;</td></tr>
+<tr class='passed'><td>34</td><td>screenshot</td><td>name=&#x27;reset-confirm&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>35</td><td>tap</td><td>text=&#x27;איפוס&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;איפוס&#x27;</td></tr>
+<tr class='failed'><td>36</td><td>wait_for</td><td>text=&#x27;נאספו 0 מתוך 11.5&#x27;</td><td>failed</td><td>element not found within 5s: text=&#x27;נאספו 0 מתוך 11.5&#x27;</td></tr>
+<tr class='failed'><td>37</td><td>tap</td><td>desc=&#x27;רשימה לפי חשבון&#x27;</td><td>failed</td><td>element not found within 10s: desc=&#x27;רשימה לפי חשבון&#x27;</td></tr>
+<tr class='passed'><td>38</td><td>wait</td><td>seconds=1.5</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>39</td><td>screenshot</td><td>name=&#x27;view-by-account&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>40</td><td>tap</td><td>desc=&#x27;רשימה מאוחדת&#x27;</td><td>failed</td><td>element not found within 10s: desc=&#x27;רשימה מאוחדת&#x27;</td></tr>
+<tr class='passed'><td>41</td><td>wait</td><td>seconds=1.5</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>42</td><td>screenshot</td><td>name=&#x27;view-combined&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>43</td><td>tap</td><td>text=&#x27;גבינה&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;גבינה&#x27;</td></tr>
+<tr class='failed'><td>44</td><td>assert_text</td><td>text=&#x27;נאספו 1.5 מתוך 11.5&#x27;</td><td>failed</td><td>element not found within 5s: text=&#x27;נאספו 1.5 מתוך 11.5&#x27;</td></tr>
+<tr class='passed'><td>45</td><td>rotate</td><td>to=&#x27;landscape&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>46</td><td>wait</td><td>seconds=1.5</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>47</td><td>assert_text</td><td>progress survives rotation</td><td>failed</td><td>element not found within 5s: text=&#x27;נאספו 1.5 מתוך 11.5&#x27;</td></tr>
+<tr class='passed'><td>48</td><td>screenshot</td><td>name=&#x27;landscape&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>49</td><td>rotate</td><td>to=&#x27;portrait&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>50</td><td>wait</td><td>seconds=1.5</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>51</td><td>tap</td><td>desc=&#x27;הגדרות&#x27;</td><td>failed</td><td>element not found within 10s: desc=&#x27;הגדרות&#x27;</td></tr>
+<tr class='failed'><td>52</td><td>wait_for</td><td>text=&#x27;סיכום מהיר&#x27;</td><td>failed</td><td>element not found within 8s: text=&#x27;סיכום מהיר&#x27;</td></tr>
+<tr class='passed'><td>53</td><td>screenshot</td><td>name=&#x27;settings-top&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>54</td><td>swipe</td><td>direction=&#x27;up&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>55</td><td>screenshot</td><td>name=&#x27;settings-middle&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>56</td><td>swipe</td><td>direction=&#x27;up&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>57</td><td>swipe</td><td>direction=&#x27;up&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>58</td><td>screenshot</td><td>name=&#x27;settings-bottom&#x27;</td><td>passed</td><td></td></tr>
+<tr class='failed'><td>59</td><td>scroll_to</td><td>text=&#x27;רשימות שמורות&#x27;</td><td>failed</td><td>not found after scrolling: text=&#x27;רשימות שמורות&#x27;</td></tr>
+<tr class='failed'><td>60</td><td>tap</td><td>text=&#x27;רשימות שמורות&#x27;</td><td>failed</td><td>element not found within 10s: text=&#x27;רשימות שמורות&#x27;</td></tr>
+<tr class='passed'><td>61</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>62</td><td>screenshot</td><td>name=&#x27;saved-lists&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>63</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>64</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>65</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>66</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>67</td><td>launch</td><td>restart=False</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>68</td><td>screenshot</td><td>name=&#x27;before-explore&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>69</td><td>explore-tap</td><td>לא להציג שוב (עד העדכון הבא)</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>70</td><td>explore-tap</td><td>הבנתי ומסכים</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>71</td><td>explore-tap</td><td>ייבוא רשימות עכשיו. בלי התחברות ובלי אינטרנט</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>72</td><td>explore-tap</td><td>סגירה</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>73</td><td>explore-tap</td><td>⚙️  הגדרות</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>74</td><td>explore-tap</td><td>סגירת ההגדרות</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>75</td><td>explore-tap</td><td>📚  ניהול רשימות</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>76</td><td>explore-tap</td><td>חזרה</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>77</td><td>explore-tap</td><td>🔐  התחברות לחשבון</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>78</td><td>explore-tap</td><td>name@example.com</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>79</td><td>explore-tap</td><td>הקלידו את הסיסמה</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>80</td><td>explore-tap</td><td>🔐  התחברות</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>81</td><td>explore-tap</td><td>name@example.com</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>82</td><td>explore-tap</td><td>הקלידו את הסיסמה</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>83</td><td>explore-tap</td><td>name@example.com</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>84</td><td>explore-tap</td><td>הקלידו את הסיסמה</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>85</td><td>explore-tap</td><td>🔐  התחברות</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>86</td><td>explore-tap</td><td>🔐  חזרה בלי להתחבר</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>69</td><td>explore</td><td>auto-explore from the list screen</td><td>passed</td><td></td></tr>
+<tr class='skipped'><td>70</td><td>assert_foreground</td><td></td><td>skipped</td><td>foreground app is com.google.android.apps.nexuslauncher, expected org.mishnatyosef.pickup</td></tr></table>
+<h2>Screenshots</h2><div class="grid"><figure><a href="screenshots/001-step4-wait_for-FAILED.png"><img src="screenshots/001-step4-wait_for-FAILED.png" loading="lazy"></a><figcaption>001-step4-wait_for-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/002-step5-scroll_to-FAILED.png"><img src="screenshots/002-step5-scroll_to-FAILED.png" loading="lazy"></a><figcaption>002-step5-scroll_to-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/003-step6-tap-FAILED.png"><img src="screenshots/003-step6-tap-FAILED.png" loading="lazy"></a><figcaption>003-step6-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/004-step7-tap-FAILED.png"><img src="screenshots/004-step7-tap-FAILED.png" loading="lazy"></a><figcaption>004-step7-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/005-step8-wait_for-FAILED.png"><img src="screenshots/005-step8-wait_for-FAILED.png" loading="lazy"></a><figcaption>005-step8-wait_for-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/006-step9-tap-FAILED.png"><img src="screenshots/006-step9-tap-FAILED.png" loading="lazy"></a><figcaption>006-step9-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/007-step10-wait_for-FAILED.png"><img src="screenshots/007-step10-wait_for-FAILED.png" loading="lazy"></a><figcaption>007-step10-wait_for-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/008-imported-5-items.png"><img src="screenshots/008-imported-5-items.png" loading="lazy"></a><figcaption>008-imported-5-items.png</figcaption></figure>
+<figure><a href="screenshots/009-step12-assert_text-FAILED.png"><img src="screenshots/009-step12-assert_text-FAILED.png" loading="lazy"></a><figcaption>009-step12-assert_text-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/010-step13-tap-FAILED.png"><img src="screenshots/010-step13-tap-FAILED.png" loading="lazy"></a><figcaption>010-step13-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/011-search-pasta.png"><img src="screenshots/011-search-pasta.png" loading="lazy"></a><figcaption>011-search-pasta.png</figcaption></figure>
+<figure><a href="screenshots/012-step17-assert_text-FAILED.png"><img src="screenshots/012-step17-assert_text-FAILED.png" loading="lazy"></a><figcaption>012-step17-assert_text-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/013-step19-type-FAILED.png"><img src="screenshots/013-step19-type-FAILED.png" loading="lazy"></a><figcaption>013-step19-type-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/014-step21-assert_text-FAILED.png"><img src="screenshots/014-step21-assert_text-FAILED.png" loading="lazy"></a><figcaption>014-step21-assert_text-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/015-step22-long_press-FAILED.png"><img src="screenshots/015-step22-long_press-FAILED.png" loading="lazy"></a><figcaption>015-step22-long_press-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/016-step23-wait_for-FAILED.png"><img src="screenshots/016-step23-wait_for-FAILED.png" loading="lazy"></a><figcaption>016-step23-wait_for-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/017-partial-dialog.png"><img src="screenshots/017-partial-dialog.png" loading="lazy"></a><figcaption>017-partial-dialog.png</figcaption></figure>
+<figure><a href="screenshots/018-step25-swipe-FAILED.png"><img src="screenshots/018-step25-swipe-FAILED.png" loading="lazy"></a><figcaption>018-step25-swipe-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/019-partial-dialog-moved.png"><img src="screenshots/019-partial-dialog-moved.png" loading="lazy"></a><figcaption>019-partial-dialog-moved.png</figcaption></figure>
+<figure><a href="screenshots/020-step27-tap-FAILED.png"><img src="screenshots/020-step27-tap-FAILED.png" loading="lazy"></a><figcaption>020-step27-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/021-step29-scroll_to-FAILED.png"><img src="screenshots/021-step29-scroll_to-FAILED.png" loading="lazy"></a><figcaption>021-step29-scroll_to-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/022-partial-collected.png"><img src="screenshots/022-partial-collected.png" loading="lazy"></a><figcaption>022-partial-collected.png</figcaption></figure>
+<figure><a href="screenshots/023-step31-scroll_to-FAILED.png"><img src="screenshots/023-step31-scroll_to-FAILED.png" loading="lazy"></a><figcaption>023-step31-scroll_to-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/024-step32-tap-FAILED.png"><img src="screenshots/024-step32-tap-FAILED.png" loading="lazy"></a><figcaption>024-step32-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/025-step33-wait_for-FAILED.png"><img src="screenshots/025-step33-wait_for-FAILED.png" loading="lazy"></a><figcaption>025-step33-wait_for-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/026-reset-confirm.png"><img src="screenshots/026-reset-confirm.png" loading="lazy"></a><figcaption>026-reset-confirm.png</figcaption></figure>
+<figure><a href="screenshots/027-step35-tap-FAILED.png"><img src="screenshots/027-step35-tap-FAILED.png" loading="lazy"></a><figcaption>027-step35-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/028-step36-wait_for-FAILED.png"><img src="screenshots/028-step36-wait_for-FAILED.png" loading="lazy"></a><figcaption>028-step36-wait_for-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/029-step37-tap-FAILED.png"><img src="screenshots/029-step37-tap-FAILED.png" loading="lazy"></a><figcaption>029-step37-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/030-view-by-account.png"><img src="screenshots/030-view-by-account.png" loading="lazy"></a><figcaption>030-view-by-account.png</figcaption></figure>
+<figure><a href="screenshots/031-step40-tap-FAILED.png"><img src="screenshots/031-step40-tap-FAILED.png" loading="lazy"></a><figcaption>031-step40-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/032-view-combined.png"><img src="screenshots/032-view-combined.png" loading="lazy"></a><figcaption>032-view-combined.png</figcaption></figure>
+<figure><a href="screenshots/033-step43-tap-FAILED.png"><img src="screenshots/033-step43-tap-FAILED.png" loading="lazy"></a><figcaption>033-step43-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/034-step44-assert_text-FAILED.png"><img src="screenshots/034-step44-assert_text-FAILED.png" loading="lazy"></a><figcaption>034-step44-assert_text-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/035-step47-assert_text-FAILED.png"><img src="screenshots/035-step47-assert_text-FAILED.png" loading="lazy"></a><figcaption>035-step47-assert_text-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/036-landscape.png"><img src="screenshots/036-landscape.png" loading="lazy"></a><figcaption>036-landscape.png</figcaption></figure>
+<figure><a href="screenshots/037-step51-tap-FAILED.png"><img src="screenshots/037-step51-tap-FAILED.png" loading="lazy"></a><figcaption>037-step51-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/038-step52-wait_for-FAILED.png"><img src="screenshots/038-step52-wait_for-FAILED.png" loading="lazy"></a><figcaption>038-step52-wait_for-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/039-settings-top.png"><img src="screenshots/039-settings-top.png" loading="lazy"></a><figcaption>039-settings-top.png</figcaption></figure>
+<figure><a href="screenshots/040-settings-middle.png"><img src="screenshots/040-settings-middle.png" loading="lazy"></a><figcaption>040-settings-middle.png</figcaption></figure>
+<figure><a href="screenshots/041-settings-bottom.png"><img src="screenshots/041-settings-bottom.png" loading="lazy"></a><figcaption>041-settings-bottom.png</figcaption></figure>
+<figure><a href="screenshots/042-step59-scroll_to-FAILED.png"><img src="screenshots/042-step59-scroll_to-FAILED.png" loading="lazy"></a><figcaption>042-step59-scroll_to-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/043-step60-tap-FAILED.png"><img src="screenshots/043-step60-tap-FAILED.png" loading="lazy"></a><figcaption>043-step60-tap-FAILED.png</figcaption></figure>
+<figure><a href="screenshots/044-saved-lists.png"><img src="screenshots/044-saved-lists.png" loading="lazy"></a><figcaption>044-saved-lists.png</figcaption></figure>
+<figure><a href="screenshots/045-before-explore.png"><img src="screenshots/045-before-explore.png" loading="lazy"></a><figcaption>045-before-explore.png</figcaption></figure>
+<figure><a href="screenshots/046-screen-1.png"><img src="screenshots/046-screen-1.png" loading="lazy"></a><figcaption>046-screen-1.png</figcaption></figure>
+<figure><a href="screenshots/047-screen-2.png"><img src="screenshots/047-screen-2.png" loading="lazy"></a><figcaption>047-screen-2.png</figcaption></figure>
+<figure><a href="screenshots/048-screen-3.png"><img src="screenshots/048-screen-3.png" loading="lazy"></a><figcaption>048-screen-3.png</figcaption></figure>
+<figure><a href="screenshots/049-screen-4.png"><img src="screenshots/049-screen-4.png" loading="lazy"></a><figcaption>049-screen-4.png</figcaption></figure>
+<figure><a href="screenshots/050-screen-5.png"><img src="screenshots/050-screen-5.png" loading="lazy"></a><figcaption>050-screen-5.png</figcaption></figure>
+<figure><a href="screenshots/051-screen-6.png"><img src="screenshots/051-screen-6.png" loading="lazy"></a><figcaption>051-screen-6.png</figcaption></figure>
+<figure><a href="screenshots/052-screen-7.png"><img src="screenshots/052-screen-7.png" loading="lazy"></a><figcaption>052-screen-7.png</figcaption></figure>
+<figure><a href="screenshots/053-screen-8.png"><img src="screenshots/053-screen-8.png" loading="lazy"></a><figcaption>053-screen-8.png</figcaption></figure>
+<figure><a href="screenshots/054-final.png"><img src="screenshots/054-final.png" loading="lazy"></a><figcaption>054-final.png</figcaption></figure></div>

@@ -1,0 +1,60 @@
+{
+  "app": "mishnat-pickup",
+  "package": "org.mishnatyosef.pickup",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 42.6,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "clear_data",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "push",
+      "detail": "src='fixtures/ui-test-list.txt', dest='/sdcard/Download/ui-test-list.txt'",
+      "status": "passed",
+      "seconds": 3.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 2.91,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait_for",
+      "detail": "text='כניסה לחשבון'",
+      "status": "failed",
+      "seconds": 30.94,
+      "error": "element not found within 30s: text='כניסה לחשבון'",
+      "screenshot": "screenshots/001-step4-wait_for-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-step4-wait_for-FAILED.png",
+    "002-final.png"
+  ]
+}
