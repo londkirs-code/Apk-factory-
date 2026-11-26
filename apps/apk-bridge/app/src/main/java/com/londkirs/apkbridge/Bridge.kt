@@ -169,9 +169,6 @@ object Bridge {
         set(value) = prefs.edit().putString("auto_install_mode", value).apply()
 
     /** Only auto-install files that update an app that is already installed. */
-    var autoInstallUpdatesOnly: Boolean
-        get() = prefs.getBoolean("auto_install_updates_only", false)
-        set(value) = prefs.edit().putBoolean("auto_install_updates_only", value).apply()
 
     /** After a successful install: "ask", "auto" or "never". */
     var openAfterInstall: String

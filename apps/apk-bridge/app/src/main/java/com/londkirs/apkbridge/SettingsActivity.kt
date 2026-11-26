@@ -24,7 +24,6 @@ import android.widget.Toast
 class SettingsActivity : Activity() {
     private lateinit var a11yState: TextView
     private lateinit var wirelessState: TextView
-    private lateinit var updatesOnly: CheckBox
     private lateinit var wifiHelperState: TextView
     private lateinit var wifiHelperButton: Button
     private lateinit var a11yButton: Button
@@ -96,14 +95,10 @@ class SettingsActivity : Activity() {
         auto.addView(heading(tr("התקנה אוטומטית", "Automatic install")), matchWrap())
         auto.addView(body(tr("מה לעשות כשקובץ APK / APKS / XAPK / APKM נפתח או משותף אל הבוס מאפליקציה אחרת (מנהל קבצים, דפדפן, טלגרם…):", "What to do when an APK / APKS / XAPK / APKM file is opened or shared to The Boss from another app (file manager, browser, Telegram…):")), matchWrap(4))
         auto.addView(radios(
-            listOf("off" to tr("כבוי — רק לבחור את הקובץ, ולהתקין בלחיצה", "Off — just choose the file, and install with a tap"), "ask" to tr("לשאול אותי לפני ההתקנה", "Ask me before installing"), "auto" to tr("להתקין מיד בלי לשאול", "Install right away without asking")),
+            listOf("off" to tr("כבוי — רק לבחור את הקובץ, ולהתקין בלחיצה", "Off — just choose the file, and install with a tap"), "ask" to tr("לשאול אותי לפני ההתקנה", "Ask me before installing"), "auto" to tr("עדכונים — להתקין מיד בלי לשאול", "Updates — install right away without asking")),
             Bridge.autoInstallMode,
         ) { Bridge.autoInstallMode = it; refresh() }, matchWrap(4))
-        updatesOnly = checkBox(tr("להתקין אוטומטית רק עדכונים של אפליקציות שכבר מותקנות", "Auto-install only updates of apps that are already installed"), Bridge.autoInstallUpdatesOnly) {
-            Bridge.autoInstallUpdatesOnly = it
-        }
-        auto.addView(updatesOnly, matchWrap(0))
-        auto.addView(note(tr("התקנה אוטומטית פועלת רק אחרי שבוצע צימוד. קובץ שאינו עדכון (כשהאפשרות למעלה מסומנת) ייבחר בלבד, ותוצג שאלה.", "Automatic install works only after pairing. A file that isn't an update (when the option above is checked) is only selected, and a question is shown.")), matchWrap())
+        auto.addView(note(tr("🔒 לבטיחותך: כל אפליקציה יכולה לפתוח קובץ בהבוס, ולכן בלי שאלה מותקן רק עדכון לגרסה חדשה יותר של אפליקציה שכבר מותקנת (Android מוודא שהוא מאותו מפתח), ובלי האפשרויות המסוכנות (שנמוך, חבילות בדיקה, כל ההרשאות). אפליקציה חדשה — תמיד עם שאלה. פועל רק אחרי צימוד.", "🔒 For your safety: any app can open a file in The Boss, so only an update to a newer version of an installed app (Android verifies it's from the same developer) installs without asking, and without the risky options (downgrade, test packages, all permissions). A new app always asks. Works only after pairing.")), matchWrap())
 
         // After install
         val after = card(page)
@@ -208,8 +203,6 @@ class SettingsActivity : Activity() {
             else -> tr("עזר ה־Wi‑Fi לא נכלל בגרסה הזו.", "The Wi‑Fi helper isn't included in this version.")
         }
         wifiHelperButton.visibility = if (!helper && Bridge.isWifiHelperBundled()) View.VISIBLE else View.GONE
-        updatesOnly.isEnabled = Bridge.autoInstallMode != "off"
-        updatesOnly.alpha = if (updatesOnly.isEnabled) 1f else 0.5f
     }
 
     // region view helpers

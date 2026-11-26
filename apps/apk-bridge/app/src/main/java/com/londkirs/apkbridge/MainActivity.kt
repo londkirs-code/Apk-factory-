@@ -704,8 +704,8 @@ class MainActivity : Activity() {
         optionBoxes["test"]?.isChecked = o.allowTestPackages
         optionBoxes["bypass"]?.isChecked = o.bypassLowTargetSdk
         val auto = when (Bridge.autoInstallMode) {
-            "auto" -> tr("מיידית", "immediately") + if (Bridge.autoInstallUpdatesOnly) tr(" (רק עדכונים)", " (updates only)") else ""
-            "ask" -> tr("עם שאלה", "with a question") + if (Bridge.autoInstallUpdatesOnly) tr(" (רק עדכונים)", " (updates only)") else ""
+            "auto" -> tr("עדכונים מיידית, אפליקציות חדשות עם שאלה", "updates immediately, new apps with a question")
+            "ask" -> tr("עם שאלה", "with a question")
             else -> tr("כבויה", "off")
         }
         val open = when (Bridge.openAfterInstall) { "auto" -> tr("מיד", "immediately"); "never" -> tr("לא", "no"); else -> tr("לשאול", "ask") }
@@ -851,11 +851,10 @@ class MainActivity : Activity() {
         }
         if (Bridge.state.busy) return
         val files = selected
-        if (!Bridge.autoInstallUpdatesOnly) {
-            if (mode == "auto") installSelected() else confirmInstall(files, null)
-            return
-        }
-        // Updates-only: install automatically only when the APK updates an installed app.
+        // Security: any app can open a file in The Boss. So only a real update (newer version of an
+        // installed app — Android checks it is signed by the same developer) installs without asking,
+        // and then without the risky options (downgrade, test packages, all permissions…).
+        // A new app always asks first.
         val only = files.singleOrNull()
         if (only == null || !Bridge.displayName(only).endsWith(".apk", true)) {
             confirmInstall(files, tr("לא ניתן לבדוק אוטומטית אם זה עדכון.", "Can't check automatically whether this is an update."))
@@ -865,9 +864,14 @@ class MainActivity : Activity() {
             val p = Bridge.preview(only)
             runOnUiThread {
                 if (selected != files) return@runOnUiThread
+                val installed = p?.installedVersionCode
                 when {
-                    p?.installedVersionCode == null -> confirmInstall(files, tr("זו אינה אפליקציה שכבר מותקנת, ולכן היא לא מותקנת אוטומטית.", "This isn't an app that's already installed, so it isn't installed automatically."))
-                    mode == "auto" -> installSelected()
+                    p == null || installed == null -> confirmInstall(files, tr("זו אינה אפליקציה שכבר מותקנת, ולכן היא לא מותקנת אוטומטית.", "This isn't an app that's already installed, so it isn't installed automatically."))
+                    installed >= p.versionCode -> confirmInstall(files, tr("זה לא עדכון לגרסה חדשה יותר, ולכן זה לא מותקן אוטומטית.", "This isn't an update to a newer version, so it isn't installed automatically."))
+                    mode == "auto" -> Bridge.install(files, InstallOptions(
+                        allowDowngrade = false, grantPermissions = false, allowTestPackages = false,
+                        bypassLowTargetSdk = false, registerPlayInstaller = Bridge.loadOptions().registerPlayInstaller,
+                    ))
                     else -> confirmInstall(files, null)
                 }
             }
