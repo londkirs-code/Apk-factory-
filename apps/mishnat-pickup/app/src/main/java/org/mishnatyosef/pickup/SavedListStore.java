@@ -387,14 +387,31 @@ final class SavedListStore {
         return true;
     }
 
-    /** החלפת המוצרים של רשימה שמורה (סנכרון עם האתר). שאר השדות, כולל סימוני האיסוף, נשמרים. */
+    /**
+     * החלפת המוצרים של הזמנה מסונכרנת מהחשבון. שאר השדות, כולל סימוני האיסוף, נשמרים.
+     * הזמנה ששונתה במכשיר (צירוף, מיזוג, ייבוא לתוכה) שומרת את המוצרים שנוספו לה, גם אם האתר לא מכיר אותם.
+     */
     synchronized boolean replaceProducts(String id, JSONArray products, String serverPrint) {
         try {
             File file = fileFor(id);
             if (!file.isFile()) return false;
             JSONObject data = read(file);
-            if (data.optBoolean("_user_edited", false)) return false; // שינויים מהמכשיר לא נדרסים
-            data.put("products", products);
+            JSONArray merged = new JSONArray();
+            java.util.Set<String> serverKeys = new java.util.HashSet<>();
+            for (int i = 0; i < products.length(); i++) {
+                JSONObject p = products.optJSONObject(i);
+                if (p == null) continue;
+                merged.put(p);
+                serverKeys.add(p.optString("key", ""));
+            }
+            if (data.optBoolean("_user_edited", false)) {
+                JSONArray old = data.optJSONArray("products");
+                if (old != null) for (int i = 0; i < old.length(); i++) {
+                    JSONObject o = old.optJSONObject(i);
+                    if (o != null && !serverKeys.contains(o.optString("key", ""))) merged.put(o);
+                }
+            }
+            data.put("products", merged);
             data.put("_server_print", serverPrint == null ? "" : serverPrint);
             return writeAtomic(file, data);
         } catch (Exception e) { return false; }
