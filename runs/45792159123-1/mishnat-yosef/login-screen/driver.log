@@ -1,0 +1,29 @@
+[ok] 01 clear_data
+[ok] 02 shell cmd='pm grant org.mishnatyosef.mobile android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[ok] 03 shell cmd='appops set org.mishnatyosef.mobile SCHEDULE_EXACT_ALARM allow', ignore_errors=True
+[ok] 04 launch
+[ok] 05 wait_for text='ברוכים הבאים'
+[ok] 06 back close an update/notice dialog if one opened over the login screen
+[skip] 07 assert_foreground  foreground app is org.mishnatyosef.pickup, expected org.mishnatyosef.mobile
+[ok] 08 launch restart=False
+[ok] 09 screenshot name='login'
+[ok] 10 assert_text text='התחברות לחשבון'
+[ok] 11 assert_text text='התחברו עם החשבון שלכם'
+[ok] 12 assert_visible email + password fields
+[ok] 13 tap submit the empty form
+[ok] 14 assert_text text='יש למלא אימייל וסיסמה'
+[ok] 15 screenshot name='empty-form-validation'
+[ok] 16 type class='EditText'
+[ok] 17 assert_text text='ui-test@example.com'
+[ok] 18 screenshot name='email-typed'
+[ok] 19 rotate to='landscape'
+[ok] 20 assert_text text='ברוכים הבאים'
+[ok] 21 assert_text typed email survives rotation
+[ok] 22 assert_text validation message survives rotation
+[ok] 23 screenshot name='landscape'
+[ok] 24 rotate to='portrait'
+[ok] 25 assert_foreground
+[ok] 26 assert_text still there after rotating back
+[ok] 27 screenshot name='back-to-portrait'
+
+Result: PASSED — 27 steps, 5 screenshots, 0 crashes
