@@ -19,6 +19,27 @@ object Compat {
     /** PendingIntent.FLAG_MUTABLE exists from Android 12; older versions are mutable by default. */
     val pendingIntentMutable: Int get() = if (Build.VERSION.SDK_INT >= 31) android.app.PendingIntent.FLAG_MUTABLE else 0
 
+    /**
+     * Keypad / D-pad phones: makes a custom clickable view reachable with the arrow keys and
+     * draws a clear ring around it while it has focus (custom backgrounds hide the default one).
+     * The center/OK key then clicks it, and holding it performs a long-click.
+     */
+    fun focusRing(view: View, color: Int = 0xFFF09A45.toInt(), radiusDp: Float = 14f) {
+        val d = view.resources.displayMetrics.density
+        val ring = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = radiusDp * d
+            setStroke((3 * d).toInt(), color)
+            setColor(0x22FFFFFF)
+        }
+        val states = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), ring)
+            addState(intArrayOf(android.R.attr.state_pressed), ring)
+            addState(intArrayOf(), android.graphics.drawable.ColorDrawable(0))
+        }
+        view.isFocusable = true
+        view.foreground = states
+    }
+
     fun wifiPanelIntent(): Intent =
         Intent(if (Build.VERSION.SDK_INT >= 29) Settings.Panel.ACTION_WIFI else Settings.ACTION_WIFI_SETTINGS)
 

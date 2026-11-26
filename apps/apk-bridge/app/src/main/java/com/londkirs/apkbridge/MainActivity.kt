@@ -163,6 +163,21 @@ class MainActivity : Activity() {
         outState.putInt(KEY_SHOWN_SEQ, shownInstallSeq)
     }
 
+    /** Keypad phones: MENU opens Settings; the number keys jump to the main actions. */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        val focusInText = currentFocus is EditText
+        when {
+            keyCode == android.view.KeyEvent.KEYCODE_MENU -> { openSettingsScreen(); return true }
+            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_1 -> { chooseFiles(); return true }
+            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_2 -> { installSelected(); return true }
+            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_3 -> { startActivity(Intent(this, TerminalActivity::class.java)); return true }
+            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_4 -> { startActivity(Intent(this, AppsActivity::class.java)); return true }
+            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_5 -> { Bridge.testConnection(); return true }
+            !focusInText && keyCode == android.view.KeyEvent.KEYCODE_0 -> { Bridge.logExpanded = !Bridge.logExpanded; applyLogExpanded(); return true }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -218,10 +233,12 @@ class MainActivity : Activity() {
         // Log card — right under the status, collapsed by default (tap the header to open).
         val logCard = card(page)
         logHeader = heading("").apply {
+            Compat.focusRing(this, 0xFF75451F.toInt(), 8f)
             setOnClickListener { Bridge.logExpanded = !Bridge.logExpanded; applyLogExpanded() }
         }
         logCard.addView(logHeader, matchWrap(2))
         logPreview = TextView(this).apply {
+            Compat.focusRing(this, 0xFF75451F.toInt(), 8f)
             textSize = 12f
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -407,6 +424,7 @@ class MainActivity : Activity() {
         }
         setPadding(dp(12), dp(12), dp(12), dp(12))
         setOnClickListener { action() }
+        Compat.focusRing(this, 0xFF75451F.toInt())
     }
 
     private fun Button.busyAware() = also { busyViews += it }

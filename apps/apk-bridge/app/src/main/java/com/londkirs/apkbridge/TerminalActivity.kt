@@ -151,7 +151,7 @@ class TerminalActivity : Activity() {
             background = GradientDrawable().apply { cornerRadius = dp(24).toFloat(); setColor(INPUT_BG) }
             setPadding(dp(6), 0, dp(14), 0)
         }
-        pill.addView(iconButton("+") { addShortcut(input.text.toString().trim()) }.apply { setTextColor(MUTED) })
+        pill.addView(iconButton("📋") { pasteFromClipboard() }.apply { textSize = 18f })
         input = EditText(this).apply {
             hint = "הקלד פקודה"
             textSize = 15f
@@ -163,8 +163,14 @@ class TerminalActivity : Activity() {
             minHeight = dp(46)
             setPadding(dp(4), dp(10), dp(4), dp(10))
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-                InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            setHorizontallyScrolling(false)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND
             textDirection = View.TEXT_DIRECTION_LTR
+            setOnEditorActionListener { _, actionId, event ->
+                val enter = event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND || enter) { submit(text.toString()); true } else false
+            }
             if (Build.VERSION.SDK_INT >= 29) {
                 textCursorDrawable = GradientDrawable().apply { setColor(ACCENT); setSize(dp(2), dp(20)) }
             }
@@ -180,6 +186,7 @@ class TerminalActivity : Activity() {
             scaleX = -1f
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(ACCENT) }
             setOnClickListener { if (Bridge.state.busy && current != null) Bridge.cancelCurrent() else submit(input.text.toString()) }
+            Compat.focusRing(this, 0xFFFFFFFF.toInt(), 24f)
         }
         bar.addView(sendButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -197,6 +204,7 @@ class TerminalActivity : Activity() {
         setPadding(dp(10), dp(6), dp(10), dp(6))
         isClickable = true
         setOnClickListener { action() }
+        Compat.focusRing(this, ACCENT, 20f)
     }
 
     private fun renderState(state: BridgeState) {
@@ -277,6 +285,9 @@ class TerminalActivity : Activity() {
         bubbleStatus[m] = meta
         renderMeta(m)
         box.setOnLongClickListener { messageMenu(m); true }
+        // Keypad: the arrows step through messages; OK opens the message menu.
+        box.setOnClickListener { if (!box.isInTouchMode) messageMenu(m) }
+        Compat.focusRing(box, ACCENT, 10f)
         val maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
         text.maxWidth = maxWidth - dp(20)
         row.addView(box, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -348,11 +359,14 @@ class TerminalActivity : Activity() {
             "clear", "cls" -> { clearChat(); input.setText(""); return }
             "exit" -> { finish(); return }
         }
-        val cmd = Bridge.normalizeCommand(raw)
-        if (cmd.isEmpty()) {
-            addMessage(Message(false, now(), "מסוף אינטראקטיבי (adb shell בלי פקודה) לא נתמך — כתוב פקודה מלאה."))
+        val parsed = CommandParser.parse(raw)
+        val cmd = parsed.command
+        if (cmd.isNullOrBlank()) {
+            addMessage(Message(false, now(), parsed.note ?: "לא נמצאה פקודה להרצה."))
             return
         }
+        // Tell the user once what was understood (e.g. "adb shell" removed, adb uninstall → pm uninstall).
+        parsed.note?.let { addMessage(Message(false, now(), it)) }
         if (DANGEROUS.any { cmd.contains(it) }) {
             AlertDialog.Builder(this, DIALOG)
                 .setTitle("פקודה שעלולה להזיק")
@@ -405,6 +419,102 @@ class TerminalActivity : Activity() {
         renderState(Bridge.state)
     }
 
+    // region clipboard
+
+    private fun clipboardText(): String? = runCatching {
+        val clip = getSystemService(ClipboardManager::class.java)?.primaryClip ?: return null
+        if (clip.itemCount == 0) return null
+        clip.getItemAt(0).coerceToText(this)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+    }.getOrNull()
+
+    /** 📋: pastes the clipboard; if it looks like a command, offers to run it right away. */
+    private fun pasteFromClipboard() {
+        val text = clipboardText()
+        if (text == null) {
+            Toast.makeText(this, "הלוח ריק.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (CommandParser.looksLikeCommand(text)) offerClipboardCommand(text, fromPasteButton = true) else setInput(text)
+    }
+
+    private fun offerClipboardCommand(text: String, fromPasteButton: Boolean) {
+        val parsed = CommandParser.parse(text)
+        val cmd = parsed.command
+        if (cmd.isNullOrBlank()) {
+            if (fromPasteButton) setInput(text)
+            parsed.note?.let { addMessage(Message(false, now(), it)) }
+            return
+        }
+        val message = buildString {
+            append(if (fromPasteButton) "זוהתה פקודה בלוח:" else "בלוח יש פקודה שנראית רלוונטית:")
+            append("\n\n").append(cmd)
+            parsed.note?.let { append("\n\n").append(it) }
+        }
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle("להריץ את הפקודה?")
+            .setMessage(message)
+            .setPositiveButton("הרץ") { _, _ -> submit(text) }
+            .setNeutralButton("לעריכה") { _, _ -> setInput(cmd) }
+            .setNegativeButton("ביטול", null)
+            .show()
+    }
+
+    /** When the user returns with a new command on the clipboard (e.g. copied from a guide), ask once. */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus || !prefs().getBoolean("clipboard_detect", true) || Bridge.state.busy) return
+        val text = clipboardText() ?: return
+        val key = text.hashCode()
+        if (prefs().getInt("clipboard_offered", 0) == key) return
+        prefs().edit().putInt("clipboard_offered", key).apply()
+        if (CommandParser.looksLikeCommand(text)) offerClipboardCommand(text, fromPasteButton = false)
+    }
+
+    // endregion
+
+    // region keypad
+
+    /**
+     * Keypad / D-pad phones: arrows move between messages, shortcuts and buttons (with a focus ring);
+     * OK clicks, holding OK long-clicks. Extra keys: CALL sends, MENU opens the menu,
+     * 1–9 run the matching shortcut and * pastes, while the input line is not focused.
+     */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        val typing = input.hasFocus()
+        when (keyCode) {
+            android.view.KeyEvent.KEYCODE_MENU -> { menu(); return true }
+            android.view.KeyEvent.KEYCODE_CALL -> { submit(input.text.toString()); return true }
+        }
+        if (!typing) {
+            if (keyCode in android.view.KeyEvent.KEYCODE_1..android.view.KeyEvent.KEYCODE_9) {
+                val index = keyCode - android.view.KeyEvent.KEYCODE_1
+                shortcuts().getOrNull(index)?.let { submit(it.command); return true }
+            }
+            if (keyCode == android.view.KeyEvent.KEYCODE_STAR) { pasteFromClipboard(); return true }
+            if (keyCode == android.view.KeyEvent.KEYCODE_POUND) { input.requestFocus(); return true }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun keyHelp() {
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle("קיצורי מקשים")
+            .setMessage(
+                "חצים — מעבר בין הודעות, קיצורים וכפתורים\n" +
+                    "OK — לחיצה · החזקת OK — לחיצה ארוכה (עריכת קיצור / תפריט הודעה)\n" +
+                    "חיוג (ירוק) — שליחת הפקודה\n" +
+                    "תפריט — תפריט המסוף\n" +
+                    "1–9 — הרצת הקיצור המתאים\n" +
+                    "* — הדבקה מהלוח\n" +
+                    "# — מעבר לשורת ההקלדה\n" +
+                    "חזור — יציאה"
+            )
+            .setPositiveButton("הבנתי", null)
+            .show()
+    }
+
+    // endregion
+
     private fun setInput(cmd: String) {
         input.setText(cmd)
         input.setSelection(cmd.length)
@@ -433,10 +543,13 @@ class TerminalActivity : Activity() {
 
     private fun rebuildChips() {
         chips.removeAllViews()
+        chips.addView(chip("📋 הדבק", accent = true).apply { setOnClickListener { pasteFromClipboard() } })
         chips.addView(chip("+ קיצור", accent = true).apply { setOnClickListener { addShortcut(input.text.toString().trim()) } })
         chips.addView(chip("⚙", accent = true).apply { setOnClickListener { manageShortcuts() } })
-        for (s in shortcuts()) {
-            chips.addView(chip(s.label, accent = false).apply {
+        for ((i, s) in shortcuts().withIndex()) {
+            // Keypad phones: the first nine shortcuts also run with the number keys 1–9.
+            val label = if (i < 9) "${i + 1}· ${s.label}" else s.label
+            chips.addView(chip(label, accent = false).apply {
                 setOnClickListener { submit(s.command) }                     // tap: run now
                 setOnLongClickListener { setInput(s.command); true }         // long-press: edit in the input line
             })
@@ -456,6 +569,7 @@ class TerminalActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) }
         isClickable = true
         isLongClickable = true
+        Compat.focusRing(this, ACCENT, 16f)
     }
 
     private fun shortcutDialog(title: String, initial: Shortcut?, onSave: (Shortcut) -> Unit, onDelete: (() -> Unit)?) {
@@ -524,14 +638,26 @@ class TerminalActivity : Activity() {
     // region menus, history, persistence
 
     private fun menu() {
-        val items = arrayOf("עריכת קיצורים", "העתק את כל השיחה", "נקה שיחה", "סגור")
+        val detect = prefs().getBoolean("clipboard_detect", true)
+        val items = arrayOf(
+            "הדבק מהלוח",
+            "עריכת קיצורים",
+            (if (detect) "✓ " else "") + "שאל כשבלוח יש פקודה",
+            "העתק את כל השיחה",
+            "נקה שיחה",
+            "קיצורי מקשים",
+            "סגור",
+        )
         AlertDialog.Builder(this, DIALOG)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> manageShortcuts()
-                    1 -> copy(messages.joinToString("\n\n") { (if (it.outgoing) "$ " else "") + it.text })
-                    2 -> clearChat()
-                    3 -> finish()
+                    0 -> pasteFromClipboard()
+                    1 -> manageShortcuts()
+                    2 -> prefs().edit().putBoolean("clipboard_detect", !detect).apply()
+                    3 -> copy(messages.joinToString("\n\n") { (if (it.outgoing) "$ " else "") + it.text })
+                    4 -> clearChat()
+                    5 -> keyHelp()
+                    6 -> finish()
                 }
             }
             .show()

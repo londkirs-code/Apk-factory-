@@ -127,6 +127,15 @@ class AppsActivity : Activity() {
             this.adapter = this@AppsActivity.adapter
             divider = null
             setOnItemClickListener { _, _, position, _ -> actions(shown[position]) }
+            // Keypad phones: rows are selectable with the arrows and opened with the center key.
+            itemsCanFocus = false
+            isFocusable = true
+            selector = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(0x33F09A45)
+                setStroke(dp(2), 0xFFF09A45.toInt())
+            }
+            setDrawSelectorOnTop(false)
         }
         root.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         Compat.applySystemBarInsets(this, root, includeIme = true)
@@ -270,6 +279,7 @@ class AppsActivity : Activity() {
         setTextColor(0xFF75451F.toInt())
         background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(0xFFFFE7D1.toInt()) }
         setOnClickListener { action() }
+        Compat.focusRing(this, 0xFF75451F.toInt())
     }
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()

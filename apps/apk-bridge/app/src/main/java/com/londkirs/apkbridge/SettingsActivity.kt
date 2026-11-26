@@ -275,6 +275,7 @@ class SettingsActivity : Activity() {
         }
         setPadding(dp(14), dp(10), dp(14), dp(10))
         setOnClickListener { action() }
+        Compat.focusRing(this, 0xFF75451F.toInt())
     }
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()

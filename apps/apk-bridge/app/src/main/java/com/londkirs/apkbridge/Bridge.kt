@@ -1145,20 +1145,8 @@ object Bridge {
         return started
     }
 
-    /** "adb shell ls" → "ls"; "adb reboot" → "reboot"; plain commands are kept. */
-    fun normalizeCommand(raw: String): String {
-        var cmd = raw.trim()
-        if (cmd.startsWith("adb ")) {
-            cmd = cmd.removePrefix("adb ").trim()
-            cmd = when {
-                cmd.startsWith("shell ") -> cmd.removePrefix("shell ").trim()
-                cmd == "shell" -> ""
-                cmd.startsWith("reboot") -> cmd
-                else -> cmd
-            }
-        }
-        return cmd
-    }
+    /** Smart "adb shell" handling (no doubling, prompts, code blocks, host commands) — see [CommandParser]. */
+    fun normalizeCommand(raw: String): String = CommandParser.normalize(raw)
 
     fun uninstall(pkg: String, keepData: Boolean) = runJob("הסרת ההתקנה") {
         val name = pkg.trim()
