@@ -1,0 +1,16 @@
+<resources>
+    <!-- Regular (light) WhatsApp look for the chat-style ADB Terminal. -->
+    <color name="terminal_chat_bg">#EFEAE2</color>
+    <color name="terminal_header">#008069</color>
+    <style name="TerminalTheme.Base" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/terminal_chat_bg</item>
+        <item name="android:statusBarColor">@color/terminal_header</item>
+        <!-- Dark on API 26 (no light navigation bar); light beige from API 27 (values-v27). -->
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:colorAccent">#00A884</item>
+        <item name="android:colorPrimary">#008069</item>
+        <item name="android:colorControlActivated">#00A884</item>
+        <item name="android:textColorHighlight">#5500A884</item>
+    </style>
+    <style name="TerminalTheme" parent="TerminalTheme.Base" />
+</resources>

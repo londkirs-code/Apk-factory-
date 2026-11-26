@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">APK Bridge</string>
+    <string name="channel_pairing">זיווג Wireless Debugging</string>
+    <string name="pair_title">זיווג APK Bridge</string>
+    <string name="pair_done_title">APK Bridge זווג בהצלחה</string>
+    <string name="pair_searching">פתח: אפשרויות למפתחים ← ניפוי באגים אלחוטי ← \"התאמת מכשיר עם קוד התאמה\". אל תסגור את החלון — הקוד יוזן כאן בהתראה.</string>
+    <string name="pair_found">נמצא חלון זיווג (פורט %1$d). לחץ \"הזן קוד\" והקלד את 6 הספרות שמופיעות במסך.</string>
+    <string name="pair_working">מבצע זיווג…</string>
+    <string name="pair_failed_retry">הזיווג נכשל. בדוק שהקוד נכון ושהחלון עדיין פתוח, ונסה שוב.</string>
+    <string name="pair_success">הזיווג הצליח. אפשר לחזור ל־APK Bridge ולהתקין.</string>
+    <string name="pair_not_found">לא נמצא חלון זיווג פתוח. פתח את APK Bridge ונסה שוב.</string>
+    <string name="pair_enter_code">הזן קוד</string>
+    <string name="pair_code_hint">קוד זיווג בן 6 ספרות</string>
+    <string name="pair_cancel">ביטול</string>
+    <string name="a11y_label">APK Bridge — זיווג אוטומטי</string>
+    <string name="a11y_description">קורא רק את מסכי ההגדרות של Android כדי לזהות את קוד הזיווג ואת הפורט של ניפוי הבאגים האלחוטי, ומבצע את הזיווג אוטומטית. שום מידע לא נשמר ולא נשלח מחוץ למכשיר.</string>
+</resources>
