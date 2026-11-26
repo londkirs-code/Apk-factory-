@@ -2,6 +2,7 @@
     <!-- Hebrew. English in values/strings.xml. Every string here must exist in both. -->
     <string name="app_name">הבוס</string>
     <string name="widget_label">הבוס — קיצורים</string>
+    <string name="widget_single_label">הבוס — כפתור אחד</string>
     <string name="a11y_label">הבוס — צימוד אוטומטי</string>
     <string name="a11y_description">קורא רק את מסכי ההגדרות של Android כדי לזהות את קוד הצימוד ואת הפורט של ניפוי הבאגים האלחוטי, ומבצע את הצימוד אוטומטית. שום מידע לא נשמר ולא נשלח מחוץ למכשיר.</string>
 </resources>

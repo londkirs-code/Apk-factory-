@@ -2,6 +2,7 @@
     <!-- English (default). Hebrew in values-iw/strings.xml. Every string here must exist in both. -->
     <string name="app_name">The Boss</string>
     <string name="widget_label">The Boss — shortcuts</string>
+    <string name="widget_single_label">The Boss — one button</string>
     <string name="a11y_label">The Boss — automatic pairing</string>
     <string name="a11y_description">Reads only Android\'s settings screens to detect the Wireless Debugging pairing code and port, and pairs automatically. Nothing is stored or sent outside the device.</string>
 </resources>

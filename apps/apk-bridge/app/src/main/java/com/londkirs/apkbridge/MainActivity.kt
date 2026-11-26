@@ -143,7 +143,8 @@ class MainActivity : Activity() {
         logPreview.text = Bridge.lastLogLine()
         applyLogExpanded()
         if (savedInstanceState == null) {
-            if (intent?.getBooleanExtra(EXTRA_OPEN_GUIDE, false) == true) startActivity(Intent(this, GuideActivity::class.java))
+            if (intent?.getBooleanExtra(EXTRA_PICK_FILES, false) == true) chooseFiles()
+            else if (intent?.getBooleanExtra(EXTRA_OPEN_GUIDE, false) == true) startActivity(Intent(this, GuideActivity::class.java))
             else if (OnboardingActivity.shouldShow(this)) startActivity(Intent(this, OnboardingActivity::class.java))
         }
         if (savedInstanceState == null) {
@@ -219,6 +220,7 @@ class MainActivity : Activity() {
             runCatching { BottomNav.Tab.valueOf(name) }.getOrNull()?.let(::showTab)
         }
         handleIncoming(intent)
+        if (intent.getBooleanExtra(EXTRA_PICK_FILES, false)) chooseFiles()
     }
 
     /** Bottom bar: Connection/Install are pages here; the other tabs open their own screens. */
@@ -943,6 +945,8 @@ class MainActivity : Activity() {
 
     companion object {
         const val EXTRA_OPEN_GUIDE = "open_guide"
+        /** From the widget's "📦 Install APK": open the file picker right away. */
+        const val EXTRA_PICK_FILES = "pick_files"
         private const val REQUEST_FILES = 4102
         private const val REQUEST_NOTIFICATIONS = 4103
         private const val KEY_SELECTED = "selected_uris"

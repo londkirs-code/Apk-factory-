@@ -67,6 +67,82 @@ object BackupEngine {
 
     data class Result(val summary: String, val contactsVcf: Uri?)
 
+    /**
+     * Finer choices inside an item. [contactSources]: keys from [contactSources] (accounts and
+     * groups; null = all contacts). [callsSince] / [smsSince]: only entries newer than this time
+     * in ms (0 = everything).
+     */
+    data class Filters(val contactSources: Set<String>? = null, val callsSince: Long = 0, val smsSince: Long = 0)
+
+    /** A contacts account (Google, phone, SIM…) or a contacts group, with how many contacts it holds. */
+    data class ContactSource(val key: String, val label: String, val count: Int)
+
+    /** Accounts and groups to choose from. Needs READ_CONTACTS (granted over ADB by the caller). */
+    fun contactSources(context: Context): List<ContactSource> {
+        val cr = context.contentResolver
+        val byAccount = linkedMapOf<Pair<String, String>, MutableSet<Long>>()
+        cr.query(ContactsContract.RawContacts.CONTENT_URI,
+            arrayOf(ContactsContract.RawContacts.ACCOUNT_TYPE, ContactsContract.RawContacts.ACCOUNT_NAME, ContactsContract.RawContacts.CONTACT_ID),
+            "${ContactsContract.RawContacts.DELETED}=0", null, null)?.use { c ->
+            while (c.moveToNext()) {
+                val id = c.getLong(2).takeIf { it > 0 } ?: continue
+                byAccount.getOrPut((c.getString(0) ?: "") to (c.getString(1) ?: "")) { mutableSetOf() } += id
+            }
+        }
+        val out = mutableListOf<ContactSource>()
+        for ((acct, ids) in byAccount) {
+            val (type, name) = acct
+            val label = when {
+                type.contains("sim", ignoreCase = true) || name.contains("sim", ignoreCase = true) -> "📇 SIM" + if (name.isNotBlank()) " ($name)" else ""
+                type.contains("google") -> "🟢 Google · $name"
+                type.isBlank() && name.isBlank() -> tr("📱 בטלפון", "📱 On the phone")
+                type.contains("whatsapp") -> "💚 WhatsApp"
+                type.contains("telegram") -> "✈ Telegram"
+                name.isBlank() -> "📱 $type"
+                else -> "👤 $name"
+            }
+            out += ContactSource("acct:$type|$name", label, ids.size)
+        }
+        for ((key, title, ids) in groups(context)) out += ContactSource(key, "👥 $title", ids.size)
+        return out.filter { it.count > 0 }
+    }
+
+    /** Contact groups (Family, Coworkers…) as (key, title, contact ids). */
+    private fun groups(context: Context): List<Triple<String, String, Set<Long>>> {
+        val cr = context.contentResolver
+        val titles = linkedMapOf<Long, String>()
+        cr.query(ContactsContract.Groups.CONTENT_URI, arrayOf(ContactsContract.Groups._ID, ContactsContract.Groups.TITLE),
+            "${ContactsContract.Groups.DELETED}=0", null, null)?.use { c ->
+            while (c.moveToNext()) c.getString(1)?.takeIf { it.isNotBlank() }?.let { titles[c.getLong(0)] = it }
+        }
+        if (titles.isEmpty()) return emptyList()
+        val members = HashMap<Long, MutableSet<Long>>()
+        cr.query(ContactsContract.Data.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.GroupMembership.GROUP_ROW_ID, ContactsContract.Data.CONTACT_ID),
+            "${ContactsContract.Data.MIMETYPE}=?", arrayOf(ContactsContract.CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE), null)?.use { c ->
+            while (c.moveToNext()) members.getOrPut(c.getLong(0)) { mutableSetOf() } += c.getLong(1)
+        }
+        // The same group name can exist once per account: merge them.
+        return titles.entries.groupBy { it.value }.map { (title, entries) ->
+            Triple("group:$title", title, entries.flatMap { members[it.key].orEmpty() }.toSet())
+        }
+    }
+
+    /** Contact ids in any of the chosen accounts / groups. */
+    private fun contactIdsFor(context: Context, keys: Set<String>): Set<Long> {
+        val cr = context.contentResolver
+        val ids = mutableSetOf<Long>()
+        val accounts = keys.filter { it.startsWith("acct:") }.map { it.removePrefix("acct:").split('|', limit = 2).let { p -> p[0] to p.getOrElse(1) { "" } } }.toSet()
+        if (accounts.isNotEmpty()) cr.query(ContactsContract.RawContacts.CONTENT_URI,
+            arrayOf(ContactsContract.RawContacts.ACCOUNT_TYPE, ContactsContract.RawContacts.ACCOUNT_NAME, ContactsContract.RawContacts.CONTACT_ID),
+            "${ContactsContract.RawContacts.DELETED}=0", null, null)?.use { c ->
+            while (c.moveToNext()) if (((c.getString(0) ?: "") to (c.getString(1) ?: "")) in accounts) ids += c.getLong(2)
+        }
+        val groupKeys = keys.filter { it.startsWith("group:") }.toSet()
+        if (groupKeys.isNotEmpty()) groups(context).filter { it.first in groupKeys }.forEach { ids += it.third }
+        return ids
+    }
+
     // region backup
 
     /**
@@ -74,7 +150,7 @@ object BackupEngine {
      * whole memory cards or folders the user picked). Their paths are saved so restore knows where
      * each one goes.
      */
-    fun backup(context: Context, tree: Uri, items: Set<String>, apps: Set<String>?, fileSets: List<FileSet>, onDone: (Result?) -> Unit): Boolean {
+    fun backup(context: Context, tree: Uri, items: Set<String>, apps: Set<String>?, fileSets: List<FileSet>, filters: Filters = Filters(), onDone: (Result?) -> Unit): Boolean {
         val app = context.applicationContext
         val cr = app.contentResolver
         return Bridge.launchJob(tr("הגיבוי", "Backup")) {
@@ -98,20 +174,22 @@ object BackupEngine {
                     if (CONTACTS in items) {
                         Bridge.progress(tr("מגבה אנשי קשר…", "Backing up contacts…"), stepPct())
                         c.shell("pm grant ${app.packageName} android.permission.READ_CONTACTS")
-                        val n = withContext(Dispatchers.IO) { backupContacts(app, folder) }
+                        val n = withContext(Dispatchers.IO) { backupContacts(app, folder, filters.contactSources) }
                         counts.put(CONTACTS, n); lines += tr("👤 אנשי קשר: $n", "👤 Contacts: $n")
                         step++
                     }
                     if (CALLS in items) {
                         Bridge.progress(tr("מגבה יומן שיחות…", "Backing up call log…"), stepPct())
-                        val rows = contentQuery(c, "content://call_log/calls", listOf("number", "date", "duration", "type", "new"), "name")
+                        val rows = contentQuery(c, "content://call_log/calls", listOf("number", "date", "duration", "type", "new"), "name",
+                            filters.callsSince.takeIf { it > 0 }?.let { "date>=$it" })
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "calls.json", toJson(rows).toString()) }
                         counts.put(CALLS, rows.size); lines += tr("📞 שיחות: ${rows.size}", "📞 Calls: ${rows.size}")
                         step++
                     }
                     if (SMS in items) {
                         Bridge.progress(tr("מגבה הודעות SMS…", "Backing up SMS messages…"), stepPct())
-                        val rows = contentQuery(c, "content://sms", listOf("address", "date", "date_sent", "type", "read", "seen"), "body")
+                        val rows = contentQuery(c, "content://sms", listOf("address", "date", "date_sent", "type", "read", "seen"), "body",
+                            filters.smsSince.takeIf { it > 0 }?.let { "date>=$it" })
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "sms.json", toJson(rows).toString()) }
                         counts.put(SMS, rows.size); lines += tr("💬 הודעות: ${rows.size}", "💬 Messages: ${rows.size}")
                         step++
@@ -164,11 +242,12 @@ object BackupEngine {
         }
     }
 
-    private fun backupContacts(context: Context, folder: Uri): Int {
+    private fun backupContacts(context: Context, folder: Uri, sources: Set<String>?): Int {
         val cr = context.contentResolver
         val keys = mutableListOf<String>()
-        cr.query(ContactsContract.Contacts.CONTENT_URI, arrayOf(ContactsContract.Contacts.LOOKUP_KEY), null, null, null)?.use { c ->
-            while (c.moveToNext()) c.getString(0)?.let(keys::add)
+        val only = sources?.let { contactIdsFor(context, it) }
+        cr.query(ContactsContract.Contacts.CONTENT_URI, arrayOf(ContactsContract.Contacts.LOOKUP_KEY, ContactsContract.Contacts._ID), null, null, null)?.use { c ->
+            while (c.moveToNext()) if (only == null || c.getLong(1) in only) c.getString(0)?.let(keys::add)
         } ?: error(tr("אין גישה לאנשי הקשר.", "No access to contacts."))
         val out = Saf.create(cr, folder, "text/x-vcard", "contacts.vcf")
         cr.openOutputStream(out)?.use { os ->
@@ -767,9 +846,10 @@ object BackupEngine {
      * in the order requested, and the free-text column goes last so that commas or new lines
      * inside it (SMS bodies, names) cannot break the parsing.
      */
-    suspend fun contentQuery(c: AdbClient, uri: String, columns: List<String>, lastColumn: String): List<Map<String, String>> {
+    suspend fun contentQuery(c: AdbClient, uri: String, columns: List<String>, lastColumn: String, where: String? = null): List<Map<String, String>> {
         val all = columns + lastColumn
-        val out = c.shell("content query --uri $uri --projection ${all.joinToString(":")}").stdoutText
+        val filter = where?.let { " --where ${q(it)}" } ?: ""
+        val out = c.shell("content query --uri $uri --projection ${all.joinToString(":")}$filter").stdoutText
         if (out.isBlank() || out.trim() == "No result found.") return emptyList()
         val rows = Regex("(?m)^Row: \\d+ ").split(out).map { it.trimEnd('\n', '\r') }.filter { it.isNotBlank() }
         return rows.mapNotNull { row ->

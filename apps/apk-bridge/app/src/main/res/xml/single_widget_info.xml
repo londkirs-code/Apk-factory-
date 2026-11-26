@@ -1,0 +1,11 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_single"
+    android:configure="com.londkirs.apkbridge.WidgetConfigActivity"
+    android:widgetFeatures="reconfigurable"
+    android:minWidth="40dp"
+    android:minHeight="40dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

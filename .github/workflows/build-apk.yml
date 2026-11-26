@@ -578,9 +578,18 @@ jobs:
               core.warning("No built apps were reported; skipping the GitHub notification.");
               return;
             }
-            const links = apps.map(app =>
-              `- **${app}**: https://github.com/${context.repo.owner}/${context.repo.repo}/raw/refs/heads/${process.env.BRANCH}/downloads/${app}/app.apk`
-            );
+            const fs = require("fs");
+            const base = `https://github.com/${context.repo.owner}/${context.repo.repo}/raw/refs/heads/${process.env.BRANCH}/downloads`;
+            const links = apps.map(app => {
+              // Apps published under a name with the version (The Boss: הבוס-<version>.apk) get that link.
+              let named = null;
+              try {
+                named = fs.readdirSync(`downloads/${app}`).find(f => f.startsWith("הבוס-") && f.endsWith(".apk")) || null;
+              } catch (e) {}
+              return named
+                ? `- **${app}**: [${named}](${base}/${app}/${encodeURIComponent(named)})`
+                : `- **${app}**: ${base}/${app}/app.apk`;
+            });
             const body = [
               `✅ @${process.env.ACTOR} APK Factory finished building successfully.`,
               "",

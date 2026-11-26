@@ -35,7 +35,10 @@ class BackupActivity : Activity() {
     // ── backup state
     private val backupBoxes = linkedMapOf<String, CheckBox>()
     private var backupApps: Set<String>? = null            // null = all user apps
-    private lateinit var backupAppsButton: Button
+    private lateinit var backupAppsLink: TextView
+    private var contactSources: Set<String>? = null         // null = all contacts
+    private var callsSince = 0L                             // 0 = all time
+    private var smsSince = 0L
     private lateinit var foldersBox: LinearLayout
     private val folders = mutableListOf<Pair<BackupEngine.FileSet, CheckBox>>()
     private lateinit var termuxBackupStatus: LinearLayout
@@ -88,14 +91,22 @@ class BackupActivity : Activity() {
 
         section(backup, tr("📦 אפליקציות", "📦 Apps"))
         backupBoxes[BackupEngine.APPS] = check(backup, tr("אפליקציות (כולל ההרשאות ומקור ההתקנה)", "Apps (including permissions and install source)"), true)
-        backupAppsButton = button("", false) { chooseBackupApps() }
-        backup.addView(backupAppsButton, wrap(6))
+        backupAppsLink = link(backup, backupBoxes[BackupEngine.APPS]) { chooseBackupApps() }
         renderBackupAppsButton()
 
         section(backup, tr("👤 נתונים אישיים", "👤 Personal data"))
         backupBoxes[BackupEngine.CONTACTS] = check(backup, tr("👤 אנשי קשר", "👤 Contacts"), true)
+        val contactsLink = link(backup, backupBoxes[BackupEngine.CONTACTS]) {}
+        fun renderContacts() {
+            contactsLink.text = contactSources?.let { tr("נבחרו ${it.size} חשבונות / קבוצות · שינוי ›", "${it.size} accounts / groups chosen · change ›") }
+                ?: tr("כל אנשי הקשר · בחירת חשבונות וקבוצות ›", "All contacts · choose accounts and groups ›")
+        }
+        renderContacts()
+        contactsLink.setOnClickListener { chooseContactSources { renderContacts() } }
         backupBoxes[BackupEngine.CALLS] = check(backup, tr("📞 יומן שיחות", "📞 Call log"), true)
+        periodLink(backup, backupBoxes[BackupEngine.CALLS]!!, { callsSince }) { callsSince = it }
         backupBoxes[BackupEngine.SMS] = check(backup, tr("💬 הודעות SMS", "💬 SMS messages"), true)
+        periodLink(backup, backupBoxes[BackupEngine.SMS]!!, { smsSince }) { smsSince = it }
         backupBoxes[BackupEngine.SETTINGS] = check(backup, tr("⚙ הגדרות טלפון", "⚙ Phone settings"), true)
         val termuxBox = check(backup, tr("🐚 טרמוקס — גיבוי מלא ‎.tar (home + usr)", "🐚 Termux — full .tar backup (home + usr)"), false)
         backupBoxes[BackupEngine.TERMUX] = termuxBox
@@ -110,9 +121,8 @@ class BackupActivity : Activity() {
         // Ready-made folders on internal storage, then a "whole card" option for each memory card.
         for (set in BackupEngine.FILE_SETS) addFolder(set, set.key in setOf("dcim", "documents", "whatsapp"))
         for ((label, path) in volumes.drop(1)) addFolder(BackupEngine.FileSet("card_" + path.hashCode().toUInt(), tr("$label — כל הכרטיס", "$label — whole card"), path), false)
-        val folderButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        folderButtons.addView(button(tr("+ הוסף תיקייה", "+ Add folder"), false) { browse(volumes) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        backup.addView(folderButtons, wrap(10))
+        link(backup, null) { browse(volumes) }.apply { text = tr("＋ הוסף תיקייה אחרת ›", "＋ Add another folder ›") }
+        backup.addView(View(this), wrap(10))
 
         backup.addView(button(tr("▶  גבה עכשיו", "▶  Back up now"), true) { startBackup() }, wrap(8))
         backup.addView(box(
@@ -163,7 +173,8 @@ class BackupActivity : Activity() {
     private fun renderBackupAppsButton() {
         val total = installedUserApps().size
         val chosen = backupApps?.size ?: total
-        backupAppsButton.text = tr("בחר אפליקציות ›  ($chosen מתוך $total)", "Choose apps ›  ($chosen of $total)")
+        backupAppsLink.text = if (chosen == total) tr("כל $total האפליקציות · בחירה ›", "All $total apps · choose ›")
+            else tr("$chosen מתוך $total אפליקציות · שינוי ›", "$chosen of $total apps · change ›")
     }
 
     private fun chooseBackupApps() {
@@ -207,6 +218,88 @@ class BackupActivity : Activity() {
             .setNeutralButton(tr("הכול / כלום", "All / none")) { _, _ -> onDone(if (chosen.size == apps.size) emptySet() else apps.map { it.first }.toSet()) }
             .setNegativeButton(tr("ביטול", "Cancel"), null)
             .show()
+    }
+
+    // region finer choices: contacts accounts/groups, time period
+
+    /** Contacts: choose accounts (Google, phone, SIM…) and groups. Reading them needs READ_CONTACTS, granted over ADB. */
+    private fun chooseContactSources(onDone: () -> Unit) {
+        Toast.makeText(this, tr("טוען חשבונות וקבוצות…", "Loading accounts and groups…"), Toast.LENGTH_SHORT).show()
+        Bridge.scope.launch {
+            val result = runCatching {
+                if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Bridge.withClient { it.shell("pm grant $packageName android.permission.READ_CONTACTS") }
+                }
+                withContext(Dispatchers.IO) { BackupEngine.contactSources(this@BackupActivity) }
+            }
+            runOnUiThread {
+                result.onFailure { toast(tr("לא ניתן לקרוא את אנשי הקשר: ${Bridge.explain(it)}", "Can't read contacts: ${Bridge.explain(it)}")) }
+                result.onSuccess { sources ->
+                    if (sources.isEmpty()) { toast(tr("לא נמצאו חשבונות או קבוצות.", "No accounts or groups found.")); return@onSuccess }
+                    val chosen = BooleanArray(sources.size) { contactSources?.contains(sources[it].key) ?: true }
+                    AlertDialog.Builder(this@BackupActivity)
+                        .setTitle(tr("אילו אנשי קשר לגבות?", "Which contacts to back up?"))
+                        .setMultiChoiceItems(sources.map { "${it.label}  (${it.count})" }.toTypedArray(), chosen) { _, i, on -> chosen[i] = on }
+                        .setPositiveButton(tr("אישור", "OK")) { _, _ ->
+                            val keys = sources.filterIndexed { i, _ -> chosen[i] }.map { it.key }.toSet()
+                            contactSources = if (keys.size == sources.size) null else keys
+                            backupBoxes[BackupEngine.CONTACTS]?.isChecked = keys.isNotEmpty()
+                            onDone()
+                        }
+                        .setNeutralButton(tr("הכול", "All")) { _, _ -> contactSources = null; onDone() }
+                        .setNegativeButton(tr("ביטול", "Cancel"), null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    /** "All time ›" link under an item; tapping chooses how far back to go. */
+    private fun periodLink(parent: LinearLayout, box: CheckBox, get: () -> Long, set: (Long) -> Unit) {
+        val day = 24L * 60 * 60 * 1000
+        val choices = listOf(
+            0L to tr("כל התקופה", "All time"),
+            7 * day to tr("שבוע אחרון", "Last week"),
+            30 * day to tr("חודש אחרון", "Last month"),
+            91 * day to tr("3 חודשים אחרונים", "Last 3 months"),
+            365 * day to tr("שנה אחרונה", "Last year"),
+        )
+        var span = 0L
+        val l = link(parent, box) {}
+        fun render() { l.text = choices.first { it.first == span }.second + tr(" · שינוי ›", " · change ›") }
+        render()
+        l.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle(tr("מאיזו תקופה?", "From which period?"))
+                .setSingleChoiceItems(choices.map { it.second }.toTypedArray(), choices.indexOfFirst { it.first == span }) { d, i ->
+                    span = choices[i].first
+                    set(if (span == 0L) 0L else System.currentTimeMillis() - span)
+                    render(); d.dismiss()
+                }
+                .show()
+        }
+    }
+
+    /**
+     * Small text link under an item (instead of a big button). With [under], it shows only while that
+     * item is checked.
+     */
+    private fun link(parent: LinearLayout, under: CheckBox?, onClick: () -> Unit) = TextView(this).apply {
+        textSize = 13.5f
+        setTextColor(LINK)
+        setPaddingRelative(dp(36), dp(2), dp(8), dp(8))
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { onClick() }
+        Compat.focusRing(this, LINK, 8f)
+        parent.addView(this, wrap(0))
+        if (under != null) {
+            visibility = if (under.isChecked) View.VISIBLE else View.GONE
+            val previous = under.tag as? (Boolean) -> Unit
+            val show: (Boolean) -> Unit = { on -> visibility = if (on) View.VISIBLE else View.GONE; previous?.invoke(on) }
+            under.tag = show
+            under.setOnCheckedChangeListener { _, on -> show(on) }
+        }
     }
 
     // endregion
@@ -339,7 +432,8 @@ class BackupActivity : Activity() {
     private fun runBackup(tree: Uri) {
         val items = backupBoxes.filterValues { it.isChecked }.keys
         val sets = folders.filter { it.second.isChecked }.map { it.first }
-        val started = BackupEngine.backup(this, tree, items, backupApps, sets) { result ->
+        val filters = BackupEngine.Filters(contactSources, callsSince, smsSince)
+        val started = BackupEngine.backup(this, tree, items, backupApps, sets, filters) { result ->
             if (result != null && !isFinishing) {
                 AlertDialog.Builder(this).setTitle(tr("✔ הגיבוי הסתיים", "✔ Backup finished")).setMessage(result.summary.substringAfter('\n'))
                     .setPositiveButton(tr("סגור", "Close"), null).show()
@@ -380,8 +474,12 @@ class BackupActivity : Activity() {
         if (BackupEngine.APPS in ins.available) {
             restoreBoxes[BackupEngine.APPS] = check(restoreOptions, tr("📦 אפליקציות${count(BackupEngine.APPS)}", "📦 Apps${count(BackupEngine.APPS)}"), true)
             if (ins.apps.isNotEmpty()) {
-                val pick = button("", false) {}
-                fun label() { pick.text = tr("בחר אפליקציות לשחזור ›  (${restoreApps?.size ?: ins.apps.size} מתוך ${ins.apps.size})", "Choose apps to restore ›  (${restoreApps?.size ?: ins.apps.size} of ${ins.apps.size})") }
+                val pick = link(restoreOptions, restoreBoxes[BackupEngine.APPS]) {}
+                fun label() {
+                    val n = restoreApps?.size ?: ins.apps.size
+                    pick.text = if (n == ins.apps.size) tr("כל ${ins.apps.size} האפליקציות · בחירה ›", "All ${ins.apps.size} apps · choose ›")
+                        else tr("$n מתוך ${ins.apps.size} אפליקציות · שינוי ›", "$n of ${ins.apps.size} apps · change ›")
+                }
                 label()
                 pick.setOnClickListener {
                     appPicker(tr("אפליקציות לשחזור", "Apps to restore"), ins.apps, restoreApps ?: ins.apps.map { it.first }.toSet()) { chosen ->
@@ -390,7 +488,6 @@ class BackupActivity : Activity() {
                         label()
                     }
                 }
-                restoreOptions.addView(pick, wrap(6))
             }
         }
         if (BackupEngine.CONTACTS in ins.available) restoreBoxes[BackupEngine.CONTACTS] = check(restoreOptions, tr("👤 אנשי קשר${count(BackupEngine.CONTACTS)}", "👤 Contacts${count(BackupEngine.CONTACTS)}"), true)
@@ -523,6 +620,7 @@ class BackupActivity : Activity() {
         private val INK = 0xFF30251D.toInt()
         private val MUTED = 0xFF8A7868.toInt()
         private val ACCENT = 0xFFF09A45.toInt()
+        private val LINK = 0xFFB4621E.toInt()
         private val BACKGROUND = 0xFFFFF9F3.toInt()
     }
 }

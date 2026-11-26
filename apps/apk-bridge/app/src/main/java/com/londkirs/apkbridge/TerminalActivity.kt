@@ -690,7 +690,7 @@ class TerminalActivity : Activity() {
         val items = shortcuts()
         val labels = items.map { "[${groupLabel(it.group)}] ${shown(it)}   ·   ${it.command}" }.toMutableList()
         labels += tr("＋ הוסף קיצור", "＋ Add shortcut")
-        labels += tr("📌 קיצורים בווידג'ט של מסך הבית", "📌 Home-screen widget shortcuts")
+        labels += tr("📌 ווידג'טים של מסך הבית", "📌 Home-screen widgets")
         labels += tr("↺ שחזר קיצורי ברירת מחדל", "↺ Restore default shortcuts")
         AlertDialog.Builder(this, DIALOG)
             .setTitle(tr("עריכת קיצורים", "Edit shortcuts"))
@@ -715,25 +715,22 @@ class TerminalActivity : Activity() {
             .show()
     }
 
-    /** Choose up to four shortcuts for the home-screen widget. */
+    /** Home-screen widgets: open the settings of a placed widget, or explain how to add one. */
     private fun pickWidgetShortcuts() {
-        val items = shortcuts()
-        val pinned = ShortcutWidget.pins(this).map { it.command }.toSet()
-        val checked = BooleanArray(items.size) { items[it].command in pinned }
+        val placed = ShortcutWidget.placed(this)
+        if (placed.isEmpty()) {
+            AlertDialog.Builder(this, DIALOG)
+                .setTitle(tr("📌 ווידג'טים למסך הבית", "📌 Home-screen widgets"))
+                .setMessage(tr("יש שני ווידג'טים: שורת קיצורים (עד 4) וכפתור אחד.\n\nלהוספה: לחיצה ארוכה על מסך הבית ← ווידג'טים ← הבוס. מיד אחרי ההוספה נפתח מסך לבחירת הקיצורים.\n\nאפשר לבחור כל קיצור מהטרמינל, וגם פעולות של האפליקציה (התקנת APK, גיבוי, אפליקציות ועוד).",
+                    "There are two widgets: a row of shortcuts (up to 4) and a single button.\n\nTo add one: long-press the home screen → Widgets → The Boss. Right after adding, a screen opens to choose the shortcuts.\n\nYou can choose any terminal shortcut, and app actions too (install APK, backup, apps and more)."))
+                .setPositiveButton(tr("הבנתי", "Got it"), null)
+                .show()
+            return
+        }
+        if (placed.size == 1) { WidgetConfigActivity.open(this, placed[0].first); return }
         AlertDialog.Builder(this, DIALOG)
-            .setTitle(tr("📌 קיצורים בווידג'ט (עד ${ShortcutWidget.MAX})", "📌 Widget shortcuts (up to ${ShortcutWidget.MAX})"))
-            .setMultiChoiceItems(items.map { shown(it) }.toTypedArray(), checked) { d, which, on ->
-                if (on && checked.count { it } > ShortcutWidget.MAX) {
-                    checked[which] = false
-                    (d as AlertDialog).listView.setItemChecked(which, false)
-                    Toast.makeText(this, tr("אפשר לבחור עד ${ShortcutWidget.MAX} קיצורים.", "You can choose up to ${ShortcutWidget.MAX} shortcuts."), Toast.LENGTH_SHORT).show()
-                } else checked[which] = on
-            }
-            .setPositiveButton(tr("שמור", "Save")) { _, _ ->
-                ShortcutWidget.savePins(this, items.filterIndexed { i, _ -> checked[i] }.map { ShortcutWidget.Pin(shown(it), it.command) })
-                Toast.makeText(this, tr("הווידג'ט עודכן. להוספה: לחיצה ארוכה על מסך הבית ← ווידג'טים ← הבוס.", "Widget updated. To add it: long-press the home screen → Widgets → The Boss."), Toast.LENGTH_LONG).show()
-            }
-            .setNegativeButton(tr("ביטול", "Cancel"), null)
+            .setTitle(tr("איזה ווידג'ט לערוך?", "Which widget to edit?"))
+            .setItems(placed.map { it.second }.toTypedArray()) { _, i -> WidgetConfigActivity.open(this, placed[i].first) }
             .show()
     }
 
@@ -868,7 +865,7 @@ class TerminalActivity : Activity() {
 
         private val DANGEROUS = listOf("rm -r", "rm -f", "reboot", "wipe", "pm uninstall", "pm clear", "format", "dd ", "mkfs", "svc power")
         private const val MINE = "mine"
-        private const val SHORTCUTS_VERSION = 5
+        private const val SHORTCUTS_VERSION = 6
 
         /** Built-in commands fixed in 1.4.3: lists saved by 1.4–1.4.2 get the new version (index into DEFAULT_SHORTCUTS by label). */
         private val FIXED_COMMANDS: Map<String, String> by lazy {
@@ -894,6 +891,28 @@ class TerminalActivity : Activity() {
         }
         /** Category names saved by versions before 1.4 (Hebrew) → stable ids. */
         private val OLD_GROUPS = mapOf("מתגים" to "toggles", "מסך ומקשים" to "screen", "מידע" to "info", "תחזוקה" to "maint", "כלים" to "tools", "שלי" to MINE) // i18n-ok
+
+        /**
+         * Every terminal shortcut (the user's list, plus built-ins it doesn't have yet), grouped by
+         * category in the current language — for the home-screen widget settings.
+         */
+        fun shortcutChoices(context: Context): List<Pair<String, List<ShortcutWidget.Pin>>> {
+            val json = context.getSharedPreferences("terminal", Context.MODE_PRIVATE).getString("shortcuts", null)
+            val saved = json?.let {
+                runCatching {
+                    val arr = JSONArray(it)
+                    (0 until arr.length()).map { i -> arr.getJSONObject(i) }.map { o ->
+                        Triple(o.optString("g", "").let { g -> OLD_GROUPS[g] ?: g }.ifBlank { MINE }, o.getString("l"), o.getString("c"))
+                    }
+                }.getOrNull()
+            } ?: emptyList()
+            val have = saved.map { it.third }.toSet()
+            val all = saved + DEFAULT_SHORTCUTS.filter { it.command !in have }.map { Triple(it.group, it.label, it.command) }
+            fun label(l: String, c: String) = DEFAULT_SHORTCUTS.firstOrNull { it.command == c && (l == it.he || l == it.en) }?.label ?: l
+            val byGroup = all.groupBy { it.first }
+            val order = GROUP_ORDER.filter { it in byGroup } + byGroup.keys.filter { it !in GROUP_ORDER }
+            return order.map { g -> groupLabel(g) to byGroup.getValue(g).map { ShortcutWidget.Pin(label(it.second, it.third), it.third) } }
+        }
 
         /** Built-in shortcut: category id, Hebrew label, English label, command. */
         private class Def(val group: String, val he: String, val en: String, val command: String) {
@@ -956,6 +975,8 @@ class TerminalActivity : Activity() {
             Def("tools", "🧹 סגור אפליקציות ברקע", "🧹 Close background apps", "am kill-all"),
             Def("tools", "♻ הפעלה מחדש", "♻ Restart", "reboot"),
             // Maintenance: cache cleaning and phone health (output from the device, in English)
+            Def("maint", "🧠 פנה זיכרון RAM", "🧠 Free up RAM",
+                "m(){ awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo; }; b=$(m); me=com.londkirs.apkbridge; n=0; for p in $(ps -A -o NAME | grep -E '^[a-z][a-z0-9_]*(\\.[A-Za-z0-9_]+)+$' | grep -vE \"^(\$me|com\\.android\\.systemui|com\\.android\\.phone|system)$\" | sort -u); do am send-trim-memory \"\$p\" COMPLETE >/dev/null 2>&1 || am send-trim-memory \"\$p\" RUNNING_CRITICAL >/dev/null 2>&1 && n=$((n+1)); done; am kill-all; am compact system >/dev/null 2>&1; sleep 2; a=$(m); echo \"Asked \$n apps to release memory, stopped background processes.\"; echo \"Available RAM: \$b MB -> \$a MB ($((a-b)) MB)\""),
             Def("maint", "🧹 נקה מטמון לכל האפליקציות", "🧹 Clear cache of all apps",
                 "b=$(df /data | awk 'NR==2{print $4}'); pm trim-caches 999G; a=$(df /data | awk 'NR==2{print $4}'); echo \"Cache cleared. Freed: $(( (a-b)/1024 )) MB\""),
             Def("maint", "🔋 בריאות סוללה", "🔋 Battery health",

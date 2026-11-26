@@ -99,6 +99,16 @@
             android:name=".OnboardingActivity"
             android:exported="false" />
 
+        <!-- Choosing a widget's buttons: opened by the launcher when the widget is added (must be exported). -->
+        <activity
+            android:name=".WidgetConfigActivity"
+            android:exported="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".SettingsActivity"
             android:exported="false" />
@@ -140,6 +150,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/shortcut_widget_info" />
+        </receiver>
+
+        <!-- One-button home-screen widget. -->
+        <receiver
+            android:name=".SingleShortcutWidget"
+            android:exported="false"
+            android:label="@string/widget_single_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/single_widget_info" />
         </receiver>
     </application>
 </manifest>
