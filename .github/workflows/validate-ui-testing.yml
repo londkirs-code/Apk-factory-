@@ -1,0 +1,34 @@
+name: Validate UI testing tools
+
+on:
+  push:
+    paths:
+      - "tools/ui-testing/**"
+      - "apps/*/ui-tests/**"
+      - "ui-tests/**"
+      - ".github/workflows/ui-test-apk.yml"
+      - ".github/workflows/validate-ui-testing.yml"
+  pull_request:
+    paths:
+      - "tools/ui-testing/**"
+      - "apps/*/ui-tests/**"
+      - "ui-tests/**"
+      - ".github/workflows/ui-test-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: |
+          bash -n tools/ui-testing/run-ci.sh
+          bash -n tools/ui-testing/publish-results.sh
+      - name: Workflow YAML
+        run: ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ui-test-apk.yml"); puts "YAML OK"'
+      - name: Driver unit tests and scenario validation (fake device, no emulator)
+        run: python3 tools/ui-testing/tests/test_ui_driver.py -v

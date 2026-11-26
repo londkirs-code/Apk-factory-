@@ -1,0 +1,243 @@
+name: Build Mishnat Pickup APK for PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/mishnat-pickup/**'
+      - '.github/workflows/build-mishnat-pickup-pr.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: build-mishnat-pickup-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Secrets are not available to PRs from forks, so only build same-repo branches.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Ensure Android SDK 35 is installed
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n1)"
+          if [[ ! -d "$ANDROID_HOME/platforms/android-35" || ! -x "$ANDROID_HOME/build-tools/35.0.0/apksigner" ]]; then
+            test -x "$SDKMANAGER"
+            yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+            "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          fi
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Validate existing APK Factory signing key
+        env:
+          APK_SIGNING_KEY_BASE64: ${{ secrets.APK_SIGNING_KEY_BASE64 }}
+          APK_SIGNING_STORE_PASSWORD: ${{ secrets.APK_SIGNING_STORE_PASSWORD }}
+          APK_SIGNING_KEY_ALIAS: ${{ secrets.APK_SIGNING_KEY_ALIAS }}
+          APK_SIGNING_KEY_PASSWORD: ${{ secrets.APK_SIGNING_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$APK_SIGNING_KEY_BASE64" ]] || missing+=("APK_SIGNING_KEY_BASE64")
+          [[ -n "$APK_SIGNING_STORE_PASSWORD" ]] || missing+=("APK_SIGNING_STORE_PASSWORD")
+          [[ -n "$APK_SIGNING_KEY_ALIAS" ]] || missing+=("APK_SIGNING_KEY_ALIAS")
+          [[ -n "$APK_SIGNING_KEY_PASSWORD" ]] || missing+=("APK_SIGNING_KEY_PASSWORD")
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            printf '::error::Missing existing APK Factory signing secret(s): %s. No replacement key will be generated.\n' "${missing[*]}"
+            exit 1
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "$APK_SIGNING_KEY_BASE64" | base64 --decode > "$HOME/.android/apk-factory-release.jks"
+          test -s "$HOME/.android/apk-factory-release.jks"
+          APK_SIGNING_KEY_ALIAS="$(printf '%s' "$APK_SIGNING_KEY_ALIAS" | tr -d '[:space:]')"
+          {
+            echo "APK_SIGNING_STORE_FILE=$HOME/.android/apk-factory-release.jks"
+            echo "APK_SIGNING_STORE_PASSWORD=$APK_SIGNING_STORE_PASSWORD"
+            echo "APK_SIGNING_KEY_ALIAS=$APK_SIGNING_KEY_ALIAS"
+            echo "APK_SIGNING_KEY_PASSWORD=$APK_SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          keytool -list -keystore "$HOME/.android/apk-factory-release.jks" -storepass "$APK_SIGNING_STORE_PASSWORD" -alias "$APK_SIGNING_KEY_ALIAS" >/dev/null
+
+      - name: Test and build the browser extension (Chrome + Firefox)
+        id: extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/mishnat-pickup/browser-extension
+          node --test test/core.test.mjs
+          node build.mjs "$RUNNER_TEMP/extension" | tee "$RUNNER_TEMP/extension-build.txt"
+          echo "version=$(sed -n 's/^version=//p' "$RUNNER_TEMP/extension-build.txt")" >> "$GITHUB_OUTPUT"
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/mishnat-pickup
+          gradle --no-daemon --console=plain :app:testDebugUnitTest
+
+      - name: Upload unit test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mishnat-Pickup-unit-tests
+          path: apps/mishnat-pickup/app/build/reports/tests/
+          if-no-files-found: ignore
+
+      - name: Ensure versionCode installs over the published APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_FILE="apps/mishnat-pickup/app/build.gradle"
+          SOURCE_CODE="$(sed -nE "s/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*$/\1/p" "$BUILD_FILE" | head -n1)"
+          PUBLISHED=""
+          if git show origin/main:downloads/mishnat-pickup/build-info.txt > "$RUNNER_TEMP/published-info.txt" 2>/dev/null; then
+            PUBLISHED="$(sed -n 's/^version_code=//p' "$RUNNER_TEMP/published-info.txt" | head -n1)"
+          fi
+          if [[ "$PUBLISHED" =~ ^[0-9]+$ ]] && (( SOURCE_CODE <= PUBLISHED )); then
+            NEXT=$((PUBLISHED + 1))
+            # Only for this build; the source file in the branch is not committed with this change.
+            sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT/" "$BUILD_FILE"
+            if (( NEXT >= 101 )); then NEXT_NAME="$(awk -v c="$NEXT" 'BEGIN{n=c-101; if(n==0)print "2.0"; else printf "%d.%02d", 2+int(n/100), n%100}')"; else NEXT_NAME="1.$NEXT"; fi
+            sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
+            echo "Bumped test build to $NEXT (published $PUBLISHED, source $SOURCE_CODE)."
+          else
+            echo "Source versionCode $SOURCE_CODE is above published ${PUBLISHED:-none}."
+          fi
+
+      - name: Build signed Release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_FILE="$APK_SIGNING_STORE_FILE"
+          export ORG_GRADLE_PROJECT_APK_SIGNING_STORE_PASSWORD="$APK_SIGNING_STORE_PASSWORD"
+          export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_ALIAS="$APK_SIGNING_KEY_ALIAS"
+          export ORG_GRADLE_PROJECT_APK_SIGNING_KEY_PASSWORD="$APK_SIGNING_KEY_PASSWORD"
+          cd apps/mishnat-pickup
+          gradle --no-daemon --console=plain --stacktrace :app:assembleRelease
+
+      - name: Verify APK package, version and signing certificate
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk'
+          test -s "$APK"
+          ANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n1)"
+          SIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -n "$ANALYZER" && test -x "$SIGNER"
+          PACKAGE="$("$ANALYZER" manifest application-id "$APK")"
+          [[ "$PACKAGE" == 'org.mishnatyosef.pickup' ]]
+          CODE="$("$ANALYZER" manifest version-code "$APK")"
+          NAME="$("$ANALYZER" manifest version-name "$APK")"
+          OUTPUT="$("$SIGNER" verify --verbose --print-certs "$APK" 2>&1)"
+          CERT="$(printf '%s\n' "$OUTPUT" | grep -i 'SHA-256 digest' | sed -E 's/.*digest:[[:space:]]*//I' | head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          [[ "$CERT" =~ ^[0-9a-f]{64}$ ]]
+          {
+            echo "version_code=$CODE"
+            echo "version_name=$NAME"
+            echo "certificate=$CERT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Copy APK to the PR download folder
+        id: copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="downloads/mishnat-pickup-pr/${{ github.event.pull_request.number }}"
+          mkdir -p "$DEST"
+          # שם הקובץ: "משנת אוסף" ומספר הגרסה. קבצים קודמים בתיקייה נמחקים כדי שלא יצטברו.
+          APK_NAME="משנת אוסף ${{ steps.verify.outputs.version_name }}.apk"
+          find "$DEST" -maxdepth 1 -name '*.apk' -delete
+          cp apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk "$DEST/$APK_NAME"
+          # תוסף הדפדפן (Chrome ו-Firefox) לצד ה-APK.
+          find "$DEST" -maxdepth 1 -name 'mishnat-osef-*.zip' -delete
+          cp "$RUNNER_TEMP"/extension/mishnat-osef-*.zip "$DEST/"
+          SHA="$(sha256sum "$DEST/$APK_NAME" | cut -d ' ' -f1)"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          cat > "$DEST/build-info.txt" <<INFO
+          app=mishnat-pickup
+          pr=${{ github.event.pull_request.number }}
+          workflow_run_id=${{ github.run_id }}
+          version_code=${{ steps.verify.outputs.version_code }}
+          version_name=${{ steps.verify.outputs.version_name }}
+          source_sha=${{ github.event.pull_request.head.sha }}
+          sha256=${SHA}
+          signing_certificate_sha256=${{ steps.verify.outputs.certificate }}
+          INFO
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Commit APK to the PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Never commit the temporary versionCode bump made for this build.
+          git checkout -- apps/mishnat-pickup/app/build.gradle
+          git add -A downloads/mishnat-pickup-pr/
+          if git diff --cached --quiet; then
+            echo "APK unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "build(mishnat-pickup): APK for PR #${{ github.event.pull_request.number }}"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+      - name: Comment the download link on the PR
+        if: success()
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA_SHORT: ${{ github.event.pull_request.head.sha }}
+          VERSION_NAME: ${{ steps.verify.outputs.version_name }}
+          VERSION_CODE: ${{ steps.verify.outputs.version_code }}
+          SHA: ${{ steps.copy.outputs.sha256 }}
+          APK_NAME: ${{ steps.copy.outputs.apk_name }}
+          EXT_VERSION: ${{ steps.extension.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const head = execSync('git rev-parse HEAD').toString().trim();
+            const base = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${head}/downloads/mishnat-pickup-pr/${process.env.PR_NUMBER}/`;
+            const url = base + encodeURIComponent(process.env.APK_NAME);
+            const ext = process.env.EXT_VERSION;
+            const body = [
+              `📦 בנייה חדשה של אפליקציית איסוף משנת יוסף מה־PR הזה.`,
+              '',
+              `גרסה: ${process.env.VERSION_NAME} (${process.env.VERSION_CODE})`,
+              `SHA-256: ${process.env.SHA}`,
+              `הורדת APK לבדיקה: ${url}`,
+              `תוסף לכרום ${ext}: ${base}mishnat-osef-chrome-${ext}.zip`,
+              `תוסף לפיירפוקס ${ext}: ${base}mishnat-osef-firefox-${ext}.zip`,
+              `[יומן הבנייה](${process.env.RUN_URL})`,
+              '',
+              '_הבנייה אינה מהווה בדיקת התחברות מול חשבון אמיתי או בדיקת התקנה במכשיר._'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+              body
+            });

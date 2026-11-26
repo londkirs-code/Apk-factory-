@@ -19,6 +19,14 @@ final class ImportParser {
     static final class ImportedList {String accountId,accountName,orderId,orderName,pickupDate,updatedAt;final List<Item> items=new ArrayList<>();}
     static final class Bundle {final List<ImportedList> lists=new ArrayList<>();final File workDir;Bundle(File d){workDir=d;}File imageFile(String p){return p==null||p.isEmpty()?null:new File(workDir,p);}}
     private ImportParser(){}
+    /** Canonical quantity text: whole numbers without ".0" (2.0 -> "2"), otherwise up to 3 decimals. */
+    static String quantityText(double value) {
+        if(Math.abs(value-Math.rint(value))<0.000001)return String.valueOf((long)Math.rint(value));
+        String s=String.format(Locale.US,"%.3f",value);
+        while(s.contains(".")&&s.endsWith("0"))s=s.substring(0,s.length()-1);
+        if(s.endsWith("."))s=s.substring(0,s.length()-1);
+        return s;
+    }
     static Bundle parse(InputStream source,File workDir)throws Exception {
         if(source==null)throw new Exception("לא ניתן לפתוח את הקובץ.");
         if(workDir.exists())delete(workDir);if(!workDir.mkdirs())throw new Exception("לא ניתן ליצור תיקיית ייבוא זמנית.");
@@ -38,21 +46,47 @@ final class ImportParser {
     /**
      * Plain text format: one product per line. Optional columns are separated by |
      * name | quantity | unit | note | category. A line with only a name defaults to quantity 1.
-     * Empty lines and lines beginning with # are ignored.
+     * Empty lines and lines beginning with # are ignored, except "## name", which starts a new list
+     * (so one text file can hold several lists, as the app's export writes them).
      */
     private static Bundle parseText(byte[] raw,File dir)throws Exception {
         String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8);
         if(text.length()>0&&text.charAt(0)==0xFEFF)text=text.substring(1);
         String[] lines=text.split("\\r?\\n");
-        ImportedList list=new ImportedList();
-        list.accountId="text-"+java.util.UUID.randomUUID().toString();
-        list.accountName="רשימה מקובץ טקסט";
-        list.orderId=String.valueOf(System.currentTimeMillis());
-        list.orderName="רשימה מקובץ טקסט";
+        List<ImportedList> lists=new ArrayList<>();
+        ImportedList list=newTextList("רשימה מקובץ טקסט",0);
         Set<String> ids=new HashSet<>();
+        Map<ImportedList,Set<String>> idsByList=new HashMap<>();
+        idsByList.put(list,ids);
+        String currentCategory="";
+        int total=0;
         for(int i=0;i<lines.length;i++) {
             String line=lines[i]==null?"":lines[i].trim();
+            if(line.startsWith("### ")) {
+                // קטגוריה למוצרים שאחריה (פורמט קומפקטי, למשל מקוד QR). "-" = בלי קטגוריה.
+                String category=clean(line.substring(4));
+                currentCategory="-".equals(category)?"":(category.length()>100?category.substring(0,100):category);
+                continue;
+            }
+            if(line.startsWith("## ")) {
+                // רשימה חדשה באותו קובץ. רשימה באותו שם ממשיכה את הקודמת (למשל כמה קודי QR של אותה הזמנה).
+                String name=clean(line.substring(3));
+                if(name.length()>200)name=name.substring(0,200);
+                if(name.isEmpty())name="רשימה מקובץ טקסט";
+                currentCategory="";
+                if(name.equals(list.orderName))continue;
+                ImportedList existing=null;
+                for(ImportedList previous:lists)if(name.equals(previous.orderName)){existing=previous;break;}
+                if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
+                if(existing!=null){list=existing;ids=idsByList.get(existing);continue;}
+                if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
+                list=newTextList(name,lists.size());
+                ids=new HashSet<>();
+                idsByList.put(list,ids);
+                continue;
+            }
             if(line.isEmpty()||line.startsWith("#"))continue;
+            if(++total>MAX_ITEMS)throw new Exception("קובץ הטקסט מכיל יותר מ־5000 פריטים.");
             if(list.items.size()>=MAX_ITEMS)throw new Exception("קובץ הטקסט מכיל יותר מ־5000 פריטים.");
             String[] columns=line.split("\\|",-1);
             String name=clean(columns[0]);
@@ -64,12 +98,13 @@ final class ImportParser {
                 try {
                     double amount=Double.parseDouble(quantity.replace(',','.'));
                     if(Double.isNaN(amount)||Double.isInfinite(amount)||amount<=0)throw new NumberFormatException();
-                    quantity=String.valueOf(amount);
+                    quantity=quantityText(amount);
                 } catch(Exception e) { throw new Exception("שורה "+(i+1)+": הכמות חייבת להיות מספר חיובי."); }
             }
             if(columns.length>2)unit=clean(columns[2]);
             if(columns.length>3)note=clean(columns[3]);
             if(columns.length>4)category=clean(columns[4]);
+            if(category.isEmpty())category=currentCategory;
             if(columns.length>5)throw new Exception("שורה "+(i+1)+": אפשר לכלול עד חמש עמודות.");
             if(unit.length()>40||note.length()>300||category.length()>100)
                 throw new Exception("שורה "+(i+1)+": אחד משדות הפריט ארוך מהמותר.");
@@ -77,11 +112,24 @@ final class ImportParser {
             String id=base.substring(0,24);
             int suffix=1;while(!ids.add(id))id=base.substring(0,20)+"_"+(suffix++);
             Item item=new Item();item.id=id;item.name=name;item.quantity=quantity;
+            // TXT lines carry no image: keep these non-null like the JSON parser does, otherwise
+            // fingerprinting the imported rows throws and the import is rolled back.
+            item.image="";item.imageUrl="";
             item.unit=unit;item.note=note;item.category=category;
             list.items.add(item);
         }
-        if(list.items.isEmpty())throw new Exception("קובץ הטקסט אינו מכיל פריטים. כל שורה צריכה לכלול שם מוצר.");
-        Bundle bundle=new Bundle(dir);bundle.lists.add(list);return bundle;
+        if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
+        if(lists.isEmpty())throw new Exception("קובץ הטקסט אינו מכיל פריטים. כל שורה צריכה לכלול שם מוצר.");
+        Bundle bundle=new Bundle(dir);bundle.lists.addAll(lists);return bundle;
+    }
+
+    private static ImportedList newTextList(String name,int index) {
+        ImportedList list=new ImportedList();
+        list.accountId="text-"+java.util.UUID.randomUUID().toString();
+        list.accountName="רשימה מקובץ טקסט";
+        list.orderId=String.valueOf(System.currentTimeMillis()+index);
+        list.orderName=name;
+        return list;
     }
 
     private static byte[] readZip(InputStream input,File workDir)throws Exception {
@@ -131,7 +179,7 @@ final class ImportParser {
                 item.name=required(o,"name","רשימה "+ln+", מוצר "+ix);if(item.name.length()>200)throw new Exception("רשימה "+ln+", מוצר "+ix+": name ארוך מ־200 תווים.");
                 Object q=o.opt("quantity");if(!(q instanceof Number))throw new Exception("רשימה "+ln+", מוצר "+ix+": חסר או לא תקין quantity.");double n=((Number)q).doubleValue();
                 if(Double.isNaN(n)||Double.isInfinite(n)||n<=0)throw new Exception("רשימה "+ln+", מוצר "+ix+": quantity חייב להיות מספר חיובי.");
-                item.quantity=String.valueOf(q);item.unit=optional(o,"unit",40);item.note=optional(o,"note",300);item.category=optional(o,"category",100);item.image=optional(o,"image",160);item.imageUrl=optional(o,"imageUrl",2048);
+                item.quantity=n==Math.rint(n)&&n<1e15?String.valueOf((long)n):java.math.BigDecimal.valueOf(n).stripTrailingZeros().toPlainString();item.unit=optional(o,"unit",40);item.note=optional(o,"note",300);item.category=optional(o,"category",100);item.image=optional(o,"image",160);item.imageUrl=optional(o,"imageUrl",2048);
                 if(!item.image.isEmpty()&&!validImagePath(item.image))throw new Exception("רשימה "+ln+", מוצר "+ix+": נתיב תמונה לא בטוח.");
                 if(!item.imageUrl.isEmpty()&&!item.imageUrl.toLowerCase(Locale.ROOT).startsWith("https://"))throw new Exception("רשימה "+ln+", מוצר "+ix+": imageUrl חייב להתחיל ב־https://.");
                 list.items.add(item);

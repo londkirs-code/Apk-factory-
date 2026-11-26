@@ -66,7 +66,9 @@ jobs:
           test -s "$APP_DIR/app/build.gradle"
           test -s "$APP_DIR/app/src/main/AndroidManifest.xml"
           test -s "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
-          test -s "$APP_DIR/app/src/main/res/drawable-nodpi/ic_app_launcher.webp"
+          test -s "$APP_DIR/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp"
+          test -s "$APP_DIR/app/src/main/res/drawable-nodpi/app_logo.webp"
+          test -s "$APP_DIR/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
           grep -q 'targetSdk 35' "$APP_DIR/app/build.gradle"
           grep -q 'confirmResetCollection' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
           grep -q 'confirmLogout' "$APP_DIR/app/src/main/java/org/mishnatyosef/pickup/MainActivity.java"
@@ -132,14 +134,31 @@ jobs:
           if [[ "$PREVIOUS_CODE" =~ ^[0-9]+$ ]] && (( PREVIOUS_CODE > BASE_CODE )); then
             BASE_CODE="$PREVIOUS_CODE"
           fi
-          NEXT_CODE=$((BASE_CODE + 1))
-          NEXT_NAME="1.$NEXT_CODE"
+          # מספור גרסאות: 2.0 = קוד 101, ומכאן בקפיצות של 0.01: 2.01, 2.02... אם הקוד במקור כבר גבוה מהגרסה שפורסמה,
+          # בונים בדיוק את הגרסה שבמקור (קוד ושם); אחרת מעלים את הקוד באחד.
+          SOURCE_NAME="$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'.*$/\1/p" "$BUILD_FILE" | head -n1)"
+          if [[ "$PREVIOUS_CODE" =~ ^[0-9]+$ ]] && (( SOURCE_CODE > PREVIOUS_CODE )); then
+            NEXT_CODE="$SOURCE_CODE"; NEXT_NAME="$SOURCE_NAME"
+          else
+            NEXT_CODE=$((BASE_CODE + 1))
+            if (( NEXT_CODE >= 101 )); then NEXT_NAME="$(awk -v c="$NEXT_CODE" 'BEGIN{n=c-101; if(n==0)print "2.0"; else printf "%d.%02d", 2+int(n/100), n%100}')"; else NEXT_NAME="1.$NEXT_CODE"; fi
+          fi
           sed -i -E "0,/versionCode[[:space:]]+[0-9]+/s//versionCode $NEXT_CODE/" "$BUILD_FILE"
           sed -i -E "0,/versionName[[:space:]]+'[^']+'/s//versionName '$NEXT_NAME'/" "$BUILD_FILE"
           echo "version_code=$NEXT_CODE" >> "$GITHUB_OUTPUT"
           echo "version_name=$NEXT_NAME" >> "$GITHUB_OUTPUT"
           echo "Source versionCode=$SOURCE_CODE; previously published=$PREVIOUS_CODE; building=$NEXT_NAME ($NEXT_CODE)."
           git diff --check
+
+      - name: Test and build the browser extension (Chrome + Firefox)
+        id: extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/mishnat-pickup/browser-extension
+          node --test test/core.test.mjs
+          node build.mjs "$RUNNER_TEMP/extension" | tee "$RUNNER_TEMP/extension-build.txt"
+          echo "version=$(sed -n 's/^version=//p' "$RUNNER_TEMP/extension-build.txt")" >> "$GITHUB_OUTPUT"
 
       - name: Build signed Release APK
         shell: bash
@@ -198,6 +217,12 @@ jobs:
           mkdir -p downloads/mishnat-pickup/history
           cp apps/mishnat-pickup/app/build/outputs/apk/release/app-release.apk downloads/mishnat-pickup/app.apk
           cp downloads/mishnat-pickup/app.apk "downloads/mishnat-pickup/history/mishnat-pickup-v${VERSION_NAME}-code${VERSION_CODE}.apk"
+          # עותק בשם "משנת אוסף" ומספר הגרסה, להורדה בשם ברור. הקודם נמחק.
+          find downloads/mishnat-pickup -maxdepth 1 -name 'משנת אוסף *.apk' -delete
+          cp downloads/mishnat-pickup/app.apk "downloads/mishnat-pickup/משנת אוסף ${VERSION_NAME}.apk"
+          # תוסף הדפדפן (Chrome ו-Firefox) לצד ה-APK.
+          find downloads/mishnat-pickup -maxdepth 1 -name 'mishnat-osef-*.zip' -delete
+          cp "$RUNNER_TEMP"/extension/mishnat-osef-*.zip downloads/mishnat-pickup/
           SHA="$(sha256sum downloads/mishnat-pickup/app.apk | cut -d ' ' -f1)"
           SOURCE_SHA="$(git rev-parse HEAD)"
           UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -229,7 +254,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add downloads/mishnat-pickup/ apps/mishnat-pickup/app/build.gradle
+          git add -A downloads/mishnat-pickup/ apps/mishnat-pickup/app/build.gradle
           git commit -m "release: publish signed Mishnat Pickup APK ${{ steps.verify.outputs.version_code }}"
           for attempt in 1 2 3 4 5; do
             git fetch origin main
@@ -256,15 +281,19 @@ jobs:
           VERSION_CODE: ${{ steps.verify.outputs.version_code }}
           VERSION_NAME: ${{ steps.verify.outputs.version_name }}
           SHA: ${{ steps.publish.outputs.sha256 }}
+          EXT_VERSION: ${{ steps.extension.outputs.version }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
+            const ext = process.env.EXT_VERSION;
             const body = [
               `✅ @${process.env.ACTOR} — אפליקציית איסוף משנת יוסף נבנתה ונחתמה.`,
               '',
               `גרסה: ${process.env.VERSION_NAME} (${process.env.VERSION_CODE})`,
               `SHA-256: ${process.env.SHA}`,
-              'הורדת APK: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/app.apk',
+              `הורדת APK: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/${encodeURIComponent('משנת אוסף ' + process.env.VERSION_NAME + '.apk')}`,
+              `תוסף לכרום ${ext}: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/mishnat-osef-chrome-${ext}.zip`,
+              `תוסף לפיירפוקס ${ext}: https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/mishnat-pickup/mishnat-osef-firefox-${ext}.zip`,
               `[יומן הבנייה](${process.env.RUN_URL})`,
               '',
               '_הבנייה אינה מהווה בדיקת התחברות מול חשבון אמיתי או בדיקת התקנה במכשיר._'

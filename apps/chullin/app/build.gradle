@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.londkirs.chullin'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.londkirs.chullin'
+        minSdk 26
+        targetSdk 35
+        versionCode 2
+        versionName '0.1.0'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// Same persistent APK Factory key used by the other apps in this repository.
+if (System.getenv('APK_SIGNING_STORE_FILE')) {
+    android {
+        signingConfigs {
+            release {
+                storeFile file(System.getenv('APK_SIGNING_STORE_FILE'))
+                storePassword System.getenv('APK_SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('APK_SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('APK_SIGNING_KEY_PASSWORD')
+            }
+        }
+        buildTypes { release { signingConfig signingConfigs.release } }
+    }
+}

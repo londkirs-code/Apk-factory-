@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- רקע האייקון המסתגל: מעבר צבע סגול שתואם למסגרת האייקון (במקום תמונה, כדי לחסוך משקל). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="315"
+        android:startColor="#FFB49BE0"
+        android:centerColor="#FF8A6BC9"
+        android:endColor="#FF5E3FA3" />
+</shape>

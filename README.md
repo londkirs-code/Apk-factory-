@@ -84,6 +84,10 @@
 
 - **Rebuild and Sign Reverse-Engineered APK** — בונה מחדש ישירות מתוך Artifact של ריצת פענוח קודמת, מעלה versionCode וחותם במפתח APK Factory הקיים. אין צורך להעלות שוב את תיקיית Apktool למאגר נפרד. ראו [הוראות שימוש](docs/APK_REVERSE_ENGINEERING.md).
 
+## בדיקת ממשק אוטומטית באמולטור (אופציונלי)
+
+Workflow **UI test APK on emulator** מפעיל אמולטור Android, מתקין APK של כל אפליקציה במאגר (או מקישור), מנווט באפליקציה (לחיצות, הקלדה, גלילה, חזרה) לפי תרחיש JSON או בסריקה אוטומטית, מצלם מסכים, מזהה קריסות ומפרסם דוח עם תמונות בענף `ui-test-results`. הבדיקה לא רצה בבנייה רגילה, אלא רק לפי דרישה: ב־Actions, בתגובה `/ui-test <app>` ב־issue #1, או אחרי כל בנייה אם מגדירים `UI_TEST_AFTER_BUILD=true`. מדריך: [docs/UI_TESTING.md](docs/UI_TESTING.md) · סקיל לעוזר AI: [skills/ui-test-apk/SKILL.md](skills/ui-test-apk/SKILL.md).
+
 ## Builds on demand — stable APK links
 
 - נץ החמה: [APK יציב](https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/NetzHachama.apk) · [סקיל בנייה](skills/build-netzhachama-apk/SKILL.md)
