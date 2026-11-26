@@ -67,12 +67,12 @@ on:
   issue_comment:
     types: [created]
   push:
-    # Development branches only: changing a scenario (or the tooling) tests the
-    # affected apps right away. Never runs on main, so normal builds are unaffected.
+    # Development branches only, and only when a UI scenario itself changes.
+    # Code changes under apps/** no longer start the emulator automatically (it slowed every build);
+    # run it on demand with workflow_dispatch or a /ui-test comment.
     branches-ignore: [main, master, ui-test-results]
     paths:
       - "ui-tests/**"
-      - "apps/**"
   workflow_run:
     # Automatic test after a successful build — only when the repository
     # variable UI_TEST_AFTER_BUILD is set to "true" (off by default).
