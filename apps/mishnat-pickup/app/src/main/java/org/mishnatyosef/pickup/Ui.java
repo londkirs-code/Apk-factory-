@@ -518,6 +518,63 @@ final class Ui {
     }
 
     /** אריח פעולה: אייקון ומתחתיו תווית קצרה. כמה אריחים בשורה אחת מקבצים פעולות קבועות בראש מסך. */
+    /**
+     * אריח ריבועי גדול למסך הפתיחה: מעבר צבעים, פינות מעוגלות, צל, אימוג׳י שנושם בעדינות,
+     * והגדלה קלה עם מסגרת בהירה כשהוא בפוקוס או נלחץ.
+     */
+    static View heroTile(Context c, String emoji, String title, String subtitle) {
+        final LinearLayout tile = new LinearLayout(c);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER);
+        tile.setFocusable(true); tile.setClickable(true);
+        tile.setContentDescription(title + ". " + subtitle);
+        int pad = dp(c, S4);
+        tile.setPadding(pad, pad, pad, pad);
+        GradientDrawable normal = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{P500, P700, P900});
+        normal.setCornerRadius(dp(c, 32));
+        GradientDrawable focused = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{lighten(P500, .15f), P600, P800});
+        focused.setCornerRadius(dp(c, 32));
+        focused.setStroke(dp(c, 4), 0xFFFFFFFF);
+        GradientDrawable pressed = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{P700, P800, darken(P900, .2f)});
+        pressed.setCornerRadius(dp(c, 32));
+        pressed.setStroke(dp(c, 4), lighten(P300, .3f));
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_pressed}, pressed);
+        states.addState(new int[]{android.R.attr.state_focused}, focused);
+        states.addState(new int[]{}, normal);
+        tile.setBackground(states);
+        if (Build.VERSION.SDK_INT >= 21) tile.setElevation(dp(c, 10));
+
+        final TextView icon = text(c, emoji, 56, 0xFFFFFFFF, false);
+        icon.setGravity(Gravity.CENTER);
+        tile.addView(icon, new LinearLayout.LayoutParams(-2, -2));
+        TextView name = text(c, title, 21, 0xFFFFFFFF, true);
+        name.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(-1, -2);
+        nameLp.topMargin = dp(c, S2);
+        tile.addView(name, nameLp);
+        TextView sub = text(c, subtitle, 13, 0xE6FFFFFF, false);
+        sub.setGravity(Gravity.CENTER);
+        tile.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+
+        // האימוג׳י "נושם" לאט, כדי למשוך את העין לכפתור.
+        android.animation.ObjectAnimator sx = android.animation.ObjectAnimator.ofFloat(icon, "scaleX", 1f, 1.1f);
+        android.animation.ObjectAnimator sy = android.animation.ObjectAnimator.ofFloat(icon, "scaleY", 1f, 1.1f);
+        for (android.animation.ObjectAnimator a : new android.animation.ObjectAnimator[]{sx, sy}) {
+            a.setDuration(1100); a.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            a.setRepeatMode(android.animation.ValueAnimator.REVERSE); a.start();
+        }
+        tile.setOnFocusChangeListener((v, has) -> v.animate().scaleX(has ? 1.04f : 1f).scaleY(has ? 1.04f : 1f).setDuration(160).start());
+        tile.setOnKeyListener((v, keyCode, event) -> {
+            boolean confirm = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER
+                    || keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER || keyCode == android.view.KeyEvent.KEYCODE_5;
+            if (!confirm) return false;
+            if (event.getAction() == android.view.KeyEvent.ACTION_UP) v.performClick();
+            return true;
+        });
+        return tile;
+    }
+
     static Button tile(Context c,int icon,String label) {
         Button b=styleButton(c,new Button(c),label,Kind.SOFT);
         b.setTextSize(TypedValue.COMPLEX_UNIT_SP,13*textScale(c));

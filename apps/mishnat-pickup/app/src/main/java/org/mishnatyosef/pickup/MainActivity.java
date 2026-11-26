@@ -339,11 +339,11 @@ public class MainActivity extends Activity {
             if (!connectedSource.equals(activeSourceId)) {
                 switchSource(connectedSource, () -> {
                     showHomeScreen(false);
-                    syncAllAccounts();
+                    if (!listGroupActive()) syncAllAccounts();
                 });
             } else {
                 showHomeScreen(false);
-                syncAllAccounts();
+                if (!listGroupActive()) syncAllAccounts();
             }
         } else if (!sourceRegistry.all().isEmpty()) {
             // Imported and signed-out sources remain available offline.
@@ -440,7 +440,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (!showingSavedList && pendingList != null && !loading && !syncAllRunning
+        // סנכרון אוטומטי רק בתצוגת ההזמנה העדכנית: לא כשמוצגת רשימה שמורה או רשימות מסומנות יחד.
+        if (!showingSavedList && !listGroupActive() && pendingList != null && !loading && !syncAllRunning
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) {
             if (combinedView || sourceRegistry != null && listSourceCount() > 1) syncAllAccounts();
             else if (!accessToken.isEmpty()) loadLatestOrder();
@@ -571,16 +572,26 @@ public class MainActivity extends Activity {
         now.setGravity(Gravity.CENTER);
         root.addView(now, Ui.row(this, Ui.S2, Ui.S3));
 
-        Button importNow = Ui.button(this, "📥  ייבוא רשימות עכשיו", Ui.Kind.PRIMARY);
-        importNow.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, small ? 20 : 24);
-        importNow.setMinHeight(Ui.dp(this, small ? 72 : 96));
+        View importNow = Ui.heroTile(this, "📥", "ייבוא רשימות עכשיו", "בלי התחברות ובלי אינטרנט");
         importNow.setOnClickListener(v -> createNewSavedList());
-        root.addView(importNow, Ui.row(this, Ui.S2, Ui.S3));
+        int side = Math.min(Ui.dp(this, 240), (int) (getResources().getDisplayMetrics().widthPixels * 0.68f));
+        LinearLayout.LayoutParams heroLp = new LinearLayout.LayoutParams(side, side);
+        heroLp.gravity = Gravity.CENTER_HORIZONTAL;
+        heroLp.topMargin = Ui.dp(this, Ui.S2); heroLp.bottomMargin = Ui.dp(this, Ui.S4);
+        root.addView(importNow, heroLp);
 
+        boolean noLists = savedListStore == null || savedListStore.list().isEmpty();
+        if (noLists && !hasCachedOrder()) {
+            TextView empty = Ui.text(this, "📭 אין רשימות", Ui.T_NAME, Ui.MUTED, true);
+            empty.setGravity(Gravity.CENTER);
+            root.addView(empty, Ui.row(this, 0, Ui.S2));
+        }
         if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S1));
         Button savedLists = Ui.button(this, "ניהול רשימות", Ui.Kind.SOFT);
         savedLists.setOnClickListener(v -> showSavedListsScreen(true));
-        root.addView(savedLists, Ui.row(this, Ui.S1, Ui.S3));
+        Button settings = Ui.button(this, "הגדרות", Ui.Kind.SOFT);
+        settings.setOnClickListener(v -> showSettingsScreen());
+        root.addView(buttonPair(savedLists, settings), Ui.row(this, Ui.S1, Ui.S3));
 
         root.addView(Ui.section(this, "🔐 יש לכם חשבון באתר משנת יוסף?"));
         TextView why = Ui.text(this, Ui.rtlParagraph("לא חובה. התחברות מוסיפה סנכרון אוטומטי של ההזמנות מהאתר, "
@@ -1537,6 +1548,8 @@ public class MainActivity extends Activity {
 
     private void closeSettings() {
         accountsScreenVisible = false;
+        // בלי חשבון ובלי רשימות חוזרים למסך הפתיחה.
+        if ((sourceRegistry == null || sourceRegistry.all().isEmpty()) && !hasCachedOrder()) { showLoginScreen(""); return; }
         showHomeScreen(false);
     }
 
@@ -1583,9 +1596,7 @@ public class MainActivity extends Activity {
         if (combinedView) loadCombinedSnapshot();
         else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
         if (products.isEmpty() && !loadData && (messageText == null || messageText.getVisibility() != View.VISIBLE))
-            showSyncMessage(accessToken.isEmpty()
-                    ? "אין עדיין רשימה להצגה. אפשר להתחבר לחשבון או לייבא רשימה דרך ההגדרות."
-                    : "אין עדיין רשימה להצגה. אפשר לסנכרן דרך ההגדרות.", false);
+            showSyncMessage("אין רשימות", false);
         renderProducts(false);
         wireFocusOrder();
         pageScroll.post(() -> restoreHomePosition(restoreKey, restoreScroll));
@@ -2007,7 +2018,9 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
-            + "• מסך פתיחה חדש: ברוכים הבאים וכפתור גדול \"ייבוא רשימות עכשיו\". ההתחברות לאתר היא אפשרות נוספת לסנכרון, לא חובה.\n"
+            + "• הרשימות המסומנות (✓) לא מתבטלות יותר מעצמן: סנכרון ופתיחה מחדש של האפליקציה לא משנים אותן.\n"
+            + "• במסך הפתיחה: אריח ריבועי גדול לייבוא, כפתור הגדרות, והודעה פשוטה \"אין רשימות\" כשעוד אין רשימות.\n"
+            + "• \"הזמנות קודמות\" בלי חשבון מחובר פותח את ההתחברות.\n"            + "• מסך פתיחה חדש: ברוכים הבאים וכפתור גדול \"ייבוא רשימות עכשיו\". ההתחברות לאתר היא אפשרות נוספת לסנכרון, לא חובה.\n"
             + "• ZIP עם תמונות: התמונות באמת נכנסות לקובץ (מהמטמון, ומה שחסר מורד), ובייבוא הן נשמרות לשימוש גם בלי אינטרנט.\n"
             + "• ענן: שם הרשימה כולל את הפרשה, ובהודעה וברשימה שהתקבלה רואים מתי הועלתה (יום ושעה).\n"
             + "• איסוף לפי רשימה (לחיצה ארוכה על 5 / אנטר) כבר לא נסגר מיד.\n"
@@ -3124,8 +3137,7 @@ public class MainActivity extends Activity {
         top.addView(buildSubScreenHeader("ניהול רשימות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S1));
         List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
         Button history=Ui.tile(this,Ui.IC_HISTORY,"הזמנות קודמות");
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v->showOrderHistoryScreen(Screen.SAVED_LISTS));
+        history.setOnClickListener(v->{if(requireLoginForHistory())return;showOrderHistoryScreen(Screen.SAVED_LISTS);});
         Button create=Ui.tile(this,Ui.IC_PLUS,"ייבוא");
         create.setOnClickListener(v->createNewSavedList());
         Button mergeLists=Ui.tile(this,Ui.IC_MERGE,"איחוד");
@@ -3142,7 +3154,7 @@ public class MainActivity extends Activity {
 
         LinearLayout content=Ui.column(this);
         content.setPadding(pad,0,pad,Ui.dp(this,Ui.S8));
-        if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."),Ui.row(this,Ui.S2,0));
+        if(entries.isEmpty())content.addView(Ui.banner(this,"אין רשימות"),Ui.row(this,Ui.S2,0));
         else content.addView(compactSection(entries.size()+" רשימות במכשיר"));
         View firstOpen=null;
         for(SavedListStore.Entry entry:entries){
@@ -3470,7 +3482,7 @@ public class MainActivity extends Activity {
             body.addView(choose, Ui.row(this, Ui.S1, Ui.S1));
             if (first == null) first = choose;
         }
-        if (first == null) body.addView(Ui.text(this, "אין רשימות שמורות.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
+        if (first == null) body.addView(Ui.text(this, "אין רשימות", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -3511,8 +3523,7 @@ public class MainActivity extends Activity {
 
         // פעולות קבועות למעלה
         Button history = Ui.tile(this, Ui.IC_HISTORY, "הזמנות קודמות");
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, () -> showOrderHistoryScreen(Screen.HOME)); });
+        history.setOnClickListener(v -> { dialog.dismiss(); if (requireLoginForHistory()) return; openChild(this::showListSwitcher, () -> showOrderHistoryScreen(Screen.HOME)); });
         Button create = Ui.tile(this, Ui.IC_PLUS, "רשימה חדשה");
         create.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, this::createNewSavedList); });
         // "איחוד" ו"מחיקה" מופיעים רק כשמסומנות (✓) לפחות שתי רשימות, ופועלים על המסומנות.
@@ -3782,7 +3793,10 @@ public class MainActivity extends Activity {
             final boolean wiped = activeWiped;
             mainHandler.post(() -> {
                 if (wiped) { cacheTrusted = false; activeOwner = ""; clearOrderMemory(); }
-                leaveListGroup();
+                // רק הרשימות שנמחקו יוצאות מהסימון; השאר נשארות מסומנות.
+                List<String> group = listGroup();
+                for (SavedListStore.Entry entry : entries) group.remove(entry.id);
+                setListGroup(group);
                 if (done != null) done.run();
             });
         });
@@ -3931,8 +3945,7 @@ public class MainActivity extends Activity {
         panel.addView(Ui.text(this, "ייבוא רשימה", Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "מאיפה להביא את הרשימה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         Button history = Ui.gridButton(this, "מהזמנה קודמת באתר", Ui.Kind.SOFT);
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v -> { dialog.dismiss(); openChild(self, () -> showOrderHistoryScreen(Screen.SAVED_LISTS)); });
+        history.setOnClickListener(v -> { dialog.dismiss(); if (requireLoginForHistory()) return; openChild(self, () -> showOrderHistoryScreen(Screen.SAVED_LISTS)); });
         Button cloud = Ui.gridButton(this, "מהענן לפי מספר", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showCloudFetchDialog); });
         Button file = Ui.gridButton(this, "ייבוא מקובץ", Ui.Kind.SOFT);
@@ -3949,7 +3962,15 @@ public class MainActivity extends Activity {
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
-        (history.isEnabled() ? history : cloud).requestFocus();
+        (connectedAccounts().isEmpty() ? file : history).requestFocus();
+    }
+
+    /** הזמנות קודמות מהאתר דורשות חשבון: בלי חשבון מחובר עוברים לטופס ההתחברות. */
+    private boolean requireLoginForHistory() {
+        if (!connectedAccounts().isEmpty()) return false;
+        loginFormVisible = true;
+        showLoginScreen("כדי לייבא הזמנות קודמות מהאתר צריך להתחבר לחשבון משנת יוסף.");
+        return true;
     }
 
     private void createBlankSavedList() {
@@ -5165,7 +5186,7 @@ public class MainActivity extends Activity {
 
     private void syncAllAccounts() {
         if (syncAllRunning) return;
-        leaveListGroup();
+        // הסנכרון לא נוגע ברשימות המסומנות (✓): הן משתנות רק ידנית.
         showingSavedList=false;
         syncQueue.clear();
         for (SourceRegistry.Source source : sourceRegistry.all()) {
@@ -5214,7 +5235,9 @@ public class MainActivity extends Activity {
         else finish.run();
     }
 
-    private void loadLatestOrder() {        if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
+    private void loadLatestOrder() {
+        if (listGroupActive() && !syncAllRunning) return; // רשימות מסומנות יחד: לא מחליפים אותן בהזמנה מהאתר
+        if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
         if (loading || accessToken.isEmpty()) return;
         final RequestSession session = new RequestSession(authGeneration, accessToken);
         final String requestSourceId = activeSourceId;
@@ -6592,7 +6615,7 @@ public class MainActivity extends Activity {
         // כשכל החשבונות מציגים את אותה מכירה, שמה מוצג בכותרת; אחרת כל השמות יחד.
         setCurrentOrderTitle(orderNames.size() <= 2 ? android.text.TextUtils.join(" · ", orderNames) : "");
         syncCompletionState();
-        if(products.isEmpty()) showSyncMessage("אין רשימות שמורות להצגה בתצוגה המאוחדת.", false);
+        if(products.isEmpty()) showSyncMessage("אין רשימות", false);
         else showSyncMessage("", false);
     }
 
