@@ -41,7 +41,7 @@ class TerminalActivity : Activity() {
         var status: String = "",  // outgoing: "run" | "ok" | "err:<code>" | "stop"
     )
 
-    private class Shortcut(var label: String, var command: String)
+    private class Shortcut(var label: String, var command: String, var group: String = MINE)
 
     private val messages = mutableListOf<Message>()
     private val bubbleTexts = HashMap<Message, TextView>()
@@ -52,6 +52,8 @@ class TerminalActivity : Activity() {
     private lateinit var input: EditText
     private lateinit var subtitle: TextView
     private lateinit var chips: LinearLayout
+    private lateinit var groupChips: LinearLayout
+    private lateinit var chipsScroll: HorizontalScrollView
     private lateinit var sendButton: TextView
     private var current: Message? = null
     private var currentReply: Message? = null
@@ -131,15 +133,24 @@ class TerminalActivity : Activity() {
         }
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        // Shortcuts row
+        // Shortcuts: a row of categories (with paste / add / edit), and the shortcuts of the chosen category.
+        groupChips = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(6), dp(4), dp(6), 0)
+        }
+        root.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(groupChips)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         chips = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(6), dp(4), dp(6), dp(4))
         }
-        root.addView(HorizontalScrollView(this).apply {
+        chipsScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(chips)
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        root.addView(chipsScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // Input bar: [ pill input ] (➤)
         val bar = LinearLayout(this).apply {
@@ -491,7 +502,7 @@ class TerminalActivity : Activity() {
         if (!typing) {
             if (keyCode in android.view.KeyEvent.KEYCODE_1..android.view.KeyEvent.KEYCODE_9) {
                 val index = keyCode - android.view.KeyEvent.KEYCODE_1
-                shortcuts().getOrNull(index)?.let { submit(it.command); return true }
+                shortcutsInGroup().getOrNull(index)?.let { submit(it.command); return true }
             }
             if (keyCode == android.view.KeyEvent.KEYCODE_STAR) { pasteFromClipboard(); return true }
             if (keyCode == android.view.KeyEvent.KEYCODE_POUND) { input.requestFocus(); return true }
@@ -529,45 +540,94 @@ class TerminalActivity : Activity() {
 
     // region shortcuts
 
+    private fun defaults() = DEFAULT_SHORTCUTS.map { (g, l, c) -> Shortcut(l, c, g) }.toMutableList()
+
     private fun shortcuts(): MutableList<Shortcut> {
-        val json = prefs().getString("shortcuts", null) ?: return DEFAULT_SHORTCUTS.map { Shortcut(it.first, it.second) }.toMutableList()
-        return runCatching {
+        val json = prefs().getString("shortcuts", null) ?: return defaults()
+        val list = runCatching {
             val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getJSONObject(it).let { o -> Shortcut(o.getString("l"), o.getString("c")) } }.toMutableList()
-        }.getOrElse { DEFAULT_SHORTCUTS.map { Shortcut(it.first, it.second) }.toMutableList() }
+            (0 until arr.length()).map { i ->
+                arr.getJSONObject(i).let { o -> Shortcut(o.getString("l"), o.getString("c"), o.optString("g", "")) }
+            }.toMutableList()
+        }.getOrElse { return defaults() }
+        // Lists saved by older versions: give each item a category and add the new built-in shortcuts once.
+        if (prefs().getInt("shortcuts_v", 1) < SHORTCUTS_VERSION) {
+            val byCommand = DEFAULT_SHORTCUTS.associate { (g, _, c) -> c to g }
+            list.forEach { if (it.group.isBlank()) it.group = byCommand[it.command] ?: MINE }
+            val have = list.map { it.command }.toSet()
+            defaults().filter { it.command !in have }.forEach { list += it }
+            prefs().edit().putInt("shortcuts_v", SHORTCUTS_VERSION).apply()
+            saveShortcutsQuietly(list)
+        }
+        list.forEach { if (it.group.isBlank()) it.group = MINE }
+        return list
+    }
+
+    private fun saveShortcutsQuietly(items: List<Shortcut>) {
+        val arr = JSONArray()
+        items.forEach { arr.put(JSONObject().put("l", it.label).put("c", it.command).put("g", it.group)) }
+        prefs().edit().putString("shortcuts", arr.toString()).putInt("shortcuts_v", SHORTCUTS_VERSION).apply()
     }
 
     private fun saveShortcuts(items: List<Shortcut>) {
-        val arr = JSONArray()
-        items.forEach { arr.put(JSONObject().put("l", it.label).put("c", it.command)) }
-        prefs().edit().putString("shortcuts", arr.toString()).apply()
+        saveShortcutsQuietly(items)
         rebuildChips()
     }
 
+    private fun groups(): List<String> {
+        val present = shortcuts().map { it.group }.toSet()
+        return (GROUP_ORDER.filter { it in present } + present.filter { it !in GROUP_ORDER }).ifEmpty { listOf(MINE) }
+    }
+
+    private fun currentGroup(): String {
+        val g = prefs().getString("shortcut_group", GROUP_ORDER.first()) ?: GROUP_ORDER.first()
+        return if (g in groups()) g else groups().first()
+    }
+
+    private fun shortcutsInGroup() = shortcuts().filter { it.group == currentGroup() }
+
     private fun rebuildChips() {
+        groupChips.removeAllViews()
+        groupChips.addView(chip("📋 הדבק", accent = true).apply { setOnClickListener { pasteFromClipboard() } })
+        groupChips.addView(chip("+", accent = true).apply {
+            contentDescription = "קיצור חדש"
+            setOnClickListener { addShortcut(input.text.toString().trim()) }
+        })
+        groupChips.addView(chip("⚙", accent = true).apply {
+            contentDescription = "עריכת קיצורים"
+            setOnClickListener { manageShortcuts() }
+        })
+        val selected = currentGroup()
+        for (g in groups()) {
+            groupChips.addView(chip(g, accent = false, selected = g == selected).apply {
+                setOnClickListener {
+                    prefs().edit().putString("shortcut_group", g).apply()
+                    rebuildChips()
+                    chipsScroll.scrollTo(0, 0)
+                }
+            })
+        }
         chips.removeAllViews()
-        chips.addView(chip("📋 הדבק", accent = true).apply { setOnClickListener { pasteFromClipboard() } })
-        chips.addView(chip("+ קיצור", accent = true).apply { setOnClickListener { addShortcut(input.text.toString().trim()) } })
-        chips.addView(chip("⚙", accent = true).apply { setOnClickListener { manageShortcuts() } })
-        for ((i, s) in shortcuts().withIndex()) {
-            // Keypad phones: the first nine shortcuts also run with the number keys 1–9.
-            val label = if (i < 9) "${i + 1}· ${s.label}" else s.label
+        for ((i, sc) in shortcutsInGroup().withIndex()) {
+            // Keypad phones: the first nine shortcuts of the category also run with the number keys 1–9.
+            val label = if (i < 9) "${i + 1}· ${sc.label}" else sc.label
             chips.addView(chip(label, accent = false).apply {
-                setOnClickListener { submit(s.command) }                     // tap: run now
-                setOnLongClickListener { setInput(s.command); true }         // long-press: edit in the input line
+                setOnClickListener { submit(sc.command) }                     // tap: run now
+                setOnLongClickListener { setInput(sc.command); true }         // long-press: edit in the input line
             })
         }
     }
 
-    private fun chip(label: String, accent: Boolean) = TextView(this).apply {
+    private fun chip(label: String, accent: Boolean, selected: Boolean = false) = TextView(this).apply {
         text = label
         textSize = 13f
-        setTextColor(if (accent) ACCENT else TEXT)
+        setTextColor(if (selected) 0xFFFFFFFF.toInt() else if (accent) ACCENT else TEXT)
+        if (selected) typeface = Typeface.DEFAULT_BOLD
         setPadding(dp(12), dp(6), dp(12), dp(6))
         background = GradientDrawable().apply {
             cornerRadius = dp(16).toFloat()
-            setColor(0xFFFFFFFF.toInt())
-            setStroke(dp(1), if (accent) ACCENT else 0xFFD1D7DB.toInt())
+            setColor(if (selected) HEADER else 0xFFFFFFFF.toInt())
+            setStroke(dp(1), if (selected) HEADER else if (accent) ACCENT else 0xFFD1D7DB.toInt())
         }
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) }
         isClickable = true
@@ -595,7 +655,7 @@ class TerminalActivity : Activity() {
                 val c = command.text.toString().trim()
                 if (c.isEmpty()) return@setPositiveButton
                 val l = name.text.toString().trim().ifEmpty { c.take(18) }
-                onSave(Shortcut(l, c))
+                onSave(Shortcut(l, c, initial?.group?.takeIf { it.isNotBlank() } ?: MINE))
             }
             .setNegativeButton("ביטול", null)
         if (onDelete != null) b.setNeutralButton("מחק") { _, _ -> onDelete() }
@@ -604,6 +664,7 @@ class TerminalActivity : Activity() {
 
     private fun addShortcut(prefill: String) {
         shortcutDialog("קיצור חדש", if (prefill.isNotEmpty()) Shortcut("", prefill) else null, { s ->
+            prefs().edit().putString("shortcut_group", s.group).apply()  // show the category it went to
             saveShortcuts(shortcuts().apply { add(0, s) })
             Toast.makeText(this, "הקיצור \"${s.label}\" נוסף.", Toast.LENGTH_SHORT).show()
         }, null)
@@ -611,7 +672,7 @@ class TerminalActivity : Activity() {
 
     private fun manageShortcuts() {
         val items = shortcuts()
-        val labels = items.map { "${it.label}   ·   ${it.command}" }.toMutableList()
+        val labels = items.map { "[${it.group}] ${it.label}   ·   ${it.command}" }.toMutableList()
         labels += "＋ הוסף קיצור"
         labels += "↺ שחזר קיצורי ברירת מחדל"
         AlertDialog.Builder(this, DIALOG)
@@ -620,7 +681,7 @@ class TerminalActivity : Activity() {
                 when (which) {
                     items.size -> addShortcut("")
                     items.size + 1 -> {
-                        prefs().edit().remove("shortcuts").apply()
+                        prefs().edit().remove("shortcuts").putInt("shortcuts_v", SHORTCUTS_VERSION).apply()
                         rebuildChips()
                     }
                     else -> shortcutDialog("עריכת קיצור", items[which], { s ->
@@ -766,19 +827,63 @@ class TerminalActivity : Activity() {
         private val STOP = 0xFFE5534B.toInt()
 
         private val DANGEROUS = listOf("rm -r", "rm -f", "reboot", "wipe", "pm uninstall", "pm clear", "format", "dd ", "mkfs", "svc power")
+        private const val MINE = "שלי"
+        private const val SHORTCUTS_VERSION = 2
+        private val GROUP_ORDER = listOf("מתגים", "מסך ומקשים", "מידע", "כלים", MINE)
+
+        /** (category, label, command). Commands try the modern "cmd" form first and fall back to "svc". */
         private val DEFAULT_SHORTCUTS = listOf(
-            "גרסה" to "getprop ro.build.version.release",
-            "דגם" to "getprop ro.product.model",
-            "אפליקציות" to "pm list packages -3",
-            "סוללה" to "dumpsys battery",
-            "מסך" to "wm size; wm density",
-            "אחסון" to "df -h /data /sdcard",
-            "זיכרון" to "cat /proc/meminfo | head -5",
-            "תהליכים" to "top -b -n 1 | head -25",
-            "רשת" to "ip addr show wlan0",
-            "לוג" to "logcat -d -t 100",
-            "צילום מסך" to "screencap -p /sdcard/Download/screenshot.png && echo saved to Download",
-            "הפעלה מחדש" to "reboot",
+            // Toggles
+            Triple("מתגים", "📶 Wi‑Fi פועל", "cmd wifi set-wifi-enabled enabled 2>/dev/null || svc wifi enable"),
+            Triple("מתגים", "📶 Wi‑Fi כבוי", "cmd wifi set-wifi-enabled disabled 2>/dev/null || svc wifi disable"),
+            Triple("מתגים", "🔵 בלוטות׳ פועל", "cmd bluetooth_manager enable 2>/dev/null || svc bluetooth enable"),
+            Triple("מתגים", "🔵 בלוטות׳ כבוי", "cmd bluetooth_manager disable 2>/dev/null || svc bluetooth disable"),
+            Triple("מתגים", "📱 נתונים פועל", "svc data enable"),
+            Triple("מתגים", "📱 נתונים כבוי", "svc data disable"),
+            Triple("מתגים", "✈ מצב טיסה פועל", "cmd connectivity airplane-mode enable"),
+            Triple("מתגים", "✈ מצב טיסה כבוי", "cmd connectivity airplane-mode disable"),
+            Triple("מתגים", "📍 מיקום פועל", "cmd location set-location-enabled true"),
+            Triple("מתגים", "📍 מיקום כבוי", "cmd location set-location-enabled false"),
+            Triple("מתגים", "🔕 נא לא להפריע", "cmd notification set_dnd priority"),
+            Triple("מתגים", "🔔 בטל נא לא להפריע", "cmd notification set_dnd off"),
+            Triple("מתגים", "🔋 חיסכון בסוללה פועל", "cmd power set-mode 1"),
+            Triple("מתגים", "🔋 חיסכון בסוללה כבוי", "cmd power set-mode 0"),
+            Triple("מתגים", "🔄 סיבוב אוטומטי פועל", "settings put system accelerometer_rotation 1"),
+            Triple("מתגים", "🔄 סיבוב אוטומטי כבוי", "settings put system accelerometer_rotation 0"),
+            Triple("מתגים", "NFC פועל", "svc nfc enable"),
+            Triple("מתגים", "NFC כבוי", "svc nfc disable"),
+            // Screen & keys
+            Triple("מסך ומקשים", "📳 רטט", "cmd vibrator_manager synced oneshot 600 2>/dev/null || cmd vibrator vibrate 600"),
+            Triple("מסך ומקשים", "☀ בהירות מלאה", "settings put system screen_brightness_mode 0; settings put system screen_brightness 255"),
+            Triple("מסך ומקשים", "🌗 בהירות אוטומטית", "settings put system screen_brightness_mode 1"),
+            Triple("מסך ומקשים", "🔊 עוצמה +", "input keyevent KEYCODE_VOLUME_UP"),
+            Triple("מסך ומקשים", "🔉 עוצמה −", "input keyevent KEYCODE_VOLUME_DOWN"),
+            Triple("מסך ומקשים", "🔇 השתק", "input keyevent KEYCODE_VOLUME_MUTE"),
+            Triple("מסך ומקשים", "⏯ נגן/השהה", "input keyevent KEYCODE_MEDIA_PLAY_PAUSE"),
+            Triple("מסך ומקשים", "💡 הער מסך", "input keyevent KEYCODE_WAKEUP"),
+            Triple("מסך ומקשים", "🔒 נעל מסך", "input keyevent KEYCODE_SLEEP"),
+            Triple("מסך ומקשים", "🏠 בית", "input keyevent KEYCODE_HOME"),
+            Triple("מסך ומקשים", "↩ חזור", "input keyevent KEYCODE_BACK"),
+            Triple("מסך ומקשים", "🗂 אפליקציות אחרונות", "input keyevent KEYCODE_APP_SWITCH"),
+            Triple("מסך ומקשים", "⏱ מסך נכבה אחרי 10 דק׳", "settings put system screen_off_timeout 600000"),
+            Triple("מסך ומקשים", "📸 צילום מסך", "screencap -p /sdcard/Download/screenshot.png && echo saved to Download"),
+            // Info
+            Triple("מידע", "גרסה", "getprop ro.build.version.release"),
+            Triple("מידע", "דגם", "getprop ro.product.model"),
+            Triple("מידע", "סוללה", "dumpsys battery"),
+            Triple("מידע", "מסך", "wm size; wm density"),
+            Triple("מידע", "אחסון", "df -h /data /sdcard"),
+            Triple("מידע", "זיכרון", "cat /proc/meminfo | head -5"),
+            Triple("מידע", "רשת", "ip addr show wlan0"),
+            Triple("מידע", "אפליקציה פתוחה", "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'"),
+            Triple("מידע", "זמן פעילות", "uptime"),
+            Triple("מידע", "תהליכים", "top -b -n 1 | head -25"),
+            Triple("מידע", "לוג", "logcat -d -t 100"),
+            // Tools
+            Triple("כלים", "אפליקציות שהותקנו", "pm list packages -3"),
+            Triple("כלים", "⚙ פתח הגדרות", "am start -a android.settings.SETTINGS"),
+            Triple("כלים", "🧹 סגור אפליקציות ברקע", "am kill-all"),
+            Triple("כלים", "♻ הפעלה מחדש", "reboot"),
         )
     }
 }
