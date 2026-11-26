@@ -1,0 +1,224 @@
+{
+  "app": "chullin",
+  "package": "com.londkirs.chullin",
+  "mode": "scenario",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "he-IL",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 70.4,
+  "crashes": [],
+  "warnings": [
+    "UI dump for 002-dark-theme.png failed: uiautomator dump failed: "
+  ],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 4.33,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='חולין'",
+      "status": "passed",
+      "seconds": 2.62,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "assert_text",
+      "detail": "text='הכל שוחטין'",
+      "status": "passed",
+      "seconds": 2.48,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "scroll_to",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 6.52,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "assert_text",
+      "detail": "text='הבא'",
+      "status": "passed",
+      "seconds": 2.54,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "screenshot",
+      "detail": "name='study-start'",
+      "status": "passed",
+      "seconds": 2.56,
+      "error": "",
+      "screenshot": "screenshots/001-study-start.png"
+    },
+    {
+      "index": 7,
+      "action": "scroll_to",
+      "detail": "text=\"מתני' הכל שוחטין\"",
+      "status": "passed",
+      "seconds": 2.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "tap",
+      "detail": "text=\"מתני' הכל שוחטין\"",
+      "status": "passed",
+      "seconds": 3.52,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.09,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "assert_text",
+      "detail": "text='נלמדו 1 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.51,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "tap",
+      "detail": "text=\"מתני' הכל שוחטין\"",
+      "status": "passed",
+      "seconds": 3.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "assert_text",
+      "detail": "text='נלמדו 0 מתוך 6'",
+      "status": "passed",
+      "seconds": 2.73,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.44,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.34,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "swipe",
+      "detail": "direction='down'",
+      "status": "passed",
+      "seconds": 1.59,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.1,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "tap",
+      "detail": "text='⚙'",
+      "status": "passed",
+      "seconds": 3.66,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "wait_for",
+      "detail": "text='ערכת נושא'",
+      "status": "passed",
+      "seconds": 2.42,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "tap",
+      "detail": "text='כהה'",
+      "status": "passed",
+      "seconds": 3.36,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.18,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "screenshot",
+      "detail": "name='dark-theme'",
+      "status": "passed",
+      "seconds": 13.06,
+      "error": "",
+      "screenshot": "screenshots/002-dark-theme.png"
+    }
+  ],
+  "screenshots": [
+    "001-study-start.png",
+    "002-dark-theme.png"
+  ]
+}
