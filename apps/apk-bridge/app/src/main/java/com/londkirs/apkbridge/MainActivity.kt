@@ -53,6 +53,10 @@ class MainActivity : Activity() {
     private lateinit var pageTitle: TextView
     private lateinit var navHolder: android.widget.FrameLayout
     private var currentTab = BottomNav.Tab.CONNECT
+    private lateinit var pairControls: LinearLayout
+    private lateinit var repairToggle: Button
+    private lateinit var pairStateText: TextView
+    private val optionBoxes = mutableMapOf<String, CheckBox>()
     private lateinit var installButton: Button
     private lateinit var cancelButton: Button
     private lateinit var openAppButton: Button
@@ -321,18 +325,27 @@ class MainActivity : Activity() {
         // Card 2: pairing — needed once.
         val pair = card(page)
         pair.addView(heading("זיווג (פעם אחת)"), matchWrap())
+        pairStateText = body("")
+        pair.addView(pairStateText, matchWrap(6))
+        // Once paired, the pairing controls are folded away behind "pair again".
+        repairToggle = button("זיווג מחדש / מכשיר אחר ▾", primary = false) {
+            pairControls.visibility = if (pairControls.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
+        pair.addView(repairToggle, matchWrap(0))
+        pairControls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, 0) }
+        pair.addView(pairControls)
         a11yText = body("")
-        pair.addView(a11yText, matchWrap(6))
+        pairControls.addView(a11yText, matchWrap(6))
         a11yButton = button("הפעל זיווג אוטומטי", primary = true) { openAccessibilitySetup() }
-        pair.addView(a11yButton, matchWrap())
+        pairControls.addView(a11yButton, matchWrap())
         val notifyPair = button("זיווג עם קוד דרך התראה", primary = false) { startNotificationPairing() }.busyAware()
-        pair.addView(notifyPair, matchWrap())
+        pairControls.addView(notifyPair, matchWrap())
         if (!Compat.hasWirelessDebugging) {
             // Android 8–10: no pairing codes; the state card explains classic ADB on port 5555.
             pair.visibility = View.GONE
         }
-        pair.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
-        pair.addView(button("זיווג ידני / מכשיר אחר ▾", primary = false) {
+        pairControls.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
+        pairControls.addView(button("זיווג ידני / מכשיר אחר ▾", primary = false) {
             manualBox.visibility = if (manualBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }, matchWrap(0))
         manualBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setPadding(0, dp(10), 0, 0) }
@@ -351,7 +364,7 @@ class MainActivity : Activity() {
             refreshConnectionInfo()
             toast("כתובת היעד נשמרה.")
         }, matchWrap(0))
-        pair.addView(manualBox)
+        pairControls.addView(manualBox)
 
         // Card 3: log — collapsed by default.
         val logCard = card(page)
@@ -400,11 +413,19 @@ class MainActivity : Activity() {
         installButton = button("התקן", primary = true) { installSelected() }.busyAware()
         files.addView(installButton, matchWrap(0))
 
+        // Install options right here (no extra window). Every change is saved immediately.
         val opts = card(page)
         opts.addView(heading("אפשרויות התקנה"), matchWrap())
-        optionsSummary = body("")
-        opts.addView(optionsSummary, matchWrap(8))
-        opts.addView(button("שינוי אפשרויות", primary = false) { onTab(BottomNav.Tab.SETTINGS) }, matchWrap(0))
+        val o = Bridge.loadOptions()
+        option(opts, "play", "רשום את Google Play כמקור ההתקנה", o.registerPlayInstaller)
+        option(opts, "downgrade", "אפשר דריסה בגרסה ישנה יותר (שנמוך)", o.allowDowngrade)
+        option(opts, "grant", "תן לאפליקציה את כל ההרשאות מראש", o.grantPermissions)
+        option(opts, "test", "אפשר חבילות בדיקה (test-only)", o.allowTestPackages)
+        if (Build.VERSION.SDK_INT >= 34) option(opts, "bypass", "אפשר אפליקציות ישנות שנחסמו ב־Android 14+", o.bypassLowTargetSdk)
+        opts.addView(note("רישום Google Play הוא סימון בלבד: ההתקנה נעשית דרך ADB, בלי רישיון או אימות של Play."), matchWrap(8))
+        optionsSummary = note("")
+        opts.addView(optionsSummary, matchWrap(4))
+        opts.addView(button("התקנה אוטומטית ועוד ←", primary = false) { onTab(BottomNav.Tab.SETTINGS) }, matchWrap(0))
 
         val tip = card(page)
         tip.addView(heading("טיפ"), matchWrap())
@@ -589,7 +610,16 @@ class MainActivity : Activity() {
         } else {
             "זיווג אוטומטי: APK Bridge יכול לקרוא את קוד הזיווג מהמסך ולזווג בעצמו (דורש הפעלת שירות נגישות)."
         }
-        a11yButton.text = if (a11y) "פתח הגדרות לזיווג אוטומטי" else "הפעל זיווג אוטומטי (נגישות)"
+        // Permission already granted → no "enable" button.
+        a11yButton.visibility = if (a11y) View.GONE else View.VISIBLE
+        a11yButton.text = "הפעל זיווג אוטומטי (נגישות)"
+        val paired = Bridge.isPaired
+        pairStateText.text = if (paired) "✔ הטלפון מזווג. אין צורך לזווג שוב." else "צריך לזווג פעם אחת. הדרך הקלה: זיווג אוטומטי — ואז פותחים בהגדרות \"התאמת מכשיר עם קוד התאמה\"."
+        repairToggle.visibility = if (paired) View.VISIBLE else View.GONE
+        // Not paired: show the controls. Paired: fold them away the first time (the user can open them again).
+        if (!paired) pairControls.visibility = View.VISIBLE
+        else if (pairControls.tag == null) pairControls.visibility = View.GONE
+        pairControls.tag = "init"
 
     }
 
@@ -610,23 +640,40 @@ class MainActivity : Activity() {
 
     private fun openSettingsScreen() = startActivity(Intent(this, SettingsActivity::class.java))
 
+    private fun option(parent: LinearLayout, key: String, label: String, checked: Boolean) {
+        val box = checkBox(label, checked)
+        box.setOnCheckedChangeListener { _, _ -> Bridge.saveOptions(currentOptions()) }
+        optionBoxes[key] = box
+        parent.addView(box, matchWrap(0))
+    }
+
+    private fun currentOptions(): InstallOptions {
+        val saved = Bridge.loadOptions()
+        return InstallOptions(
+            allowDowngrade = optionBoxes["downgrade"]?.isChecked ?: saved.allowDowngrade,
+            grantPermissions = optionBoxes["grant"]?.isChecked ?: saved.grantPermissions,
+            allowTestPackages = optionBoxes["test"]?.isChecked ?: saved.allowTestPackages,
+            bypassLowTargetSdk = optionBoxes["bypass"]?.isChecked ?: saved.bypassLowTargetSdk,
+            registerPlayInstaller = optionBoxes["play"]?.isChecked ?: saved.registerPlayInstaller,
+        )
+    }
+
     private fun refreshOptionsSummary() {
         if (!::optionsSummary.isInitialized) return
+        // Settings may have changed them; reflect the saved values in the checkboxes.
         val o = Bridge.loadOptions()
-        val flags = buildList {
-            if (o.registerPlayInstaller) add("מקור Google Play")
-            if (o.allowDowngrade) add("שנמוך")
-            if (o.grantPermissions) add("כל ההרשאות")
-            if (o.allowTestPackages) add("חבילות בדיקה")
-            if (o.bypassLowTargetSdk && Build.VERSION.SDK_INT >= 34) add("עקיפת targetSdk")
-        }
+        optionBoxes["play"]?.isChecked = o.registerPlayInstaller
+        optionBoxes["downgrade"]?.isChecked = o.allowDowngrade
+        optionBoxes["grant"]?.isChecked = o.grantPermissions
+        optionBoxes["test"]?.isChecked = o.allowTestPackages
+        optionBoxes["bypass"]?.isChecked = o.bypassLowTargetSdk
         val auto = when (Bridge.autoInstallMode) {
             "auto" -> "מיידית" + if (Bridge.autoInstallUpdatesOnly) " (רק עדכונים)" else ""
             "ask" -> "עם שאלה" + if (Bridge.autoInstallUpdatesOnly) " (רק עדכונים)" else ""
             else -> "כבויה"
         }
         val open = when (Bridge.openAfterInstall) { "auto" -> "מיד"; "never" -> "לא"; else -> "לשאול" }
-        optionsSummary.text = "אפשרויות: ${flags.joinToString(" · ").ifEmpty { "ברירת מחדל" }}\nהתקנה אוטומטית: $auto · פתיחה אחרי התקנה: $open"
+        optionsSummary.text = "התקנה אוטומטית של קובץ שנפתח: $auto · פתיחה אחרי התקנה: $open"
     }
 
     private fun startNotificationPairing() {

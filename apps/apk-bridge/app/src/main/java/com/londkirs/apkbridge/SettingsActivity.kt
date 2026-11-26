@@ -27,6 +27,7 @@ class SettingsActivity : Activity() {
     private lateinit var updatesOnly: CheckBox
     private lateinit var wifiHelperState: TextView
     private lateinit var wifiHelperButton: Button
+    private lateinit var a11yButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,29 +94,6 @@ class SettingsActivity : Activity() {
             Bridge.installNotifications = it
         }, matchWrap(0))
 
-        // Install options
-        val opts = card(page)
-        opts.addView(heading("אפשרויות התקנה"), matchWrap())
-        val o = Bridge.loadOptions()
-        opts.addView(checkBox("רשום את Google Play כמקור ההתקנה (‎-i)", o.registerPlayInstaller) {
-            Bridge.saveOptions(Bridge.loadOptions().copy(registerPlayInstaller = it))
-        }, matchWrap(0))
-        opts.addView(checkBox("אפשר שנמוך גרסה (‎-d)", o.allowDowngrade) {
-            Bridge.saveOptions(Bridge.loadOptions().copy(allowDowngrade = it))
-        }, matchWrap(0))
-        opts.addView(checkBox("הענק את כל ההרשאות מראש (‎-g)", o.grantPermissions) {
-            Bridge.saveOptions(Bridge.loadOptions().copy(grantPermissions = it))
-        }, matchWrap(0))
-        opts.addView(checkBox("אפשר חבילות בדיקה (‎-t)", o.allowTestPackages) {
-            Bridge.saveOptions(Bridge.loadOptions().copy(allowTestPackages = it))
-        }, matchWrap(0))
-        if (Build.VERSION.SDK_INT >= 34) {
-            opts.addView(checkBox("עקוף חסימת targetSdk נמוך (Android 14+)", o.bypassLowTargetSdk) {
-                Bridge.saveOptions(Bridge.loadOptions().copy(bypassLowTargetSdk = it))
-            }, matchWrap(0))
-        }
-        opts.addView(note("רישום Google Play כמקור ההתקנה הוא סימון בלבד: ההתקנה מתבצעת דרך ADB, והאפליקציה אינה מקבלת רישוי, רכישה או אימות של Play."), matchWrap())
-
         // Pairing & connection
         val pair = card(page)
         pair.addView(heading("זיווג וחיבור"), matchWrap())
@@ -129,9 +107,10 @@ class SettingsActivity : Activity() {
         }, matchWrap(0))
         a11yState = note("")
         pair.addView(a11yState, matchWrap(4))
-        pair.addView(button("הגדרות נגישות", false) {
+        a11yButton = button("הפעל בהגדרות הנגישות", false) {
             try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } catch (_: ActivityNotFoundException) {}
-        }, matchWrap(12))
+        }
+        pair.addView(a11yButton, matchWrap(12))
         pair.addView(checkBox("להדליק Wi‑Fi כשצריך: לפתוח את חלונית ה־Wi‑Fi אוטומטית ולהמשיך כשהוא מתחבר", Bridge.autoWifi) {
             Bridge.autoWifi = it
         }, matchWrap(0))
@@ -184,6 +163,8 @@ class SettingsActivity : Activity() {
     private fun refresh() {
         if (!::a11yState.isInitialized) return
         val enabled = PairingAccessibilityService.isEnabled(this)
+        // Already enabled → no button to enable it.
+        a11yButton.visibility = if (enabled || !Bridge.accessibilityAutoPair) View.GONE else View.VISIBLE
         a11yState.text = when {
             !Bridge.accessibilityAutoPair -> "כבוי ב־APK Bridge (השירות לא יפעל גם אם מופעל בנגישות)."
             enabled -> "✔ שירות הנגישות מופעל."
@@ -192,7 +173,7 @@ class SettingsActivity : Activity() {
         wirelessState.text = if (Bridge.canWriteSecureSettings()) {
             "✔ להרשאה הדרושה יש אישור."
         } else {
-            "דורש הרשאה חד־פעמית: במסך הראשי ← כלים ← \"אפשר הפעלה אוטומטית של ניפוי באגים אלחוטי\"."
+            "ההרשאה תינתן אוטומטית בחיבור ה־ADB הבא (הגדרה אוטומטית)."
         }
         val helper = Bridge.isWifiHelperInstalled()
         wifiHelperState.text = when {

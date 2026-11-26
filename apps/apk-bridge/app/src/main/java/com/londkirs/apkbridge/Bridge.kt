@@ -1209,7 +1209,7 @@ object Bridge {
             e is AdbException.NotPaired -> "המכשיר דחה את המפתח — יש לבצע זיווג מחדש."
             e is java.net.ConnectException -> "החיבור נדחה (הפורט סגור). ייתכן שהפורט השתנה או שניפוי הבאגים כבוי."
             e is java.net.SocketTimeoutException || e is kotlinx.coroutines.TimeoutCancellationException -> "תם הזמן להמתנה לתשובה."
-            msg.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") -> "חתימת ה־APK שונה מזו של האפליקציה המותקנת. יש להסיר את הגרסה הקיימת קודם (כלים ← הסרה)."
+            msg.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") -> "חתימת ה־APK שונה מזו של האפליקציה המותקנת. יש להסיר את הגרסה הקיימת קודם (לשונית אפליקציות ← הסר)."
             msg.contains("INSTALL_FAILED_VERSION_DOWNGRADE") -> "הגרסה ישנה מהמותקנת. סמן \"אפשר שנמוך גרסה\" ונסה שוב."
             msg.contains("INSTALL_FAILED_DEPRECATED_SDK_VERSION") -> "האפליקציה מיועדת לגרסת Android ישנה מדי. סמן \"עקוף חסימת targetSdk נמוך\"."
             msg.contains("INSTALL_FAILED_TEST_ONLY") -> "זה APK מסוג test-only. סמן \"אפשר חבילות בדיקה\"."
