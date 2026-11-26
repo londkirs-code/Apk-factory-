@@ -9,6 +9,7 @@ import android.provider.ContactsContract
 import io.github.rhythmcache.adb.AdbClient
 import io.github.rhythmcache.adb.io.RandomAccessSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -68,7 +69,12 @@ object BackupEngine {
 
     // region backup
 
-    fun backup(context: Context, tree: Uri, items: Set<String>, fileSets: Set<String>, onDone: (Result?) -> Unit): Boolean {
+    /**
+     * [apps]: packages to include (null = all user apps). [fileSets]: folders to copy (predefined,
+     * whole memory cards or folders the user picked). Their paths are saved so restore knows where
+     * each one goes.
+     */
+    fun backup(context: Context, tree: Uri, items: Set<String>, apps: Set<String>?, fileSets: List<FileSet>, onDone: (Result?) -> Unit): Boolean {
         val app = context.applicationContext
         val cr = app.contentResolver
         return Bridge.launchJob("הגיבוי") {
@@ -125,7 +131,7 @@ object BackupEngine {
                         step++
                     }
                     if (APPS in items) {
-                        val n = backupApps(app, folder) { label, i, total ->
+                        val n = backupApps(app, folder, apps) { label, i, total ->
                             Bridge.progress("מגבה אפליקציות: $label ($i/$total)", stepPct())
                         }
                         counts.put(APPS, n); lines += "📦 אפליקציות: $n"
@@ -134,15 +140,16 @@ object BackupEngine {
                     if (fileSets.isNotEmpty()) {
                         val filesDir = withContext(Dispatchers.IO) { Saf.mkdir(cr, folder, "files") }
                         val done = JSONArray()
-                        for (set in FILE_SETS.filter { it.key in fileSets }) {
+                        for (set in fileSets) {
                             val n = backupFiles(c, app, filesDir, set) { i, total ->
                                 Bridge.progress("מגבה ${set.label}: $i/$total", stepPct())
                             }
-                            done.put(set.key)
+                            done.put(JSONObject().put("key", set.key).put("label", set.label).put("path", set.path))
                             lines += "${set.label}: $n קבצים"
                             step++
                         }
-                        counts.put("files", done)
+                        counts.put("files", done.length())
+                        withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "files.json", done.toString(2)) }
                     }
                 }
                 manifest.put("items", counts)
@@ -173,14 +180,15 @@ object BackupEngine {
         return keys.size
     }
 
-    private suspend fun backupApps(context: Context, folder: Uri, onProgress: (String, Int, Int) -> Unit): Int {
+    private suspend fun backupApps(context: Context, folder: Uri, only: Set<String>?, onProgress: (String, Int, Int) -> Unit): Int {
         val pm = context.packageManager
         val cr = context.contentResolver
         @Suppress("DEPRECATION")
         val apps = pm.getInstalledPackages(PackageManager.GET_PERMISSIONS).filter { info ->
             val ai = info.applicationInfo ?: return@filter false
             info.packageName != context.packageName &&
-                (ai.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0
+                (ai.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 &&
+                (only == null || info.packageName in only)
         }
         val appsDir = withContext(Dispatchers.IO) { Saf.mkdir(cr, folder, "apps") }
         val index = JSONArray()
@@ -265,7 +273,9 @@ object BackupEngine {
         val folder: Uri,
         val manifest: JSONObject,
         val available: Set<String>,
-        val fileSets: List<String>,
+        val fileSets: List<FileSet>,
+        /** (package, label) of the apps in the backup. */
+        val apps: List<Pair<String, String>>,
     ) {
         fun description(): String {
             val items = manifest.optJSONObject("items") ?: JSONObject()
@@ -293,14 +303,29 @@ object BackupEngine {
             if ("settings.txt" in names) add(SETTINGS)
             if ("termux" in names) add(TERMUX)
         }
+        val described: Map<String, FileSet> = Saf.child(cr, tree, folder, "files.json")?.let { doc ->
+            runCatching {
+                val arr = JSONArray(Saf.readText(cr, doc.uri))
+                (0 until arr.length()).map { arr.getJSONObject(it) }
+                    .associate { o -> o.getString("key") to FileSet(o.getString("key"), o.optString("label"), o.getString("path")) }
+            }.getOrNull()
+        } ?: emptyMap()
         val sets = if ("files" in names) {
             val filesDir = Saf.child(cr, tree, folder, "files")!!.uri
-            Saf.children(cr, tree, filesDir).filter { it.isDir }.map { it.name }
+            Saf.children(cr, tree, filesDir).filter { it.isDir }.mapNotNull { d ->
+                described[d.name] ?: FILE_SETS.firstOrNull { it.key == d.name }
+            }
         } else emptyList()
-        return Inspection(tree, folder, manifest, available, sets)
+        val apps = Saf.child(cr, tree, folder, "apps.json")?.let { doc ->
+            runCatching {
+                val arr = JSONArray(Saf.readText(cr, doc.uri))
+                (0 until arr.length()).map { arr.getJSONObject(it) }.map { it.getString("package") to it.optString("label") }
+            }.getOrNull()
+        } ?: emptyList()
+        return Inspection(tree, folder, manifest, available, sets, apps)
     }
 
-    fun restore(context: Context, inspection: Inspection, items: Set<String>, fileSets: Set<String>, onDone: (Result?) -> Unit): Boolean {
+    fun restore(context: Context, inspection: Inspection, items: Set<String>, apps: Set<String>?, fileSets: Set<String>, onDone: (Result?) -> Unit): Boolean {
         val app = context.applicationContext
         val cr = app.contentResolver
         val tree = inspection.tree
@@ -315,7 +340,7 @@ object BackupEngine {
                 fun stepPct() = (step * 100 / steps.coerceAtLeast(1)).coerceIn(0, 99)
                 Bridge.withClient { c ->
                     if (APPS in items) {
-                        val (ok, skipped) = restoreApps(c, app, tree, folder) { label, i, total ->
+                        val (ok, skipped) = restoreApps(c, app, tree, folder, apps) { label, i, total ->
                             Bridge.progress("משחזר אפליקציות: $label ($i/$total)", stepPct())
                         }
                         lines += "📦 אפליקציות: הותקנו $ok" + if (skipped > 0) ", $skipped כבר היו מותקנות (הוחזרו ההרשאות)" else ""
@@ -343,8 +368,12 @@ object BackupEngine {
                     if (fileSets.isNotEmpty()) {
                         val filesDir = Saf.child(cr, tree, folder, "files")?.uri
                         for (key in fileSets) {
-                            val set = FILE_SETS.firstOrNull { it.key == key } ?: continue
+                            val original = inspection.fileSets.firstOrNull { it.key == key } ?: continue
                             val src = filesDir?.let { Saf.child(cr, tree, it, key)?.uri } ?: continue
+                            // A memory card from another phone has a different id: restore into internal storage instead.
+                            val set = if (c.shell("[ -d ${q(original.path.substringBeforeLast('/'))} ] && echo Y").stdoutText.trim() == "Y") original
+                            else original.copy(path = "/sdcard/Restored/" + original.label.replace(Regex("[^\\p{L}\\p{N} _.-]"), "").trim().ifEmpty { key })
+                            if (set !== original) lines += "📁 ${original.path} לא קיים בטלפון הזה — שוחזר אל ${set.path}"
                             val n = restoreFiles(c, cr, tree, src, set) { i ->
                                 Bridge.progress("משחזר ${set.label}: $i קבצים", stepPct())
                             }
@@ -368,11 +397,11 @@ object BackupEngine {
         }
     }
 
-    private suspend fun restoreApps(c: AdbClient, context: Context, tree: Uri, folder: Uri, onProgress: (String, Int, Int) -> Unit): Pair<Int, Int> {
+    private suspend fun restoreApps(c: AdbClient, context: Context, tree: Uri, folder: Uri, only: Set<String>?, onProgress: (String, Int, Int) -> Unit): Pair<Int, Int> {
         val cr = context.contentResolver
         val pm = context.packageManager
         val appsDir = Saf.child(cr, tree, folder, "apps")?.uri ?: return 0 to 0
-        val dirs = Saf.children(cr, tree, appsDir).filter { it.isDir }
+        val dirs = Saf.children(cr, tree, appsDir).filter { it.isDir && (only == null || it.name in only) }
         var installed = 0
         var skipped = 0
         dirs.forEachIndexed { i, dir ->
@@ -506,7 +535,66 @@ object BackupEngine {
 
     // endregion
 
+    // region storage & folder browsing
+
+    /** Internal storage plus every mounted memory card / USB drive, as (label, path). */
+    fun storageVolumes(context: Context): List<Pair<String, String>> {
+        val out = mutableListOf("📱 זיכרון פנימי" to "/sdcard")
+        val sm = context.getSystemService(android.os.storage.StorageManager::class.java) ?: return out
+        for (v in sm.storageVolumes) {
+            if (!v.isRemovable || v.state != android.os.Environment.MEDIA_MOUNTED) continue
+            val path = if (Build.VERSION.SDK_INT >= 30) v.directory?.path else v.uuid?.let { "/storage/$it" }
+            if (path != null) out += "💳 ${v.getDescription(context)}" to path
+        }
+        return out
+    }
+
+    /** Sub-folders of [path], read over ADB (reaches places normal apps cannot list). */
+    suspend fun listDirs(path: String): List<String> = Bridge.withClient { c ->
+        c.shell("ls -1p ${q(path)} 2>/dev/null").stdoutText.lines()
+            .filter { it.endsWith("/") && !it.startsWith(".") }
+            .map { it.removeSuffix("/") }
+            .sortedBy { it.lowercase() }
+    }
+
+    // endregion
+
     // region Termux
+
+    enum class TermuxStatus { READY, NOT_INSTALLED, NO_ACCESS, NO_CONNECTION }
+
+    /**
+     * Checks that Termux is installed and accepts commands from The Boss: grants what ADB can,
+     * sends a tiny command, and waits for the answer file.
+     */
+    fun checkTermux(context: Context, onResult: (TermuxStatus, String?) -> Unit) {
+        val app = context.applicationContext
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        if (!isTermuxInstalled(app)) { onResult(TermuxStatus.NOT_INSTALLED, null); return }
+        Bridge.scope.launch {
+            val result: Pair<TermuxStatus, String?> = try {
+                Bridge.withClient { c ->
+                    prepareTermux(c, app)
+                    c.shell("rm -f '$TERMUX_SHARED/ping'")
+                    runInTermux(app, "mkdir -p '$TERMUX_SHARED' && echo ok > '$TERMUX_SHARED/ping'")
+                    var ok = false
+                    repeat(12) {
+                        if (!ok) {
+                            kotlinx.coroutines.delay(1000)
+                            ok = c.shell("cat '$TERMUX_SHARED/ping' 2>/dev/null").stdoutText.trim() == "ok"
+                        }
+                    }
+                    c.shell("rm -f '$TERMUX_SHARED/ping'")
+                    (if (ok) TermuxStatus.READY else TermuxStatus.NO_ACCESS) to null
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                TermuxStatus.NO_CONNECTION to Bridge.explain(e)
+            }
+            main.post { onResult(result.first, result.second) }
+        }
+    }
 
     /**
      * Full Termux backup (home + usr) as one .tar.gz. Termux's files are private to Termux, so the
