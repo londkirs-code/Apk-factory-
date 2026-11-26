@@ -30,13 +30,31 @@
       "name": "study-start"
     },
     {
+      "action": "scroll_to",
+      "text": "גמרא",
+      "direction": "down",
+      "max_swipes": 6
+    },
+    {
       "action": "tap",
       "text": "גמרא",
       "exact": true
     },
     {
+      "action": "scroll_to",
+      "text": "גמרא",
+      "direction": "down",
+      "max_swipes": 6
+    },
+    {
       "action": "assert_text",
       "text": "✓ גמרא"
+    },
+    {
+      "action": "scroll_to",
+      "text": "גמרא",
+      "direction": "down",
+      "max_swipes": 6
     },
     {
       "action": "tap",
