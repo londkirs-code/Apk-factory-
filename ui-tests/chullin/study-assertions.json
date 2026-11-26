@@ -2,28 +2,121 @@
   "name": "chullin-study-assertions",
   "grant_permissions": true,
   "steps": [
-    {"action": "launch", "clear_data": true},
-    {"action": "wait_for", "text": "חולין", "timeout": 20},
-    {"action": "assert_text", "text": "הכל שוחטין"},
-    {"action": "assert_text", "text": "הבא"},
-    {"action": "screenshot", "name": "study-start"},
-    {"action": "tap", "text": "גמרא", "exact": true},
-    {"action": "assert_text", "text": "✓ גמרא"},
-    {"action": "tap", "text": "✓ גמרא", "exact": true},
-    {"action": "assert_not_visible", "text": "✓ גמרא"},
-    {"action": "tap", "text": "הבא ←"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "after-next"},
-    {"action": "tap", "text": "→ קודם"},
-    {"action": "wait", "seconds": 1},
-    {"action": "tap", "text": "סקירה", "exact": true},
-    {"action": "assert_text", "text": "סקירה כללית"},
-    {"action": "assert_text", "text": "גמורים: 0"},
-    {"action": "screenshot", "name": "overview"},
-    {"action": "tap", "text": "פרקים", "exact": true},
-    {"action": "assert_text", "text": "הכל שוחטין"},
-    {"action": "tap", "text": "הכל שוחטין"},
-    {"action": "assert_text", "text": "אותו ואת בנו", "optional": true},
-    {"action": "screenshot", "name": "perakim"}
+    {
+      "action": "launch",
+      "clear_data": true
+    },
+    {
+      "action": "wait_for",
+      "text": "חולין",
+      "timeout": 20
+    },
+    {
+      "action": "assert_text",
+      "text": "הכל שוחטין"
+    },
+    {
+      "action": "scroll_to",
+      "text": "הבא",
+      "direction": "up",
+      "max_swipes": 6
+    },
+    {
+      "action": "assert_text",
+      "text": "הבא"
+    },
+    {
+      "action": "screenshot",
+      "name": "study-start"
+    },
+    {
+      "action": "tap",
+      "text": "גמרא",
+      "exact": true
+    },
+    {
+      "action": "assert_text",
+      "text": "✓ גמרא"
+    },
+    {
+      "action": "tap",
+      "text": "✓ גמרא",
+      "exact": true
+    },
+    {
+      "action": "assert_not_visible",
+      "text": "✓ גמרא"
+    },
+    {
+      "action": "scroll_to",
+      "text": "הבא",
+      "direction": "up",
+      "max_swipes": 6
+    },
+    {
+      "action": "tap",
+      "text": "הבא ←"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "after-next"
+    },
+    {
+      "action": "scroll_to",
+      "text": "הבא",
+      "direction": "up",
+      "max_swipes": 6
+    },
+    {
+      "action": "tap",
+      "text": "→ קודם"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "tap",
+      "text": "סקירה",
+      "exact": true
+    },
+    {
+      "action": "assert_text",
+      "text": "סקירה כללית"
+    },
+    {
+      "action": "assert_text",
+      "text": "גמורים: 0"
+    },
+    {
+      "action": "screenshot",
+      "name": "overview"
+    },
+    {
+      "action": "tap",
+      "text": "פרקים",
+      "exact": true
+    },
+    {
+      "action": "assert_text",
+      "text": "הכל שוחטין"
+    },
+    {
+      "action": "tap",
+      "text": "הכל שוחטין"
+    },
+    {
+      "action": "assert_text",
+      "text": "אותו ואת בנו",
+      "optional": true
+    },
+    {
+      "action": "screenshot",
+      "name": "perakim"
+    }
   ]
 }
