@@ -2040,6 +2040,7 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• בשיתוף: \"העתקה ללוח\" במקום קובץ JSON (מדביקים באפליקציה ב\"הדבקת טקסט\").\n"
             + "• פתיחת הזמנה מציגה אותה בחלון צף לצפייה; איסוף רק ברשימת איסוף. ההזמנה האחרונה מהחשבון היא רשימת איסוף אוטומטית.\n"
             + "• בחלון רשימות האיסוף: ✓ למיזוג ושיתוף, וכפתור עריכה ישיר בכל רשימה.\n"
             + "• \"רשימה\" היא עכשיו רשימת איסוף; מה שמייבאים הוא \"הזמנה\". מסמנים הזמנות ב\"ניהול הזמנות\" ולוחצים \"רשימת איסוף\". לחיצה על הכותרת במסך הראשי בוחרת רשימת איסוף.\n"
@@ -4220,7 +4221,7 @@ public class MainActivity extends Activity {
         input.requestFocus();
     }
 
-    // ---- שיתוף: בחירת פורמט (ענן / JSON / TXT / ZIP), ואז בחירת דרך (וואטסאפ / SMS / מייל / שמירה / אחר) ----
+    // ---- שיתוף: בחירת פורמט (ענן / העתקה / TXT / ZIP / QR), ואז בחירת דרך (וואטסאפ / SMS / מייל / שמירה / אחר) ----
 
     private static final int REQUEST_SAVE_SHARE = 4712;
     private File pendingSaveFile;
@@ -4253,8 +4254,19 @@ public class MainActivity extends Activity {
                 ? (entries.size() == 1 ? "מספר בענן " + cloudNumber(entries.get(0).id)[0] : "מספרי בענן")
                 : entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל רשימה)", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); shareEntriesToCloud(entries, self); });
-        Button json = Ui.gridButton(this, "קובץ JSON", Ui.Kind.SOFT);
-        json.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "json", self); });
+        // העתקה ללוח בפורמט הטקסט שאפשר לייבא ("הדבקת טקסט").
+        Button copy = Ui.gridButton(this, "העתקה ללוח", Ui.Kind.SOFT);
+        copy.setOnClickListener(v -> {
+            dialog.dismiss();
+            cacheWorker.execute(() -> {
+                try {
+                    final String text = ListExporter.text(exportsFor(entries));
+                    mainHandler.post(() -> copyShareText(null, text, true));
+                } catch (Exception e) {
+                    mainHandler.post(() -> showInfoDialog("ההעתקה לא הצליחה", safeError(e)));
+                }
+            });
+        });
         Button txt = Ui.gridButton(this, "קובץ טקסט (TXT)", Ui.Kind.SOFT);
         txt.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "txt", self); });
         Button zip = Ui.gridButton(this, "קובץ ZIP עם תמונות", Ui.Kind.SOFT);
@@ -4264,7 +4276,7 @@ public class MainActivity extends Activity {
         // שיתוף ישיר באפליקציה אחרת: הרשימה כטקסט וגם כקובץ TXT, דרך חלון השיתוף של המכשיר.
         Button other = Ui.gridButton(this, "שיתוף באפליקציה אחרת", Ui.Kind.SOFT);
         other.setOnClickListener(v -> { dialog.dismiss(); shareToOtherApp(entries); });
-        addGridButtons(panel, other, qr, cloud, json, txt, zip);
+        addGridButtons(panel, other, qr, cloud, copy, txt, zip);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);

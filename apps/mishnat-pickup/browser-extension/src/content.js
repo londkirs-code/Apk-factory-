@@ -1,6 +1,6 @@
 /*
  * משנת אוסף – הורדה לאפליקציה: כפתור וחלון באתר משנת יוסף, וכפתורים על כל הזמנה בעמוד היסטוריית ההזמנות.
- * בוחרים הזמנות ופורמט (TXT / JSON / ZIP עם תמונות) ומורידים קובץ שנפתח באפליקציה
+ * בוחרים הזמנות ופורמט (העתקה ללוח / TXT / ZIP עם תמונות / QR) ומורידים קובץ שנפתח באפליקציה
  * גם במכשיר בלי אינטרנט: "רשימה חדשה" ← "ייבוא מקובץ".
  *
  * ההתחברות: הטוקן שהאתר עצמו שומר בדפדפן (localStorage "token"). הוא לא נשמר ולא נשלח לשום מקום
@@ -77,6 +77,9 @@
       .formats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 18px; }
       .qrview { display: none; flex-direction: column; align-items: center; gap: 10px; padding: 4px 18px 12px; overflow: auto; }
       .showqr .qrview { display: flex; } .showqr .orders, .showqr .formats, .showqr .hint { display: none; }
+      .copyview { display: none; flex-direction: column; gap: 8px; padding: 4px 18px 12px; }
+      .showcopy .copyview { display: flex; } .showcopy .orders, .showcopy .formats, .showcopy .hint { display: none; }
+      .copyview textarea { width: 100%; height: 220px; direction: rtl; font-size: 13px; border: 1px solid #D9CCF2; border-radius: 10px; padding: 8px; }
       .qrview img { width: min(380px, 80vw); height: auto; image-rendering: pixelated; background: #fff; border-radius: 12px; padding: 8px; }
       .qrcount { font-size: 18px; font-weight: 700; }
       .qrnav { display: flex; gap: 8px; width: 100%; }
@@ -102,7 +105,7 @@
       <div class="orders" role="group" aria-label="הזמנות"></div>
       <div class="formats">
         <button type="button" data-format="txt"><span>📄</span>טקסט (TXT)</button>
-        <button type="button" data-format="json"><span>🗂️</span>JSON</button>
+        <button type="button" data-format="copy"><span>📋</span>העתקה ללוח</button>
         <button type="button" data-format="zip"><span>🗜️</span>ZIP עם תמונות</button>
         <button type="button" data-format="qr"><span>📱</span>קוד QR לסריקה</button>
       </div>
@@ -118,6 +121,11 @@
           מתחלפים לבד, והאפליקציה אוספת אותם בכל סדר. בלי הסורק של האפליקציה: סורק המצלמה ← העתקה ← "הדבקת טקסט"
           (כמה קודים באותו חלון מתחברים לרשימה אחת). תמונות לא עוברות ב-QR, והן ייטענו כשיהיה אינטרנט.</p>
         <div class="qrnav"><button type="button" class="qrback">חזרה לבחירת הזמנות</button></div>
+      </div>
+      <div class="copyview">
+        <p class="qrhelp">הדפדפן לא אישר העתקה אוטומטית. לחצו "העתקה" (או Ctrl+C), ובאפליקציה: "ייבוא" ← "הדבקת טקסט".</p>
+        <textarea readonly aria-label="הטקסט להעתקה"></textarea>
+        <div class="qrnav"><button type="button" class="docopy">📋 העתקה</button><button type="button" class="copyback">חזרה לבחירת הזמנות</button></div>
       </div>
       <div class="status" role="status" aria-live="polite"></div>
       <div class="disclaimer">תוסף לא רשמי. הקובץ מכיל רק מוצרים, כמויות וקטגוריות.</div>
@@ -238,6 +246,40 @@
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 30000);
   }
 
+  // ---------- העתקה ללוח (בפורמט הטקסט שהאפליקציה מייבאת) ----------
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+    } catch (e) { /* ננסה בדרך הישנה */ }
+    try {
+      const area = document.createElement('textarea');
+      area.value = text; area.setAttribute('readonly', ''); area.style.position = 'fixed'; area.style.opacity = '0';
+      root.appendChild(area); area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  /** כשהדפדפן לא מאשר העתקה אחרי ההורדה מהשרת: מציגים את הטקסט, ולחיצה על "העתקה" מעתיקה. */
+  function showCopy(text) {
+    root.classList.add('open');
+    root.classList.remove('showqr');
+    root.classList.add('showcopy');
+    const area = $('.copyview textarea');
+    area.value = text;
+    area.focus(); area.select();
+  }
+  $('.docopy').addEventListener('click', async () => {
+    const area = $('.copyview textarea');
+    area.focus(); area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (!ok) ok = await copyText(area.value);
+    setStatus(ok ? '✅ הועתק ללוח. באפליקציה: "ייבוא" ← "הדבקת טקסט".' : 'סמנו את הטקסט והעתיקו ידנית (Ctrl+C).', !ok);
+  });
+  $('.copyback').addEventListener('click', () => { root.classList.remove('showcopy'); setStatus(''); });
+
   // ---------- QR ----------
   let qrChunks = [], qrIndex = 0, qrTimer = null;
 
@@ -315,8 +357,13 @@
         showQr(core.toQrChunks(exports, 900));
         return;
       }
+      if (format === 'copy') {
+        const text = core.toText(exports);
+        if (await copyText(text)) report('✅ הועתק ללוח. באפליקציה: "ייבוא" ← "הדבקת טקסט".');
+        else { report(''); showCopy(text); }
+        return;
+      }
       if (format === 'txt') download(fileName(ids, 'txt'), core.toText(exports), 'text/plain;charset=utf-8');
-      else if (format === 'json') download(fileName(ids, 'json'), JSON.stringify(core.toJson(exports), null, 2), 'application/json');
       else {
         let done = 0;
         const bytes = await core.toZip(exports, async (url) => {
@@ -340,7 +387,7 @@
   }
 
   // ---------- כפתורים על כל הזמנה בעמוד היסטוריית ההזמנות ----------
-  // בכל שורת הזמנה: סימון לבחירה מרובה וכפתורי TXT / JSON / ZIP / QR להזמנה הזו.
+  // בכל שורת הזמנה: סימון לבחירה מרובה וכפתורי העתקה / TXT / ZIP / QR להזמנה הזו.
   // כשמסמנים הזמנות מופיע פס בתחתית המסך להורדה של כולן יחד.
 
   const pageButtons = new Set();
@@ -357,7 +404,7 @@
     button:hover, button:focus-visible { background: #5E3FA3; color: #fff; outline: none; }
     button:disabled { opacity: .5; cursor: default; }
     .t { font-size: 12px; color: #7A6A99; }`;
-  const FORMATS = [['txt', '📄 TXT'], ['json', '🗂️ JSON'], ['zip', '🗜️ ZIP'], ['qr', '📱 QR']];
+  const FORMATS = [['copy', '📋 העתקה'], ['txt', '📄 TXT'], ['zip', '🗜️ ZIP'], ['qr', '📱 QR']];
 
   const tray = document.createElement('div');
   tray.id = 'mishnat-osef-tray';
@@ -464,7 +511,7 @@
     const bar = rowShadow.querySelector('.bar');
     FORMATS.forEach(([format, text]) => {
       const b = document.createElement('button');
-      b.type = 'button'; b.textContent = text; b.title = 'הורדת ההזמנה הזו (' + format.toUpperCase() + ')';
+      b.type = 'button'; b.textContent = text; b.title = format === 'copy' ? 'העתקת ההזמנה הזו ללוח' : 'הורדת ההזמנה הזו (' + format.toUpperCase() + ')';
       b.disabled = busy;
       b.addEventListener('click', () => exportOrders(format, [id], trayReport));
       pageButtons.add(b);
@@ -497,6 +544,7 @@
   function open() {
     setAuto(false);
     root.classList.remove('showqr');
+    root.classList.remove('showcopy');
     root.classList.add('open');
     if (rowsById.size === 0) loadPage();
     setTimeout(() => { const b = list.querySelector('input:checked') || list.querySelector('input') || $('.close'); b.focus(); }, 0);
