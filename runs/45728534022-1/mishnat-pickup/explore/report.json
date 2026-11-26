@@ -1,0 +1,227 @@
+{
+  "app": "mishnat-pickup",
+  "package": "org.mishnatyosef.pickup",
+  "mode": "explore",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 95.4,
+  "crashes": [],
+  "warnings": [
+    "explore: 8 distinct screens, 17 elements tapped, 0 relaunches, 88s"
+  ],
+  "screens": [
+    {
+      "signature": "1ac24e090322",
+      "screenshot": "screenshots/001-screen-1.png",
+      "found_at_action": "0"
+    },
+    {
+      "signature": "b4e3fb09b8af",
+      "screenshot": "screenshots/002-screen-2.png",
+      "found_at_action": "2"
+    },
+    {
+      "signature": "8adddc02c653",
+      "screenshot": "screenshots/003-screen-3.png",
+      "found_at_action": "3"
+    },
+    {
+      "signature": "5bf615b8b387",
+      "screenshot": "screenshots/004-screen-4.png",
+      "found_at_action": "5"
+    },
+    {
+      "signature": "a03bd8b576ff",
+      "screenshot": "screenshots/005-screen-5.png",
+      "found_at_action": "7"
+    },
+    {
+      "signature": "f9fa4d751b9f",
+      "screenshot": "screenshots/006-screen-6.png",
+      "found_at_action": "8"
+    },
+    {
+      "signature": "abffe7d9885d",
+      "screenshot": "screenshots/007-screen-7.png",
+      "found_at_action": "11"
+    },
+    {
+      "signature": "05e37388a4dc",
+      "screenshot": "screenshots/008-screen-8.png",
+      "found_at_action": "14"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "explore-tap",
+      "detail": "לא להציג שוב (עד העדכון הבא)",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "explore-tap",
+      "detail": "הבנתי ומסכים",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "explore-tap",
+      "detail": "📥  ייבוא רשימות עכשיו",
+      "status": "passed",
+      "seconds": 1.48,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "explore-tap",
+      "detail": "סגירה",
+      "status": "passed",
+      "seconds": 1.41,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "explore-tap",
+      "detail": "📚  ניהול רשימות",
+      "status": "passed",
+      "seconds": 1.34,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "explore-tap",
+      "detail": "חזרה",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "explore-tap",
+      "detail": "🔐  התחברות לחשבון",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "explore-tap",
+      "detail": "הקלידו את הסיסמה",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "explore-tap",
+      "detail": "🔐  התחברות",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "explore-tap",
+      "detail": "הקלידו את הסיסמה",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.26,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "explore-tap",
+      "detail": "הקלידו את הסיסמה",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "explore-tap",
+      "detail": "🔐  התחברות",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "explore-tap",
+      "detail": "🔐  חזרה בלי להתחבר",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-screen-1.png",
+    "002-screen-2.png",
+    "003-screen-3.png",
+    "004-screen-4.png",
+    "005-screen-5.png",
+    "006-screen-6.png",
+    "007-screen-7.png",
+    "008-screen-8.png",
+    "009-final.png"
+  ]
+}

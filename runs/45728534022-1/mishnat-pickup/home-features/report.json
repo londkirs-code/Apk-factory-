@@ -1,0 +1,902 @@
+{
+  "app": "mishnat-pickup",
+  "package": "org.mishnatyosef.pickup",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 667.8,
+  "crashes": [],
+  "warnings": [
+    "explore: 8 distinct screens, 17 elements tapped, 6 relaunches, 123s"
+  ],
+  "screens": [
+    {
+      "signature": "1ac24e090322",
+      "screenshot": "screenshots/046-screen-1.png",
+      "found_at_action": "0"
+    },
+    {
+      "signature": "b4e3fb09b8af",
+      "screenshot": "screenshots/047-screen-2.png",
+      "found_at_action": "2"
+    },
+    {
+      "signature": "8adddc02c653",
+      "screenshot": "screenshots/048-screen-3.png",
+      "found_at_action": "3"
+    },
+    {
+      "signature": "5bf615b8b387",
+      "screenshot": "screenshots/049-screen-4.png",
+      "found_at_action": "5"
+    },
+    {
+      "signature": "a03bd8b576ff",
+      "screenshot": "screenshots/050-screen-5.png",
+      "found_at_action": "7"
+    },
+    {
+      "signature": "f9fa4d751b9f",
+      "screenshot": "screenshots/051-screen-6.png",
+      "found_at_action": "8"
+    },
+    {
+      "signature": "abffe7d9885d",
+      "screenshot": "screenshots/052-screen-7.png",
+      "found_at_action": "11"
+    },
+    {
+      "signature": "05e37388a4dc",
+      "screenshot": "screenshots/053-screen-8.png",
+      "found_at_action": "14"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "clear_data",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.55,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "push",
+      "detail": "src='fixtures/ui-test-features.txt', dest='/sdcard/Download/ui-test-features.txt'",
+      "status": "passed",
+      "seconds": 35.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 4.95,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait_for",
+      "detail": "text='כניסה לחשבון'",
+      "status": "failed",
+      "seconds": 30.54,
+      "error": "element not found within 30s: text='כניסה לחשבון'",
+      "screenshot": "screenshots/001-step4-wait_for-FAILED.png"
+    },
+    {
+      "index": 5,
+      "action": "scroll_to",
+      "detail": "text='ייבוא רשימה מקובץ'",
+      "status": "failed",
+      "seconds": 15.14,
+      "error": "not found after scrolling: text='ייבוא רשימה מקובץ'",
+      "screenshot": "screenshots/002-step5-scroll_to-FAILED.png"
+    },
+    {
+      "index": 6,
+      "action": "tap",
+      "detail": "text='ייבוא רשימה מקובץ'",
+      "status": "failed",
+      "seconds": 10.56,
+      "error": "element not found within 10s: text='ייבוא רשימה מקובץ'",
+      "screenshot": "screenshots/003-step6-tap-FAILED.png"
+    },
+    {
+      "index": 7,
+      "action": "tap",
+      "detail": "text='ui-test-features'",
+      "status": "failed",
+      "seconds": 10.25,
+      "error": "element not found within 10s: text='ui-test-features'",
+      "screenshot": "screenshots/004-step7-tap-FAILED.png"
+    },
+    {
+      "index": 8,
+      "action": "wait_for",
+      "detail": "text='נמצאו 1 רשימות'",
+      "status": "failed",
+      "seconds": 15.34,
+      "error": "element not found within 15s: text='נמצאו 1 רשימות'",
+      "screenshot": "screenshots/005-step8-wait_for-FAILED.png"
+    },
+    {
+      "index": 9,
+      "action": "tap",
+      "detail": "text='ייבא רשימות'",
+      "status": "failed",
+      "seconds": 10.01,
+      "error": "element not found within 10s: text='ייבא רשימות'",
+      "screenshot": "screenshots/006-step9-tap-FAILED.png"
+    },
+    {
+      "index": 10,
+      "action": "wait_for",
+      "detail": "1+2+3+4+1.5 units",
+      "status": "failed",
+      "seconds": 10.92,
+      "error": "element not found within 10s: text='נאספו 0 מתוך 11.5'",
+      "screenshot": "screenshots/007-step10-wait_for-FAILED.png"
+    },
+    {
+      "index": 11,
+      "action": "screenshot",
+      "detail": "name='imported-5-items'",
+      "status": "passed",
+      "seconds": 2.3,
+      "error": "",
+      "screenshot": "screenshots/008-imported-5-items.png"
+    },
+    {
+      "index": 12,
+      "action": "assert_text",
+      "detail": "decimal quantity kept",
+      "status": "failed",
+      "seconds": 7.31,
+      "error": "element not found within 5s: text='1.5'",
+      "screenshot": "screenshots/009-step12-assert_text-FAILED.png"
+    },
+    {
+      "index": 13,
+      "action": "tap",
+      "detail": "text='חיפוש פריט'",
+      "status": "failed",
+      "seconds": 12.65,
+      "error": "element not found within 10s: text='חיפוש פריט'",
+      "screenshot": "screenshots/010-step13-tap-FAILED.png"
+    },
+    {
+      "index": 14,
+      "action": "type",
+      "detail": "value='Pasta', hide_keyboard=True",
+      "status": "passed",
+      "seconds": 0.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "screenshot",
+      "detail": "name='search-pasta'",
+      "status": "passed",
+      "seconds": 2.3,
+      "error": "",
+      "screenshot": "screenshots/011-search-pasta.png"
+    },
+    {
+      "index": 17,
+      "action": "assert_text",
+      "detail": "text='Pasta'",
+      "status": "failed",
+      "seconds": 7.34,
+      "error": "element not found within 5s: text='Pasta'",
+      "screenshot": "screenshots/012-step17-assert_text-FAILED.png"
+    },
+    {
+      "index": 18,
+      "action": "assert_not_visible",
+      "detail": "search filters other items",
+      "status": "passed",
+      "seconds": 2.54,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "type",
+      "detail": "class='EditText'",
+      "status": "failed",
+      "seconds": 10.0,
+      "error": "element not found within 10s: class='EditText'",
+      "screenshot": "screenshots/013-step19-type-FAILED.png"
+    },
+    {
+      "index": 20,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "assert_text",
+      "detail": "cleared search shows all items",
+      "status": "failed",
+      "seconds": 7.38,
+      "error": "element not found within 5s: text='מלפפון'",
+      "screenshot": "screenshots/014-step21-assert_text-FAILED.png"
+    },
+    {
+      "index": 22,
+      "action": "long_press",
+      "detail": "text='Pasta'",
+      "status": "failed",
+      "seconds": 10.01,
+      "error": "element not found within 10s: text='Pasta'",
+      "screenshot": "screenshots/015-step22-long_press-FAILED.png"
+    },
+    {
+      "index": 23,
+      "action": "wait_for",
+      "detail": "text='איסוף כמות חלקית'",
+      "status": "failed",
+      "seconds": 7.3,
+      "error": "element not found within 5s: text='איסוף כמות חלקית'",
+      "screenshot": "screenshots/016-step23-wait_for-FAILED.png"
+    },
+    {
+      "index": 24,
+      "action": "screenshot",
+      "detail": "name='partial-dialog'",
+      "status": "passed",
+      "seconds": 2.34,
+      "error": "",
+      "screenshot": "screenshots/017-partial-dialog.png"
+    },
+    {
+      "index": 25,
+      "action": "swipe",
+      "detail": "RTL slider: try to pick more units",
+      "status": "failed",
+      "seconds": 10.01,
+      "error": "element not found within 10s: class='SeekBar'",
+      "screenshot": "screenshots/018-step25-swipe-FAILED.png"
+    },
+    {
+      "index": 26,
+      "action": "screenshot",
+      "detail": "name='partial-dialog-moved'",
+      "status": "passed",
+      "seconds": 2.36,
+      "error": "",
+      "screenshot": "screenshots/019-partial-dialog-moved.png"
+    },
+    {
+      "index": 27,
+      "action": "tap",
+      "detail": "text='אישור הכמות'",
+      "status": "failed",
+      "seconds": 12.66,
+      "error": "element not found within 10s: text='אישור הכמות'",
+      "screenshot": "screenshots/020-step27-tap-FAILED.png"
+    },
+    {
+      "index": 28,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "scroll_to",
+      "detail": "the partial card sits in the collected section, below the fold",
+      "status": "failed",
+      "seconds": 17.67,
+      "error": "not found after scrolling: text='נאספו חלקית'",
+      "screenshot": "screenshots/021-step29-scroll_to-FAILED.png"
+    },
+    {
+      "index": 30,
+      "action": "screenshot",
+      "detail": "name='partial-collected'",
+      "status": "passed",
+      "seconds": 2.31,
+      "error": "",
+      "screenshot": "screenshots/022-partial-collected.png"
+    },
+    {
+      "index": 31,
+      "action": "scroll_to",
+      "detail": "text='נאספו 1 מתוך'",
+      "status": "failed",
+      "seconds": 18.54,
+      "error": "not found after scrolling: text='נאספו 1 מתוך'",
+      "screenshot": "screenshots/023-step31-scroll_to-FAILED.png"
+    },
+    {
+      "index": 32,
+      "action": "tap",
+      "detail": "desc='איפוס ליקוט'",
+      "status": "failed",
+      "seconds": 10.01,
+      "error": "element not found within 10s: desc='איפוס ליקוט'",
+      "screenshot": "screenshots/024-step32-tap-FAILED.png"
+    },
+    {
+      "index": 33,
+      "action": "wait_for",
+      "detail": "text='להחזיר את כל המוצרים'",
+      "status": "failed",
+      "seconds": 7.36,
+      "error": "element not found within 5s: text='להחזיר את כל המוצרים'",
+      "screenshot": "screenshots/025-step33-wait_for-FAILED.png"
+    },
+    {
+      "index": 34,
+      "action": "screenshot",
+      "detail": "name='reset-confirm'",
+      "status": "passed",
+      "seconds": 2.3,
+      "error": "",
+      "screenshot": "screenshots/026-reset-confirm.png"
+    },
+    {
+      "index": 35,
+      "action": "tap",
+      "detail": "text='איפוס'",
+      "status": "failed",
+      "seconds": 12.66,
+      "error": "element not found within 10s: text='איפוס'",
+      "screenshot": "screenshots/027-step35-tap-FAILED.png"
+    },
+    {
+      "index": 36,
+      "action": "wait_for",
+      "detail": "text='נאספו 0 מתוך 11.5'",
+      "status": "failed",
+      "seconds": 7.33,
+      "error": "element not found within 5s: text='נאספו 0 מתוך 11.5'",
+      "screenshot": "screenshots/028-step36-wait_for-FAILED.png"
+    },
+    {
+      "index": 37,
+      "action": "tap",
+      "detail": "desc='רשימה לפי חשבון'",
+      "status": "failed",
+      "seconds": 12.66,
+      "error": "element not found within 10s: desc='רשימה לפי חשבון'",
+      "screenshot": "screenshots/029-step37-tap-FAILED.png"
+    },
+    {
+      "index": 38,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.56,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 39,
+      "action": "screenshot",
+      "detail": "name='view-by-account'",
+      "status": "passed",
+      "seconds": 2.47,
+      "error": "",
+      "screenshot": "screenshots/030-view-by-account.png"
+    },
+    {
+      "index": 40,
+      "action": "tap",
+      "detail": "desc='רשימה מאוחדת'",
+      "status": "failed",
+      "seconds": 10.03,
+      "error": "element not found within 10s: desc='רשימה מאוחדת'",
+      "screenshot": "screenshots/031-step40-tap-FAILED.png"
+    },
+    {
+      "index": 41,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 42,
+      "action": "screenshot",
+      "detail": "name='view-combined'",
+      "status": "passed",
+      "seconds": 2.31,
+      "error": "",
+      "screenshot": "screenshots/032-view-combined.png"
+    },
+    {
+      "index": 43,
+      "action": "tap",
+      "detail": "text='גבינה'",
+      "status": "failed",
+      "seconds": 12.64,
+      "error": "element not found within 10s: text='גבינה'",
+      "screenshot": "screenshots/033-step43-tap-FAILED.png"
+    },
+    {
+      "index": 44,
+      "action": "assert_text",
+      "detail": "text='נאספו 1.5 מתוך 11.5'",
+      "status": "failed",
+      "seconds": 7.32,
+      "error": "element not found within 5s: text='נאספו 1.5 מתוך 11.5'",
+      "screenshot": "screenshots/034-step44-assert_text-FAILED.png"
+    },
+    {
+      "index": 45,
+      "action": "rotate",
+      "detail": "to='landscape'",
+      "status": "passed",
+      "seconds": 1.73,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 46,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 47,
+      "action": "assert_text",
+      "detail": "progress survives rotation",
+      "status": "failed",
+      "seconds": 7.32,
+      "error": "element not found within 5s: text='נאספו 1.5 מתוך 11.5'",
+      "screenshot": "screenshots/035-step47-assert_text-FAILED.png"
+    },
+    {
+      "index": 48,
+      "action": "screenshot",
+      "detail": "name='landscape'",
+      "status": "passed",
+      "seconds": 2.29,
+      "error": "",
+      "screenshot": "screenshots/036-landscape.png"
+    },
+    {
+      "index": 49,
+      "action": "rotate",
+      "detail": "to='portrait'",
+      "status": "passed",
+      "seconds": 1.61,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 50,
+      "action": "wait",
+      "detail": "seconds=1.5",
+      "status": "passed",
+      "seconds": 1.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 51,
+      "action": "tap",
+      "detail": "desc='הגדרות'",
+      "status": "failed",
+      "seconds": 12.63,
+      "error": "element not found within 10s: desc='הגדרות'",
+      "screenshot": "screenshots/037-step51-tap-FAILED.png"
+    },
+    {
+      "index": 52,
+      "action": "wait_for",
+      "detail": "text='סיכום מהיר'",
+      "status": "failed",
+      "seconds": 9.97,
+      "error": "element not found within 8s: text='סיכום מהיר'",
+      "screenshot": "screenshots/038-step52-wait_for-FAILED.png"
+    },
+    {
+      "index": 53,
+      "action": "screenshot",
+      "detail": "name='settings-top'",
+      "status": "passed",
+      "seconds": 2.35,
+      "error": "",
+      "screenshot": "screenshots/039-settings-top.png"
+    },
+    {
+      "index": 54,
+      "action": "swipe",
+      "detail": "direction='up'",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 55,
+      "action": "screenshot",
+      "detail": "name='settings-middle'",
+      "status": "passed",
+      "seconds": 2.3,
+      "error": "",
+      "screenshot": "screenshots/040-settings-middle.png"
+    },
+    {
+      "index": 56,
+      "action": "swipe",
+      "detail": "direction='up'",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 57,
+      "action": "swipe",
+      "detail": "direction='up'",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 58,
+      "action": "screenshot",
+      "detail": "name='settings-bottom'",
+      "status": "passed",
+      "seconds": 2.34,
+      "error": "",
+      "screenshot": "screenshots/041-settings-bottom.png"
+    },
+    {
+      "index": 59,
+      "action": "scroll_to",
+      "detail": "text='רשימות שמורות'",
+      "status": "failed",
+      "seconds": 21.74,
+      "error": "not found after scrolling: text='רשימות שמורות'",
+      "screenshot": "screenshots/042-step59-scroll_to-FAILED.png"
+    },
+    {
+      "index": 60,
+      "action": "tap",
+      "detail": "text='רשימות שמורות'",
+      "status": "failed",
+      "seconds": 10.01,
+      "error": "element not found within 10s: text='רשימות שמורות'",
+      "screenshot": "screenshots/043-step60-tap-FAILED.png"
+    },
+    {
+      "index": 61,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 62,
+      "action": "screenshot",
+      "detail": "name='saved-lists'",
+      "status": "passed",
+      "seconds": 2.32,
+      "error": "",
+      "screenshot": "screenshots/044-saved-lists.png"
+    },
+    {
+      "index": 63,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.89,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 64,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 65,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.88,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 66,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 67,
+      "action": "launch",
+      "detail": "restart=False",
+      "status": "passed",
+      "seconds": 2.79,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 68,
+      "action": "screenshot",
+      "detail": "name='before-explore'",
+      "status": "passed",
+      "seconds": 2.29,
+      "error": "",
+      "screenshot": "screenshots/045-before-explore.png"
+    },
+    {
+      "index": 69,
+      "action": "explore-tap",
+      "detail": "לא להציג שוב (עד העדכון הבא)",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 70,
+      "action": "explore-tap",
+      "detail": "הבנתי ומסכים",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 71,
+      "action": "explore-tap",
+      "detail": "📥  ייבוא רשימות עכשיו",
+      "status": "passed",
+      "seconds": 1.92,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 72,
+      "action": "explore-tap",
+      "detail": "סגירה",
+      "status": "passed",
+      "seconds": 1.5,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 73,
+      "action": "explore-tap",
+      "detail": "📚  ניהול רשימות",
+      "status": "passed",
+      "seconds": 1.85,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 74,
+      "action": "explore-tap",
+      "detail": "חזרה",
+      "status": "passed",
+      "seconds": 1.38,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 75,
+      "action": "explore-tap",
+      "detail": "🔐  התחברות לחשבון",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 76,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.38,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 77,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 78,
+      "action": "explore-tap",
+      "detail": "הקלידו את הסיסמה",
+      "status": "passed",
+      "seconds": 1.33,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 79,
+      "action": "explore-tap",
+      "detail": "🔐  התחברות",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 80,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 81,
+      "action": "explore-tap",
+      "detail": "הקלידו את הסיסמה",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 82,
+      "action": "explore-tap",
+      "detail": "name@example.com",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 83,
+      "action": "explore-tap",
+      "detail": "הקלידו את הסיסמה",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 84,
+      "action": "explore-tap",
+      "detail": "🔐  התחברות",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 85,
+      "action": "explore-tap",
+      "detail": "🔐  חזרה בלי להתחבר",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 69,
+      "action": "explore",
+      "detail": "auto-explore from the list screen",
+      "status": "passed",
+      "seconds": 123.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 70,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "skipped",
+      "seconds": 0.02,
+      "error": "foreground app is com.google.android.apps.nexuslauncher, expected org.mishnatyosef.pickup",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-step4-wait_for-FAILED.png",
+    "002-step5-scroll_to-FAILED.png",
+    "003-step6-tap-FAILED.png",
+    "004-step7-tap-FAILED.png",
+    "005-step8-wait_for-FAILED.png",
+    "006-step9-tap-FAILED.png",
+    "007-step10-wait_for-FAILED.png",
+    "008-imported-5-items.png",
+    "009-step12-assert_text-FAILED.png",
+    "010-step13-tap-FAILED.png",
+    "011-search-pasta.png",
+    "012-step17-assert_text-FAILED.png",
+    "013-step19-type-FAILED.png",
+    "014-step21-assert_text-FAILED.png",
+    "015-step22-long_press-FAILED.png",
+    "016-step23-wait_for-FAILED.png",
+    "017-partial-dialog.png",
+    "018-step25-swipe-FAILED.png",
+    "019-partial-dialog-moved.png",
+    "020-step27-tap-FAILED.png",
+    "021-step29-scroll_to-FAILED.png",
+    "022-partial-collected.png",
+    "023-step31-scroll_to-FAILED.png",
+    "024-step32-tap-FAILED.png",
+    "025-step33-wait_for-FAILED.png",
+    "026-reset-confirm.png",
+    "027-step35-tap-FAILED.png",
+    "028-step36-wait_for-FAILED.png",
+    "029-step37-tap-FAILED.png",
+    "030-view-by-account.png",
+    "031-step40-tap-FAILED.png",
+    "032-view-combined.png",
+    "033-step43-tap-FAILED.png",
+    "034-step44-assert_text-FAILED.png",
+    "035-step47-assert_text-FAILED.png",
+    "036-landscape.png",
+    "037-step51-tap-FAILED.png",
+    "038-step52-wait_for-FAILED.png",
+    "039-settings-top.png",
+    "040-settings-middle.png",
+    "041-settings-bottom.png",
+    "042-step59-scroll_to-FAILED.png",
+    "043-step60-tap-FAILED.png",
+    "044-saved-lists.png",
+    "045-before-explore.png",
+    "046-screen-1.png",
+    "047-screen-2.png",
+    "048-screen-3.png",
+    "049-screen-4.png",
+    "050-screen-5.png",
+    "051-screen-6.png",
+    "052-screen-7.png",
+    "053-screen-8.png",
+    "054-final.png"
+  ]
+}
