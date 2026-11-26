@@ -23,7 +23,7 @@ class StatusStrip(private val activity: Activity) {
     }
     private val bar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
     private val cancel = Button(activity).apply {
-        text = "בטל"
+        text = tr("בטל", "Cancel")
         isAllCaps = false
         stateListAnimator = null
         minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = 0
@@ -47,7 +47,7 @@ class StatusStrip(private val activity: Activity) {
 
     val view: LinearLayout = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
-        layoutDirection = View.LAYOUT_DIRECTION_RTL
+        layoutDirection = Lang.direction
         setPadding(dp(14), dp(8), dp(14), dp(8))
         setBackgroundColor(0xFFFFF1E3.toInt())
         visibility = View.GONE

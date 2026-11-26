@@ -28,12 +28,12 @@ object HelperInstaller {
 
     fun start(activity: Activity) {
         if (Bridge.isWifiHelperInstalled()) {
-            Toast.makeText(activity, "עזר ה־Wi‑Fi כבר מותקן.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(activity, tr("עזר ה־Wi‑Fi כבר מותקן.", "The Wi‑Fi helper is already installed."), Toast.LENGTH_SHORT).show()
             return
         }
         if (!activity.packageManager.canRequestPackageInstalls()) {
             waitingForPermission = true
-            Toast.makeText(activity, "אפשר לאפליקציית הבוס להתקין אפליקציות, וחזור — ההתקנה תמשיך לבד.", Toast.LENGTH_LONG).show()
+            Toast.makeText(activity, tr("אפשר לאפליקציית הבוס להתקין אפליקציות, וחזור — ההתקנה תמשיך לבד.", "Allow The Boss to install apps, and come back — the install continues by itself."), Toast.LENGTH_LONG).show()
             runCatching {
                 activity.startActivity(
                     Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}"))
@@ -43,7 +43,7 @@ object HelperInstaller {
         }
         waitingForPermission = false
         val context = activity.applicationContext
-        Bridge.log("מתקין את עזר ה־Wi‑Fi דרך מתקין החבילות של Android…")
+        Bridge.log(tr("מתקין את עזר ה־Wi‑Fi דרך מתקין החבילות של Android…", "Installing the Wi‑Fi helper through Android's package installer…"))
         Bridge.scope.launch(Dispatchers.IO) {
             runCatching {
                 val installer = context.packageManager.packageInstaller
@@ -63,7 +63,7 @@ object HelperInstaller {
                     )
                     session.commit(pending.intentSender)
                 }
-            }.onFailure { Bridge.log("התקנת עזר ה־Wi‑Fi נכשלה: ${Bridge.explain(it)}") }
+            }.onFailure { Bridge.log(tr("התקנת עזר ה־Wi‑Fi נכשלה: ${Bridge.explain(it)}", "Installing the Wi‑Fi helper failed: ${Bridge.explain(it)}")) }
         }
     }
 
@@ -86,17 +86,17 @@ class HelperInstallReceiver : BroadcastReceiver() {
                 }
                 if (confirm != null) {
                     runCatching { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                        .onFailure { Bridge.log("לא ניתן להציג את מסך אישור ההתקנה: ${Bridge.explain(it)}") }
+                        .onFailure { Bridge.log(tr("לא ניתן להציג את מסך אישור ההתקנה: ${Bridge.explain(it)}", "Can't show the install confirmation screen: ${Bridge.explain(it)}")) }
                 }
             }
             PackageInstaller.STATUS_SUCCESS -> {
-                Bridge.log("✔ עזר ה־Wi‑Fi הותקן. מעכשיו Wi‑Fi כבוי יודלק אוטומטית כשצריך.")
+                Bridge.log(tr("✔ עזר ה־Wi‑Fi הותקן. מעכשיו Wi‑Fi כבוי יודלק אוטומטית כשצריך.", "✔ The Wi‑Fi helper is installed. From now on Wi‑Fi that's off is turned on automatically when needed."))
                 Bridge.refreshState()
             }
-            PackageInstaller.STATUS_FAILURE_ABORTED -> Bridge.log("התקנת עזר ה־Wi‑Fi בוטלה.")
+            PackageInstaller.STATUS_FAILURE_ABORTED -> Bridge.log(tr("התקנת עזר ה־Wi‑Fi בוטלה.", "Installing the Wi‑Fi helper was cancelled."))
             else -> {
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
-                Bridge.log("התקנת עזר ה־Wi‑Fi נכשלה. $msg")
+                Bridge.log(tr("התקנת עזר ה־Wi‑Fi נכשלה. $msg", "Installing the Wi‑Fi helper failed. $msg"))
             }
         }
     }

@@ -37,13 +37,13 @@ class PairingService : Service() {
         when (intent?.action) {
             ACTION_STOP -> { stopSelfCleanly(); return START_NOT_STICKY }
             ACTION_CODE -> {
-                startAsForeground(progress(getString(R.string.pair_working)))
+                startAsForeground(progress(tr("מבצע צימוד…", "Pairing…")))
                 val code = intent.getStringExtra(EXTRA_CODE).orEmpty()
                 val port = intent.getIntExtra(EXTRA_PORT, 0)
                 pairWith(port, code)
             }
             else -> {
-                startAsForeground(progress(getString(R.string.pair_searching)))
+                startAsForeground(progress(tr("פתח: אפשרויות למפתחים ← ניפוי באגים אלחוטי ← \"התאמת מכשיר עם קוד התאמה\". אל תסגור את החלון — הקוד יוזן כאן בהתראה.", "Open: Developer options → Wireless debugging → \"Pair device with pairing code\". Keep that window open — you'll enter the code here in the notification.")))
                 search()
             }
         }
@@ -61,15 +61,15 @@ class PairingService : Service() {
     private fun search() {
         job?.cancel()
         job = Bridge.scope.launch {
-            Bridge.log("שירות הצימוד פעיל: מחפש חלון צימוד פתוח…")
+            Bridge.log(tr("שירות הצימוד פעיל: מחפש חלון צימוד פתוח…", "Pairing service is on: looking for an open pairing window…"))
             val ep = Bridge.discover(Bridge.PAIRING_SERVICE, Bridge.LOCAL_HOST, SEARCH_TIMEOUT_MS)
             if (ep == null) {
-                Bridge.log("לא נמצא חלון צימוד פתוח בזמן שהוקצב.")
-                notifyFinal(getString(R.string.pair_not_found), success = false)
+                Bridge.log(tr("לא נמצא חלון צימוד פתוח בזמן שהוקצב.", "No open pairing window found in the allotted time."))
+                notifyFinal(tr("לא נמצא חלון צימוד פתוח. פתח את הבוס ונסה שוב.", "No open pairing window found. Open The Boss and try again."), success = false)
                 stopSelfCleanly()
             } else {
-                Bridge.log("נמצא שירות צימוד בפורט ${ep.port}. הזן את הקוד בהתראה.")
-                notify(askForCode(ep.port, getString(R.string.pair_found, ep.port)))
+                Bridge.log(tr("נמצא שירות צימוד בפורט ${ep.port}. הזן את הקוד בהתראה.", "Pairing service found on port ${ep.port}. Enter the code in the notification."))
+                notify(askForCode(ep.port, tr("נמצא חלון צימוד (פורט ${ep.port}). לחץ \"הזן קוד\" והקלד את 6 הספרות שמופיעות במסך.", "Pairing window found (port ${ep.port}). Tap \"Enter code\" and type the 6 digits shown on screen.")))
             }
         }
     }
@@ -80,20 +80,20 @@ class PairingService : Service() {
             val ok = try {
                 Bridge.pairNow(Bridge.LOCAL_HOST, port.takeIf { it > 0 }, code)
             } catch (e: TimeoutCancellationException) {
-                Bridge.log("הצימוד נכשל: ${Bridge.explain(e)}"); false
+                Bridge.log(tr("הצימוד נכשל: ${Bridge.explain(e)}", "Pairing failed: ${Bridge.explain(e)}")); false
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                Bridge.log("הצימוד נכשל: ${Bridge.explain(e)}"); false
+                Bridge.log(tr("הצימוד נכשל: ${Bridge.explain(e)}", "Pairing failed: ${Bridge.explain(e)}")); false
             }
             if (ok) {
-                notifyFinal(getString(R.string.pair_success), success = true)
+                notifyFinal(tr("הצימוד הצליח. אפשר לחזור לאפליקציית הבוס ולהתקין.", "Paired! You can go back to The Boss and install."), success = true)
                 stopSelfCleanly()
                 // Verify right away that ADB commands work, so problems show up in the log immediately.
                 Bridge.testConnection()
             } else {
                 // Let the user retry: the dialog may still be open with a new code.
-                notify(askForCode(port, getString(R.string.pair_failed_retry)))
+                notify(askForCode(port, tr("הצימוד נכשל. בדוק שהקוד נכון ושהחלון עדיין פתוח, ונסה שוב.", "Pairing failed. Check the code is right and the window is still open, then try again.")))
             }
         }
     }
@@ -105,25 +105,25 @@ class PairingService : Service() {
 
     private fun base(text: String) = Notification.Builder(this, CHANNEL)
         .setSmallIcon(R.drawable.ic_stat_bridge)
-        .setContentTitle(getString(R.string.pair_title))
+        .setContentTitle(tr("צימוד הבוס", "The Boss pairing"))
         .setContentText(text)
         .setStyle(Notification.BigTextStyle().bigText(text))
         .setContentIntent(openApp(this))
         .setOnlyAlertOnce(true)
         .setOngoing(true)
         .addAction(
-            Notification.Action.Builder(null as Icon?, getString(R.string.pair_cancel), servicePending(ACTION_STOP, 2)).build()
+            Notification.Action.Builder(null as Icon?, tr("ביטול", "Cancel"), servicePending(ACTION_STOP, 2)).build()
         )
 
     private fun progress(text: String) = base(text).setProgress(0, 0, true).build()
 
     private fun askForCode(port: Int, text: String): Notification {
-        val input = RemoteInput.Builder(KEY_CODE).setLabel(getString(R.string.pair_code_hint)).build()
+        val input = RemoteInput.Builder(KEY_CODE).setLabel(tr("קוד צימוד בן 6 ספרות", "6-digit pairing code")).build()
         val reply = Intent(this, PairingReplyReceiver::class.java).putExtra(EXTRA_PORT, port)
         val pending = PendingIntent.getBroadcast(
             this, 1, reply, PendingIntent.FLAG_UPDATE_CURRENT or Compat.pendingIntentMutable,
         )
-        val action = Notification.Action.Builder(null as Icon?, getString(R.string.pair_enter_code), pending)
+        val action = Notification.Action.Builder(null as Icon?, tr("הזן קוד", "Enter code"), pending)
             .addRemoteInput(input)
             .build()
         return base(text).setOnlyAlertOnce(false).addAction(action).build()
@@ -140,7 +140,7 @@ class PairingService : Service() {
     private fun notifyFinal(text: String, success: Boolean) {
         val n = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_bridge)
-            .setContentTitle(getString(if (success) R.string.pair_done_title else R.string.pair_title))
+            .setContentTitle(if (success) tr("הבוס צומד בהצלחה", "The Boss is paired") else tr("צימוד הבוס", "The Boss pairing"))
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setContentIntent(openApp(this))
@@ -174,7 +174,7 @@ class PairingService : Service() {
             val nm = context.getSystemService(NotificationManager::class.java) ?: return
             if (nm.getNotificationChannel(CHANNEL) == null) {
                 nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL, context.getString(R.string.channel_pairing), NotificationManager.IMPORTANCE_HIGH)
+                    NotificationChannel(CHANNEL, tr("צימוד Wireless Debugging", "Wireless Debugging pairing"), NotificationManager.IMPORTANCE_HIGH)
                 )
             }
         }

@@ -1,17 +1,7 @@
 <resources>
+    <!-- English (default). Hebrew in values-iw/strings.xml. Every string here must exist in both. -->
     <string name="app_name">The Boss</string>
-    <string name="channel_pairing">צימוד Wireless Debugging</string>
-    <string name="pair_title">צימוד הבוס</string>
-    <string name="pair_done_title">הבוס צומד בהצלחה</string>
-    <string name="pair_searching">פתח: אפשרויות למפתחים ← ניפוי באגים אלחוטי ← \"התאמת מכשיר עם קוד התאמה\". אל תסגור את החלון — הקוד יוזן כאן בהתראה.</string>
-    <string name="pair_found">נמצא חלון צימוד (פורט %1$d). לחץ \"הזן קוד\" והקלד את 6 הספרות שמופיעות במסך.</string>
-    <string name="pair_working">מבצע צימוד…</string>
-    <string name="pair_failed_retry">הצימוד נכשל. בדוק שהקוד נכון ושהחלון עדיין פתוח, ונסה שוב.</string>
-    <string name="pair_success">הצימוד הצליח. אפשר לחזור לאפליקציית הבוס ולהתקין.</string>
-    <string name="pair_not_found">לא נמצא חלון צימוד פתוח. פתח את הבוס ונסה שוב.</string>
-    <string name="pair_enter_code">הזן קוד</string>
-    <string name="pair_code_hint">קוד צימוד בן 6 ספרות</string>
-    <string name="pair_cancel">ביטול</string>
+    <string name="widget_label">The Boss — shortcuts</string>
     <string name="a11y_label">The Boss — automatic pairing</string>
-    <string name="a11y_description">קורא רק את מסכי ההגדרות של Android כדי לזהות את קוד הצימוד ואת הפורט של ניפוי הבאגים האלחוטי, ומבצע את הצימוד אוטומטית. שום מידע לא נשמר ולא נשלח מחוץ למכשיר.</string>
+    <string name="a11y_description">Reads only Android\'s settings screens to detect the Wireless Debugging pairing code and port, and pairs automatically. Nothing is stored or sent outside the device.</string>
 </resources>

@@ -48,13 +48,13 @@ object BackupEngine {
     data class FileSet(val key: String, val label: String, val path: String)
 
     val FILE_SETS = listOf(
-        FileSet("dcim", "📷 מצלמה (DCIM)", "/sdcard/DCIM"),
-        FileSet("pictures", "🖼 תמונות (Pictures)", "/sdcard/Pictures"),
-        FileSet("download", "⬇ הורדות", "/sdcard/Download"),
-        FileSet("documents", "📄 מסמכים", "/sdcard/Documents"),
-        FileSet("movies", "🎬 סרטונים (Movies)", "/sdcard/Movies"),
-        FileSet("music", "🎵 מוזיקה", "/sdcard/Music"),
-        FileSet("whatsapp", "💚 וואטסאפ (גיבוי ומדיה)", "/sdcard/Android/media/com.whatsapp/WhatsApp"),
+        FileSet("dcim", tr("📷 מצלמה (DCIM)", "📷 Camera (DCIM)"), "/sdcard/DCIM"),
+        FileSet("pictures", tr("🖼 תמונות (Pictures)", "🖼 Pictures"), "/sdcard/Pictures"),
+        FileSet("download", tr("⬇ הורדות", "⬇ Downloads"), "/sdcard/Download"),
+        FileSet("documents", tr("📄 מסמכים", "📄 Documents"), "/sdcard/Documents"),
+        FileSet("movies", tr("🎬 סרטונים (Movies)", "🎬 Movies"), "/sdcard/Movies"),
+        FileSet("music", tr("🎵 מוזיקה", "🎵 Music"), "/sdcard/Music"),
+        FileSet("whatsapp", tr("💚 וואטסאפ (גיבוי ומדיה)", "💚 WhatsApp (backup and media)"), "/sdcard/Android/media/com.whatsapp/WhatsApp"),
     )
 
     /** Phone settings that are safe to write back (others are device- or version-specific). */
@@ -77,10 +77,10 @@ object BackupEngine {
     fun backup(context: Context, tree: Uri, items: Set<String>, apps: Set<String>?, fileSets: List<FileSet>, onDone: (Result?) -> Unit): Boolean {
         val app = context.applicationContext
         val cr = app.contentResolver
-        return Bridge.launchJob("הגיבוי") {
+        return Bridge.launchJob(tr("הגיבוי", "Backup")) {
             var result: Result? = null
             try {
-                Bridge.announce("מכין תיקיית גיבוי…", 0)
+                Bridge.announce(tr("מכין תיקיית גיבוי…", "Preparing backup folder…"), 0)
                 val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US).format(Date())
                 val folder = withContext(Dispatchers.IO) { Saf.mkdir(cr, Saf.root(tree), "TheBoss-backup-$stamp") }
                 val manifest = JSONObject()
@@ -96,45 +96,45 @@ object BackupEngine {
 
                 Bridge.withClient { c ->
                     if (CONTACTS in items) {
-                        Bridge.progress("מגבה אנשי קשר…", stepPct())
+                        Bridge.progress(tr("מגבה אנשי קשר…", "Backing up contacts…"), stepPct())
                         c.shell("pm grant ${app.packageName} android.permission.READ_CONTACTS")
                         val n = withContext(Dispatchers.IO) { backupContacts(app, folder) }
-                        counts.put(CONTACTS, n); lines += "👤 אנשי קשר: $n"
+                        counts.put(CONTACTS, n); lines += tr("👤 אנשי קשר: $n", "👤 Contacts: $n")
                         step++
                     }
                     if (CALLS in items) {
-                        Bridge.progress("מגבה יומן שיחות…", stepPct())
+                        Bridge.progress(tr("מגבה יומן שיחות…", "Backing up call log…"), stepPct())
                         val rows = contentQuery(c, "content://call_log/calls", listOf("number", "date", "duration", "type", "new"), "name")
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "calls.json", toJson(rows).toString()) }
-                        counts.put(CALLS, rows.size); lines += "📞 שיחות: ${rows.size}"
+                        counts.put(CALLS, rows.size); lines += tr("📞 שיחות: ${rows.size}", "📞 Calls: ${rows.size}")
                         step++
                     }
                     if (SMS in items) {
-                        Bridge.progress("מגבה הודעות SMS…", stepPct())
+                        Bridge.progress(tr("מגבה הודעות SMS…", "Backing up SMS messages…"), stepPct())
                         val rows = contentQuery(c, "content://sms", listOf("address", "date", "date_sent", "type", "read", "seen"), "body")
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "sms.json", toJson(rows).toString()) }
-                        counts.put(SMS, rows.size); lines += "💬 הודעות: ${rows.size}"
+                        counts.put(SMS, rows.size); lines += tr("💬 הודעות: ${rows.size}", "💬 Messages: ${rows.size}")
                         step++
                     }
                     if (SETTINGS in items) {
-                        Bridge.progress("מגבה הגדרות טלפון…", stepPct())
+                        Bridge.progress(tr("מגבה הגדרות טלפון…", "Backing up phone settings…"), stepPct())
                         val text = "[system]\n" + c.shell("settings list system").stdoutText +
                             "\n[secure]\n" + c.shell("settings list secure").stdoutText +
                             "\n[global]\n" + c.shell("settings list global").stdoutText
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "settings.txt", text) }
-                        counts.put(SETTINGS, 1); lines += "⚙ הגדרות טלפון"
+                        counts.put(SETTINGS, 1); lines += tr("⚙ הגדרות טלפון", "⚙ Phone settings")
                         step++
                     }
                     if (TERMUX in items) {
-                        lines += "🐚 טרמוקס: " + backupTermux(c, app, folder) { msg -> Bridge.progress(msg, stepPct()) }
+                        lines += tr("🐚 טרמוקס: ", "🐚 Termux: ") + backupTermux(c, app, folder) { msg -> Bridge.progress(msg, stepPct()) }
                         counts.put(TERMUX, 1)
                         step++
                     }
                     if (APPS in items) {
                         val n = backupApps(app, folder, apps) { label, i, total ->
-                            Bridge.progress("מגבה אפליקציות: $label ($i/$total)", stepPct())
+                            Bridge.progress(tr("מגבה אפליקציות: $label ($i/$total)", "Backing up apps: $label ($i/$total)"), stepPct())
                         }
-                        counts.put(APPS, n); lines += "📦 אפליקציות: $n"
+                        counts.put(APPS, n); lines += tr("📦 אפליקציות: $n", "📦 Apps: $n")
                         step++
                     }
                     if (fileSets.isNotEmpty()) {
@@ -142,10 +142,10 @@ object BackupEngine {
                         val done = JSONArray()
                         for (set in fileSets) {
                             val n = backupFiles(c, app, filesDir, set) { i, total ->
-                                Bridge.progress("מגבה ${set.label}: $i/$total", stepPct())
+                                Bridge.progress(tr("מגבה ${set.label}: $i/$total", "Backing up ${set.label}: $i/$total"), stepPct())
                             }
                             done.put(JSONObject().put("key", set.key).put("label", set.label).put("path", set.path))
-                            lines += "${set.label}: $n קבצים"
+                            lines += tr("${set.label}: $n קבצים", "${set.label}: $n files")
                             step++
                         }
                         counts.put("files", done.length())
@@ -154,7 +154,7 @@ object BackupEngine {
                 }
                 manifest.put("items", counts)
                 withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "manifest.json", manifest.toString(2)) }
-                val summary = "✔ הגיבוי הסתיים (תיקייה TheBoss-backup-$stamp):\n" + lines.joinToString("\n")
+                val summary = tr("✔ הגיבוי הסתיים (תיקייה TheBoss-backup-$stamp):\n", "✔ Backup finished (folder TheBoss-backup-$stamp):\n") + lines.joinToString("\n")
                 Bridge.announce(summary, 100)
                 result = Result(summary, null)
             } finally {
@@ -169,7 +169,7 @@ object BackupEngine {
         val keys = mutableListOf<String>()
         cr.query(ContactsContract.Contacts.CONTENT_URI, arrayOf(ContactsContract.Contacts.LOOKUP_KEY), null, null, null)?.use { c ->
             while (c.moveToNext()) c.getString(0)?.let(keys::add)
-        } ?: error("אין גישה לאנשי הקשר.")
+        } ?: error(tr("אין גישה לאנשי הקשר.", "No access to contacts."))
         val out = Saf.create(cr, folder, "text/x-vcard", "contacts.vcf")
         cr.openOutputStream(out)?.use { os ->
             for (chunk in keys.chunked(100)) {
@@ -209,7 +209,7 @@ object BackupEngine {
                 }.isSuccess
             }
             if (ok) index.put(JSONObject().put("package", info.packageName).put("label", label))
-            else Bridge.log("גיבוי $label נכשל.")
+            else Bridge.log(tr("גיבוי $label נכשל.", "Backup of $label failed."))
         }
         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "apps.json", index.toString(2)) }
         return index.length()
@@ -259,7 +259,7 @@ object BackupEngine {
                 val out = withContext(Dispatchers.IO) { cr.openOutputStream(doc) } ?: error("no stream")
                 out.use { c.sync.pull(path, it) }
             }.isSuccess
-            if (done) ok++ else Bridge.log("לא ניתן לגבות $path")
+            if (done) ok++ else Bridge.log(tr("לא ניתן לגבות $path", "Can't back up $path"))
         }
         return ok
     }
@@ -280,7 +280,7 @@ object BackupEngine {
         fun description(): String {
             val items = manifest.optJSONObject("items") ?: JSONObject()
             val date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(Date(manifest.optLong("created")))
-            return "גיבוי מ־$date · ${manifest.optString("device")} (Android ${manifest.optString("android")})"
+            return tr("גיבוי מ־$date · ${manifest.optString("device")} (Android ${manifest.optString("android")})", "Backup from $date · ${manifest.optString("device")} (Android ${manifest.optString("android")})")
         }
     }
 
@@ -290,9 +290,9 @@ object BackupEngine {
         val root = Saf.root(tree)
         val folder = if (Saf.child(cr, tree, root, "manifest.json") != null) root else {
             Saf.children(cr, tree, root).filter { it.isDir && it.name.startsWith("TheBoss-backup-") }
-                .maxByOrNull { it.name }?.uri ?: error("לא נמצא גיבוי בתיקייה הזו. בחר תיקייה שמתחילה ב־TheBoss-backup.")
+                .maxByOrNull { it.name }?.uri ?: error(tr("לא נמצא גיבוי בתיקייה הזו. בחר תיקייה שמתחילה ב־TheBoss-backup.", "No backup found in this folder. Choose a folder starting with TheBoss-backup."))
         }
-        val manifestDoc = Saf.child(cr, tree, folder, "manifest.json") ?: error("חסר קובץ manifest.json בגיבוי.")
+        val manifestDoc = Saf.child(cr, tree, folder, "manifest.json") ?: error(tr("חסר קובץ manifest.json בגיבוי.", "The backup is missing manifest.json."))
         val manifest = JSONObject(Saf.readText(cr, manifestDoc.uri))
         val names = Saf.children(cr, tree, folder).map { it.name }.toSet()
         val available = buildSet {
@@ -330,7 +330,7 @@ object BackupEngine {
         val cr = app.contentResolver
         val tree = inspection.tree
         val folder = inspection.folder
-        return Bridge.launchJob("השחזור") {
+        return Bridge.launchJob(tr("השחזור", "Restore")) {
             var result: Result? = null
             try {
                 val lines = mutableListOf<String>()
@@ -341,28 +341,28 @@ object BackupEngine {
                 Bridge.withClient { c ->
                     if (APPS in items) {
                         val (ok, skipped) = restoreApps(c, app, tree, folder, apps) { label, i, total ->
-                            Bridge.progress("משחזר אפליקציות: $label ($i/$total)", stepPct())
+                            Bridge.progress(tr("משחזר אפליקציות: $label ($i/$total)", "Restoring apps: $label ($i/$total)"), stepPct())
                         }
-                        lines += "📦 אפליקציות: הותקנו $ok" + if (skipped > 0) ", $skipped כבר היו מותקנות (הוחזרו ההרשאות)" else ""
+                        lines += tr("📦 אפליקציות: הותקנו $ok", "📦 Apps: installed $ok") + if (skipped > 0) tr(", $skipped כבר היו מותקנות (הוחזרו ההרשאות)", ", $skipped were already installed (permissions restored)") else ""
                         step++
                     }
                     if (CALLS in items) {
-                        Bridge.progress("משחזר יומן שיחות…", stepPct())
-                        lines += "📞 שיחות: " + restoreCalls(c, cr, tree, folder)
+                        Bridge.progress(tr("משחזר יומן שיחות…", "Restoring call log…"), stepPct())
+                        lines += tr("📞 שיחות: ", "📞 Calls: ") + restoreCalls(c, cr, tree, folder)
                         step++
                     }
                     if (SMS in items) {
-                        Bridge.progress("משחזר הודעות SMS…", stepPct())
-                        lines += "💬 הודעות: " + restoreSms(c, cr, tree, folder)
+                        Bridge.progress(tr("משחזר הודעות SMS…", "Restoring SMS messages…"), stepPct())
+                        lines += tr("💬 הודעות: ", "💬 Messages: ") + restoreSms(c, cr, tree, folder)
                         step++
                     }
                     if (SETTINGS in items) {
-                        Bridge.progress("משחזר הגדרות טלפון…", stepPct())
-                        lines += "⚙ הגדרות: " + restoreSettings(c, cr, tree, folder)
+                        Bridge.progress(tr("משחזר הגדרות טלפון…", "Restoring phone settings…"), stepPct())
+                        lines += tr("⚙ הגדרות: ", "⚙ Settings: ") + restoreSettings(c, cr, tree, folder)
                         step++
                     }
                     if (TERMUX in items) {
-                        lines += "🐚 טרמוקס: " + restoreTermux(c, app, tree, folder) { msg -> Bridge.progress(msg, stepPct()) }
+                        lines += tr("🐚 טרמוקס: ", "🐚 Termux: ") + restoreTermux(c, app, tree, folder) { msg -> Bridge.progress(msg, stepPct()) }
                         step++
                     }
                     if (fileSets.isNotEmpty()) {
@@ -373,21 +373,21 @@ object BackupEngine {
                             // A memory card from another phone has a different id: restore into internal storage instead.
                             val set = if (c.shell("[ -d ${q(original.path.substringBeforeLast('/'))} ] && echo Y").stdoutText.trim() == "Y") original
                             else original.copy(path = "/sdcard/Restored/" + original.label.replace(Regex("[^\\p{L}\\p{N} _.-]"), "").trim().ifEmpty { key })
-                            if (set !== original) lines += "📁 ${original.path} לא קיים בטלפון הזה — שוחזר אל ${set.path}"
+                            if (set !== original) lines += tr("📁 ${original.path} לא קיים בטלפון הזה — שוחזר אל ${set.path}", "📁 ${original.path} doesn't exist on this phone — restored to ${set.path}")
                             val n = restoreFiles(c, cr, tree, src, set) { i ->
-                                Bridge.progress("משחזר ${set.label}: $i קבצים", stepPct())
+                                Bridge.progress(tr("משחזר ${set.label}: $i קבצים", "Restoring ${set.label}: $i files"), stepPct())
                             }
-                            lines += "${set.label}: $n קבצים"
+                            lines += tr("${set.label}: $n קבצים", "${set.label}: $n files")
                             step++
                         }
                     }
                     if (CONTACTS in items) {
                         vcf = Saf.child(cr, tree, folder, "contacts.vcf")?.uri
-                        lines += "👤 אנשי קשר: נפתח מסך הייבוא של אנשי הקשר — אשר שם."
+                        lines += tr("👤 אנשי קשר: נפתח מסך הייבוא של אנשי הקשר — אשר שם.", "👤 Contacts: the Contacts import screen opened — confirm there.")
                         step++
                     }
                 }
-                val summary = "✔ השחזור הסתיים:\n" + lines.joinToString("\n")
+                val summary = tr("✔ השחזור הסתיים:\n", "✔ Restore finished:\n") + lines.joinToString("\n")
                 Bridge.announce(summary, 100)
                 result = Result(summary, vcf)
             } finally {
@@ -420,7 +420,7 @@ object BackupEngine {
                     add("-r"); add("-t")
                     if (meta?.optString("installer") == "com.android.vending") { add("-i"); add("com.android.vending") }
                 }
-                val pfds = apks.map { cr.openFileDescriptor(it.uri, "r") ?: error("לא ניתן לקרוא ${it.name}") }
+                val pfds = apks.map { cr.openFileDescriptor(it.uri, "r") ?: error(tr("לא ניתן לקרוא ${it.name}", "Can't read ${it.name}")) }
                 try {
                     val ok = runCatching {
                         val flow = if (pfds.size == 1) {
@@ -430,7 +430,7 @@ object BackupEngine {
                         }
                         flow.collect { }
                     }
-                    if (ok.isSuccess) installed++ else Bridge.log("התקנת $label נכשלה: ${Bridge.explain(ok.exceptionOrNull()!!)}")
+                    if (ok.isSuccess) installed++ else Bridge.log(tr("התקנת $label נכשלה: ${Bridge.explain(ok.exceptionOrNull()!!)}", "Installing $label failed: ${Bridge.explain(ok.exceptionOrNull()!!)}"))
                 } finally {
                     pfds.forEach { runCatching { it.close() } }
                 }
@@ -446,7 +446,7 @@ object BackupEngine {
     }
 
     private suspend fun restoreCalls(c: AdbClient, cr: android.content.ContentResolver, tree: Uri, folder: Uri): String {
-        val doc = Saf.child(cr, tree, folder, "calls.json") ?: return "אין בגיבוי"
+        val doc = Saf.child(cr, tree, folder, "calls.json") ?: return tr("אין בגיבוי", "not in the backup")
         val rows = JSONArray(Saf.readText(cr, doc.uri))
         val existing = contentQuery(c, "content://call_log/calls", listOf("number"), "date").map { it["number"] + "|" + it["date"] }.toSet()
         val commands = mutableListOf<String>()
@@ -462,12 +462,12 @@ object BackupEngine {
                 (r.optString("name").takeIf { it.isNotBlank() && it != "NULL" }?.let { " --bind ${q("name:s:$it")}" } ?: "")
         }
         val failed = runBatched(c, commands)
-        return "נוספו ${commands.size - failed}" + (if (failed > 0) ", נכשלו $failed" else "") + ", ${rows.length() - commands.size} כבר היו"
+        return tr("נוספו ${commands.size - failed}", "added ${commands.size - failed}") + (if (failed > 0) tr(", נכשלו $failed", ", $failed failed") else "") + tr(", ${rows.length() - commands.size} כבר היו", ", ${rows.length() - commands.size} were already there")
     }
 
     /** SMS: the shell may insert once WRITE_SMS is allowed for it; restored to default afterwards. */
     private suspend fun restoreSms(c: AdbClient, cr: android.content.ContentResolver, tree: Uri, folder: Uri): String {
-        val doc = Saf.child(cr, tree, folder, "sms.json") ?: return "אין בגיבוי"
+        val doc = Saf.child(cr, tree, folder, "sms.json") ?: return tr("אין בגיבוי", "not in the backup")
         val rows = JSONArray(Saf.readText(cr, doc.uri))
         val existing = contentQuery(c, "content://sms", listOf("address"), "date").map { it["address"] + "|" + it["date"] }.toSet()
         val commands = mutableListOf<String>()
@@ -482,7 +482,7 @@ object BackupEngine {
                 " --bind type:i:${r.optString("type").toIntOrNull() ?: 1}" +
                 " --bind read:i:1 --bind seen:i:1"
         }
-        if (commands.isEmpty()) return "כל ${rows.length()} ההודעות כבר היו בטלפון"
+        if (commands.isEmpty()) return tr("כל ${rows.length()} ההודעות כבר היו בטלפון", "all ${rows.length()} messages were already on the phone")
         c.shell("appops set com.android.shell WRITE_SMS allow")
         val before = contentQuery(c, "content://sms", listOf("address"), "date").size
         try {
@@ -492,12 +492,12 @@ object BackupEngine {
         }
         val after = contentQuery(c, "content://sms", listOf("address"), "date").size
         val added = (after - before).coerceAtLeast(0)
-        return if (added == 0) "הטלפון לא אפשר לשחזר הודעות (חסום ביצרן/בגרסה הזו)"
-        else "נוספו $added מתוך ${commands.size}" + if (added < commands.size) " (חלק נחסמו)" else ""
+        return if (added == 0) tr("הטלפון לא אפשר לשחזר הודעות (חסום ביצרן/בגרסה הזו)", "the phone didn't allow restoring messages (blocked by the maker/this version)")
+        else tr("נוספו $added מתוך ${commands.size}", "added $added of ${commands.size}") + if (added < commands.size) tr(" (חלק נחסמו)", " (some were blocked)") else ""
     }
 
     private suspend fun restoreSettings(c: AdbClient, cr: android.content.ContentResolver, tree: Uri, folder: Uri): String {
-        val doc = Saf.child(cr, tree, folder, "settings.txt") ?: return "אין בגיבוי"
+        val doc = Saf.child(cr, tree, folder, "settings.txt") ?: return tr("אין בגיבוי", "not in the backup")
         val text = Saf.readText(cr, doc.uri)
         val system = text.substringAfter("[system]\n", "").substringBefore("\n[secure]")
         val commands = system.lines().mapNotNull { line ->
@@ -506,7 +506,7 @@ object BackupEngine {
             if (key in RESTORABLE_SYSTEM_SETTINGS && value.isNotBlank() && value != "null") "settings put system $key ${q(value)}" else null
         }
         val failed = runBatched(c, commands)
-        return "הוחזרו ${commands.size - failed} הגדרות (בהירות, זמן כיבוי מסך, גודל גופן, סיבוב ועוד)"
+        return tr("הוחזרו ${commands.size - failed} הגדרות (בהירות, זמן כיבוי מסך, גודל גופן, סיבוב ועוד)", "restored ${commands.size - failed} settings (brightness, screen timeout, font size, rotation and more)")
     }
 
     private suspend fun restoreFiles(c: AdbClient, cr: android.content.ContentResolver, tree: Uri, src: Uri, set: FileSet, onProgress: (Int) -> Unit): Int {
@@ -523,7 +523,7 @@ object BackupEngine {
                         val input = withContext(Dispatchers.IO) { cr.openInputStream(ch.uri) } ?: error("no stream")
                         input.use { c.sync.push(it, "$target/${ch.name}") }
                     }.isSuccess
-                    if (ok) { count++; onProgress(count) } else Bridge.log("לא ניתן לשחזר ${ch.name}")
+                    if (ok) { count++; onProgress(count) } else Bridge.log(tr("לא ניתן לשחזר ${ch.name}", "Can't restore ${ch.name}"))
                 }
             }
         }
@@ -539,7 +539,7 @@ object BackupEngine {
 
     /** Internal storage plus every mounted memory card / USB drive, as (label, path). */
     fun storageVolumes(context: Context): List<Pair<String, String>> {
-        val out = mutableListOf("📱 זיכרון פנימי" to "/sdcard")
+        val out = mutableListOf(tr("📱 זיכרון פנימי", "📱 Internal storage") to "/sdcard")
         val sm = context.getSystemService(android.os.storage.StorageManager::class.java) ?: return out
         for (v in sm.storageVolumes) {
             if (!v.isRemovable || v.state != android.os.Environment.MEDIA_MOUNTED) continue
@@ -668,7 +668,7 @@ object BackupEngine {
             ).stdoutText.trim().lines()
             when (out.firstOrNull()) {
                 "DONE" -> return null
-                "FAILED" -> return out.drop(1).joinToString(" ").ifBlank { "טרמוקס דיווח על שגיאה" }
+                "FAILED" -> return out.drop(1).joinToString(" ").ifBlank { tr("טרמוקס דיווח על שגיאה", "Termux reported an error") }
             }
             val size = out.getOrNull(1)?.toLongOrNull() ?: -1L
             if (out.any { it == "LOG" }) sawActivity = true
@@ -679,26 +679,26 @@ object BackupEngine {
             }
             val idle = System.currentTimeMillis() - idleSince
             if (!sawActivity && idle > 45_000) return "NO_RESPONSE"
-            if (sawActivity && idle > 10 * 60_000) return "טרמוקס הפסיק להתקדם (10 דקות בלי שינוי)"
+            if (sawActivity && idle > 10 * 60_000) return tr("טרמוקס הפסיק להתקדם (10 דקות בלי שינוי)", "Termux stopped progressing (10 minutes without change)")
             kotlinx.coroutines.delay(2_000)
         }
     }
 
     private fun termuxHelp(reason: String) = if (reason == "NO_RESPONSE")
-        "טרמוקס לא הגיב. צריך לאשר פעם אחת שאפליקציות אחרות ישלחו לו פקודות — בטרמוקס מריצים:\n$TERMUX_SETUP_COMMAND\nואז מנסים שוב."
-    else "נכשל: $reason"
+        tr("טרמוקס לא הגיב. צריך לאשר פעם אחת שאפליקציות אחרות ישלחו לו פקודות — בטרמוקס מריצים:\n$TERMUX_SETUP_COMMAND\nואז מנסים שוב.", "Termux didn't respond. You need to allow once that other apps may send it commands — in Termux run:\n$TERMUX_SETUP_COMMAND\nthen try again.")
+    else tr("נכשל: $reason", "failed: $reason")
 
     private suspend fun backupTermux(c: AdbClient, context: Context, folder: Uri, onProgress: (String) -> Unit): String {
-        if (!isTermuxInstalled(context)) return "טרמוקס לא מותקן — דילוג"
+        if (!isTermuxInstalled(context)) return tr("טרמוקס לא מותקן — דילוג", "Termux isn't installed — skipped")
         val cr = context.contentResolver
         prepareTermux(c, context)
-        onProgress("טרמוקס: יוצר קובץ גיבוי מלא (home + usr)…")
+        onProgress(tr("טרמוקס: יוצר קובץ גיבוי מלא (home + usr)…", "Termux: creating a full backup file (home + usr)…"))
         runCatching { runInTermux(context, TERMUX_BACKUP_SCRIPT) }.onFailure {
-            return "לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן הגיבוי)"
+            return tr("לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן הגיבוי)", "Can't send a command to Termux: ${Bridge.explain(it)} (keep The Boss open during the backup)")
         }
-        val error = waitForTermux(c, "$TERMUX_SHARED/$TERMUX_ARCHIVE.part") { size -> onProgress("טרמוקס: נארז $size…") }
+        val error = waitForTermux(c, "$TERMUX_SHARED/$TERMUX_ARCHIVE.part") { size -> onProgress(tr("טרמוקס: נארז $size…", "Termux: packed $size…")) }
         if (error != null) return termuxHelp(error)
-        onProgress("טרמוקס: מעתיק את הקובץ לתיקיית הגיבוי…")
+        onProgress(tr("טרמוקס: מעתיק את הקובץ לתיקיית הגיבוי…", "Termux: copying the file to the backup folder…"))
         val size = c.shell("stat -c %s '$TERMUX_SHARED/$TERMUX_ARCHIVE'").stdoutText.trim().toLongOrNull() ?: 0L
         val ok = runCatching {
             val dir = withContext(Dispatchers.IO) { Saf.mkdir(cr, folder, "termux") }
@@ -715,33 +715,33 @@ object BackupEngine {
             }
         }
         c.shell("rm -rf '$TERMUX_SHARED'")
-        return if (ok.isSuccess) "גיבוי מלא (${Bridge.formatSize(size)})" else "העתקת הקובץ נכשלה: ${Bridge.explain(ok.exceptionOrNull()!!)}"
+        return if (ok.isSuccess) tr("גיבוי מלא (${Bridge.formatSize(size)})", "full backup (${Bridge.formatSize(size)})") else tr("העתקת הקובץ נכשלה: ${Bridge.explain(ok.exceptionOrNull()!!)}", "copying the file failed: ${Bridge.explain(ok.exceptionOrNull()!!)}")
     }
 
     private suspend fun restoreTermux(c: AdbClient, context: Context, tree: Uri, folder: Uri, onProgress: (String) -> Unit): String {
-        if (!isTermuxInstalled(context)) return "טרמוקס לא מותקן. אפשר לשחזר אותו קודם עם \"אפליקציות\", ואז לשחזר שוב את טרמוקס."
+        if (!isTermuxInstalled(context)) return tr("טרמוקס לא מותקן. אפשר לשחזר אותו קודם עם \"אפליקציות\", ואז לשחזר שוב את טרמוקס.", "Termux isn't installed. You can restore it first with \"Apps\", then restore Termux again.")
         val cr = context.contentResolver
-        val dir = Saf.child(cr, tree, folder, "termux")?.uri ?: return "אין בגיבוי"
-        val archive = Saf.child(cr, tree, dir, TERMUX_ARCHIVE) ?: return "קובץ הגיבוי חסר"
+        val dir = Saf.child(cr, tree, folder, "termux")?.uri ?: return tr("אין בגיבוי", "not in the backup")
+        val archive = Saf.child(cr, tree, dir, TERMUX_ARCHIVE) ?: return tr("קובץ הגיבוי חסר", "backup file missing")
         prepareTermux(c, context)
-        onProgress("טרמוקס: מעתיק את קובץ הגיבוי לטלפון…")
+        onProgress(tr("טרמוקס: מעתיק את קובץ הגיבוי לטלפון…", "Termux: copying the backup file to the phone…"))
         c.shell("rm -f '$TERMUX_SHARED/done' '$TERMUX_SHARED/failed'")
         val pushed = runCatching {
             val input = withContext(Dispatchers.IO) { cr.openInputStream(archive.uri) } ?: error("no stream")
             input.use { c.sync.push(it, "$TERMUX_SHARED/$TERMUX_ARCHIVE") }
         }
-        if (pushed.isFailure) return "העתקת הקובץ נכשלה: ${Bridge.explain(pushed.exceptionOrNull()!!)}"
-        onProgress("טרמוקס: מחלץ ומשחזר (home + usr)…")
+        if (pushed.isFailure) return tr("העתקת הקובץ נכשלה: ${Bridge.explain(pushed.exceptionOrNull()!!)}", "copying the file failed: ${Bridge.explain(pushed.exceptionOrNull()!!)}")
+        onProgress(tr("טרמוקס: מחלץ ומשחזר (home + usr)…", "Termux: extracting and restoring (home + usr)…"))
         runCatching { runInTermux(context, TERMUX_RESTORE_SCRIPT) }.onFailure {
             c.shell("rm -rf '$TERMUX_SHARED'")
-            return "לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן השחזור)"
+            return tr("לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן השחזור)", "Can't send a command to Termux: ${Bridge.explain(it)} (keep The Boss open during the restore)")
         }
-        val error = waitForTermux(c, "$TERMUX_SHARED/log.txt") { onProgress("טרמוקס: משחזר…") }
+        val error = waitForTermux(c, "$TERMUX_SHARED/log.txt") { onProgress(tr("טרמוקס: משחזר…", "Termux: restoring…")) }
         c.shell("rm -rf '$TERMUX_SHARED'")
         if (error != null) return termuxHelp(error)
         // Restart Termux so it starts with the restored files.
         c.shell("am force-stop $TERMUX_PKG")
-        return "שוחזר במלואו (${Bridge.formatSize(archive.size)}). טרמוקס הופעל מחדש — פתח אותו."
+        return tr("שוחזר במלואו (${Bridge.formatSize(archive.size)}). טרמוקס הופעל מחדש — פתח אותו.", "fully restored (${Bridge.formatSize(archive.size)}). Termux was restarted — open it.")
     }
 
     // endregion

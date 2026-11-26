@@ -1,0 +1,95 @@
+// Bilingual rule (Hebrew + English), enforced on every build:
+//  1. Every Kotlin string literal with Hebrew text must be inside tr("עברית", "English"),
+//     inside a Def(...) shortcut definition, or on a line marked `// i18n-ok` (e.g. keys, not UI text).
+//  2. Every <string> in res/values/strings.xml (English) must also exist in res/values-iw/strings.xml
+//     (Hebrew), and the other way round.
+// So a new screen or message can't be added in only one language: the build fails and names the line.
+
+class I18nScan {
+    static final def HEB = ~/[֐-׿]/
+    String s; String name; List<String> lines; List<String> problems = []
+
+    I18nScan(File f) { s = f.text; name = f.name; lines = s.split('\n', -1) as List }
+
+    int lineOf(int i) { int n = 1; for (int k = 0; k < i; k++) if (s.charAt(k) == '\n' as char) n++; n }
+
+    boolean okLine(int i) { lines[lineOf(i) - 1].contains('i18n-ok') }
+
+    /** Identifier right before position i (skipping spaces), or "". */
+    String identBefore(int i) {
+        int j = i - 1
+        while (j >= 0 && Character.isWhitespace(s.charAt(j))) j--
+        int e = j + 1
+        while (j >= 0 && (Character.isLetterOrDigit(s.charAt(j)) || s.charAt(j) == '_' as char)) j--
+        s.substring(j + 1, e)
+    }
+
+    int skipChar(int j) {               // s[j] == '\''
+        int k = j + 1
+        k += (s.charAt(k) == '\\' as char) ? 2 : 1
+        while (s.charAt(k) != '\'' as char) k++
+        k + 1
+    }
+
+    /** Scans code from j until `close` ('}' of a template) or end of file. Returns the index after it. */
+    int code(int j, boolean inTr, Character close) {
+        def parens = []                 // one boolean per open '(' : is it a tr/T/Def call?
+        int depth = 0
+        while (j < s.length()) {
+            char c = s.charAt(j)
+            if (s.startsWith('//', j)) { int e = s.indexOf('\n', j); j = e < 0 ? s.length() : e; continue }
+            if (s.startsWith('/*', j)) { j = s.indexOf('*/', j) + 2; continue }
+            boolean here = inTr || parens.any { it }
+            if (c == '"' as char) { j = string(j, here); continue }
+            if (c == '\'' as char) { j = skipChar(j); continue }
+            if (c == '(' as char) { parens << (identBefore(j) in ['tr', 'T', 'Def']) }
+            else if (c == ')' as char) { if (parens) parens.remove(parens.size() - 1) }
+            else if (c == '{' as char) depth++
+            else if (c == '}' as char) {
+                if (depth == 0 && close != null) return j + 1
+                depth--
+            }
+            j++
+        }
+        j
+    }
+
+    int string(int i, boolean inTr) {
+        boolean raw = s.startsWith('"""', i)
+        int j = raw ? i + 3 : i + 1
+        StringBuilder own = new StringBuilder()
+        while (j < s.length()) {
+            if (raw && s.startsWith('"""', j)) { j += 3; while (j < s.length() && s.charAt(j) == '"' as char) j++; break }
+            char c = s.charAt(j)
+            if (!raw && c == '\\' as char) { j += 2; continue }
+            if (!raw && c == '"' as char) { j++; break }
+            if (s.startsWith('${', j)) { j = code(j + 2, inTr, '}' as char); continue }
+            own.append(c); j++
+        }
+        if (!inTr && (own =~ HEB).find() && !okLine(i)) {
+            problems << "${name}:${lineOf(i)}: Hebrew text without English — use tr(\"…\", \"English…\"): ${s.substring(i, Math.min(j, i + 80))}"
+        }
+        j
+    }
+
+    List<String> run() { code(0, false, null); problems }
+}
+
+tasks.register('checkI18n') {
+    def srcDir = file('src/main/java')
+    def en = file('src/main/res/values/strings.xml')
+    def he = file('src/main/res/values-iw/strings.xml')
+    inputs.dir(srcDir)
+    inputs.files(en, he)
+    doLast {
+        def problems = []
+        srcDir.eachFileRecurse { f -> if (f.name.endsWith('.kt')) problems += new I18nScan(f).run() }
+        def names = { File x -> (x.text =~ /<string\s+name="([^"]+)"/).collect { it[1] } as Set }
+        def enNames = names(en), heNames = names(he)
+        (enNames - heNames).each { problems << "strings.xml: \"$it\" has English but no Hebrew (values-iw/strings.xml)" }
+        (heNames - enNames).each { problems << "strings.xml: \"$it\" has Hebrew but no English (values/strings.xml)" }
+        if (problems) throw new GradleException("Translation check failed (Hebrew + English are required):\n" + problems.join('\n'))
+        println "checkI18n: OK — every text is in Hebrew and English."
+    }
+}
+tasks.named('preBuild') { dependsOn 'checkI18n' }

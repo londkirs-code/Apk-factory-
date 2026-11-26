@@ -71,17 +71,17 @@ class AppsActivity : Activity() {
     }
 
     private enum class Filter(val label: String) {
-        ALL("הכול"), USER("שהורדו"), LAUNCHER("במסך הבית"), SYSTEM("מערכת"), DISABLED("מושבתות"),
-        PLAY("מ־Play"), OTHER_SOURCE("ממקור אחר"), SPLIT("מפוצלות"), REMOVED("מערכת שהוסרו"),
+        ALL(tr("הכול", "All")), USER(tr("שהורדו", "Downloaded")), LAUNCHER(tr("במסך הבית", "On home screen")), SYSTEM(tr("מערכת", "System")), DISABLED(tr("מושבתות", "Disabled")),
+        PLAY(tr("מ־Play", "From Play")), OTHER_SOURCE(tr("ממקור אחר", "Other source")), SPLIT(tr("מפוצלות", "Split")), REMOVED(tr("מערכת שהוסרו", "Removed system")),
     }
 
     private enum class Sort(val label: String) {
-        NAME("שם (א←ת)"), NAME_DESC("שם (ת←א)"),
-        SIZE_DESC("גודל (הגדול ראשון)"), SIZE_ASC("גודל (הקטן ראשון)"),
-        INSTALL_NEW("תאריך התקנה (החדש ראשון)"), INSTALL_OLD("תאריך התקנה (הישן ראשון)"),
-        UPDATE_NEW("עדכון אחרון (החדש ראשון)"),
-        UNUSED("לא בשימוש הכי הרבה זמן"), RECENT("בשימוש לאחרונה"),
-        PACKAGE("שם חבילה"),
+        NAME(tr("שם (א←ת)", "Name (A→Z)")), NAME_DESC(tr("שם (ת←א)", "Name (Z→A)")),
+        SIZE_DESC(tr("גודל (הגדול ראשון)", "Size (largest first)")), SIZE_ASC(tr("גודל (הקטן ראשון)", "Size (smallest first)")),
+        INSTALL_NEW(tr("תאריך התקנה (החדש ראשון)", "Install date (newest first)")), INSTALL_OLD(tr("תאריך התקנה (הישן ראשון)", "Install date (oldest first)")),
+        UPDATE_NEW(tr("עדכון אחרון (החדש ראשון)", "Last update (newest first)")),
+        UNUSED(tr("לא בשימוש הכי הרבה זמן", "Unused the longest")), RECENT(tr("בשימוש לאחרונה", "Recently used")),
+        PACKAGE(tr("שם חבילה", "Package name")),
     }
 
     private var all: List<AppRow> = emptyList()
@@ -151,19 +151,19 @@ class AppsActivity : Activity() {
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
             setBackgroundColor(BACKGROUND)
             setPadding(dp(14), dp(12), dp(14), 0)
         }
         root.addView(TextView(this).apply {
-            text = "אפליקציות"
+            text = tr("אפליקציות", "Apps")
             textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
         }, wrap(8))
 
         search = EditText(this).apply {
-            hint = "🔍 חיפוש לפי שם או חבילה"
+            hint = tr("🔍 חיפוש לפי שם או חבילה", "🔍 Search by name or package")
             setSingleLine(true)
             textSize = 15f
             setTextColor(INK)
@@ -193,7 +193,7 @@ class AppsActivity : Activity() {
         row.addView(sortButton)
         countText = TextView(this).apply { setTextColor(MUTED); textSize = 12.5f; setPadding(dp(8), 0, 0, 0) }
         row.addView(countText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(smallButton("בחר") { if (shown.isNotEmpty()) toggle(shown.first().pkg) })
+        row.addView(smallButton(tr("בחר", "Select")) { if (shown.isNotEmpty()) toggle(shown.first().pkg) })
         root.addView(row, wrap(6))
 
         usageBanner = LinearLayout(this).apply {
@@ -204,11 +204,11 @@ class AppsActivity : Activity() {
             visibility = View.GONE
         }
         usageBanner.addView(TextView(this).apply {
-            text = "💡 כדי לראות גודל מלא ושימוש אחרון — צריך גישה לנתוני שימוש."
+            text = tr("💡 כדי לראות גודל מלא ושימוש אחרון — צריך גישה לנתוני שימוש.", "💡 To see full size and last use — usage access is needed.")
             textSize = 13f
             setTextColor(INK)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        usageBanner.addView(smallButton("אשר") { Bridge.grantUsageAccess { load() } })
+        usageBanner.addView(smallButton(tr("אשר", "Allow")) { Bridge.grantUsageAccess { load() } })
         root.addView(usageBanner, wrap(6))
 
         adapter = object : BaseAdapter() {
@@ -245,7 +245,7 @@ class AppsActivity : Activity() {
         selectionBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
             setBackgroundColor(0xFF30251D.toInt())
             setPadding(dp(10), dp(8), dp(10), dp(8))
             elevation = dp(8).toFloat()
@@ -253,9 +253,9 @@ class AppsActivity : Activity() {
         selectionBar.addView(barButton("✕") { clearSelection() })
         selectionCount = TextView(this).apply { setTextColor(0xFFFFFFFF.toInt()); textSize = 15f; typeface = Typeface.DEFAULT_BOLD }
         selectionBar.addView(selectionCount, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(6) })
-        selectionBar.addView(barButton("בחר הכול") { selectAllShown() })
-        selectionBar.addView(barButton("🗑 הסר", danger = true) { bulkUninstall() })
-        selectionBar.addView(barButton("⋮ עוד") { bulkMenu() })
+        selectionBar.addView(barButton(tr("בחר הכול", "Select all")) { selectAllShown() })
+        selectionBar.addView(barButton(tr("🗑 הסר", "🗑 Uninstall"), danger = true) { bulkUninstall() })
+        selectionBar.addView(barButton(tr("⋮ עוד", "⋮ More")) { bulkMenu() })
 
         val outer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BACKGROUND) }
         outer.addView(root, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -300,7 +300,7 @@ class AppsActivity : Activity() {
         if (selected.isEmpty()) {
             bottom.addView(BottomNav.build(this, BottomNav.Tab.APPS) { BottomNav.navigate(this, it) })
         } else {
-            selectionCount.text = "${selected.size} נבחרו"
+            selectionCount.text = tr("${selected.size} נבחרו", "${selected.size} selected")
             bottom.addView(selectionBar)
         }
     }
@@ -330,31 +330,31 @@ class AppsActivity : Activity() {
         }
         val texts = view.getChildAt(2) as LinearLayout
         val badges = buildList {
-            if (!app.installed) add("הוסרה")
-            else if (!app.enabled) add("מושבתת")
-            if (app.system) add("מערכת")
+            if (!app.installed) add(tr("הוסרה", "removed"))
+            else if (!app.enabled) add(tr("מושבתת", "disabled"))
+            if (app.system) add(tr("מערכת", "system"))
         }
         (texts.getChildAt(0) as TextView).text = app.label + if (badges.isEmpty()) "" else "  · ${badges.joinToString(" · ")}"
         (texts.getChildAt(1) as TextView).text = "${app.pkg}\n${app.version} · ${Bridge.formatSize(app.size)}" +
-            (if (app.split) " · ${app.apks.size} חלקים" else "") + " · ${sortDetail(app)}"
+            (if (app.split) tr(" · ${app.apks.size} חלקים", " · ${app.apks.size} parts") else "") + " · ${sortDetail(app)}"
         view.setBackgroundColor(if (app.pkg in selected) 0x22F09A45 else 0)
     }
 
     /** The extra detail on each row follows the chosen sort (install date, last used, …). */
     private fun sortDetail(app: AppRow): String = when (sort) {
-        Sort.UPDATE_NEW -> "עודכן ${dateFormat.format(Date(app.lastUpdate))}"
-        Sort.UNUSED, Sort.RECENT -> app.lastUsed?.let { if (it <= 0) "לא בשימוש" else "בשימוש ${ago(it)}" } ?: "הותקן ${dateFormat.format(Date(app.firstInstall))}"
-        else -> "הותקן ${dateFormat.format(Date(app.firstInstall))}"
+        Sort.UPDATE_NEW -> tr("עודכן ${dateFormat.format(Date(app.lastUpdate))}", "updated ${dateFormat.format(Date(app.lastUpdate))}")
+        Sort.UNUSED, Sort.RECENT -> app.lastUsed?.let { if (it <= 0) tr("לא בשימוש", "not used") else tr("בשימוש ${ago(it)}", "used ${ago(it)}") } ?: tr("הותקן ${dateFormat.format(Date(app.firstInstall))}", "installed ${dateFormat.format(Date(app.firstInstall))}")
+        else -> tr("הותקן ${dateFormat.format(Date(app.firstInstall))}", "installed ${dateFormat.format(Date(app.firstInstall))}")
     }
 
     private fun ago(time: Long): String {
         val days = ((System.currentTimeMillis() - time) / 86_400_000L).coerceAtLeast(0)
         return when {
-            days == 0L -> "היום"
-            days == 1L -> "אתמול"
-            days < 30 -> "לפני $days ימים"
-            days < 365 -> "לפני ${days / 30} חודשים"
-            else -> "לפני ${days / 365} שנים"
+            days == 0L -> tr("היום", "today")
+            days == 1L -> tr("אתמול", "yesterday")
+            days < 30 -> tr("לפני $days ימים", "$days days ago")
+            days < 365 -> tr("לפני ${days / 30} חודשים", "${days / 30} months ago")
+            else -> tr("לפני ${days / 365} שנים", "${days / 365} years ago")
         }
     }
 
@@ -364,7 +364,7 @@ class AppsActivity : Activity() {
 
     @Suppress("DEPRECATION")
     private fun load() {
-        countText.text = "טוען…"
+        countText.text = tr("טוען…", "Loading…")
         usageBanner.visibility = if (Bridge.hasUsageAccess()) View.GONE else View.VISIBLE
         Bridge.scope.launch {
             val rows = runCatching { readApps() }.getOrDefault(emptyList())
@@ -455,7 +455,7 @@ class AppsActivity : Activity() {
             }
         }
         val totalSize = shown.sumOf { it.size }
-        countText.text = "${shown.size} אפליקציות · ${Bridge.formatSize(totalSize)}"
+        countText.text = tr("${shown.size} אפליקציות · ${Bridge.formatSize(totalSize)}", "${shown.size} apps · ${Bridge.formatSize(totalSize)}")
         sortButton.text = "⇅ ${sort.label}"
         adapter.notifyDataSetChanged()
     }
@@ -464,10 +464,10 @@ class AppsActivity : Activity() {
         val sorts = Sort.values()
         val needsUsage = setOf(Sort.UNUSED, Sort.RECENT)
         val labels = sorts.map { s ->
-            (if (s == sort) "✓ " else "    ") + s.label + if (s in needsUsage && !Bridge.hasUsageAccess()) " (דורש גישה לנתוני שימוש)" else ""
+            (if (s == sort) "✓ " else "    ") + s.label + if (s in needsUsage && !Bridge.hasUsageAccess()) tr(" (דורש גישה לנתוני שימוש)", " (needs usage access)") else ""
         }.toTypedArray()
         AlertDialog.Builder(this)
-            .setTitle("מיון לפי")
+            .setTitle(tr("מיון לפי", "Sort by"))
             .setItems(labels) { _, which ->
                 sort = sorts[which]
                 prefs.edit().putString("sort", sort.name).apply()
@@ -502,26 +502,26 @@ class AppsActivity : Activity() {
     private fun selectedApps() = all.filter { it.pkg in selected && it.pkg != packageName }
 
     private fun names(apps: List<AppRow>) =
-        apps.take(12).joinToString("\n") { "• ${it.label}" } + if (apps.size > 12) "\n…ועוד ${apps.size - 12}" else ""
+        apps.take(12).joinToString("\n") { "• ${it.label}" } + if (apps.size > 12) tr("\n…ועוד ${apps.size - 12}", "\n…and ${apps.size - 12} more") else ""
 
     /** Runs a bulk action after a confirmation that lists the apps. */
     private fun confirmBulk(title: String, warning: String?, apps: List<AppRow>, command: (AppRow) -> String) {
         if (apps.isEmpty()) {
-            Toast.makeText(this, "לא נבחרו אפליקציות מתאימות.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr("לא נבחרו אפליקציות מתאימות.", "No matching apps selected."), Toast.LENGTH_SHORT).show()
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("$title — ${apps.size} אפליקציות")
+            .setTitle(tr("$title — ${apps.size} אפליקציות", "$title — ${apps.size} apps"))
             .setMessage((warning?.let { "⚠️ $it\n\n" } ?: "") + names(apps))
-            .setPositiveButton("אישור") { _, _ ->
+            .setPositiveButton(tr("אישור", "OK")) { _, _ ->
                 val started = Bridge.batch(title, apps.map { it.label to command(it) }) { load() }
                 if (started) {
                     clearSelection()
                 } else {
-                    Toast.makeText(this, "פעולה אחרת עדיין רצה — נסה שוב בעוד רגע.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, tr("פעולה אחרת עדיין רצה — נסה שוב בעוד רגע.", "Another action is still running — try again in a moment."), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("ביטול", null)
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
             .show()
     }
 
@@ -534,44 +534,44 @@ class AppsActivity : Activity() {
         val apps = selectedApps().filter { it.installed }
         val hasSystem = apps.any { it.system }
         confirmBulk(
-            if (keepData) "הסרה עם שמירת נתונים" else "הסרה",
-            if (hasSystem) "חלק מהאפליקציות הן אפליקציות מערכת. הסרה שלהן עלולה לפגוע בפעולת הטלפון. אפשר להחזיר אותן אחר כך מהסינון \"מערכת שהוסרו\"." else null,
+            if (keepData) tr("הסרה עם שמירת נתונים", "Uninstall keeping data") else tr("הסרה", "Uninstall"),
+            if (hasSystem) tr("חלק מהאפליקציות הן אפליקציות מערכת. הסרה שלהן עלולה לפגוע בפעולת הטלפון. אפשר להחזיר אותן אחר כך מהסינון \"מערכת שהוסרו\".", "Some of the apps are system apps. Removing them may break how the phone works. You can bring them back later from the \"Removed system\" filter.") else null,
             apps,
         ) { uninstallCommand(it, keepData) }
     }
 
     private fun bulkMenu() {
         val items = listOf<Pair<String, () -> Unit>>(
-            "🗑 הסר ושמור נתונים" to { bulkUninstall(keepData = true) },
-            "⏸ השבת" to {
-                confirmBulk("השבתה", "אפליקציה מושבתת לא תפעל ולא תופיע במסך הבית, עד שתפעיל אותה שוב.", selectedApps().filter { it.installed && it.enabled }) {
+            tr("🗑 הסר ושמור נתונים", "🗑 Uninstall, keep data") to { bulkUninstall(keepData = true) },
+            tr("⏸ השבת", "⏸ Disable") to {
+                confirmBulk(tr("השבתה", "Disable"), tr("אפליקציה מושבתת לא תפעל ולא תופיע במסך הבית, עד שתפעיל אותה שוב.", "A disabled app won't run or appear on the home screen until you enable it again."), selectedApps().filter { it.installed && it.enabled }) {
                     "pm disable-user --user 0 ${it.pkg}"
                 }
             },
-            "▶ הפעל (בטל השבתה)" to {
-                confirmBulk("הפעלה", null, selectedApps().filter { it.installed && !it.enabled }) { "pm enable ${it.pkg}" }
+            tr("▶ הפעל (בטל השבתה)", "▶ Enable (undo disable)") to {
+                confirmBulk(tr("הפעלה", "Enable"), null, selectedApps().filter { it.installed && !it.enabled }) { "pm enable ${it.pkg}" }
             },
-            "⏹ עצור בכוח" to {
-                confirmBulk("עצירה בכוח", null, selectedApps().filter { it.installed }) { "am force-stop ${it.pkg}" }
+            tr("⏹ עצור בכוח", "⏹ Force stop") to {
+                confirmBulk(tr("עצירה בכוח", "Force stop"), null, selectedApps().filter { it.installed }) { "am force-stop ${it.pkg}" }
             },
-            "🧹 נקה נתונים" to {
-                confirmBulk("ניקוי נתונים", "כל הנתונים של האפליקציות (כניסה לחשבון, הגדרות, קבצים) יימחקו. אי אפשר לבטל.", selectedApps().filter { it.installed }) {
+            tr("🧹 נקה נתונים", "🧹 Clear data") to {
+                confirmBulk(tr("ניקוי נתונים", "Clear data"), tr("כל הנתונים של האפליקציות (כניסה לחשבון, הגדרות, קבצים) יימחקו. אי אפשר לבטל.", "All of the apps' data (sign-in, settings, files) will be deleted. This can't be undone."), selectedApps().filter { it.installed }) {
                     "pm clear ${it.pkg}"
                 }
             },
-            "♻ החזר אפליקציות מערכת שהוסרו" to {
-                confirmBulk("החזרה", null, selectedApps().filter { !it.installed }) { "cmd package install-existing ${it.pkg}" }
+            tr("♻ החזר אפליקציות מערכת שהוסרו", "♻ Restore removed system apps") to {
+                confirmBulk(tr("החזרה", "Restore"), null, selectedApps().filter { !it.installed }) { "cmd package install-existing ${it.pkg}" }
             },
-            "💾 גבה APK לתיקייה" to { backupToFolder(selectedApps().filter { it.installed }) },
-            "📋 העתק רשימה" to {
+            tr("💾 גבה APK לתיקייה", "💾 Back up APK to a folder") to { backupToFolder(selectedApps().filter { it.installed }) },
+            tr("📋 העתק רשימה", "📋 Copy list") to {
                 val text = selectedApps().joinToString("\n") { "${it.label} — ${it.pkg} (${it.version})" }
                 getSystemService(android.content.ClipboardManager::class.java)
                     ?.setPrimaryClip(android.content.ClipData.newPlainText("apps", text))
-                Toast.makeText(this, "הרשימה הועתקה.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, tr("הרשימה הועתקה.", "List copied."), Toast.LENGTH_SHORT).show()
             },
         )
         AlertDialog.Builder(this)
-            .setTitle("${selected.size} נבחרו")
+            .setTitle(tr("${selected.size} נבחרו", "${selected.size} selected"))
             .setItems(items.map { it.first }.toTypedArray()) { _, which -> items[which].second() }
             .show()
     }
@@ -580,7 +580,7 @@ class AppsActivity : Activity() {
         if (apps.isEmpty()) return
         pendingBackup = apps
         runCatching { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_FOLDER) }
-            .onFailure { Toast.makeText(this, "לא נמצא בוחר תיקיות.", Toast.LENGTH_SHORT).show() }
+            .onFailure { Toast.makeText(this, tr("לא נמצא בוחר תיקיות.", "No folder picker found."), Toast.LENGTH_SHORT).show() }
     }
 
     // endregion
@@ -591,46 +591,46 @@ class AppsActivity : Activity() {
         val items = mutableListOf<Pair<String, () -> Unit>>()
         fun item(label: String, action: () -> Unit) { items.add(label to action) }
         if (!app.installed) {
-            item("♻ החזר את האפליקציה") {
-                Bridge.batch("החזרה", listOf(app.label to "cmd package install-existing ${app.pkg}")) { load() }
+            item(tr("♻ החזר את האפליקציה", "♻ Restore the app")) {
+                Bridge.batch(tr("החזרה", "Restore"), listOf(app.label to "cmd package install-existing ${app.pkg}")) { load() }
             }
         } else {
             packageManager.getLaunchIntentForPackage(app.pkg)?.let { launch ->
-                item("פתח") { runCatching { startActivity(launch) } }
+                item(tr("פתח", "Open")) { runCatching { startActivity(launch) } }
             }
-            item("💾 שמור APK" + if (app.split) " (חבילת ‎.apks)" else "") { save(app) }
+            item(tr("💾 שמור APK", "💾 Save APK") + if (app.split) tr(" (חבילת ‎.apks)", " (.apks bundle)") else "") { save(app) }
             if (app.pkg != packageName) {
-                item("🗑 הסר") { selected.clear(); selected.add(app.pkg); bulkUninstall() }
-                item("🗑 הסר ושמור נתונים") { selected.clear(); selected.add(app.pkg); bulkUninstall(keepData = true) }
-                if (app.enabled) item("⏸ השבת") {
-                    Bridge.batch("השבתה", listOf(app.label to "pm disable-user --user 0 ${app.pkg}")) { load() }
-                } else item("▶ הפעל") {
-                    Bridge.batch("הפעלה", listOf(app.label to "pm enable ${app.pkg}")) { load() }
+                item(tr("🗑 הסר", "🗑 Uninstall")) { selected.clear(); selected.add(app.pkg); bulkUninstall() }
+                item(tr("🗑 הסר ושמור נתונים", "🗑 Uninstall, keep data")) { selected.clear(); selected.add(app.pkg); bulkUninstall(keepData = true) }
+                if (app.enabled) item(tr("⏸ השבת", "⏸ Disable")) {
+                    Bridge.batch(tr("השבתה", "Disable"), listOf(app.label to "pm disable-user --user 0 ${app.pkg}")) { load() }
+                } else item(tr("▶ הפעל", "▶ Enable")) {
+                    Bridge.batch(tr("הפעלה", "Enable"), listOf(app.label to "pm enable ${app.pkg}")) { load() }
                 }
-                item("⏹ עצור בכוח") { Bridge.batch("עצירה בכוח", listOf(app.label to "am force-stop ${app.pkg}")) { load() } }
+                item(tr("⏹ עצור בכוח", "⏹ Force stop")) { Bridge.batch(tr("עצירה בכוח", "Force stop"), listOf(app.label to "am force-stop ${app.pkg}")) { load() } }
             }
         }
-        item("ℹ פרטי אפליקציה") {
+        item(tr("ℹ פרטי אפליקציה", "ℹ App info")) {
             runCatching { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.pkg}"))) }
         }
-        item("☑ סמן (לפעולה על כמה אפליקציות)") { toggle(app.pkg) }
+        item(tr("☑ סמן (לפעולה על כמה אפליקציות)", "☑ Select (to act on several apps)")) { toggle(app.pkg) }
         val details = buildString {
-            append("${app.pkg}\nגרסה ${app.version} (${app.versionCode})\n")
-            append("גודל: ${Bridge.formatSize(app.size)}" + if (app.totalSize == null) " (קובץ ה־APK בלבד)" else " (כולל נתונים ומטמון)")
-            append("\nהותקן: ${dateFormat.format(Date(app.firstInstall))} · עודכן: ${dateFormat.format(Date(app.lastUpdate))}")
-            app.lastUsed?.let { append("\nשימוש אחרון: ${if (it <= 0) "לא ידוע" else ago(it)}") }
-            append("\nמקור התקנה: ${app.installer ?: "לא רשום"}")
+            append(tr("${app.pkg}\nגרסה ${app.version} (${app.versionCode})\n", "${app.pkg}\nVersion ${app.version} (${app.versionCode})\n"))
+            append(tr("גודל: ${Bridge.formatSize(app.size)}", "Size: ${Bridge.formatSize(app.size)}") + if (app.totalSize == null) tr(" (קובץ ה־APK בלבד)", " (APK file only)") else tr(" (כולל נתונים ומטמון)", " (including data and cache)"))
+            append(tr("\nהותקן: ${dateFormat.format(Date(app.firstInstall))} · עודכן: ${dateFormat.format(Date(app.lastUpdate))}", "\nInstalled: ${dateFormat.format(Date(app.firstInstall))} · Updated: ${dateFormat.format(Date(app.lastUpdate))}"))
+            app.lastUsed?.let { append(tr("\nשימוש אחרון: ${if (it <= 0) "לא ידוע" else ago(it)}", "\nLast used: ${if (it <= 0) "unknown" else ago(it)}")) }
+            append(tr("\nמקור התקנה: ${app.installer ?: "לא רשום"}", "\nInstalled from: ${app.installer ?: "not recorded"}"))
         }
         AlertDialog.Builder(this)
             .setTitle(app.label)
             .setMessage(details)
-            .setPositiveButton("פעולות…") { _, _ ->
+            .setPositiveButton(tr("פעולות…", "Actions…")) { _, _ ->
                 AlertDialog.Builder(this)
                     .setTitle(app.label)
                     .setItems(items.map { it.first }.toTypedArray()) { _, which -> items[which].second() }
                     .show()
             }
-            .setNegativeButton("סגור", null)
+            .setNegativeButton(tr("סגור", "Close"), null)
             .show()
     }
 
@@ -642,7 +642,7 @@ class AppsActivity : Activity() {
             type = if (app.split) "application/octet-stream" else "application/vnd.android.package-archive"
             putExtra(Intent.EXTRA_TITLE, "$safeName-${app.version}.${if (app.split) "apks" else "apk"}")
         }
-        runCatching { startActivityForResult(intent, REQUEST_SAVE) }.onFailure { Toast.makeText(this, "לא נמצא מסך שמירת קבצים.", Toast.LENGTH_SHORT).show() }
+        runCatching { startActivityForResult(intent, REQUEST_SAVE) }.onFailure { Toast.makeText(this, tr("לא נמצא מסך שמירת קבצים.", "No file-saving screen found."), Toast.LENGTH_SHORT).show() }
     }
 
     /** Writes one app to an output stream: a plain .apk, or a .apks zip for split apps. */
@@ -673,15 +673,15 @@ class AppsActivity : Activity() {
                     val ok = withContext(Dispatchers.IO) {
                         runCatching { contentResolver.openOutputStream(target)?.use { writeApp(app, it) } ?: error("no stream") }.isSuccess
                     }
-                    Bridge.log(if (ok) "נשמר APK של ${app.label}." else "שמירת ה־APK של ${app.label} נכשלה.")
-                    runOnUiThread { Toast.makeText(this@AppsActivity, if (ok) "✔ נשמר." else "השמירה נכשלה.", Toast.LENGTH_SHORT).show() }
+                    Bridge.log(if (ok) tr("נשמר APK של ${app.label}.", "Saved the APK of ${app.label}.") else tr("שמירת ה־APK של ${app.label} נכשלה.", "Saving the APK of ${app.label} failed."))
+                    runOnUiThread { Toast.makeText(this@AppsActivity, if (ok) tr("✔ נשמר.", "✔ Saved.") else tr("השמירה נכשלה.", "Saving failed."), Toast.LENGTH_SHORT).show() }
                 }
             }
             REQUEST_FOLDER -> {
                 val apps = pendingBackup
                 pendingBackup = emptyList()
                 runCatching { contentResolver.takePersistableUriPermission(target, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
-                Toast.makeText(this, "מגבה ${apps.size} אפליקציות…", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, tr("מגבה ${apps.size} אפליקציות…", "Backing up ${apps.size} apps…"), Toast.LENGTH_SHORT).show()
                 Bridge.scope.launch {
                     val dir = DocumentsContract.buildDocumentUriUsingTree(target, DocumentsContract.getTreeDocumentId(target))
                     var ok = 0
@@ -695,10 +695,10 @@ class AppsActivity : Activity() {
                                 contentResolver.openOutputStream(doc)?.use { writeApp(app, it) } ?: error("no stream")
                             }.isSuccess
                         }
-                        if (done) ok++ else Bridge.log("גיבוי ${app.label} נכשל.")
+                        if (done) ok++ else Bridge.log(tr("גיבוי ${app.label} נכשל.", "Backup of ${app.label} failed."))
                     }
-                    Bridge.log("גיבוי APK: נשמרו $ok מתוך ${apps.size} אפליקציות.")
-                    runOnUiThread { Toast.makeText(this@AppsActivity, "✔ גובו $ok מתוך ${apps.size}.", Toast.LENGTH_LONG).show() }
+                    Bridge.log(tr("גיבוי APK: נשמרו $ok מתוך ${apps.size} אפליקציות.", "APK backup: saved $ok of ${apps.size} apps."))
+                    runOnUiThread { Toast.makeText(this@AppsActivity, tr("✔ גובו $ok מתוך ${apps.size}.", "✔ Backed up $ok of ${apps.size}."), Toast.LENGTH_LONG).show() }
                 }
             }
         }

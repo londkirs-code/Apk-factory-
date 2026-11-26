@@ -56,7 +56,7 @@ data class InstallOptions(
 /** UI-facing snapshot of what the bridge is doing. */
 data class BridgeState(
     val busy: Boolean = false,
-    val status: String = "מוכן.",
+    val status: String = tr("מוכן.", "Ready."),
     val progress: Int = -1,
     val lastInstalledPackage: String? = null,
     /** Incremented after every successful install, so the UI can offer to open the app once. */
@@ -85,9 +85,9 @@ object Bridge {
     private const val PLAY_STORE = "com.android.vending"
     private const val INSTALL_CHANNEL = "installs"
     const val LEGACY_PORT = 5555
-    val LEGACY_HELP = "ב־Android ${Build.VERSION.RELEASE} אין ניפוי באגים אלחוטי עם קוד צימוד (קיים רק מ־Android 11). " +
-        "כדי להשתמש באפליקציית הבוס: הפעל \"ניפוי באגים ב־USB\" באפשרויות למפתחים, חבר פעם אחת למחשב והרץ: adb tcpip 5555 — " +
-        "ואז אפשר לנתק את הכבל. יש לחזור על כך אחרי כל הפעלה מחדש של המכשיר."
+    val LEGACY_HELP = tr("ב־Android ${Build.VERSION.RELEASE} אין ניפוי באגים אלחוטי עם קוד צימוד (קיים רק מ־Android 11). ", "Android ${Build.VERSION.RELEASE} has no wireless debugging with a pairing code (only from Android 11). ") +
+        tr("כדי להשתמש באפליקציית הבוס: הפעל \"ניפוי באגים ב־USB\" באפשרויות למפתחים, חבר פעם אחת למחשב והרץ: adb tcpip 5555 — ", "To use The Boss: turn on \"USB debugging\" in Developer options, connect once to a computer and run: adb tcpip 5555 — ") +
+        tr("ואז אפשר לנתק את הכבל. יש לחזור על כך אחרי כל הפעלה מחדש של המכשיר.", "then you can unplug the cable. Repeat this after every restart of the device.")
     const val WIFI_HELPER_PKG = "com.londkirs.apkbridge.wifihelper"
     private const val WIFI_HELPER_ACTION = "com.londkirs.apkbridge.wifihelper.ENABLE_WIFI"
     private const val WIFI_HELPER_ASSET = "wifi-helper.apk"
@@ -118,6 +118,7 @@ object Bridge {
     @Volatile var lastConnectionOk = false
 
     fun init(context: Context) {
+        Lang.init(context)
         if (::app.isInitialized) return
         app = context.applicationContext
         applyAutomaticDefaultsOnce()
@@ -205,7 +206,7 @@ object Bridge {
         File(app.filesDir, "adbkey.pub").delete()
         isPaired = false
         savedConnectPort = 0
-        log("הצימוד נמחק. בפעם הבאה יידרש צימוד חדש.")
+        log(tr("הצימוד נמחק. בפעם הבאה יידרש צימוד חדש.", "Pairing removed. Next time a new pairing will be needed."))
     }
 
     var logExpanded: Boolean
@@ -247,39 +248,39 @@ object Bridge {
         if (isOnWifi()) return true
         if (!autoWifi) return false
         if (isWifiHelperInstalled()) {
-            log("אין חיבור Wi‑Fi — מדליק Wi‑Fi דרך עזר ה־Wi‑Fi…")
-            update { it.copy(status = "מדליק Wi‑Fi וממתין לחיבור לרשת…", progress = -1) }
+            log(tr("אין חיבור Wi‑Fi — מדליק Wi‑Fi דרך עזר ה־Wi‑Fi…", "No Wi‑Fi connection — turning Wi‑Fi on through the Wi‑Fi helper…"))
+            update { it.copy(status = tr("מדליק Wi‑Fi וממתין לחיבור לרשת…", "Turning Wi‑Fi on and waiting for a network…"), progress = -1) }
             if (requestWifiFromHelper()) {
                 val up = withTimeoutOrNull(25_000) {
                     while (!isOnWifi()) delay(700)
                     true
                 } ?: false
                 if (up) {
-                    log("Wi‑Fi הודלק והתחבר. ממשיך…")
+                    log(tr("Wi‑Fi הודלק והתחבר. ממשיך…", "Wi‑Fi is on and connected. Continuing…"))
                     delay(1500)
                     return true
                 }
-                log("ה־Wi‑Fi הודלק אבל לא התחבר לרשת שמורה בתוך 25 שניות.")
+                log(tr("ה־Wi‑Fi הודלק אבל לא התחבר לרשת שמורה בתוך 25 שניות.", "Wi‑Fi was turned on but didn't connect to a saved network within 25 seconds."))
             } else {
-                log("עזר ה־Wi‑Fi לא הצליח להדליק את ה־Wi‑Fi.")
+                log(tr("עזר ה־Wi‑Fi לא הצליח להדליק את ה־Wi‑Fi.", "The Wi‑Fi helper couldn't turn Wi‑Fi on."))
             }
         }
-        log("אין חיבור Wi‑Fi — פותח את חלונית ה־Wi‑Fi של Android.")
+        log(tr("אין חיבור Wi‑Fi — פותח את חלונית ה־Wi‑Fi של Android.", "No Wi‑Fi connection — opening Android's Wi‑Fi panel."))
         if (wifiPanelListeners.isEmpty()) {
-            notifyInfo("הבוס צריך Wi‑Fi", "הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", Compat.wifiPanelIntent())
+            notifyInfo(tr("הבוס צריך Wi‑Fi", "The Boss needs Wi‑Fi"), tr("הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", "Tap to turn Wi‑Fi on. The action will continue automatically."), Compat.wifiPanelIntent())
         } else {
             main.post { wifiPanelListeners.forEach { it() } }
         }
-        update { it.copy(status = "ממתין לחיבור Wi‑Fi… (הדלק Wi‑Fi בחלונית שנפתחה)", progress = -1) }
+        update { it.copy(status = tr("ממתין לחיבור Wi‑Fi… (הדלק Wi‑Fi בחלונית שנפתחה)", "Waiting for Wi‑Fi… (turn Wi‑Fi on in the panel that opened)"), progress = -1) }
         val connected = withTimeoutOrNull(120_000) {
             while (!isOnWifi()) delay(1000)
             true
         } ?: false
         if (connected) {
-            log("Wi‑Fi מחובר. ממשיך…")
+            log(tr("Wi‑Fi מחובר. ממשיך…", "Wi‑Fi connected. Continuing…"))
             delay(1500)
         } else {
-            log("לא התקבל חיבור Wi‑Fi בתוך 2 דקות.")
+            log(tr("לא התקבל חיבור Wi‑Fi בתוך 2 דקות.", "No Wi‑Fi connection within 2 minutes."))
         }
         return connected
     }
@@ -350,7 +351,7 @@ object Bridge {
     private fun runJob(name: String, block: suspend () -> Unit): Boolean {
         synchronized(this) {
             if (currentJob?.isActive == true) {
-                log("פעולה אחרת עדיין רצה — המתן לסיומה.")
+                log(tr("פעולה אחרת עדיין רצה — המתן לסיומה.", "Another action is still running — wait for it to finish."))
                 return false
             }
             update { it.copy(busy = true, progress = -1) }
@@ -358,12 +359,12 @@ object Bridge {
                 try {
                     block()
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                    status("$name נכשל: ${explain(e)}")
+                    status(tr("$name נכשל: ${explain(e)}", "$name failed: ${explain(e)}"))
                 } catch (e: kotlinx.coroutines.CancellationException) {
-                    status("$name בוטל.")
+                    status(tr("$name בוטל.", "$name cancelled."))
                 } catch (e: Throwable) {
-                    log("פרטים טכניים: ${details(e)}")
-                    status("$name נכשל: ${explain(e)}")
+                    log(tr("פרטים טכניים: ${details(e)}", "Technical details: ${details(e)}"))
+                    status(tr("$name נכשל: ${explain(e)}", "$name failed: ${explain(e)}"))
                 } finally {
                     update { it.copy(busy = false) }
                 }
@@ -407,14 +408,14 @@ object Bridge {
     private suspend fun ensureWirelessDebugging() {
         if (!autoEnableWireless || isWirelessDebuggingOn() == true || !canWriteSecureSettings()) return
         if (!isOnWifi()) {
-            log("אין חיבור Wi‑Fi — Android לא יפעיל ניפוי באגים אלחוטי בלי Wi‑Fi.")
+            log(tr("אין חיבור Wi‑Fi — Android לא יפעיל ניפוי באגים אלחוטי בלי Wi‑Fi.", "No Wi‑Fi connection — Android won't turn on wireless debugging without Wi‑Fi."))
             return
         }
         val ok = runCatching {
             Settings.Global.putInt(app.contentResolver, "adb_wifi_enabled", 1)
         }.getOrDefault(false)
         if (ok) {
-            log("ניפוי באגים אלחוטי הופעל אוטומטית. ממתין לעליית השירות…")
+            log(tr("ניפוי באגים אלחוטי הופעל אוטומטית. ממתין לעליית השירות…", "Wireless debugging was turned on automatically. Waiting for the service to start…"))
             delay(2500)
         }
     }
@@ -490,7 +491,7 @@ object Bridge {
             override fun onDiscoveryStopped(serviceType: String) {}
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                log("גילוי mDNS נכשל (קוד $errorCode).")
+                log(tr("גילוי mDNS נכשל (קוד $errorCode).", "mDNS discovery failed (code $errorCode)."))
                 result.complete(null)
             }
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
@@ -523,49 +524,49 @@ object Bridge {
 
     suspend fun pairNow(host: String, port: Int?, code: String): Boolean {
         val cleanCode = code.filter(Char::isDigit)
-        require(cleanCode.length == 6) { "קוד הצימוד חייב להכיל 6 ספרות." }
+        require(cleanCode.length == 6) { tr("קוד הצימוד חייב להכיל 6 ספרות.", "The pairing code must have 6 digits.") }
         val target = host.trim().ifBlank { LOCAL_HOST }
         val pairPort = port ?: run {
-            log("מחפש את פורט הצימוד ברשת (mDNS)…")
+            log(tr("מחפש את פורט הצימוד ברשת (mDNS)…", "Looking for the pairing port on the network (mDNS)…"))
             discover(PAIRING_SERVICE, target, 8_000)?.port
-        } ?: error("לא נמצא שירות צימוד פעיל. ודא שחלון \"התאמת מכשיר עם קוד התאמה\" פתוח, או הזן את הפורט ידנית.")
-        log("מבצע צימוד מול $target:$pairPort…")
+        } ?: error(tr("לא נמצא שירות צימוד פעיל. ודא שחלון \"התאמת מכשיר עם קוד התאמה\" פתוח, או הזן את הפורט ידנית.", "No active pairing service found. Make sure the \"Pair device with pairing code\" window is open, or enter the port manually."))
+        log(tr("מבצע צימוד מול $target:$pairPort…", "Pairing with $target:$pairPort…"))
         val result = withContext(Dispatchers.IO) {
             withTimeout(30_000) { AdbClient.pairTls(target, pairPort, cleanCode, keyProvider()) }
         }
         val error = result.exceptionOrNull()
         if (error != null) {
-            log("הצימוד נכשל: ${explain(error)}")
+            log(tr("הצימוד נכשל: ${explain(error)}", "Pairing failed: ${explain(error)}"))
             return false
         }
         isPaired = true
         targetHost = target
-        log("הצימוד הצליח. המפתח נשמר באחסון הפרטי של האפליקציה.")
+        log(tr("הצימוד הצליח. המפתח נשמר באחסון הפרטי של האפליקציה.", "Paired. The key is saved in the app's private storage."))
         // 🎉 Confetti on the visible screen (or as soon as the user comes back to the app).
         celebrationPending = true
         main.post { Celebration.celebrate() }
         return true
     }
 
-    fun pair(host: String, port: Int?, code: String) = runJob("הצימוד") {
-        status("מבצע צימוד מאובטח…")
+    fun pair(host: String, port: Int?, code: String) = runJob(tr("הצימוד", "Pairing")) {
+        status(tr("מבצע צימוד מאובטח…", "Pairing securely…"))
         if (pairNow(host, port, code)) {
-            status("הצימוד הצליח. מתחבר…")
+            status(tr("הצימוד הצליח. מתחבר…", "Paired. Connecting…"))
             withClient { describeDevice(it) }
         } else {
-            status("הצימוד נכשל. בדוק את הקוד ושהחלון עדיין פתוח, ונסה שוב.")
+            status(tr("הצימוד נכשל. בדוק את הקוד ושהחלון עדיין פתוח, ונסה שוב.", "Pairing failed. Check the code and that the window is still open, then try again."))
         }
     }
 
     /** Called by the accessibility service when it reads a pairing code off the Settings screen. */
-    fun autoPair(port: Int, code: String) = runJob("הצימוד האוטומטי") {
-        status("זוהה קוד צימוד במסך — מבצע צימוד אוטומטית…")
+    fun autoPair(port: Int, code: String) = runJob(tr("הצימוד האוטומטי", "Automatic pairing")) {
+        status(tr("זוהה קוד צימוד במסך — מבצע צימוד אוטומטית…", "Pairing code detected on screen — pairing automatically…"))
         if (pairNow(LOCAL_HOST, port, code)) {
-            notifyInfo("הבוס צומד בהצלחה", "הצימוד האוטומטי הצליח. אפשר לחזור לאפליקציית הבוס ולהתקין.", null)
-            status("הצימוד האוטומטי הצליח. בודק חיבור…")
+            notifyInfo(tr("הבוס צומד בהצלחה", "The Boss is paired"), tr("הצימוד האוטומטי הצליח. אפשר לחזור לאפליקציית הבוס ולהתקין.", "Automatic pairing succeeded. You can go back to The Boss and install."), null)
+            status(tr("הצימוד האוטומטי הצליח. בודק חיבור…", "Automatic pairing succeeded. Checking the connection…"))
             withClient { describeDevice(it) }
         } else {
-            status("הצימוד האוטומטי נכשל. אם הקוד התחלף, הוא ינוסה שוב אוטומטית.")
+            status(tr("הצימוד האוטומטי נכשל. אם הקוד התחלף, הוא ינוסה שוב אוטומטית.", "Automatic pairing failed. If the code changed, it will be retried automatically."))
         }
     }
 
@@ -581,18 +582,18 @@ object Bridge {
     suspend fun <T> withClient(block: suspend (AdbClient) -> T): T {
         // 1. Persistent mode: adbd in TCP mode on loopback works even with Wi‑Fi off.
         if (keepAdbWithoutWifi && isLocalTarget(targetHost) && isLocalPortOpen(LEGACY_PORT)) {
-            log("מתחבר דרך ADB קבוע (127.0.0.1:$LEGACY_PORT) — לא נדרש Wi‑Fi…")
+            log(tr("מתחבר דרך ADB קבוע (127.0.0.1:$LEGACY_PORT) — לא נדרש Wi‑Fi…", "Connecting through persistent ADB (127.0.0.1:$LEGACY_PORT) — no Wi‑Fi needed…"))
             val legacy = try {
                 connectLegacy(30_000)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 if (e is kotlinx.coroutines.TimeoutCancellationException) null else throw e
             } catch (e: Throwable) {
-                log("החיבור הקבוע נכשל: ${explain(e)}")
+                log(tr("החיבור הקבוע נכשל: ${explain(e)}", "Persistent connection failed: ${explain(e)}"))
                 null
             }
             if (legacy != null) {
                 return try {
-                    log("מחובר (ADB קבוע).")
+                    log(tr("מחובר (ADB קבוע).", "Connected (persistent ADB)."))
                     block(legacy).also { runCatching { autoSetup(legacy) } }
                 } finally {
                     runCatching { legacy.close() }
@@ -608,7 +609,7 @@ object Bridge {
 
         suspend fun attempt(ep: Endpoint): AdbClient? {
             if (!tried.add(ep)) return null
-            log("מתחבר ל־${ep.host}:${ep.port}…")
+            log(tr("מתחבר ל־${ep.host}:${ep.port}…", "Connecting to ${ep.host}:${ep.port}…"))
             return try {
                 connectTo(ep).also {
                     savedConnectPort = ep.port
@@ -616,17 +617,17 @@ object Bridge {
                 }
             } catch (e: AdbException.NotPaired) {
                 isPaired = false
-                throw IllegalStateException("המכשיר דחה את המפתח של הבוס. יש לבצע צימוד מחדש.", e)
+                throw IllegalStateException(tr("המכשיר דחה את המפתח של הבוס. יש לבצע צימוד מחדש.", "The device rejected The Boss's key. Pair again."), e)
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 lastError = e
-                log("החיבור ל־${ep.port} לא הגיב בזמן.")
+                log(tr("החיבור ל־${ep.port} לא הגיב בזמן.", "The connection to ${ep.port} didn't respond in time."))
                 null
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 lastError = e
-                log("החיבור ל־${ep.host}:${ep.port} נכשל: ${explain(e)}")
-                log("פרטים טכניים: ${details(e)}")
+                log(tr("החיבור ל־${ep.host}:${ep.port} נכשל: ${explain(e)}", "Connecting to ${ep.host}:${ep.port} failed: ${explain(e)}"))
+                log(tr("פרטים טכניים: ${details(e)}", "Technical details: ${details(e)}"))
                 null
             }
         }
@@ -644,20 +645,20 @@ object Bridge {
         val saved = savedConnectPort
         if (saved > 0) client = attemptAll(saved)
         if (client == null) {
-            log("מאתר את פורט Wireless Debugging (mDNS)…")
+            log(tr("מאתר את פורט Wireless Debugging (mDNS)…", "Finding the Wireless Debugging port (mDNS)…"))
             val found = discover(CONNECT_SERVICE, host, 10_000)
-            if (found == null) log("גילוי mDNS לא מצא את שירות החיבור.")
+            if (found == null) log(tr("גילוי mDNS לא מצא את שירות החיבור.", "mDNS discovery didn't find the connection service."))
             else {
-                log("mDNS מצא את פורט ${found.port}.")
+                log(tr("mDNS מצא את פורט ${found.port}.", "mDNS found port ${found.port}."))
                 client = attempt(found) ?: attemptAll(found.port)
             }
         }
         if (client == null && local) {
             // mDNS is flaky on many devices. adbd's TLS port is a random high port on this
             // device, so scan loopback and keep only ports that answer with ADB's A_STLS.
-            log("סורק פורטים מקומיים כדי למצוא את ADB…")
+            log(tr("סורק פורטים מקומיים כדי למצוא את ADB…", "Scanning local ports to find ADB…"))
             val ports = scanLocalAdbPorts()
-            log(if (ports.isEmpty()) "לא נמצא פורט ADB פתוח במכשיר." else "נמצאו פורטים של ADB: ${ports.joinToString()}")
+            log(if (ports.isEmpty()) tr("לא נמצא פורט ADB פתוח במכשיר.", "No open ADB port found on the device.") else tr("נמצאו פורטים של ADB: ${ports.joinToString()}", "Found ADB ports: ${ports.joinToString()}"))
             for (port in ports) {
                 client = attemptAll(port)
                 if (client != null) break
@@ -665,29 +666,29 @@ object Bridge {
         }
         if (client == null && !local) {
             // An older target device (Android 4–10) only offers classic ADB on port 5555.
-            log("מנסה ADB קלאסי ב־$host:$LEGACY_PORT (מכשיר יעד ישן)…")
+            log(tr("מנסה ADB קלאסי ב־$host:$LEGACY_PORT (מכשיר יעד ישן)…", "Trying classic ADB at $host:$LEGACY_PORT (older target device)…"))
             client = runCatching { connectLegacy(60_000, host) }.getOrNull()
         }
         if (client == null) {
             val hint = when {
-                isWirelessDebuggingOn() == false -> "ניפוי באגים אלחוטי כבוי. הפעל אותו באפשרויות למפתחים."
-                !isOnWifi() -> "המכשיר לא מחובר ל־Wi‑Fi; ניפוי באגים אלחוטי דורש Wi‑Fi."
-                else -> "ודא שניפוי באגים אלחוטי פעיל. ${lastError?.let { explain(it) } ?: ""}"
+                isWirelessDebuggingOn() == false -> tr("ניפוי באגים אלחוטי כבוי. הפעל אותו באפשרויות למפתחים.", "Wireless debugging is off. Turn it on in Developer options.")
+                !isOnWifi() -> tr("המכשיר לא מחובר ל־Wi‑Fi; ניפוי באגים אלחוטי דורש Wi‑Fi.", "The device isn't connected to Wi‑Fi; wireless debugging needs Wi‑Fi.")
+                else -> tr("ודא שניפוי באגים אלחוטי פעיל. ${lastError?.let { explain(it) } ?: ""}", "Make sure wireless debugging is on. ${lastError?.let { explain(it) } ?: ""}")
             }
-            error("לא ניתן להתחבר ל־ADB. $hint")
+            error(tr("לא ניתן להתחבר ל־ADB. $hint", "Can't connect to ADB. $hint"))
         }
         val connected: AdbClient = client
         var result: Result<T>? = null
         try {
-            log("מחובר.")
+            log(tr("מחובר.", "Connected."))
             result = Result.success(block(connected))
         } finally {
             var renewed = false
             if (result != null && local) {
-                runCatching { autoSetup(connected) }.onFailure { log("ההגדרה האוטומטית נכשלה: ${explain(it)}") }
+                runCatching { autoSetup(connected) }.onFailure { log(tr("ההגדרה האוטומטית נכשלה: ${explain(it)}", "Automatic setup failed: ${explain(it)}")) }
                 // Keep ADB alive without Wi‑Fi: start (or, after a reboot, renew) adbd's TCP mode on 5555.
                 if (keepAdbWithoutWifi && !isLocalPortOpen(LEGACY_PORT)) {
-                    log("מפעיל ADB קבוע (פורט $LEGACY_PORT) — יישאר פעיל גם בלי Wi‑Fi עד הפעלה מחדש של המכשיר.")
+                    log(tr("מפעיל ADB קבוע (פורט $LEGACY_PORT) — יישאר פעיל גם בלי Wi‑Fi עד הפעלה מחדש של המכשיר.", "Turning on persistent ADB (port $LEGACY_PORT) — stays on without Wi‑Fi until the device restarts."))
                     renewed = runCatching {
                         connected.shell("settings put global adb_enabled 1")
                         log("ADB: ${connected.tcpip(LEGACY_PORT)}")
@@ -703,13 +704,13 @@ object Bridge {
     /** First time only: connect to 5555 so Android asks "Allow debugging?" while the user is here. */
     private suspend fun authorizeLegacyOnce() {
         delay(3_000)
-        status("אשר את החלון \"לאפשר ניפוי באגים?\" (סמן \"אפשר תמיד\") — כדי ש־ADB יישאר פעיל גם בלי Wi‑Fi.")
+        status(tr("אשר את החלון \"לאפשר ניפוי באגים?\" (סמן \"אפשר תמיד\") — כדי ש־ADB יישאר פעיל גם בלי Wi‑Fi.", "Confirm the \"Allow USB debugging?\" window (check \"Always allow\") — so ADB stays on without Wi‑Fi."))
         val ok = runCatching { connectLegacy(60_000).close() }.isSuccess
         if (ok) {
             prefs.edit().putBoolean("legacy_authorized", true).apply()
-            status("✔ ADB קבוע פעיל: הבוס יעבוד גם כשה־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר.")
+            status(tr("✔ ADB קבוע פעיל: הבוס יעבוד גם כשה־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר.", "✔ Persistent ADB is on: The Boss works even when Wi‑Fi is off, until the device's next restart."))
         } else {
-            log("החיבור הקבוע עדיין לא אושר; ינוסה שוב בפעולה הבאה.")
+            log(tr("החיבור הקבוע עדיין לא אושר; ינוסה שוב בפעולה הבאה.", "The persistent connection wasn't approved yet; it will be retried on the next action."))
         }
     }
 
@@ -724,26 +725,26 @@ object Bridge {
         suspend fun run(label: String, cmd: String) {
             val r = c.shell(cmd)
             val out = (r.stdoutText + r.stderrText).trim()
-            log(if (r.exitCode == 0) "✔ הוגדר אוטומטית: $label" else "לא ניתן להגדיר $label: ${out.ifBlank { "exit ${r.exitCode}" }}")
+            log(if (r.exitCode == 0) tr("✔ הוגדר אוטומטית: $label", "✔ Set up automatically: $label") else tr("לא ניתן להגדיר $label: ${out.ifBlank { "exit ${r.exitCode}" }}", "Can't set up $label: ${out.ifBlank { "exit ${r.exitCode}" }}"))
         }
         if (!canWriteSecureSettings()) {
-            run("הפעלה אוטומטית של ניפוי באגים אלחוטי", "pm grant $pkg android.permission.WRITE_SECURE_SETTINGS")
+            run(tr("הפעלה אוטומטית של ניפוי באגים אלחוטי", "Automatic turning on of wireless debugging"), "pm grant $pkg android.permission.WRITE_SECURE_SETTINGS")
         }
         if (Build.VERSION.SDK_INT >= 33 &&
             app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
-            run("הרשאת התראות", "pm grant $pkg android.permission.POST_NOTIFICATIONS")
+            run(tr("הרשאת התראות", "Notification permission"), "pm grant $pkg android.permission.POST_NOTIFICATIONS")
         }
         if (!app.packageManager.canRequestPackageInstalls()) {
-            run("התקנת אפליקציות (עזר ה־Wi‑Fi)", "appops set $pkg REQUEST_INSTALL_PACKAGES allow")
+            run(tr("התקנת אפליקציות (עזר ה־Wi‑Fi)", "Installing apps (Wi‑Fi helper)"), "appops set $pkg REQUEST_INSTALL_PACKAGES allow")
         }
         val power = app.getSystemService(android.os.PowerManager::class.java)
         if (power != null && !power.isIgnoringBatteryOptimizations(pkg)) {
-            run("החרגה מחיסכון בסוללה", "dumpsys deviceidle whitelist +$pkg")
+            run(tr("החרגה מחיסכון בסוללה", "Battery optimization exemption"), "dumpsys deviceidle whitelist +$pkg")
         }
         if (!hasUsageAccess()) {
             // Lets the apps manager show real app size (data + cache) and "last used".
-            run("גישה לנתוני שימוש (גודל ושימוש אחרון של אפליקציות)", "appops set $pkg GET_USAGE_STATS allow")
+            run(tr("גישה לנתוני שימוש (גודל ושימוש אחרון של אפליקציות)", "Usage access (apps' size and last use)"), "appops set $pkg GET_USAGE_STATS allow")
         }
         if (Compat.hasWirelessDebugging && accessibilityAutoPair && !PairingAccessibilityService.isEnabled(app)) {
             val me = android.content.ComponentName(app, PairingAccessibilityService::class.java).flattenToString()
@@ -752,7 +753,7 @@ object Bridge {
             }.getOrNull().orEmpty()
             val list = (current.split(':').filter { it.isNotBlank() } + me).distinct().joinToString(":")
             run(
-                "שירות הנגישות לצימוד אוטומטי",
+                tr("שירות הנגישות לצימוד אוטומטי", "Accessibility service for automatic pairing"),
                 "settings put secure enabled_accessibility_services '$list' && settings put secure accessibility_enabled 1",
             )
         }
@@ -761,8 +762,8 @@ object Bridge {
             runCatching {
                 app.assets.open(WIFI_HELPER_ASSET).use { input -> file.outputStream().use { input.copyTo(it) } }
                 c.install.install(RandomAccessSource.of(file), listOf("-r")).collect { }
-                log("✔ הוגדר אוטומטית: עזר ה־Wi‑Fi הותקן.")
-            }.onFailure { log("התקנת עזר ה־Wi‑Fi נכשלה: ${explain(it)}") }
+                log(tr("✔ הוגדר אוטומטית: עזר ה־Wi‑Fi הותקן.", "✔ Set up automatically: the Wi‑Fi helper was installed."))
+            }.onFailure { log(tr("התקנת עזר ה־Wi‑Fi נכשלה: ${explain(it)}", "Installing the Wi‑Fi helper failed: ${explain(it)}")) }
             file.delete()
         }
     }
@@ -782,15 +783,15 @@ object Bridge {
     private suspend fun <T> withLegacyClient(host: String, block: suspend (AdbClient) -> T): T {
         val local = isLocalTarget(host)
         val target = if (local) LOCAL_HOST else host
-        log("מתחבר ל־ADB הקלאסי ב־$target:$LEGACY_PORT…")
+        log(tr("מתחבר ל־ADB הקלאסי ב־$target:$LEGACY_PORT…", "Connecting to classic ADB at $target:$LEGACY_PORT…"))
         if (local && !isLocalPortOpen(LEGACY_PORT)) error(LEGACY_HELP)
         val c = try {
             connectLegacy(60_000, target)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            error("החיבור לא אושר בזמן. אשר את החלון \"לאפשר ניפוי באגים?\" (סמן \"אפשר תמיד\") ונסה שוב.")
+            error(tr("החיבור לא אושר בזמן. אשר את החלון \"לאפשר ניפוי באגים?\" (סמן \"אפשר תמיד\") ונסה שוב.", "The connection wasn't approved in time. Confirm the \"Allow USB debugging?\" window (check \"Always allow\") and try again."))
         }
         return try {
-            log("מחובר (ADB קלאסי).")
+            log(tr("מחובר (ADB קלאסי).", "Connected (classic ADB)."))
             block(c).also { if (local) runCatching { autoSetup(c) } }
         } finally {
             runCatching { c.close() }
@@ -798,10 +799,10 @@ object Bridge {
     }
 
     /** Switches adbd to TCP mode on 5555 and authorizes this app on it, so ADB survives Wi‑Fi off. */
-    fun enableKeepAdb() = runJob("הפעלת ADB קבוע") {
+    fun enableKeepAdb() = runJob(tr("הפעלת ADB קבוע", "Turning on persistent ADB")) {
         keepAdbWithoutWifi = true
         if (!isLocalPortOpen(LEGACY_PORT)) {
-            status("מעביר את ADB למצב קבוע (פורט $LEGACY_PORT)…")
+            status(tr("מעביר את ADB למצב קבוע (פורט $LEGACY_PORT)…", "Switching ADB to persistent mode (port $LEGACY_PORT)…"))
             withClient { c ->
                 // adbd must stay alive after Wireless Debugging turns off with Wi‑Fi, so keep USB debugging on.
                 c.shell("settings put global adb_enabled 1")
@@ -809,17 +810,17 @@ object Bridge {
             }
             delay(3_000)
         }
-        status("מאשר את החיבור הקבוע… אם מופיע חלון \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד מהמחשב הזה\" ולחץ אישור.")
+        status(tr("מאשר את החיבור הקבוע… אם מופיע חלון \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד מהמחשב הזה\" ולחץ אישור.", "Approving the persistent connection… If an \"Allow USB debugging?\" window appears — check \"Always allow from this computer\" and tap OK."))
         val c = connectLegacy(90_000)
         try {
             val model = c.shell("getprop ro.product.model").stdoutText.trim()
-            status("✔ ADB קבוע פעיל ($model): הבוס יעבוד גם כש־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר. אחרי הפעלה מחדש הוא יחודש אוטומטית בחיבור הראשון דרך Wi‑Fi.")
+            status(tr("✔ ADB קבוע פעיל ($model): הבוס יעבוד גם כש־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר. אחרי הפעלה מחדש הוא יחודש אוטומטית בחיבור הראשון דרך Wi‑Fi.", "✔ Persistent ADB is on ($model): The Boss works even when Wi‑Fi is off, until the device's next restart. After a restart it's renewed automatically on the first Wi‑Fi connection."))
         } finally {
             runCatching { c.close() }
         }
     }
 
-    fun disableKeepAdb() = runJob("כיבוי ADB קבוע") {
+    fun disableKeepAdb() = runJob(tr("כיבוי ADB קבוע", "Turning off persistent ADB")) {
         keepAdbWithoutWifi = false
         if (isLocalPortOpen(LEGACY_PORT)) {
             runCatching {
@@ -827,7 +828,7 @@ object Bridge {
                 try { c.open("usb:").close() } finally { runCatching { c.close() } }
             }
         }
-        status("ADB קבוע כובה. הפורט $LEGACY_PORT ייסגר לכל המאוחר בהפעלה מחדש של המכשיר.")
+        status(tr("ADB קבוע כובה. הפורט $LEGACY_PORT ייסגר לכל המאוחר בהפעלה מחדש של המכשיר.", "Persistent ADB turned off. Port $LEGACY_PORT closes at the latest when the device restarts."))
     }
 
     private fun wifiIpv4Addresses(): List<String> = runCatching {
@@ -884,11 +885,11 @@ object Bridge {
         val info = client.shell("echo \"\$(getprop ro.product.manufacturer) \$(getprop ro.product.model) · Android \$(getprop ro.build.version.release) (SDK \$(getprop ro.build.version.sdk))\"")
             .stdoutText.trim()
         lastConnectionOk = true
-        status("מחובר ומוכן: $info")
+        status(tr("מחובר ומוכן: $info", "Connected and ready: $info"))
     }
 
-    fun testConnection() = runJob("בדיקת החיבור") {
-        status("בודק חיבור…")
+    fun testConnection() = runJob(tr("בדיקת החיבור", "Connection check")) {
+        status(tr("בודק חיבור…", "Checking the connection…"))
         withClient { describeDevice(it) }
     }
 
@@ -898,11 +899,11 @@ object Bridge {
 
     private class InstallUnit(val label: String, val apks: List<File>, val obbs: List<Pair<String, File>>, val packageName: String?)
 
-    fun install(uris: List<Uri>, options: InstallOptions) = runJob("ההתקנה") {
-        require(uris.isNotEmpty()) { "לא נבחרו קבצים." }
+    fun install(uris: List<Uri>, options: InstallOptions) = runJob(tr("ההתקנה", "Install")) {
+        require(uris.isNotEmpty()) { tr("לא נבחרו קבצים.", "No files selected.") }
         val work = File(app.cacheDir, "install-work").apply { deleteRecursively(); mkdirs() }
         try {
-            status("מכין ${uris.size} קבצים…")
+            status(tr("מכין ${uris.size} קבצים…", "Preparing ${uris.size} files…"))
             val units = prepareUnits(uris, work)
             var ok = 0
             withClient { client ->
@@ -912,7 +913,7 @@ object Bridge {
                     ok++
                 }
             }
-            if (units.size > 1) status("הותקנו בהצלחה $ok מתוך ${units.size} חבילות.", 100)
+            if (units.size > 1) status(tr("הותקנו בהצלחה $ok מתוך ${units.size} חבילות.", "Installed $ok of ${units.size} packages successfully."), 100)
         } finally {
             withContext(Dispatchers.IO) { work.deleteRecursively() }
         }
@@ -928,7 +929,7 @@ object Bridge {
             if (options.registerPlayInstaller) { add("-i"); add(PLAY_STORE) }
         }
         val total = unit.apks.sumOf { it.length() }
-        status("${prefix}מתקין ${unit.label} (${unit.apks.size} APK, ${formatSize(total)})…", 0)
+        status(tr("${prefix}מתקין ${unit.label} (${unit.apks.size} APK, ${formatSize(total)})…", "${prefix}Installing ${unit.label} (${unit.apks.size} APK, ${formatSize(total)})…"), 0)
         val flow = if (unit.apks.size == 1) {
             client.install.install(RandomAccessSource.of(unit.apks[0]), flags)
         } else {
@@ -939,15 +940,15 @@ object Bridge {
             val percent = p.percentage.toInt()
             if (percent != lastPercent) {
                 lastPercent = percent
-                update { it.copy(progress = percent, status = "${prefix}מעביר ${unit.label}: $percent%") }
+                update { it.copy(progress = percent, status = tr("${prefix}מעביר ${unit.label}: $percent%", "${prefix}Transferring ${unit.label}: $percent%")) }
             }
         }
-        log("${prefix}Package Manager החזיר Success.")
+        log(tr("${prefix}Package Manager החזיר Success.", "${prefix}Package Manager returned Success."))
 
         val pkg = unit.packageName
         if (pkg != null && unit.obbs.isNotEmpty()) pushObbs(client, pkg, unit.obbs)
         if (pkg == null) {
-            status("${prefix}ההתקנה הסתיימה בהצלחה.", 100)
+            status(tr("${prefix}ההתקנה הסתיימה בהצלחה.", "${prefix}Install finished successfully."), 100)
             return
         }
         val line = client.shell("pm list packages -i --show-versioncode $pkg").stdoutText
@@ -957,20 +958,20 @@ object Bridge {
         val version = line?.substringAfter("versionCode:", "")?.substringBefore(' ')?.takeIf { it.isNotBlank() }
         update { it.copy(lastInstalledPackage = pkg) }
         val installerText = when {
-            installer == PLAY_STORE -> "מקור ההתקנה הרשום: Google Play (com.android.vending)"
-            installer != null -> "מקור ההתקנה הרשום: $installer"
-            else -> "מקור ההתקנה: לא רשום"
+            installer == PLAY_STORE -> tr("מקור ההתקנה הרשום: Google Play (com.android.vending)", "Recorded install source: Google Play (com.android.vending)")
+            installer != null -> tr("מקור ההתקנה הרשום: $installer", "Recorded install source: $installer")
+            else -> tr("מקור ההתקנה: לא רשום", "Install source: not recorded")
         }
         val label = appLabel(pkg) ?: pkg
         status(
-            "${prefix}✔ $label ($pkg) הותקן בהצלחה" + (version?.let { " (versionCode $it)" } ?: "") + ".\n$installerText",
+            tr("${prefix}✔ $label ($pkg) הותקן בהצלחה", "${prefix}✔ $label ($pkg) installed successfully") + (version?.let { " (versionCode $it)" } ?: "") + ".\n$installerText",
             100,
         )
         update { it.copy(lastInstalledPackage = pkg, installSeq = it.installSeq + 1) }
         // When the app screen is not visible, offer "open" through a notification instead of a dialog.
         if (stateListeners.isEmpty() && installNotifications) {
             val launch = app.packageManager.getLaunchIntentForPackage(pkg)?.takeIf { openAfterInstall != "never" }
-            notifyInfo("✔ $label הותקן", if (launch != null) "הקש כדי לפתוח את האפליקציה." else "ההתקנה הושלמה.", launch)
+            notifyInfo(tr("✔ $label הותקן", "✔ $label installed"), if (launch != null) tr("הקש כדי לפתוח את האפליקציה.", "Tap to open the app.") else tr("ההתקנה הושלמה.", "Install complete."), launch)
         }
     }
 
@@ -986,7 +987,7 @@ object Bridge {
         val nm = app.getSystemService(android.app.NotificationManager::class.java) ?: return
         if (nm.getNotificationChannel(INSTALL_CHANNEL) == null) {
             nm.createNotificationChannel(
-                android.app.NotificationChannel(INSTALL_CHANNEL, "תוצאות התקנה", android.app.NotificationManager.IMPORTANCE_DEFAULT)
+                android.app.NotificationChannel(INSTALL_CHANNEL, tr("תוצאות התקנה", "Install results"), android.app.NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
         val intent = (target ?: android.content.Intent(app, MainActivity::class.java))
@@ -1043,15 +1044,15 @@ object Bridge {
         client.shell("mkdir -p '$dir'")
         for ((name, file) in obbs) {
             val safe = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
-            log("מעתיק קובץ OBB: $safe (${formatSize(file.length())})")
+            log(tr("מעתיק קובץ OBB: $safe (${formatSize(file.length())})", "Copying OBB file: $safe (${formatSize(file.length())})"))
             val size = file.length().coerceAtLeast(1)
             FileInputStream(file).use { input ->
                 client.sync.push(input, "$dir/$safe") { done ->
-                    update { it.copy(progress = (done * 100 / size).toInt(), status = "מעתיק OBB: ${done * 100 / size}%") }
+                    update { it.copy(progress = (done * 100 / size).toInt(), status = tr("מעתיק OBB: ${done * 100 / size}%", "Copying OBB: ${done * 100 / size}%")) }
                 }
             }
         }
-        log("קובצי OBB הועתקו אל $dir.")
+        log(tr("קובצי OBB הועתקו אל $dir.", "OBB files copied to $dir."))
     }
 
     private suspend fun prepareUnits(uris: List<Uri>, work: File): List<InstallUnit> = withContext(Dispatchers.IO) {
@@ -1062,18 +1063,18 @@ object Bridge {
             val copy = File(work, "src-$index-${sanitize(name)}")
             app.contentResolver.openInputStream(uri)?.use { input ->
                 copy.outputStream().use { input.copyTo(it, 256 * 1024) }
-            } ?: error("לא ניתן לקרוא את הקובץ $name")
-            if (copy.length() == 0L) error("הקובץ $name ריק.")
-            log("נקרא $name (${formatSize(copy.length())}).")
+            } ?: error(tr("לא ניתן לקרוא את הקובץ $name", "Can't read the file $name"))
+            if (copy.length() == 0L) error(tr("הקובץ $name ריק.", "The file $name is empty."))
+            log(tr("נקרא $name (${formatSize(copy.length())}).", "Read $name (${formatSize(copy.length())})."))
 
             val entries = runCatching { ZipFile(copy).use { z -> z.entries().toList().filter { !it.isDirectory }.map { it.name } } }
-                .getOrElse { error("$name אינו APK או חבילת APKS/XAPK/APKM תקינה.") }
+                .getOrElse { error(tr("$name אינו APK או חבילת APKS/XAPK/APKM תקינה.", "$name isn't a valid APK or APKS/XAPK/APKM package.")) }
             if ("AndroidManifest.xml" in entries) {
                 loose += copy
                 continue
             }
             val apkEntries = entries.filter { it.endsWith(".apk", ignoreCase = true) }
-            if (apkEntries.isEmpty()) error("$name אינו מכיל קובצי APK. ייתכן שהוא מוצפן או פגום.")
+            if (apkEntries.isEmpty()) error(tr("$name אינו מכיל קובצי APK. ייתכן שהוא מוצפן או פגום.", "$name contains no APK files. It may be encrypted or damaged."))
             val dir = File(work, "bundle-$index").apply { mkdirs() }
             val apks = mutableListOf<File>()
             val obbs = mutableListOf<Pair<String, File>>()
@@ -1090,7 +1091,7 @@ object Bridge {
             copy.delete()
             val filtered = filterAbiSplits(apks)
             val pkg = filtered.firstNotNullOfOrNull { packageNameOf(it) }
-            log("$name: חבילה עם ${filtered.size} קובצי APK" + (if (obbs.isNotEmpty()) " ו־${obbs.size} קובצי OBB" else "") + (pkg?.let { " ($it)" } ?: "") + ".")
+            log(tr("$name: חבילה עם ${filtered.size} קובצי APK", "$name: package with ${filtered.size} APK files") + (if (obbs.isNotEmpty()) tr(" ו־${obbs.size} קובצי OBB", " and ${obbs.size} OBB files") else "") + (pkg?.let { " ($it)" } ?: "") + ".")
             bundles += InstallUnit(pkg ?: name, filtered, obbs, pkg)
         }
 
@@ -1104,7 +1105,7 @@ object Bridge {
             when {
                 unknown.isNotEmpty() && byPkg.size == 1 -> byPkg.values.first() += unknown
                 unknown.isNotEmpty() && byPkg.isEmpty() -> byPkg["?"] = unknown
-                unknown.isNotEmpty() -> error("לא ניתן לזהות את שם החבילה של ${unknown.size} מהקבצים שנבחרו.")
+                unknown.isNotEmpty() -> error(tr("לא ניתן לזהות את שם החבילה של ${unknown.size} מהקבצים שנבחרו.", "Can't identify the package name of ${unknown.size} of the selected files."))
             }
             for ((pkg, files) in byPkg) {
                 val real = pkg.takeIf { it != "?" }
@@ -1126,7 +1127,7 @@ object Bridge {
         val keep = abiSplits.filter { abiOf(it) in supported }
         if (keep.isEmpty()) return apks
         val dropped = abiSplits - keep.toSet()
-        if (dropped.isNotEmpty()) log("דילוג על ${dropped.size} חלקי ABI שאינם מתאימים למעבד של המכשיר.")
+        if (dropped.isNotEmpty()) log(tr("דילוג על ${dropped.size} חלקי ABI שאינם מתאימים למעבד של המכשיר.", "Skipping ${dropped.size} ABI parts that don't match the device's processor."))
         return apks.filter { abiOf(it) == null || it in keep }
     }
 
@@ -1147,8 +1148,8 @@ object Bridge {
         val cmd = normalizeCommand(raw)
         if (cmd.isBlank()) return false
         var exit: Int? = null
-        val started = runJob("הפקודה") {
-            status("מריץ: $cmd")
+        val started = runJob(tr("הפקודה", "Command")) {
+            status(tr("מריץ: $cmd", "Running: $cmd"))
             try {
                 withClient { c ->
                     c.shellFlow(cmd).collect { chunk ->
@@ -1159,7 +1160,7 @@ object Bridge {
                         }
                     }
                 }
-                status("הפקודה הסתיימה (קוד יציאה ${exit ?: 0}).")
+                status(tr("הפקודה הסתיימה (קוד יציאה ${exit ?: 0}).", "Command finished (exit code ${exit ?: 0})."))
                 if (exit == null) exit = 0
             } finally {
                 val code = exit
@@ -1184,10 +1185,10 @@ object Bridge {
         mode == android.app.AppOpsManager.MODE_ALLOWED
     }.getOrDefault(false)
 
-    fun grantUsageAccess(onDone: () -> Unit) = runJob("מתן גישה לנתוני שימוש") {
+    fun grantUsageAccess(onDone: () -> Unit) = runJob(tr("מתן גישה לנתוני שימוש", "Granting usage access")) {
         try {
             withClient { c -> c.shell("appops set ${app.packageName} GET_USAGE_STATS allow") }
-            status(if (hasUsageAccess()) "✔ ניתנה גישה לנתוני שימוש." else "הפקודה נשלחה; ייתכן שיש לפתוח את המסך מחדש.")
+            status(if (hasUsageAccess()) tr("✔ ניתנה גישה לנתוני שימוש.", "✔ Usage access granted.") else tr("הפקודה נשלחה; ייתכן שיש לפתוח את המסך מחדש.", "Command sent; you may need to reopen the screen."))
         } finally {
             main.post(onDone)
         }
@@ -1216,8 +1217,8 @@ object Bridge {
                 }
             }
             status(
-                "$title: הצליח $ok מתוך ${items.size}." +
-                    if (failed.isNotEmpty()) "\nנכשל: ${failed.joinToString(", ")} (פרטים ביומן)." else "",
+                tr("$title: הצליח $ok מתוך ${items.size}.", "$title: $ok of ${items.size} succeeded.") +
+                    if (failed.isNotEmpty()) tr("\nנכשל: ${failed.joinToString(", ")} (פרטים ביומן).", "\nFailed: ${failed.joinToString(", ")} (details in the log).") else "",
                 100,
             )
         } finally {
@@ -1225,27 +1226,27 @@ object Bridge {
         }
     }
 
-    fun uninstall(pkg: String, keepData: Boolean) = runJob("הסרת ההתקנה") {
+    fun uninstall(pkg: String, keepData: Boolean) = runJob(tr("הסרת ההתקנה", "Uninstall")) {
         val name = pkg.trim()
-        require(name.matches(Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+"))) { "שם חבילה לא תקין." }
-        status("מסיר את $name…")
+        require(name.matches(Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+"))) { tr("שם חבילה לא תקין.", "Invalid package name.") }
+        status(tr("מסיר את $name…", "Uninstalling $name…"))
         withClient { client ->
             val r = client.shell("pm uninstall ${if (keepData) "-k " else ""}$name")
             val out = (r.stdoutText + r.stderrText).trim()
-            if (out.contains("Success")) status("✔ $name הוסר.") else error(out.ifBlank { "תשובה ריקה" })
+            if (out.contains("Success")) status(tr("✔ $name הוסר.", "✔ $name uninstalled.")) else error(out.ifBlank { tr("תשובה ריקה", "empty response") })
         }
     }
 
-    fun grantAutoEnable() = runJob("הענקת ההרשאה") {
-        status("מעניק לאפליקציית הבוס הרשאה להפעיל ניפוי באגים אלחוטי בעצמו…")
+    fun grantAutoEnable() = runJob(tr("הענקת ההרשאה", "Granting the permission")) {
+        status(tr("מעניק לאפליקציית הבוס הרשאה להפעיל ניפוי באגים אלחוטי בעצמו…", "Giving The Boss permission to turn on wireless debugging by itself…"))
         withClient { client ->
             val r = client.shell("pm grant ${app.packageName} android.permission.WRITE_SECURE_SETTINGS")
             val out = (r.stdoutText + r.stderrText).trim()
             if (r.exitCode != 0) error(out.ifBlank { "exit ${r.exitCode}" })
         }
         status(
-            if (canWriteSecureSettings()) "✔ ההרשאה ניתנה. מעכשיו הבוס יפעיל את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (כל עוד יש Wi‑Fi)."
-            else "הפקודה נשלחה; ההרשאה תיכנס לתוקף לאחר הפעלה מחדש של האפליקציה."
+            if (canWriteSecureSettings()) tr("✔ ההרשאה ניתנה. מעכשיו הבוס יפעיל את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (כל עוד יש Wi‑Fi).", "✔ Permission granted. From now on The Boss turns wireless debugging on by itself when it's off (as long as there's Wi‑Fi).")
+            else tr("הפקודה נשלחה; ההרשאה תיכנס לתוקף לאחר הפעלה מחדש של האפליקציה.", "Command sent; the permission takes effect after the app restarts.")
         )
     }
 
@@ -1283,20 +1284,20 @@ object Bridge {
     fun explain(e: Throwable): String {
         val msg = generateSequence(e) { it.cause }.mapNotNull { it.message }.firstOrNull().orEmpty()
         return when {
-            e is AdbException.NotPaired -> "המכשיר דחה את המפתח — יש לבצע צימוד מחדש."
-            e is java.net.ConnectException -> "החיבור נדחה (הפורט סגור). ייתכן שהפורט השתנה או שניפוי הבאגים כבוי."
-            e is java.net.SocketTimeoutException || e is kotlinx.coroutines.TimeoutCancellationException -> "תם הזמן להמתנה לתשובה."
-            msg.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") -> "חתימת ה־APK שונה מזו של האפליקציה המותקנת. יש להסיר את הגרסה הקיימת קודם (לשונית אפליקציות ← הסר)."
-            msg.contains("INSTALL_FAILED_VERSION_DOWNGRADE") -> "הגרסה ישנה מהמותקנת. סמן \"אפשר שנמוך גרסה\" ונסה שוב."
-            msg.contains("INSTALL_FAILED_DEPRECATED_SDK_VERSION") -> "האפליקציה מיועדת לגרסת Android ישנה מדי. סמן \"עקוף חסימת targetSdk נמוך\"."
-            msg.contains("INSTALL_FAILED_TEST_ONLY") -> "זה APK מסוג test-only. סמן \"אפשר חבילות בדיקה\"."
-            msg.contains("INSTALL_FAILED_NO_MATCHING_ABIS") -> "האפליקציה לא תומכת במעבד של המכשיר."
-            msg.contains("INSTALL_FAILED_INSUFFICIENT_STORAGE") -> "אין מספיק מקום פנוי במכשיר."
-            msg.contains("INSTALL_FAILED_OLDER_SDK") -> "האפליקציה דורשת גרסת Android חדשה יותר."
-            msg.contains("INSTALL_FAILED_MISSING_SPLIT") -> "חסרים חלקי APK (split). בחר את החבילה המלאה (APKS/XAPK) או את כל הקבצים יחד."
-            msg.contains("INSTALL_PARSE_FAILED_NO_CERTIFICATES") -> "ה־APK לא חתום."
-            msg.contains("INSTALL_FAILED_USER_RESTRICTED") -> "ההתקנה נחסמה. בשיאומי/MIUI יש להפעיל \"Install via USB\" באפשרויות למפתחים."
-            msg.contains("INSTALL_FAILED_ALREADY_EXISTS") -> "החבילה כבר קיימת וה־Package Manager סירב להחליף אותה."
+            e is AdbException.NotPaired -> tr("המכשיר דחה את המפתח — יש לבצע צימוד מחדש.", "The device rejected the key — pair again.")
+            e is java.net.ConnectException -> tr("החיבור נדחה (הפורט סגור). ייתכן שהפורט השתנה או שניפוי הבאגים כבוי.", "Connection refused (the port is closed). The port may have changed or debugging is off.")
+            e is java.net.SocketTimeoutException || e is kotlinx.coroutines.TimeoutCancellationException -> tr("תם הזמן להמתנה לתשובה.", "Timed out waiting for a response.")
+            msg.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") -> tr("חתימת ה־APK שונה מזו של האפליקציה המותקנת. יש להסיר את הגרסה הקיימת קודם (לשונית אפליקציות ← הסר).", "The APK's signature differs from the installed app's. Uninstall the existing version first (Apps tab → Uninstall).")
+            msg.contains("INSTALL_FAILED_VERSION_DOWNGRADE") -> tr("הגרסה ישנה מהמותקנת. סמן \"אפשר שנמוך גרסה\" ונסה שוב.", "This version is older than the installed one. Check \"Allow downgrade\" and try again.")
+            msg.contains("INSTALL_FAILED_DEPRECATED_SDK_VERSION") -> tr("האפליקציה מיועדת לגרסת Android ישנה מדי. סמן \"עקוף חסימת targetSdk נמוך\".", "The app targets an Android version that is too old. Check \"Bypass low targetSdk block\".")
+            msg.contains("INSTALL_FAILED_TEST_ONLY") -> tr("זה APK מסוג test-only. סמן \"אפשר חבילות בדיקה\".", "This is a test-only APK. Check \"Allow test packages\".")
+            msg.contains("INSTALL_FAILED_NO_MATCHING_ABIS") -> tr("האפליקציה לא תומכת במעבד של המכשיר.", "The app doesn't support the device's processor.")
+            msg.contains("INSTALL_FAILED_INSUFFICIENT_STORAGE") -> tr("אין מספיק מקום פנוי במכשיר.", "Not enough free space on the device.")
+            msg.contains("INSTALL_FAILED_OLDER_SDK") -> tr("האפליקציה דורשת גרסת Android חדשה יותר.", "The app requires a newer Android version.")
+            msg.contains("INSTALL_FAILED_MISSING_SPLIT") -> tr("חסרים חלקי APK (split). בחר את החבילה המלאה (APKS/XAPK) או את כל הקבצים יחד.", "APK parts (splits) are missing. Choose the full package (APKS/XAPK) or all the files together.")
+            msg.contains("INSTALL_PARSE_FAILED_NO_CERTIFICATES") -> tr("ה־APK לא חתום.", "The APK isn't signed.")
+            msg.contains("INSTALL_FAILED_USER_RESTRICTED") -> tr("ההתקנה נחסמה. בשיאומי/MIUI יש להפעיל \"Install via USB\" באפשרויות למפתחים.", "Install blocked. On Xiaomi/MIUI turn on \"Install via USB\" in Developer options.")
+            msg.contains("INSTALL_FAILED_ALREADY_EXISTS") -> tr("החבילה כבר קיימת וה־Package Manager סירב להחליף אותה.", "The package already exists and Package Manager refused to replace it.")
             msg.isNotBlank() -> msg
             else -> e.javaClass.simpleName
         }

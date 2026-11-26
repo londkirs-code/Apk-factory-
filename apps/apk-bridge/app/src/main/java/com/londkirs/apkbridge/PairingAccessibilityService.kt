@@ -22,7 +22,7 @@ class PairingAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Bridge.init(this)
-        Bridge.log("שירות הנגישות פעיל: קוד צימוד שיופיע בהגדרות יזוהה ויוזן אוטומטית.")
+        Bridge.log(tr("שירות הנגישות פעיל: קוד צימוד שיופיע בהגדרות יזוהה ויוזן אוטומטית.", "Accessibility service is on: a pairing code shown in Settings will be detected and entered automatically."))
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -46,14 +46,14 @@ class PairingAccessibilityService : AccessibilityService() {
             // Only remember the code once a pairing job actually started (another job may be running).
             if (Bridge.autoPair(port, code)) {
                 lastPairKey = key
-                Toast.makeText(this, "הבוס זיהה את קוד הצימוד — מבצע צימוד…", Toast.LENGTH_SHORT).show()
-                Bridge.log("זוהה חלון צימוד במסך: פורט $port.")
+                Toast.makeText(this, tr("הבוס זיהה את קוד הצימוד — מבצע צימוד…", "The Boss detected the pairing code — pairing…"), Toast.LENGTH_SHORT).show()
+                Bridge.log(tr("זוהה חלון צימוד במסך: פורט $port.", "Pairing window detected on screen: port $port."))
             }
         } else if (port != lastConnectPort) {
             lastConnectPort = port
             if (Bridge.savedConnectPort != port) {
                 Bridge.savedConnectPort = port
-                Bridge.log("זוהה פורט החיבור של ניפוי הבאגים האלחוטי מהמסך: $port.")
+                Bridge.log(tr("זוהה פורט החיבור של ניפוי הבאגים האלחוטי מהמסך: $port.", "Wireless debugging connection port detected from the screen: $port."))
             }
         }
     }

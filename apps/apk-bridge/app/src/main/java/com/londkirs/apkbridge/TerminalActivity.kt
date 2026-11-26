@@ -97,7 +97,7 @@ class TerminalActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(CHAT_BG)
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
         }
 
         // Header (like a WhatsApp conversation header)
@@ -126,9 +126,9 @@ class TerminalActivity : Activity() {
         subtitle = TextView(this).apply { textSize = 12.5f; setTextColor(HEADER_SUB); maxLines = 1 }
         titles.addView(subtitle)
         header.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(iconButton("⧉") { copyChat() }.apply { contentDescription = "העתק שיחה" })
-        header.addView(iconButton("🗑") { confirmClearChat() }.apply { contentDescription = "נקה שיחה"; textSize = 18f })
-        header.addView(iconButton("⟲") { showHistory() }.apply { contentDescription = "היסטוריה" })
+        header.addView(iconButton("⧉") { copyChat() }.apply { contentDescription = tr("העתק שיחה", "Copy chat") })
+        header.addView(iconButton("🗑") { confirmClearChat() }.apply { contentDescription = tr("נקה שיחה", "Clear chat"); textSize = 18f })
+        header.addView(iconButton("⟲") { showHistory() }.apply { contentDescription = tr("היסטוריה", "History") })
         header.addView(iconButton("⋮") { menu() })
         root.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
@@ -176,7 +176,7 @@ class TerminalActivity : Activity() {
         }
         pill.addView(iconButton("📋") { pasteFromClipboard() }.apply { textSize = 18f; Compat.focusRing(this, ACCENT, 20f) })
         input = EditText(this).apply {
-            hint = "הקלד פקודה"
+            hint = tr("הקלד פקודה", "Type a command")
             textSize = 15f
             typeface = Typeface.MONOSPACE
             setTextColor(TEXT)
@@ -234,10 +234,10 @@ class TerminalActivity : Activity() {
         if (!::subtitle.isInitialized) return
         val running = state.busy && current != null
         subtitle.text = when {
-            running -> "מריץ…"
-            state.busy -> "עסוק…"
+            running -> tr("מריץ…", "Running…")
+            state.busy -> tr("עסוק…", "Busy…")
             Bridge.isPaired || Bridge.keepAdbWithoutWifi -> "Android ${Build.VERSION.RELEASE} · ${Build.MODEL}"
-            else -> "לא מצומד — בצע צימוד קודם באפליקציית הבוס"
+            else -> tr("לא מצומד — בצע צימוד קודם באפליקציית הבוס", "Not paired — pair first in The Boss")
         }
         subtitle.setTextColor(if (running) HEADER_TEXT else HEADER_SUB)
         sendButton.text = if (running) "■" else "➤"
@@ -252,12 +252,12 @@ class TerminalActivity : Activity() {
     private fun now() = SimpleDateFormat("HH:mm", Locale.US).format(Date())
 
     private fun welcome() {
-        addMessage(Message(false, now(), "שלום! כאן אפשר להריץ כל פקודת ADB.\n\n" +
-            "• הקלד פקודה ולחץ ➤ (אפשר גם \"adb shell …\").\n" +
-            "• קיצור: לחיצה מריצה מיד, לחיצה ארוכה מעבירה לעריכה.\n" +
-            "• + מוסיף קיצור משלך, ⚙ עורך ומוחק.\n" +
-            "• לחיצה ארוכה על הודעה: העתקה, הרצה שוב או עריכה.\n\n" +
-            "הפקודות רצות כמשתמש shell (לא root)."))
+        addMessage(Message(false, now(), tr("שלום! כאן אפשר להריץ כל פקודת ADB.\n\n", "Hi! Here you can run any ADB command.\n\n") +
+            tr("• הקלד פקודה ולחץ ➤ (אפשר גם \"adb shell …\").\n", "• Type a command and tap ➤ (\"adb shell …\" works too).\n") +
+            tr("• קיצור: לחיצה מריצה מיד, לחיצה ארוכה מעבירה לעריכה.\n", "• Shortcut: tap runs it right away, long-press moves it to editing.\n") +
+            tr("• + מוסיף קיצור משלך, ⚙ עורך ומוחק.\n", "• + adds your own shortcut, ⚙ edits and deletes.\n") +
+            tr("• לחיצה ארוכה על הודעה: העתקה, הרצה שוב או עריכה.\n\n", "• Long-press a message: copy, run again or edit.\n\n") +
+            tr("הפקודות רצות כמשתמש shell (לא root).", "Commands run as the shell user (not root).")))
     }
 
     private fun addMessage(m: Message) {
@@ -274,8 +274,8 @@ class TerminalActivity : Activity() {
     private fun bubble(m: Message): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            // As in Hebrew (right-to-left) WhatsApp: own messages on the left, replies on the right.
-            gravity = if (m.outgoing) Gravity.LEFT else Gravity.RIGHT
+            // As in WhatsApp: own messages on the left in Hebrew (right-to-left), on the right in English.
+            gravity = if (m.outgoing == Lang.hebrew) Gravity.LEFT else Gravity.RIGHT
             setPadding(0, dp(2), 0, dp(2))
         }
         val box = LinearLayout(this).apply {
@@ -284,8 +284,8 @@ class TerminalActivity : Activity() {
             background = GradientDrawable().apply {
                 setColor(if (m.outgoing) OUT_BG else IN_BG)
                 val r = dp(10).toFloat(); val tail = dp(2).toFloat()
-                        // Order: top-left, top-right, bottom-right, bottom-left. Outgoing (left) has its tail top-left.
-                cornerRadii = if (m.outgoing) floatArrayOf(tail, tail, r, r, r, r, r, r) else floatArrayOf(r, r, tail, tail, r, r, r, r)
+                // Order: top-left, top-right, bottom-right, bottom-left. The tail is on the bubble's outer top corner.
+                cornerRadii = if (m.outgoing == Lang.hebrew) floatArrayOf(tail, tail, r, r, r, r, r, r) else floatArrayOf(r, r, tail, tail, r, r, r, r)
             }
         }
         val text = TextView(this).apply {
@@ -358,15 +358,15 @@ class TerminalActivity : Activity() {
 
     private fun messageMenu(m: Message) {
         val raw = m.text.toString()
-        val items = mutableListOf("העתק")
-        if (m.outgoing) { items += "הרץ שוב"; items += "ערוך"; items += "שמור כקיצור" }
+        val items = mutableListOf(tr("העתק", "Copy"))
+        if (m.outgoing) { items += tr("הרץ שוב", "Run again"); items += tr("ערוך", "Edit"); items += tr("שמור כקיצור", "Save as shortcut") }
         AlertDialog.Builder(this, DIALOG)
             .setItems(items.toTypedArray()) { _, which ->
                 when (items[which]) {
-                    "העתק" -> copy(raw)
-                    "הרץ שוב" -> submit(raw)
-                    "ערוך" -> setInput(raw)
-                    "שמור כקיצור" -> addShortcut(raw)
+                    tr("העתק", "Copy") -> copy(raw)
+                    tr("הרץ שוב", "Run again") -> submit(raw)
+                    tr("ערוך", "Edit") -> setInput(raw)
+                    tr("שמור כקיצור", "Save as shortcut") -> addShortcut(raw)
                 }
             }
             .show()
@@ -386,17 +386,17 @@ class TerminalActivity : Activity() {
         val parsed = CommandParser.parse(raw)
         val cmd = parsed.command
         if (cmd.isNullOrBlank()) {
-            addMessage(Message(false, now(), parsed.note ?: "לא נמצאה פקודה להרצה."))
+            addMessage(Message(false, now(), parsed.note ?: tr("לא נמצאה פקודה להרצה.", "No command found to run.")))
             return
         }
         // Tell the user once what was understood (e.g. "adb shell" removed, adb uninstall → pm uninstall).
         parsed.note?.let { addMessage(Message(false, now(), it)) }
         if (DANGEROUS.any { cmd.contains(it) }) {
             AlertDialog.Builder(this, DIALOG)
-                .setTitle("פקודה שעלולה להזיק")
-                .setMessage("הפקודה עלולה למחוק נתונים, להסיר אפליקציות או להפעיל מחדש את המכשיר:\n\n$cmd\n\nלהריץ בכל זאת?")
-                .setPositiveButton("הרץ") { _, _ -> execute(raw, cmd) }
-                .setNegativeButton("ביטול", null)
+                .setTitle(tr("פקודה שעלולה להזיק", "Potentially harmful command"))
+                .setMessage(tr("הפקודה עלולה למחוק נתונים, להסיר אפליקציות או להפעיל מחדש את המכשיר:\n\n$cmd\n\nלהריץ בכל זאת?", "This command may delete data, uninstall apps or restart the device:\n\n$cmd\n\nRun it anyway?"))
+                .setPositiveButton(tr("הרץ", "Run")) { _, _ -> execute(raw, cmd) }
+                .setNegativeButton(tr("ביטול", "Cancel"), null)
                 .show()
         } else {
             execute(raw, cmd)
@@ -405,7 +405,7 @@ class TerminalActivity : Activity() {
 
     private fun execute(raw: String, cmd: String) {
         if (Bridge.state.busy) {
-            Toast.makeText(this, "פעולה אחרת עדיין רצה — נסה שוב בעוד רגע.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr("פעולה אחרת עדיין רצה — נסה שוב בעוד רגע.", "Another action is still running — try again in a moment."), Toast.LENGTH_SHORT).show()
             return
         }
         val msg = Message(true, now(), cmd, "run")
@@ -424,7 +424,7 @@ class TerminalActivity : Activity() {
                 }
                 renderMeta(msg)
                 if (currentReply == null) {
-                    addMessage(Message(false, now(), if (code == null) "הפקודה לא הושלמה. הסיבה מופיעה ביומן של הבוס." else "(אין פלט)"))
+                    addMessage(Message(false, now(), if (code == null) tr("הפקודה לא הושלמה. הסיבה מופיעה ביומן של הבוס.", "The command didn't complete. The reason is in The Boss's log.") else tr("(אין פלט)", "(no output)")))
                 }
                 current = null
                 currentReply = null
@@ -455,7 +455,7 @@ class TerminalActivity : Activity() {
     private fun pasteFromClipboard() {
         val text = clipboardText()
         if (text == null) {
-            Toast.makeText(this, "הלוח ריק.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr("הלוח ריק.", "The clipboard is empty."), Toast.LENGTH_SHORT).show()
             return
         }
         if (CommandParser.looksLikeCommand(text)) offerClipboardCommand(text, fromPasteButton = true) else setInput(text)
@@ -470,16 +470,16 @@ class TerminalActivity : Activity() {
             return
         }
         val message = buildString {
-            append(if (fromPasteButton) "זוהתה פקודה בלוח:" else "בלוח יש פקודה שנראית רלוונטית:")
+            append(if (fromPasteButton) tr("זוהתה פקודה בלוח:", "Command detected in the clipboard:") else tr("בלוח יש פקודה שנראית רלוונטית:", "The clipboard has a command that looks relevant:"))
             append("\n\n").append(cmd)
             parsed.note?.let { append("\n\n").append(it) }
         }
         AlertDialog.Builder(this, DIALOG)
-            .setTitle("להריץ את הפקודה?")
+            .setTitle(tr("להריץ את הפקודה?", "Run the command?"))
             .setMessage(message)
-            .setPositiveButton("הרץ") { _, _ -> submit(text) }
-            .setNeutralButton("לעריכה") { _, _ -> setInput(cmd) }
-            .setNegativeButton("ביטול", null)
+            .setPositiveButton(tr("הרץ", "Run")) { _, _ -> submit(text) }
+            .setNeutralButton(tr("לעריכה", "Edit")) { _, _ -> setInput(cmd) }
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
             .show()
     }
 
@@ -523,18 +523,18 @@ class TerminalActivity : Activity() {
 
     private fun keyHelp() {
         AlertDialog.Builder(this, DIALOG)
-            .setTitle("קיצורי מקשים")
+            .setTitle(tr("קיצורי מקשים", "Keyboard shortcuts"))
             .setMessage(
-                "חצים — מעבר בין הודעות, קיצורים וכפתורים\n" +
-                    "OK — לחיצה · החזקת OK — לחיצה ארוכה (עריכת קיצור / תפריט הודעה)\n" +
-                    "חיוג (ירוק) — שליחת הפקודה\n" +
-                    "תפריט — תפריט המסוף\n" +
-                    "1–9 — הרצת הקיצור המתאים\n" +
-                    "* — הדבקה מהלוח\n" +
-                    "# — מעבר לשורת ההקלדה\n" +
-                    "חזור — יציאה"
+                tr("חצים — מעבר בין הודעות, קיצורים וכפתורים\n", "Arrows — move between messages, shortcuts and buttons\n") +
+                    tr("OK — לחיצה · החזקת OK — לחיצה ארוכה (עריכת קיצור / תפריט הודעה)\n", "OK — tap · Hold OK — long-press (edit shortcut / message menu)\n") +
+                    tr("חיוג (ירוק) — שליחת הפקודה\n", "Call (green) — send the command\n") +
+                    tr("תפריט — תפריט המסוף\n", "Menu — terminal menu\n") +
+                    tr("1–9 — הרצת הקיצור המתאים\n", "1–9 — run the matching shortcut\n") +
+                    tr("* — הדבקה מהלוח\n", "* — paste from clipboard\n") +
+                    tr("# — מעבר לשורת ההקלדה\n", "# — go to the input line\n") +
+                    tr("חזור — יציאה", "Back — exit")
             )
-            .setPositiveButton("הבנתי", null)
+            .setPositiveButton(tr("הבנתי", "Got it"), null)
             .show()
     }
 
@@ -551,19 +551,23 @@ class TerminalActivity : Activity() {
 
     // region shortcuts
 
-    private fun defaults() = DEFAULT_SHORTCUTS.map { (g, l, c) -> Shortcut(l, c, g) }.toMutableList()
+    private fun defaults() = DEFAULT_SHORTCUTS.map { Shortcut(it.label, it.command, it.group) }.toMutableList()
+
+    /** Built-in shortcuts are shown in the current language, whichever language they were saved in. */
+    private fun shown(sc: Shortcut): String =
+        DEFAULT_SHORTCUTS.firstOrNull { it.command == sc.command && (sc.label == it.he || sc.label == it.en) }?.label ?: sc.label
 
     private fun shortcuts(): MutableList<Shortcut> {
         val json = prefs().getString("shortcuts", null) ?: return defaults()
         val list = runCatching {
             val arr = JSONArray(json)
             (0 until arr.length()).map { i ->
-                arr.getJSONObject(i).let { o -> Shortcut(o.getString("l"), o.getString("c"), o.optString("g", "")) }
+                arr.getJSONObject(i).let { o -> Shortcut(o.getString("l"), o.getString("c"), o.optString("g", "").let { g -> OLD_GROUPS[g] ?: g }) }
             }.toMutableList()
         }.getOrElse { return defaults() }
         // Lists saved by older versions: give each item a category and add the new built-in shortcuts once.
         if (prefs().getInt("shortcuts_v", 1) < SHORTCUTS_VERSION) {
-            val byCommand = DEFAULT_SHORTCUTS.associate { (g, _, c) -> c to g }
+            val byCommand = DEFAULT_SHORTCUTS.associate { it.command to it.group }
             list.forEach { if (it.group.isBlank()) it.group = byCommand[it.command] ?: MINE }
             val have = list.map { it.command }.toSet()
             defaults().filter { it.command !in have }.forEach { list += it }
@@ -599,18 +603,18 @@ class TerminalActivity : Activity() {
 
     private fun rebuildChips() {
         groupChips.removeAllViews()
-        groupChips.addView(chip("📋 הדבק", accent = true).apply { setOnClickListener { pasteFromClipboard() } })
+        groupChips.addView(chip(tr("📋 הדבק", "📋 Paste"), accent = true).apply { setOnClickListener { pasteFromClipboard() } })
         groupChips.addView(chip("+", accent = true).apply {
-            contentDescription = "קיצור חדש"
+            contentDescription = tr("קיצור חדש", "New shortcut")
             setOnClickListener { addShortcut(input.text.toString().trim()) }
         })
         groupChips.addView(chip("⚙", accent = true).apply {
-            contentDescription = "עריכת קיצורים"
+            contentDescription = tr("עריכת קיצורים", "Edit shortcuts")
             setOnClickListener { manageShortcuts() }
         })
         val selected = currentGroup()
         for (g in groups()) {
-            groupChips.addView(chip(g, accent = false, selected = g == selected).apply {
+            groupChips.addView(chip(groupLabel(g), accent = false, selected = g == selected).apply {
                 setOnClickListener {
                     prefs().edit().putString("shortcut_group", g).apply()
                     rebuildChips()
@@ -621,7 +625,7 @@ class TerminalActivity : Activity() {
         chips.removeAllViews()
         for ((i, sc) in shortcutsInGroup().withIndex()) {
             // Keypad phones: the first nine shortcuts of the category also run with the number keys 1–9.
-            val label = if (i < 9) "${i + 1}· ${sc.label}" else sc.label
+            val label = if (i < 9) "${i + 1}· ${shown(sc)}" else shown(sc)
             chips.addView(chip(label, accent = false).apply {
                 setOnClickListener { submit(sc.command) }                     // tap: run now
                 setOnLongClickListener { setInput(sc.command); true }         // long-press: edit in the input line
@@ -651,9 +655,9 @@ class TerminalActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), 0)
         }
-        val name = EditText(this).apply { hint = "שם הקיצור"; setText(initial?.label.orEmpty()); setSingleLine(true) }
+        val name = EditText(this).apply { hint = tr("שם הקיצור", "Shortcut name"); setText(initial?.label.orEmpty()); setSingleLine(true) }
         val command = EditText(this).apply {
-            hint = "פקודה, למשל: pm list packages -3"
+            hint = tr("פקודה, למשל: pm list packages -3", "Command, e.g.: pm list packages -3")
             setText(initial?.command.orEmpty())
             typeface = Typeface.MONOSPACE
             textDirection = View.TEXT_DIRECTION_LTR
@@ -662,40 +666,42 @@ class TerminalActivity : Activity() {
         val b = AlertDialog.Builder(this, DIALOG)
             .setTitle(title)
             .setView(box)
-            .setPositiveButton("שמור") { _, _ ->
+            .setPositiveButton(tr("שמור", "Save")) { _, _ ->
                 val c = command.text.toString().trim()
                 if (c.isEmpty()) return@setPositiveButton
                 val l = name.text.toString().trim().ifEmpty { c.take(18) }
                 onSave(Shortcut(l, c, initial?.group?.takeIf { it.isNotBlank() } ?: MINE))
             }
-            .setNegativeButton("ביטול", null)
-        if (onDelete != null) b.setNeutralButton("מחק") { _, _ -> onDelete() }
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
+        if (onDelete != null) b.setNeutralButton(tr("מחק", "Delete")) { _, _ -> onDelete() }
         b.show()
     }
 
     private fun addShortcut(prefill: String) {
-        shortcutDialog("קיצור חדש", if (prefill.isNotEmpty()) Shortcut("", prefill) else null, { s ->
+        shortcutDialog(tr("קיצור חדש", "New shortcut"), if (prefill.isNotEmpty()) Shortcut("", prefill) else null, { s ->
             prefs().edit().putString("shortcut_group", s.group).apply()  // show the category it went to
             saveShortcuts(shortcuts().apply { add(0, s) })
-            Toast.makeText(this, "הקיצור \"${s.label}\" נוסף.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr("הקיצור \"${s.label}\" נוסף.", "Shortcut \"${s.label}\" added."), Toast.LENGTH_SHORT).show()
         }, null)
     }
 
     private fun manageShortcuts() {
         val items = shortcuts()
-        val labels = items.map { "[${it.group}] ${it.label}   ·   ${it.command}" }.toMutableList()
-        labels += "＋ הוסף קיצור"
-        labels += "↺ שחזר קיצורי ברירת מחדל"
+        val labels = items.map { "[${groupLabel(it.group)}] ${shown(it)}   ·   ${it.command}" }.toMutableList()
+        labels += tr("＋ הוסף קיצור", "＋ Add shortcut")
+        labels += tr("📌 קיצורים בווידג'ט של מסך הבית", "📌 Home-screen widget shortcuts")
+        labels += tr("↺ שחזר קיצורי ברירת מחדל", "↺ Restore default shortcuts")
         AlertDialog.Builder(this, DIALOG)
-            .setTitle("עריכת קיצורים")
+            .setTitle(tr("עריכת קיצורים", "Edit shortcuts"))
             .setItems(labels.toTypedArray()) { _, which ->
                 when (which) {
                     items.size -> addShortcut("")
-                    items.size + 1 -> {
+                    items.size + 1 -> pickWidgetShortcuts()
+                    items.size + 2 -> {
                         prefs().edit().remove("shortcuts").putInt("shortcuts_v", SHORTCUTS_VERSION).apply()
                         rebuildChips()
                     }
-                    else -> shortcutDialog("עריכת קיצור", items[which], { s ->
+                    else -> shortcutDialog(tr("עריכת קיצור", "Edit shortcut"), items[which], { s ->
                         items[which] = s
                         saveShortcuts(items)
                     }, {
@@ -704,7 +710,29 @@ class TerminalActivity : Activity() {
                     })
                 }
             }
-            .setNegativeButton("סגור", null)
+            .setNegativeButton(tr("סגור", "Close"), null)
+            .show()
+    }
+
+    /** Choose up to four shortcuts for the home-screen widget. */
+    private fun pickWidgetShortcuts() {
+        val items = shortcuts()
+        val pinned = ShortcutWidget.pins(this).map { it.command }.toSet()
+        val checked = BooleanArray(items.size) { items[it].command in pinned }
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle(tr("📌 קיצורים בווידג'ט (עד ${ShortcutWidget.MAX})", "📌 Widget shortcuts (up to ${ShortcutWidget.MAX})"))
+            .setMultiChoiceItems(items.map { shown(it) }.toTypedArray(), checked) { d, which, on ->
+                if (on && checked.count { it } > ShortcutWidget.MAX) {
+                    checked[which] = false
+                    (d as AlertDialog).listView.setItemChecked(which, false)
+                    Toast.makeText(this, tr("אפשר לבחור עד ${ShortcutWidget.MAX} קיצורים.", "You can choose up to ${ShortcutWidget.MAX} shortcuts."), Toast.LENGTH_SHORT).show()
+                } else checked[which] = on
+            }
+            .setPositiveButton(tr("שמור", "Save")) { _, _ ->
+                ShortcutWidget.savePins(this, items.filterIndexed { i, _ -> checked[i] }.map { ShortcutWidget.Pin(shown(it), it.command) })
+                Toast.makeText(this, tr("הווידג'ט עודכן. להוספה: לחיצה ארוכה על מסך הבית ← ווידג'טים ← הבוס.", "Widget updated. To add it: long-press the home screen → Widgets → The Boss."), Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
             .show()
     }
 
@@ -715,13 +743,13 @@ class TerminalActivity : Activity() {
     private fun menu() {
         val detect = prefs().getBoolean("clipboard_detect", true)
         val items = arrayOf(
-            "הדבק מהלוח",
-            "עריכת קיצורים",
-            (if (detect) "✓ " else "") + "שאל כשבלוח יש פקודה",
-            "העתק את כל השיחה",
-            "נקה שיחה",
-            "קיצורי מקשים",
-            "סגור",
+            tr("הדבק מהלוח", "Paste from clipboard"),
+            tr("עריכת קיצורים", "Edit shortcuts"),
+            (if (detect) "✓ " else "") + tr("שאל כשבלוח יש פקודה", "Ask when the clipboard has a command"),
+            tr("העתק את כל השיחה", "Copy the whole chat"),
+            tr("נקה שיחה", "Clear chat"),
+            tr("קיצורי מקשים", "Keyboard shortcuts"),
+            tr("סגור", "Close"),
         )
         AlertDialog.Builder(this, DIALOG)
             .setItems(items) { _, which ->
@@ -741,7 +769,7 @@ class TerminalActivity : Activity() {
     /** Copies the whole conversation: commands as "$ cmd", replies as plain text. */
     private fun copyChat() {
         if (messages.isEmpty()) {
-            Toast.makeText(this, "השיחה ריקה.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr("השיחה ריקה.", "The chat is empty."), Toast.LENGTH_SHORT).show()
             return
         }
         copy(messages.joinToString("\n\n") { (if (it.outgoing) "$ " else "") + it.text })
@@ -750,10 +778,10 @@ class TerminalActivity : Activity() {
     private fun confirmClearChat() {
         if (messages.isEmpty()) return
         AlertDialog.Builder(this, DIALOG)
-            .setTitle("לנקות את השיחה?")
-            .setMessage("כל ההודעות בצ'אט יימחקו. הקיצורים וההיסטוריה של הפקודות יישארו.")
-            .setPositiveButton("נקה") { _, _ -> clearChat() }
-            .setNegativeButton("ביטול", null)
+            .setTitle(tr("לנקות את השיחה?", "Clear the chat?"))
+            .setMessage(tr("כל ההודעות בצ'אט יימחקו. הקיצורים וההיסטוריה של הפקודות יישארו.", "All messages in the chat will be deleted. Shortcuts and command history stay."))
+            .setPositiveButton(tr("נקה", "Clear")) { _, _ -> clearChat() }
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
             .show()
     }
 
@@ -766,7 +794,7 @@ class TerminalActivity : Activity() {
 
     private fun copy(text: String) {
         getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("ADB", text))
-        Toast.makeText(this, "הועתק.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, tr("הועתק.", "Copied."), Toast.LENGTH_SHORT).show()
     }
 
     private fun prefs() = getSharedPreferences("terminal", Context.MODE_PRIVATE)
@@ -782,13 +810,13 @@ class TerminalActivity : Activity() {
     private fun showHistory() {
         val items = history()
         if (items.isEmpty()) {
-            Toast.makeText(this, "אין עדיין היסטוריה.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr("אין עדיין היסטוריה.", "No history yet."), Toast.LENGTH_SHORT).show()
             return
         }
         AlertDialog.Builder(this, DIALOG)
-            .setTitle("פקודות אחרונות")
+            .setTitle(tr("פקודות אחרונות", "Recent commands"))
             .setItems(items.toTypedArray()) { _, which -> setInput(items[which]) }
-            .setNegativeButton("סגור", null)
+            .setNegativeButton(tr("סגור", "Close"), null)
             .show()
     }
 
@@ -838,63 +866,98 @@ class TerminalActivity : Activity() {
         private val STOP = 0xFFE5534B.toInt()
 
         private val DANGEROUS = listOf("rm -r", "rm -f", "reboot", "wipe", "pm uninstall", "pm clear", "format", "dd ", "mkfs", "svc power")
-        private const val MINE = "שלי"
-        private const val SHORTCUTS_VERSION = 2
-        private val GROUP_ORDER = listOf("מתגים", "מסך ומקשים", "מידע", "כלים", MINE)
+        private const val MINE = "mine"
+        private const val SHORTCUTS_VERSION = 4
+        private val GROUP_ORDER = listOf("toggles", "screen", "info", "maint", "tools", MINE)
+        private fun groupLabel(id: String) = when (id) {
+            "toggles" -> tr("מתגים", "Toggles")
+            "screen" -> tr("מסך ומקשים", "Screen & keys")
+            "info" -> tr("מידע", "Info")
+            "maint" -> tr("תחזוקה", "Maintenance")
+            "tools" -> tr("כלים", "Tools")
+            MINE -> tr("שלי", "Mine")
+            else -> id
+        }
+        /** Category names saved by versions before 1.4 (Hebrew) → stable ids. */
+        private val OLD_GROUPS = mapOf("מתגים" to "toggles", "מסך ומקשים" to "screen", "מידע" to "info", "תחזוקה" to "maint", "כלים" to "tools", "שלי" to MINE) // i18n-ok
 
-        /** (category, label, command). Commands try the modern "cmd" form first and fall back to "svc". */
+        /** Built-in shortcut: category id, Hebrew label, English label, command. */
+        private class Def(val group: String, val he: String, val en: String, val command: String) {
+            val label get() = tr(he, en)
+        }
+
+        /** Commands try the modern "cmd" form first and fall back to "svc". */
         private val DEFAULT_SHORTCUTS = listOf(
             // Toggles
-            Triple("מתגים", "📶 Wi‑Fi פועל", "cmd wifi set-wifi-enabled enabled 2>/dev/null || svc wifi enable"),
-            Triple("מתגים", "📶 Wi‑Fi כבוי", "cmd wifi set-wifi-enabled disabled 2>/dev/null || svc wifi disable"),
-            Triple("מתגים", "🔵 בלוטות׳ פועל", "cmd bluetooth_manager enable 2>/dev/null || svc bluetooth enable"),
-            Triple("מתגים", "🔵 בלוטות׳ כבוי", "cmd bluetooth_manager disable 2>/dev/null || svc bluetooth disable"),
-            Triple("מתגים", "📱 נתונים פועל", "svc data enable"),
-            Triple("מתגים", "📱 נתונים כבוי", "svc data disable"),
-            Triple("מתגים", "✈ מצב טיסה פועל", "cmd connectivity airplane-mode enable"),
-            Triple("מתגים", "✈ מצב טיסה כבוי", "cmd connectivity airplane-mode disable"),
-            Triple("מתגים", "📍 מיקום פועל", "cmd location set-location-enabled true"),
-            Triple("מתגים", "📍 מיקום כבוי", "cmd location set-location-enabled false"),
-            Triple("מתגים", "🔕 נא לא להפריע", "cmd notification set_dnd priority"),
-            Triple("מתגים", "🔔 בטל נא לא להפריע", "cmd notification set_dnd off"),
-            Triple("מתגים", "🔋 חיסכון בסוללה פועל", "cmd power set-mode 1"),
-            Triple("מתגים", "🔋 חיסכון בסוללה כבוי", "cmd power set-mode 0"),
-            Triple("מתגים", "🔄 סיבוב אוטומטי פועל", "settings put system accelerometer_rotation 1"),
-            Triple("מתגים", "🔄 סיבוב אוטומטי כבוי", "settings put system accelerometer_rotation 0"),
-            Triple("מתגים", "NFC פועל", "svc nfc enable"),
-            Triple("מתגים", "NFC כבוי", "svc nfc disable"),
+            Def("toggles", "📶 Wi‑Fi הפעל/כבה", "📶 Wi‑Fi toggle", ShortcutWidget.WIFI_TOGGLE),
+            Def("toggles", "🔵 בלוטות׳ הפעל/כבה", "🔵 Bluetooth toggle", ShortcutWidget.BT_TOGGLE),
+            Def("toggles", "📶 Wi‑Fi פועל", "📶 Wi‑Fi on", "cmd wifi set-wifi-enabled enabled 2>/dev/null || svc wifi enable"),
+            Def("toggles", "📶 Wi‑Fi כבוי", "📶 Wi‑Fi off", "cmd wifi set-wifi-enabled disabled 2>/dev/null || svc wifi disable"),
+            Def("toggles", "🔵 בלוטות׳ פועל", "🔵 Bluetooth on", "cmd bluetooth_manager enable 2>/dev/null || svc bluetooth enable"),
+            Def("toggles", "🔵 בלוטות׳ כבוי", "🔵 Bluetooth off", "cmd bluetooth_manager disable 2>/dev/null || svc bluetooth disable"),
+            Def("toggles", "📱 נתונים פועל", "📱 Mobile data on", "svc data enable"),
+            Def("toggles", "📱 נתונים כבוי", "📱 Mobile data off", "svc data disable"),
+            Def("toggles", "✈ מצב טיסה פועל", "✈ Airplane mode on", "cmd connectivity airplane-mode enable"),
+            Def("toggles", "✈ מצב טיסה כבוי", "✈ Airplane mode off", "cmd connectivity airplane-mode disable"),
+            Def("toggles", "📍 מיקום פועל", "📍 Location on", "cmd location set-location-enabled true"),
+            Def("toggles", "📍 מיקום כבוי", "📍 Location off", "cmd location set-location-enabled false"),
+            Def("toggles", "🔕 נא לא להפריע", "🔕 Do not disturb", "cmd notification set_dnd priority"),
+            Def("toggles", "🔔 בטל נא לא להפריע", "🔔 Do not disturb off", "cmd notification set_dnd off"),
+            Def("toggles", "🔋 חיסכון בסוללה פועל", "🔋 Battery saver on", "cmd power set-mode 1"),
+            Def("toggles", "🔋 חיסכון בסוללה כבוי", "🔋 Battery saver off", "cmd power set-mode 0"),
+            Def("toggles", "🔄 סיבוב אוטומטי פועל", "🔄 Auto-rotate on", "settings put system accelerometer_rotation 1"),
+            Def("toggles", "🔄 סיבוב אוטומטי כבוי", "🔄 Auto-rotate off", "settings put system accelerometer_rotation 0"),
+            Def("toggles", "NFC פועל", "NFC on", "svc nfc enable"),
+            Def("toggles", "NFC כבוי", "NFC off", "svc nfc disable"),
             // Screen & keys
-            Triple("מסך ומקשים", "📳 רטט", "cmd vibrator_manager synced oneshot 600 2>/dev/null || cmd vibrator vibrate 600"),
-            Triple("מסך ומקשים", "☀ בהירות מלאה", "settings put system screen_brightness_mode 0; settings put system screen_brightness 255"),
-            Triple("מסך ומקשים", "🌗 בהירות אוטומטית", "settings put system screen_brightness_mode 1"),
-            Triple("מסך ומקשים", "🔊 עוצמה +", "input keyevent KEYCODE_VOLUME_UP"),
-            Triple("מסך ומקשים", "🔉 עוצמה −", "input keyevent KEYCODE_VOLUME_DOWN"),
-            Triple("מסך ומקשים", "🔇 השתק", "input keyevent KEYCODE_VOLUME_MUTE"),
-            Triple("מסך ומקשים", "⏯ נגן/השהה", "input keyevent KEYCODE_MEDIA_PLAY_PAUSE"),
-            Triple("מסך ומקשים", "💡 הער מסך", "input keyevent KEYCODE_WAKEUP"),
-            Triple("מסך ומקשים", "🔒 נעל מסך", "input keyevent KEYCODE_SLEEP"),
-            Triple("מסך ומקשים", "🏠 בית", "input keyevent KEYCODE_HOME"),
-            Triple("מסך ומקשים", "↩ חזור", "input keyevent KEYCODE_BACK"),
-            Triple("מסך ומקשים", "🗂 אפליקציות אחרונות", "input keyevent KEYCODE_APP_SWITCH"),
-            Triple("מסך ומקשים", "⏱ מסך נכבה אחרי 10 דק׳", "settings put system screen_off_timeout 600000"),
-            Triple("מסך ומקשים", "📸 צילום מסך", "screencap -p /sdcard/Download/screenshot.png && echo saved to Download"),
+            Def("screen", "📳 רטט", "📳 Vibrate", "cmd vibrator_manager synced oneshot 600 2>/dev/null || cmd vibrator vibrate 600"),
+            Def("screen", "☀ בהירות מלאה", "☀ Full brightness", "settings put system screen_brightness_mode 0; settings put system screen_brightness 255"),
+            Def("screen", "🌗 בהירות אוטומטית", "🌗 Auto brightness", "settings put system screen_brightness_mode 1"),
+            Def("screen", "🔊 עוצמה +", "🔊 Volume +", "input keyevent KEYCODE_VOLUME_UP"),
+            Def("screen", "🔉 עוצמה −", "🔉 Volume −", "input keyevent KEYCODE_VOLUME_DOWN"),
+            Def("screen", "🔇 השתק", "🔇 Mute", "input keyevent KEYCODE_VOLUME_MUTE"),
+            Def("screen", "⏯ נגן/השהה", "⏯ Play/Pause", "input keyevent KEYCODE_MEDIA_PLAY_PAUSE"),
+            Def("screen", "💡 הער מסך", "💡 Wake screen", "input keyevent KEYCODE_WAKEUP"),
+            Def("screen", "🔒 נעל מסך", "🔒 Lock screen", "input keyevent KEYCODE_SLEEP"),
+            Def("screen", "🏠 בית", "🏠 Home", "input keyevent KEYCODE_HOME"),
+            Def("screen", "↩ חזור", "↩ Back", "input keyevent KEYCODE_BACK"),
+            Def("screen", "🗂 אפליקציות אחרונות", "🗂 Recent apps", "input keyevent KEYCODE_APP_SWITCH"),
+            Def("screen", "⏱ מסך נכבה אחרי 10 דק׳", "⏱ Screen off after 10 min", "settings put system screen_off_timeout 600000"),
+            Def("screen", "📸 צילום מסך", "📸 Screenshot", "screencap -p /sdcard/Download/screenshot.png && echo saved to Download"),
             // Info
-            Triple("מידע", "גרסה", "getprop ro.build.version.release"),
-            Triple("מידע", "דגם", "getprop ro.product.model"),
-            Triple("מידע", "סוללה", "dumpsys battery"),
-            Triple("מידע", "מסך", "wm size; wm density"),
-            Triple("מידע", "אחסון", "df -h /data /sdcard"),
-            Triple("מידע", "זיכרון", "cat /proc/meminfo | head -5"),
-            Triple("מידע", "רשת", "ip addr show wlan0"),
-            Triple("מידע", "אפליקציה פתוחה", "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'"),
-            Triple("מידע", "זמן פעילות", "uptime"),
-            Triple("מידע", "תהליכים", "top -b -n 1 | head -25"),
-            Triple("מידע", "לוג", "logcat -d -t 100"),
+            Def("info", "גרסה", "Version", "getprop ro.build.version.release"),
+            Def("info", "דגם", "Model", "getprop ro.product.model"),
+            Def("info", "סוללה", "Battery", "dumpsys battery"),
+            Def("info", "מסך", "Screen", "wm size; wm density"),
+            Def("info", "אחסון", "Storage", "df -h /data /sdcard"),
+            Def("info", "זיכרון", "Memory", "cat /proc/meminfo | head -5"),
+            Def("info", "רשת", "Network", "ip addr show wlan0"),
+            Def("info", "אפליקציה פתוחה", "Foreground app", "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'"),
+            Def("info", "זמן פעילות", "Uptime", "uptime"),
+            Def("info", "תהליכים", "Processes", "top -b -n 1 | head -25"),
+            Def("info", "לוג", "Log", "logcat -d -t 100"),
             // Tools
-            Triple("כלים", "אפליקציות שהותקנו", "pm list packages -3"),
-            Triple("כלים", "⚙ פתח הגדרות", "am start -a android.settings.SETTINGS"),
-            Triple("כלים", "🧹 סגור אפליקציות ברקע", "am kill-all"),
-            Triple("כלים", "♻ הפעלה מחדש", "reboot"),
+            Def("tools", "אפליקציות שהותקנו", "Installed apps", "pm list packages -3"),
+            Def("tools", "⚙ פתח הגדרות", "⚙ Open settings", "am start -a android.settings.SETTINGS"),
+            Def("tools", "🧹 סגור אפליקציות ברקע", "🧹 Close background apps", "am kill-all"),
+            Def("tools", "♻ הפעלה מחדש", "♻ Restart", "reboot"),
+            // Maintenance: cache cleaning and phone health (output from the device, in English)
+            Def("maint", "🧹 נקה מטמון לכל האפליקציות", "🧹 Clear cache of all apps",
+                "b=$(df /data | awk 'NR==2{print $4}'); pm trim-caches 999G; a=$(df /data | awk 'NR==2{print $4}'); echo \"Cache cleared. Freed: $(( (a-b)/1024 )) MB\""),
+            Def("maint", "🔋 בריאות סוללה", "🔋 Battery health",
+                "dumpsys battery | awk -F': ' '/ level:/{print \"Level: \"$2\"%\"} /temperature:/{printf \"Temperature: %.1f C\\n\",$2/10} " +
+                    "/health:/{h=$2; print \"Health: \" (h==2?\"Good\":h==3?\"Overheat\":h==4?\"Dead\":h==5?\"Over voltage\":h==7?\"Cold\":\"Unknown\")} " +
+                    "/voltage:/{print \"Voltage: \"$2\" mV\"} /status:/{st=$2; print \"Status: \" (st==2?\"Charging\":st==3?\"Discharging\":st==5?\"Full\":\"Not charging\")}'; " +
+                    "f=/sys/class/power_supply/battery; [ -r \$f/cycle_count ] && echo \"Charge cycles: $(cat \$f/cycle_count)\"; " +
+                    "if [ -r \$f/charge_full ] && [ -r \$f/charge_full_design ]; then echo \"Capacity left: $(( $(cat \$f/charge_full) * 100 / $(cat \$f/charge_full_design) ))% of original\"; fi"),
+            Def("maint", "🌡 טמפרטורות", "🌡 Temperatures",
+                "for z in /sys/class/thermal/thermal_zone*; do t=$(cat \$z/temp 2>/dev/null); n=$(cat \$z/type 2>/dev/null); [ -n \"\$t\" ] && [ \"\$t\" -gt 0 ] && echo \"\$n: $((t/1000)) C\"; done | head -15"),
+            Def("maint", "💾 ניצול אחסון", "💾 Storage usage",
+                "df -h /data | tail -1 | awk '{print \"Used \"$3\" of \"$2\" (\"$5\"), free \"$4}'; echo; " +
+                    "dumpsys diskstats | grep -E '^(App Size|App Data Size|App Cache Size|Photos Size|Videos Size|Audio Size|Downloads Size|System Size|Other Size):' | " +
+                    "awk -F': ' '{printf \"%-16s %.2f GB\\n\", $1, $2/1073741824}'"),
+            Def("maint", "📂 התיקיות הגדולות", "📂 Largest folders",
+                "du -sh /sdcard/* /sdcard/Android/media/* 2>/dev/null | sort -rh | head -12"),
         )
     }
 }

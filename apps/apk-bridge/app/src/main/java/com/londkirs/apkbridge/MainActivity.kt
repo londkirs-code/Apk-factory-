@@ -93,30 +93,30 @@ class MainActivity : Activity() {
         if (Bridge.helperOffered || Bridge.isWifiHelperInstalled() || !Bridge.isWifiHelperBundled()) return
         Bridge.helperOffered = true
         android.app.AlertDialog.Builder(this)
-            .setTitle("להתקין את עזר ה־Wi‑Fi?")
+            .setTitle(tr("להתקין את עזר ה־Wi‑Fi?", "Install the Wi‑Fi helper?"))
             .setMessage(
-                "אפליקציה זעירה שמאפשרת לאפליקציית הבוס להדליק Wi‑Fi לבד כשהוא כבוי (ניפוי באגים אלחוטי עובד רק עם Wi‑Fi).\n\n" +
-                    "ההתקנה נעשית דרך מתקין האפליקציות הרגיל של Android — בלי ניפוי באגים. ייתכן שתתבקש פעם אחת לאשר לאפליקציית הבוס להתקין אפליקציות.\n\n" +
-                    "אפשר להתקין גם מאוחר יותר: ⚙ הגדרות ← צימוד וחיבור."
+                tr("אפליקציה זעירה שמאפשרת לאפליקציית הבוס להדליק Wi‑Fi לבד כשהוא כבוי (ניפוי באגים אלחוטי עובד רק עם Wi‑Fi).\n\n", "A tiny app that lets The Boss turn Wi‑Fi on by itself when it's off (wireless debugging only works with Wi‑Fi).\n\n") +
+                    tr("ההתקנה נעשית דרך מתקין האפליקציות הרגיל של Android — בלי ניפוי באגים. ייתכן שתתבקש פעם אחת לאשר לאפליקציית הבוס להתקין אפליקציות.\n\n", "It's installed through Android's regular app installer — no debugging needed. You may be asked once to allow The Boss to install apps.\n\n") +
+                    tr("אפשר להתקין גם מאוחר יותר: ⚙ הגדרות ← צימוד וחיבור.", "You can also install it later: ⚙ Settings → Pairing & connection.")
             )
-            .setPositiveButton("התקן") { _, _ -> HelperInstaller.start(this) }
-            .setNegativeButton("לא עכשיו", null)
+            .setPositiveButton(tr("התקן", "Install")) { _, _ -> HelperInstaller.start(this) }
+            .setNegativeButton(tr("לא עכשיו", "Not now"), null)
             .show()
     }
 
     private fun confirmKeepAdb() {
         android.app.AlertDialog.Builder(this)
-            .setTitle("ADB קבוע (גם בלי Wi‑Fi)")
+            .setTitle(tr("ADB קבוע (גם בלי Wi‑Fi)", "Persistent ADB (even without Wi‑Fi)"))
             .setMessage(
-                "הבוס יעביר את ADB למצב רשת רגיל בפורט 5555 (כמו adb tcpip 5555), ויתחבר אליו דרך הכתובת הפנימית של המכשיר — כך הוא עובד גם כשה־Wi‑Fi כבוי.\n\n" +
-                    "• בפעם הראשונה Android ישאל \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\" ואשר.\n" +
-                    "• ניפוי באגים ב־USB יודלק (נדרש כדי ש־ADB יישאר פעיל).\n" +
-                    "• המצב נמחק בהפעלה מחדש של המכשיר, ומתחדש אוטומטית בחיבור הבא דרך Wi‑Fi.\n" +
-                    "• כשה־Wi‑Fi דלוק, מכשירים אחרים ברשת יוכלו לנסות להתחבר לפורט 5555 — אבל כל חיבור חדש דורש אישור שלך במסך.\n\n" +
-                    "נדרש חיבור ADB פעיל עכשיו (Wi‑Fi וצימוד)."
+                tr("הבוס יעביר את ADB למצב רשת רגיל בפורט 5555 (כמו adb tcpip 5555), ויתחבר אליו דרך הכתובת הפנימית של המכשיר — כך הוא עובד גם כשה־Wi‑Fi כבוי.\n\n", "The Boss switches ADB to regular network mode on port 5555 (like adb tcpip 5555) and connects to it through the device's internal address — so it works even when Wi‑Fi is off.\n\n") +
+                    tr("• בפעם הראשונה Android ישאל \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\" ואשר.\n", "• The first time Android asks \"Allow debugging?\" — check \"Always allow\" and confirm.\n") +
+                    tr("• ניפוי באגים ב־USB יודלק (נדרש כדי ש־ADB יישאר פעיל).\n", "• USB debugging will be turned on (needed so ADB stays on).\n") +
+                    tr("• המצב נמחק בהפעלה מחדש של המכשיר, ומתחדש אוטומטית בחיבור הבא דרך Wi‑Fi.\n", "• The mode is cleared when the device restarts, and renewed automatically on the next Wi‑Fi connection.\n") +
+                    tr("• כשה־Wi‑Fi דלוק, מכשירים אחרים ברשת יוכלו לנסות להתחבר לפורט 5555 — אבל כל חיבור חדש דורש אישור שלך במסך.\n\n", "• While Wi‑Fi is on, other devices on the network could try to connect to port 5555 — but every new connection needs your approval on screen.\n\n") +
+                    tr("נדרש חיבור ADB פעיל עכשיו (Wi‑Fi וצימוד).", "An active ADB connection is needed now (Wi‑Fi and pairing).")
             )
-            .setPositiveButton("הפעל") { _, _ -> Bridge.enableKeepAdb() }
-            .setNegativeButton("ביטול", null)
+            .setPositiveButton(tr("הפעל", "Turn on")) { _, _ -> Bridge.enableKeepAdb() }
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
             .show()
     }
 
@@ -142,6 +142,10 @@ class MainActivity : Activity() {
         logText.text = Bridge.logSnapshot()
         logPreview.text = Bridge.lastLogLine()
         applyLogExpanded()
+        if (savedInstanceState == null) {
+            if (intent?.getBooleanExtra(EXTRA_OPEN_GUIDE, false) == true) startActivity(Intent(this, GuideActivity::class.java))
+            else if (OnboardingActivity.shouldShow(this)) startActivity(Intent(this, OnboardingActivity::class.java))
+        }
         if (savedInstanceState == null) {
             handleIncoming(intent)
             offerWifiHelperOnce()
@@ -230,7 +234,7 @@ class MainActivity : Activity() {
         currentTab = tab
         connectionPage.visibility = if (tab == BottomNav.Tab.CONNECT) View.VISIBLE else View.GONE
         installPage.visibility = if (tab == BottomNav.Tab.INSTALL) View.VISIBLE else View.GONE
-        pageTitle.text = if (tab == BottomNav.Tab.CONNECT) "חיבור לטלפון" else "התקנת אפליקציות"
+        pageTitle.text = if (tab == BottomNav.Tab.CONNECT) tr("חיבור לטלפון", "Connect to the phone") else tr("התקנת אפליקציות", "Install apps")
         navHolder.removeAllViews()
         navHolder.addView(BottomNav.build(this, tab, ::onTab))
         pageScroll.scrollTo(0, 0)
@@ -243,12 +247,12 @@ class MainActivity : Activity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
             setPadding(dp(16), dp(12), dp(16), dp(8))
         }
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titles.addView(TextView(this).apply {
-            text = getString(R.string.app_name)
+            text = tr("הבוס", "The Boss")
             textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
@@ -260,7 +264,7 @@ class MainActivity : Activity() {
         // ── Pages
         val pages = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
             setPadding(dp(14), dp(4), dp(14), dp(16))
         }
         connectionPage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -270,7 +274,7 @@ class MainActivity : Activity() {
         buildConnectionPage(connectionPage)
         buildInstallPage(installPage)
         pages.addView(TextView(this).apply {
-            text = "גרסה ${versionName()}"
+            text = tr("גרסה ${versionName()}", "Version ${versionName()}")
             textSize = 11f
             setTextColor(MUTED)
             gravity = Gravity.CENTER
@@ -283,7 +287,7 @@ class MainActivity : Activity() {
         // ── Status strip (always visible above the bottom bar): what is happening right now.
         val status = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
             setPadding(dp(16), dp(8), dp(16), dp(8))
             background = GradientDrawable().apply { setColor(0xFFFFF1E3.toInt()) }
         }
@@ -300,8 +304,8 @@ class MainActivity : Activity() {
         }
         status.addView(progressBar, matchWrap(2))
         val statusButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        cancelButton = button("בטל פעולה", primary = false) { Bridge.cancelCurrent() }.apply { visibility = View.GONE }
-        openAppButton = button("פתח את האפליקציה שהותקנה", primary = true) { openInstalledApp() }.apply { visibility = View.GONE }
+        cancelButton = button(tr("בטל פעולה", "Cancel action"), primary = false) { Bridge.cancelCurrent() }.apply { visibility = View.GONE }
+        openAppButton = button(tr("פתח את האפליקציה שהותקנה", "Open the installed app"), primary = true) { openInstalledApp() }.apply { visibility = View.GONE }
         statusButtons.addView(cancelButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
         statusButtons.addView(openAppButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         status.addView(statusButtons)
@@ -324,21 +328,21 @@ class MainActivity : Activity() {
     private fun buildConnectionPage(page: LinearLayout) {
         // Card 1: connection state + a single test button.
         val state = card(page)
-        state.addView(heading("מצב החיבור"), matchWrap())
+        state.addView(heading(tr("מצב החיבור", "Connection status")), matchWrap())
         connectionText = body("")
         state.addView(connectionText, matchWrap(8))
-        state.addView(button("בדוק חיבור", primary = true) { Bridge.testConnection() }.busyAware(), matchWrap(0))
+        state.addView(button(tr("בדוק חיבור", "Check connection"), primary = true) { Bridge.testConnection() }.busyAware(), matchWrap(0))
 
         // Card 2: step-by-step guide — the section for this phone's Android version is open.
         buildGuide(page)
 
         // Card 3: pairing — needed once.
         val pair = card(page)
-        pair.addView(heading("צימוד (פעם אחת)"), matchWrap())
+        pair.addView(heading(tr("צימוד (פעם אחת)", "Pairing (once)")), matchWrap())
         pairStateText = body("")
         pair.addView(pairStateText, matchWrap(6))
         // Once paired, the pairing controls are folded away behind "pair again".
-        repairToggle = button("צימוד מחדש / מכשיר אחר ▾", primary = false) {
+        repairToggle = button(tr("צימוד מחדש / מכשיר אחר ▾", "Pair again / another device ▾"), primary = false) {
             pairControls.visibility = if (pairControls.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
         pair.addView(repairToggle, matchWrap(0))
@@ -346,33 +350,33 @@ class MainActivity : Activity() {
         pair.addView(pairControls)
         a11yText = body("")
         pairControls.addView(a11yText, matchWrap(6))
-        a11yButton = button("הפעל צימוד אוטומטי", primary = true) { openAccessibilitySetup() }
+        a11yButton = button(tr("הפעל צימוד אוטומטי", "Turn on automatic pairing"), primary = true) { openAccessibilitySetup() }
         pairControls.addView(a11yButton, matchWrap())
-        val notifyPair = button("צימוד עם קוד דרך התראה", primary = false) { startNotificationPairing() }.busyAware()
+        val notifyPair = button(tr("צימוד עם קוד דרך התראה", "Pair with code via notification"), primary = false) { startNotificationPairing() }.busyAware()
         pairControls.addView(notifyPair, matchWrap())
         if (!Compat.hasWirelessDebugging) {
             // Android 8–10: no pairing codes; the state card explains classic ADB on port 5555.
             pair.visibility = View.GONE
         }
-        pairControls.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap())
-        pairControls.addView(button("צימוד ידני / מכשיר אחר ▾", primary = false) {
+        pairControls.addView(button(tr("פתח אפשרויות למפתחים", "Open Developer options"), primary = false) { openDeveloperOptions() }, matchWrap())
+        pairControls.addView(button(tr("צימוד ידני / מכשיר אחר ▾", "Manual pairing / another device ▾"), primary = false) {
             manualBox.visibility = if (manualBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }, matchWrap(0))
         manualBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setPadding(0, dp(10), 0, 0) }
-        manualBox.addView(note("127.0.0.1 הוא הטלפון הזה. אפשר להזין IP של טלפון אחר באותה רשת. פורט הצימוד נמצא לבד אם משאירים ריק."), matchWrap(6))
-        host = field("כתובת יעד (127.0.0.1)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI).apply { setText(Bridge.targetHost) }
-        pairPort = field("פורט צימוד (לא חובה)", InputType.TYPE_CLASS_NUMBER)
-        pin = field("קוד צימוד בן 6 ספרות", InputType.TYPE_CLASS_NUMBER)
+        manualBox.addView(note(tr("127.0.0.1 הוא הטלפון הזה. אפשר להזין IP של טלפון אחר באותה רשת. פורט הצימוד נמצא לבד אם משאירים ריק.", "127.0.0.1 is this phone. You can enter the IP of another phone on the same network. The pairing port is found automatically if left empty.")), matchWrap(6))
+        host = field(tr("כתובת יעד (127.0.0.1)", "Target address (127.0.0.1)"), InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI).apply { setText(Bridge.targetHost) }
+        pairPort = field(tr("פורט צימוד (לא חובה)", "Pairing port (optional)"), InputType.TYPE_CLASS_NUMBER)
+        pin = field(tr("קוד צימוד בן 6 ספרות", "6-digit pairing code"), InputType.TYPE_CLASS_NUMBER)
         manualBox.addView(host, matchWrap())
         manualBox.addView(pairPort, matchWrap())
         manualBox.addView(pin, matchWrap())
-        manualBox.addView(button("בצע צימוד", primary = true) { manualPair() }.busyAware(), matchWrap())
-        manualBox.addView(button("שמור כתובת יעד", primary = false) {
+        manualBox.addView(button(tr("בצע צימוד", "Pair"), primary = true) { manualPair() }.busyAware(), matchWrap())
+        manualBox.addView(button(tr("שמור כתובת יעד", "Save target address"), primary = false) {
             Bridge.targetHost = host.text.toString()
             Bridge.savedConnectPort = 0
             host.setText(Bridge.targetHost)
             refreshConnectionInfo()
-            toast("כתובת היעד נשמרה.")
+            toast(tr("כתובת היעד נשמרה.", "Target address saved."))
         }, matchWrap(0))
         pairControls.addView(manualBox)
 
@@ -407,8 +411,8 @@ class MainActivity : Activity() {
         }
         logBody.addView(logScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(240)).apply { bottomMargin = dp(8) })
         val logButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        logButtons.addView(button("העתק יומן", primary = false) { copyLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
-        logButtons.addView(button("נקה", primary = false) { Bridge.clearLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        logButtons.addView(button(tr("העתק יומן", "Copy log"), primary = false) { copyLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
+        logButtons.addView(button(tr("נקה", "Clear"), primary = false) { Bridge.clearLog() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         logBody.addView(logButtons, matchWrap(0))
         logCard.addView(logBody, matchWrap(0))
     }
@@ -416,14 +420,14 @@ class MainActivity : Activity() {
     /** 📖 Short card that opens the step-by-step guide; folds to one line once the phone is paired. */
     private fun buildGuide(page: LinearLayout) {
         val guide = card(page)
-        guideTitle = heading("📖 איך מתחברים?")
+        guideTitle = heading(tr("📖 איך מתחברים?", "📖 How do I connect?"))
         guide.addView(guideTitle, matchWrap(2))
         guideInfo = body(
-            "בטלפון שלך: אנדרואיד ${Build.VERSION.RELEASE}\n" +
-                if (Compat.hasWirelessDebugging) "מתאים לך: חיבור בלי מחשב (כ־5 דקות)" else "מתאים לך: חיבור עם מחשב (כ־10 דקות, פעם אחת)"
+            tr("בטלפון שלך: אנדרואיד ${Build.VERSION.RELEASE}\n", "Your phone: Android ${Build.VERSION.RELEASE}\n") +
+                if (Compat.hasWirelessDebugging) tr("מתאים לך: חיבור בלי מחשב (כ־5 דקות)", "Best for you: connecting without a computer (about 5 minutes)") else tr("מתאים לך: חיבור עם מחשב (כ־10 דקות, פעם אחת)", "Best for you: connecting with a computer (about 10 minutes, once)")
         )
         guide.addView(guideInfo, matchWrap(10))
-        guideButton = button("▶  התחל מדריך שלב אחר שלב", primary = true) {
+        guideButton = button(tr("▶  התחל מדריך שלב אחר שלב", "▶  Start the step-by-step guide"), primary = true) {
             startActivity(Intent(this, GuideActivity::class.java))
         }
         guide.addView(guideButton, matchWrap(0))
@@ -432,30 +436,30 @@ class MainActivity : Activity() {
     /** 📦 Install: pick files → install; options live in Settings. */
     private fun buildInstallPage(page: LinearLayout) {
         val files = card(page)
-        files.addView(heading("קבצים להתקנה"), matchWrap())
+        files.addView(heading(tr("קבצים להתקנה", "Files to install")), matchWrap())
         filesText = body("")
         files.addView(filesText, matchWrap(10))
-        files.addView(button("בחר קבצים (APK / APKS / XAPK / APKM)", primary = false) { chooseFiles() }.busyAware(), matchWrap())
-        installButton = button("התקן", primary = true) { installSelected() }.busyAware()
+        files.addView(button(tr("בחר קבצים (APK / APKS / XAPK / APKM)", "Choose files (APK / APKS / XAPK / APKM)"), primary = false) { chooseFiles() }.busyAware(), matchWrap())
+        installButton = button(tr("התקן", "Install"), primary = true) { installSelected() }.busyAware()
         files.addView(installButton, matchWrap(0))
 
         // Install options right here (no extra window). Every change is saved immediately.
         val opts = card(page)
-        opts.addView(heading("אפשרויות התקנה"), matchWrap())
+        opts.addView(heading(tr("אפשרויות התקנה", "Install options")), matchWrap())
         val o = Bridge.loadOptions()
-        option(opts, "play", "רשום את Google Play כמקור ההתקנה", o.registerPlayInstaller)
-        option(opts, "downgrade", "אפשר דריסה בגרסה ישנה יותר (שנמוך)", o.allowDowngrade)
-        option(opts, "grant", "תן לאפליקציה את כל ההרשאות מראש", o.grantPermissions)
-        option(opts, "test", "אפשר חבילות בדיקה (test-only)", o.allowTestPackages)
-        if (Build.VERSION.SDK_INT >= 34) option(opts, "bypass", "אפשר אפליקציות ישנות שנחסמו ב־Android 14+", o.bypassLowTargetSdk)
-        opts.addView(note("רישום Google Play הוא סימון בלבד: ההתקנה נעשית דרך ADB, בלי רישיון או אימות של Play."), matchWrap(8))
+        option(opts, "play", tr("רשום את Google Play כמקור ההתקנה", "Record Google Play as the install source"), o.registerPlayInstaller)
+        option(opts, "downgrade", tr("אפשר דריסה בגרסה ישנה יותר (שנמוך)", "Allow replacing with an older version (downgrade)"), o.allowDowngrade)
+        option(opts, "grant", tr("תן לאפליקציה את כל ההרשאות מראש", "Grant the app all permissions up front"), o.grantPermissions)
+        option(opts, "test", tr("אפשר חבילות בדיקה (test-only)", "Allow test packages (test-only)"), o.allowTestPackages)
+        if (Build.VERSION.SDK_INT >= 34) option(opts, "bypass", tr("אפשר אפליקציות ישנות שנחסמו ב־Android 14+", "Allow old apps blocked on Android 14+"), o.bypassLowTargetSdk)
+        opts.addView(note(tr("רישום Google Play הוא סימון בלבד: ההתקנה נעשית דרך ADB, בלי רישיון או אימות של Play.", "Recording Google Play is only a label: the install is done through ADB, without a Play license or verification.")), matchWrap(8))
         optionsSummary = note("")
         opts.addView(optionsSummary, matchWrap(4))
-        opts.addView(button("התקנה אוטומטית ועוד ←", primary = false) { onTab(BottomNav.Tab.SETTINGS) }, matchWrap(0))
+        opts.addView(button(tr("התקנה אוטומטית ועוד ←", "Automatic install and more →"), primary = false) { onTab(BottomNav.Tab.SETTINGS) }, matchWrap(0))
 
         val tip = card(page)
-        tip.addView(heading("טיפ"), matchWrap())
-        tip.addView(body("אפשר גם לפתוח או לשתף קובץ APK מכל אפליקציה (מנהל קבצים, דפדפן, וואטסאפ, טלגרם) ולבחור באפליקציית הבוס — והוא יותקן לפי ההגדרות."), matchWrap(0))
+        tip.addView(heading(tr("טיפ", "Tip")), matchWrap())
+        tip.addView(body(tr("אפשר גם לפתוח או לשתף קובץ APK מכל אפליקציה (מנהל קבצים, דפדפן, וואטסאפ, טלגרם) ולבחור באפליקציית הבוס — והוא יותקן לפי ההגדרות.", "You can also open or share an APK file from any app (file manager, browser, WhatsApp, Telegram) and choose The Boss — it will be installed according to the settings.")), matchWrap(0))
     }
 
     private fun card(parent: LinearLayout) = LinearLayout(this).apply {
@@ -559,24 +563,24 @@ class MainActivity : Activity() {
         when (Bridge.openAfterInstall) {
             "never" -> return
             "auto" -> {
-                runCatching { startActivity(launch) }.onFailure { toast("לא ניתן לפתוח את האפליקציה.") }
+                runCatching { startActivity(launch) }.onFailure { toast(tr("לא ניתן לפתוח את האפליקציה.", "Can't open the app.")) }
                 return
             }
         }
         val label = Bridge.appLabel(pkg) ?: pkg
         android.app.AlertDialog.Builder(this)
-            .setTitle("✔ $label הותקן")
-            .setMessage("לפתוח את האפליקציה עכשיו?")
-            .setPositiveButton("פתח") { _, _ ->
-                runCatching { startActivity(launch) }.onFailure { toast("לא ניתן לפתוח את האפליקציה.") }
+            .setTitle(tr("✔ $label הותקן", "✔ $label installed"))
+            .setMessage(tr("לפתוח את האפליקציה עכשיו?", "Open the app now?"))
+            .setPositiveButton(tr("פתח", "Open")) { _, _ ->
+                runCatching { startActivity(launch) }.onFailure { toast(tr("לא ניתן לפתוח את האפליקציה.", "Can't open the app.")) }
             }
-            .setNegativeButton("לא עכשיו", null)
+            .setNegativeButton(tr("לא עכשיו", "Not now"), null)
             .show()
     }
 
     private fun applyLogExpanded() {
         val open = Bridge.logExpanded
-        logHeader.text = if (open) "יומן ▴" else "יומן ▾  (הקש לפתיחה)"
+        logHeader.text = if (open) tr("יומן ▴", "Log ▴") else tr("יומן ▾  (הקש לפתיחה)", "Log ▾  (tap to open)")
         logBody.visibility = if (open) View.VISIBLE else View.GONE
         logPreview.visibility = if (open) View.GONE else View.VISIBLE
         if (open) logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
@@ -585,23 +589,23 @@ class MainActivity : Activity() {
     private fun openAccessibilitySetup() {
         if (PairingAccessibilityService.isEnabled(this)) {
             openDeveloperOptions()
-            toast("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\". הקוד יזוהה ויוזן אוטומטית.")
+            toast(tr("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\". הקוד יזוהה ויוזן אוטומטית.", "Open \"Wireless debugging\" → \"Pair device with pairing code\". The code is detected and entered automatically."))
             return
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("צימוד אוטומטי")
+            .setTitle(tr("צימוד אוטומטי", "Automatic pairing"))
             .setMessage(
-                "הבוס יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד הצימוד והפורט ויבצע את הצימוד בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n" +
-                    "במסך הבא: בחר \"הבוס\" (או The Boss) ← הפעל.\n\n" +
-                    "אם האפשרות אפורה (Android 13+): פתח פרטי אפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", וחזור לכאן."
+                tr("הבוס יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד הצימוד והפורט ויבצע את הצימוד בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n", "The Boss reads only the settings screens (com.android.settings), detects the pairing code and port and pairs by itself. Nothing is stored or sent outside the device.\n\n") +
+                    tr("במסך הבא: בחר \"הבוס\" (או The Boss) ← הפעל.\n\n", "On the next screen: choose \"The Boss\" (or הבוס) → turn on.\n\n") +
+                    tr("אם האפשרות אפורה (Android 13+): פתח פרטי אפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", וחזור לכאן.", "If the option is grey (Android 13+): open App info → ⋮ at the top → \"Allow restricted settings\", and come back here.")
             )
-            .setPositiveButton("להגדרות נגישות") { _, _ -> openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) }
-            .setNeutralButton("פרטי אפליקציה") { _, _ ->
+            .setPositiveButton(tr("להגדרות נגישות", "Accessibility settings")) { _, _ -> openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) }
+            .setNeutralButton(tr("פרטי אפליקציה", "App info")) { _, _ ->
                 runCatching {
                     startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
                 }
             }
-            .setNegativeButton("ביטול", null)
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
             .show()
     }
 
@@ -612,35 +616,35 @@ class MainActivity : Activity() {
     private fun refreshConnectionInfo() {
         if (!::connectionText.isInitialized) return
         if (!Compat.hasWirelessDebugging) {
-            connectionText.text = "מצב ADB קלאסי (Android ${Build.VERSION.RELEASE}).\n\n${Bridge.LEGACY_HELP}\n\n" +
-                "בחיבור הראשון יופיע \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\". אפשר גם להתקין על מכשיר אחר: צימוד ידני / מכשיר אחר ← כתובת היעד."
+            connectionText.text = tr("מצב ADB קלאסי (Android ${Build.VERSION.RELEASE}).\n\n${Bridge.LEGACY_HELP}\n\n", "Classic ADB mode (Android ${Build.VERSION.RELEASE}).\n\n${Bridge.LEGACY_HELP}\n\n") +
+                tr("בחיבור הראשון יופיע \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\". אפשר גם להתקין על מכשיר אחר: צימוד ידני / מכשיר אחר ← כתובת היעד.", "On the first connection \"Allow debugging?\" appears — check \"Always allow\". You can also install on another device: Manual pairing / another device → target address.")
             return
         }
         val wifi = Bridge.isOnWifi()
         val wireless = Bridge.isWirelessDebuggingOn()
         val lines = mutableListOf<String>()
-        lines += if (Bridge.isPaired) "✔ צומד בעבר עם המכשיר (${Bridge.targetHost})" else "✖ עדיין לא בוצע צימוד"
-        lines += if (wifi) "✔ מחובר ל־Wi‑Fi" else "✖ אין Wi‑Fi — ניפוי באגים אלחוטי דורש Wi‑Fi"
+        lines += if (Bridge.isPaired) tr("✔ צומד בעבר עם המכשיר (${Bridge.targetHost})", "✔ Previously paired with the device (${Bridge.targetHost})") else tr("✖ עדיין לא בוצע צימוד", "✖ Not paired yet")
+        lines += if (wifi) tr("✔ מחובר ל־Wi‑Fi", "✔ Connected to Wi‑Fi") else tr("✖ אין Wi‑Fi — ניפוי באגים אלחוטי דורש Wi‑Fi", "✖ No Wi‑Fi — wireless debugging needs Wi‑Fi")
         lines += when (wireless) {
-            true -> "✔ ניפוי באגים אלחוטי פעיל"
-            false -> if (Bridge.canWriteSecureSettings()) "• ניפוי באגים אלחוטי כבוי — יופעל אוטומטית בעת הצורך" else "✖ ניפוי באגים אלחוטי כבוי"
-            null -> "• מצב ניפוי באגים אלחוטי לא ידוע"
+            true -> tr("✔ ניפוי באגים אלחוטי פעיל", "✔ Wireless debugging is on")
+            false -> if (Bridge.canWriteSecureSettings()) tr("• ניפוי באגים אלחוטי כבוי — יופעל אוטומטית בעת הצורך", "• Wireless debugging is off — it will be turned on automatically when needed") else tr("✖ ניפוי באגים אלחוטי כבוי", "✖ Wireless debugging is off")
+            null -> tr("• מצב ניפוי באגים אלחוטי לא ידוע", "• Wireless debugging status unknown")
         }
-        if (Bridge.canWriteSecureSettings()) lines += "✔ הפעלה אוטומטית מאופשרת"
-        if (Bridge.keepAdbWithoutWifi) lines += "✔ ADB קבוע מופעל (עובד גם בלי Wi‑Fi עד הפעלה מחדש)"
-        if (Bridge.savedConnectPort > 0) lines += "• פורט חיבור אחרון: ${Bridge.savedConnectPort}"
+        if (Bridge.canWriteSecureSettings()) lines += tr("✔ הפעלה אוטומטית מאופשרת", "✔ Automatic turn-on is allowed")
+        if (Bridge.keepAdbWithoutWifi) lines += tr("✔ ADB קבוע מופעל (עובד גם בלי Wi‑Fi עד הפעלה מחדש)", "✔ Persistent ADB is on (works without Wi‑Fi until restart)")
+        if (Bridge.savedConnectPort > 0) lines += tr("• פורט חיבור אחרון: ${Bridge.savedConnectPort}", "• Last connection port: ${Bridge.savedConnectPort}")
         connectionText.text = lines.joinToString("\n")
         val a11y = PairingAccessibilityService.isEnabled(this)
         a11yText.text = if (a11y) {
-            "✔ צימוד אוטומטי פעיל: פתח \"התאמת מכשיר עם קוד התאמה\" בהגדרות, והקוד יזוהה ויוזן לבד."
+            tr("✔ צימוד אוטומטי פעיל: פתח \"התאמת מכשיר עם קוד התאמה\" בהגדרות, והקוד יזוהה ויוזן לבד.", "✔ Automatic pairing is on: open \"Pair device with pairing code\" in Settings, and the code is detected and entered by itself.")
         } else {
-            "צימוד אוטומטי: הבוס יכול לקרוא את קוד הצימוד מהמסך ולצמד בעצמו (דורש הפעלת שירות נגישות)."
+            tr("צימוד אוטומטי: הבוס יכול לקרוא את קוד הצימוד מהמסך ולצמד בעצמו (דורש הפעלת שירות נגישות).", "Automatic pairing: The Boss can read the pairing code from the screen and pair by itself (requires turning on an accessibility service).")
         }
         // Permission already granted → no "enable" button.
         a11yButton.visibility = if (a11y) View.GONE else View.VISIBLE
-        a11yButton.text = "הפעל צימוד אוטומטי (נגישות)"
+        a11yButton.text = tr("הפעל צימוד אוטומטי (נגישות)", "Turn on automatic pairing (accessibility)")
         val paired = Bridge.isPaired
-        pairStateText.text = if (paired) "✔ הטלפון מצומד. אין צורך לצמד שוב." else "צריך לצמד פעם אחת. הדרך הקלה: צימוד אוטומטי — ואז פותחים בהגדרות \"התאמת מכשיר עם קוד התאמה\"."
+        pairStateText.text = if (paired) tr("✔ הטלפון מצומד. אין צורך לצמד שוב.", "✔ The phone is paired. No need to pair again.") else tr("צריך לצמד פעם אחת. הדרך הקלה: צימוד אוטומטי — ואז פותחים בהגדרות \"התאמת מכשיר עם קוד התאמה\".", "You need to pair once. The easy way: automatic pairing — then open \"Pair device with pairing code\" in Settings.")
         repairToggle.visibility = if (paired) View.VISIBLE else View.GONE
         // Not paired: show the controls. Paired: fold them away the first time (the user can open them again).
         if (!paired) pairControls.visibility = View.VISIBLE
@@ -649,19 +653,19 @@ class MainActivity : Activity() {
         // Already paired: the guide card shrinks to a single small button.
         guideInfo.visibility = if (paired) View.GONE else View.VISIBLE
         guideTitle.visibility = if (paired) View.GONE else View.VISIBLE
-        guideButton.text = if (paired) "📖 מדריך התחברות" else "▶  התחל מדריך שלב אחר שלב"
+        guideButton.text = if (paired) tr("📖 מדריך התחברות", "📖 Connection guide") else tr("▶  התחל מדריך שלב אחר שלב", "▶  Start the step-by-step guide")
 
     }
 
     private fun renderSelection() {
         if (!::filesText.isInitialized) return
         filesText.text = if (selected.isEmpty()) {
-            "עדיין לא נבחרו קבצים."
+            tr("עדיין לא נבחרו קבצים.", "No files chosen yet.")
         } else {
             selected.joinToString("\n") { "• ${Bridge.displayName(it)} (${Bridge.formatSize(Bridge.sizeOf(it))})" } +
                 (previewText?.let { "\n\n$it" } ?: "")
         }
-        installButton.text = if (selected.size > 1) "התקן ${selected.size} קבצים" else "התקן"
+        installButton.text = if (selected.size > 1) tr("התקן ${selected.size} קבצים", "Install ${selected.size} files") else tr("התקן", "Install")
     }
 
     // endregion
@@ -698,12 +702,12 @@ class MainActivity : Activity() {
         optionBoxes["test"]?.isChecked = o.allowTestPackages
         optionBoxes["bypass"]?.isChecked = o.bypassLowTargetSdk
         val auto = when (Bridge.autoInstallMode) {
-            "auto" -> "מיידית" + if (Bridge.autoInstallUpdatesOnly) " (רק עדכונים)" else ""
-            "ask" -> "עם שאלה" + if (Bridge.autoInstallUpdatesOnly) " (רק עדכונים)" else ""
-            else -> "כבויה"
+            "auto" -> tr("מיידית", "immediately") + if (Bridge.autoInstallUpdatesOnly) tr(" (רק עדכונים)", " (updates only)") else ""
+            "ask" -> tr("עם שאלה", "with a question") + if (Bridge.autoInstallUpdatesOnly) tr(" (רק עדכונים)", " (updates only)") else ""
+            else -> tr("כבויה", "off")
         }
-        val open = when (Bridge.openAfterInstall) { "auto" -> "מיד"; "never" -> "לא"; else -> "לשאול" }
-        optionsSummary.text = "התקנה אוטומטית של קובץ שנפתח: $auto · פתיחה אחרי התקנה: $open"
+        val open = when (Bridge.openAfterInstall) { "auto" -> tr("מיד", "immediately"); "never" -> tr("לא", "no"); else -> tr("לשאול", "ask") }
+        optionsSummary.text = tr("התקנה אוטומטית של קובץ שנפתח: $auto · פתיחה אחרי התקנה: $open", "Auto-install of an opened file: $auto · Open after install: $open")
     }
 
     private fun startNotificationPairing() {
@@ -716,19 +720,19 @@ class MainActivity : Activity() {
         if (!Bridge.isOnWifi()) {
             if (Bridge.autoWifi) {
                 if (Bridge.isWifiHelperInstalled()) {
-                    toast("מדליק Wi‑Fi… כשהוא מתחבר, לחץ שוב.")
+                    toast(tr("מדליק Wi‑Fi… כשהוא מתחבר, לחץ שוב.", "Turning Wi‑Fi on… once it connects, tap again."))
                     Bridge.scope.launch { Bridge.ensureWifi() }
                 } else {
-                    toast("ניפוי באגים אלחוטי דורש Wi‑Fi — הדלק אותו בחלונית, ואז לחץ שוב.")
+                    toast(tr("ניפוי באגים אלחוטי דורש Wi‑Fi — הדלק אותו בחלונית, ואז לחץ שוב.", "Wireless debugging needs Wi‑Fi — turn it on in the panel, then tap again."))
                     openWifiPanel()
                 }
                 return
             }
-            toast("שים לב: ניפוי באגים אלחוטי דורש חיבור Wi‑Fi.")
+            toast(tr("שים לב: ניפוי באגים אלחוטי דורש חיבור Wi‑Fi.", "Note: wireless debugging needs a Wi‑Fi connection."))
         }
         PairingService.start(this)
-        Bridge.log("צימוד דרך התראה: פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\" והזן את הקוד בהתראה.")
-        toast("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\", והזן את הקוד בהתראה שתופיע.")
+        Bridge.log(tr("צימוד דרך התראה: פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\" והזן את הקוד בהתראה.", "Pairing via notification: open \"Wireless debugging\" → \"Pair device with pairing code\" and enter the code in the notification."))
+        toast(tr("פתח \"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\", והזן את הקוד בהתראה שתופיע.", "Open \"Wireless debugging\" → \"Pair device with pairing code\", and enter the code in the notification that appears."))
         openDeveloperOptions()
     }
 
@@ -738,7 +742,7 @@ class MainActivity : Activity() {
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             startNotificationPairing()
         } else {
-            toast("בלי הרשאת התראות אפשר להשתמש בצימוד ידני (אפשר במסך מפוצל).")
+            toast(tr("בלי הרשאת התראות אפשר להשתמש בצימוד ידני (אפשר במסך מפוצל).", "Without notification permission you can use manual pairing (possible in split screen)."))
             manualBox.visibility = View.VISIBLE
         }
     }
@@ -753,7 +757,7 @@ class MainActivity : Activity() {
             try {
                 startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 if (i.action == Settings.ACTION_DEVICE_INFO_SETTINGS) {
-                    toast("אפשרויות למפתחים כבויות: הקש 7 פעמים על \"מספר Build\" כדי להפעיל אותן.")
+                    toast(tr("אפשרויות למפתחים כבויות: הקש 7 פעמים על \"מספר Build\" כדי להפעיל אותן.", "Developer options are off: tap \"Build number\" 7 times to turn them on."))
                 }
                 return
             } catch (_: ActivityNotFoundException) {
@@ -765,7 +769,7 @@ class MainActivity : Activity() {
     private fun manualPair() {
         val code = pin.text.toString().trim()
         if (code.length != 6 || !code.all(Char::isDigit)) {
-            toast("קוד הצימוד חייב להכיל 6 ספרות.")
+            toast(tr("קוד הצימוד חייב להכיל 6 ספרות.", "The pairing code must have 6 digits."))
             return
         }
         Bridge.pair(host.text.toString(), pairPort.text.toString().toIntOrNull(), code)
@@ -788,7 +792,7 @@ class MainActivity : Activity() {
         try {
             startActivityForResult(intent, REQUEST_FILES)
         } catch (_: ActivityNotFoundException) {
-            toast("לא נמצא בוחר קבצים במכשיר.")
+            toast(tr("לא נמצא בוחר קבצים במכשיר.", "No file picker found on the device."))
         }
     }
 
@@ -821,7 +825,7 @@ class MainActivity : Activity() {
         }
         if (uris.isNotEmpty()) {
             setSelection(uris)
-            Bridge.log("התקבלו ${uris.size} קבצים מאפליקציה אחרת.")
+            Bridge.log(tr("התקבלו ${uris.size} קבצים מאפליקציה אחרת.", "Received ${uris.size} files from another app."))
             maybeAutoInstall()
         }
     }
@@ -840,7 +844,7 @@ class MainActivity : Activity() {
         val mode = Bridge.autoInstallMode
         if (mode == "off") return
         if (!Bridge.isPaired) {
-            Bridge.log("התקנה אוטומטית דולגה: עדיין לא בוצע צימוד.")
+            Bridge.log(tr("התקנה אוטומטית דולגה: עדיין לא בוצע צימוד.", "Automatic install skipped: not paired yet."))
             return
         }
         if (Bridge.state.busy) return
@@ -852,7 +856,7 @@ class MainActivity : Activity() {
         // Updates-only: install automatically only when the APK updates an installed app.
         val only = files.singleOrNull()
         if (only == null || !Bridge.displayName(only).endsWith(".apk", true)) {
-            confirmInstall(files, "לא ניתן לבדוק אוטומטית אם זה עדכון.")
+            confirmInstall(files, tr("לא ניתן לבדוק אוטומטית אם זה עדכון.", "Can't check automatically whether this is an update."))
             return
         }
         Bridge.scope.launch {
@@ -860,7 +864,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if (selected != files) return@runOnUiThread
                 when {
-                    p?.installedVersionCode == null -> confirmInstall(files, "זו אינה אפליקציה שכבר מותקנת, ולכן היא לא מותקנת אוטומטית.")
+                    p?.installedVersionCode == null -> confirmInstall(files, tr("זו אינה אפליקציה שכבר מותקנת, ולכן היא לא מותקנת אוטומטית.", "This isn't an app that's already installed, so it isn't installed automatically."))
                     mode == "auto" -> installSelected()
                     else -> confirmInstall(files, null)
                 }
@@ -872,10 +876,10 @@ class MainActivity : Activity() {
         if (isFinishing || isDestroyed) return
         val names = files.joinToString("\n") { "• ${Bridge.displayName(it)}" }
         android.app.AlertDialog.Builder(this)
-            .setTitle("להתקין עכשיו?")
+            .setTitle(tr("להתקין עכשיו?", "Install now?"))
             .setMessage((reason?.let { "$it\n\n" } ?: "") + names)
-            .setPositiveButton("התקן") { _, _ -> if (selected == files) installSelected() }
-            .setNegativeButton("לא עכשיו", null)
+            .setPositiveButton(tr("התקן", "Install")) { _, _ -> if (selected == files) installSelected() }
+            .setNegativeButton(tr("לא עכשיו", "Not now"), null)
             .show()
     }
 
@@ -886,13 +890,13 @@ class MainActivity : Activity() {
         previewJob = Bridge.scope.launch {
             val p = Bridge.preview(only) ?: return@launch
             val text = buildString {
-                append("${p.label} · ${p.packageName}\nגרסה ${p.versionName ?: "?"} (${p.versionCode})")
+                append(tr("${p.label} · ${p.packageName}\nגרסה ${p.versionName ?: "?"} (${p.versionCode})", "${p.label} · ${p.packageName}\nVersion ${p.versionName ?: "?"} (${p.versionCode})"))
                 val installedCode = p.installedVersionCode
                 when {
-                    installedCode == null -> append("\nלא מותקנת כרגע — התקנה חדשה.")
-                    installedCode < p.versionCode -> append("\nעדכון: מותקנת ${p.installedVersionName} ($installedCode).")
-                    installedCode == p.versionCode -> append("\nאותה גרסה כבר מותקנת — התקנה מחדש.")
-                    else -> append("\n⚠ שנמוך: מותקנת גרסה חדשה יותר ${p.installedVersionName} ($installedCode). סמן \"אפשר שנמוך גרסה\".")
+                    installedCode == null -> append(tr("\nלא מותקנת כרגע — התקנה חדשה.", "\nNot installed now — new install."))
+                    installedCode < p.versionCode -> append(tr("\nעדכון: מותקנת ${p.installedVersionName} ($installedCode).", "\nUpdate: ${p.installedVersionName} ($installedCode) is installed."))
+                    installedCode == p.versionCode -> append(tr("\nאותה גרסה כבר מותקנת — התקנה מחדש.", "\nThe same version is already installed — reinstall."))
+                    else -> append(tr("\n⚠ שנמוך: מותקנת גרסה חדשה יותר ${p.installedVersionName} ($installedCode). סמן \"אפשר שנמוך גרסה\".", "\n⚠ Downgrade: a newer version ${p.installedVersionName} ($installedCode) is installed. Check \"Allow downgrade\"."))
                 }
             }
             runOnUiThread {
@@ -915,13 +919,13 @@ class MainActivity : Activity() {
     private fun openInstalledApp() {
         val pkg = Bridge.state.lastInstalledPackage ?: return
         val launch = packageManager.getLaunchIntentForPackage(pkg)
-        if (launch == null) toast("לאפליקציה אין מסך פתיחה.") else startActivity(launch)
+        if (launch == null) toast(tr("לאפליקציה אין מסך פתיחה.", "The app has no launch screen.")) else startActivity(launch)
     }
 
     private fun copyLog() {
         val cm = getSystemService(ClipboardManager::class.java) ?: return
-        cm.setPrimaryClip(ClipData.newPlainText("הבוס log", Bridge.logSnapshot()))
-        toast("היומן הועתק.")
+        cm.setPrimaryClip(ClipData.newPlainText(tr("הבוס log", "The Boss log"), Bridge.logSnapshot()))
+        toast(tr("היומן הועתק.", "Log copied."))
     }
 
     // endregion
@@ -938,6 +942,7 @@ class MainActivity : Activity() {
     ).apply { bottomMargin = dp(bottom) }
 
     companion object {
+        const val EXTRA_OPEN_GUIDE = "open_guide"
         private const val REQUEST_FILES = 4102
         private const val REQUEST_NOTIFICATIONS = 4103
         private const val KEY_SELECTED = "selected_uris"

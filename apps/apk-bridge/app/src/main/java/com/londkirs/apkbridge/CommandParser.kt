@@ -35,7 +35,7 @@ object CommandParser {
         val text = stripFences(raw).replace("\r\n", "\n").trim()
         if (text.isEmpty()) return Parsed(null)
         val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-        if (lines.isEmpty()) return Parsed(null, "אין פקודה — רק הערות.")
+        if (lines.isEmpty()) return Parsed(null, tr("אין פקודה — רק הערות.", "No command — only comments."))
         val out = mutableListOf<String>()
         val notes = mutableListOf<String>()
         for (line in lines) {
@@ -60,13 +60,13 @@ object CommandParser {
             when (words[0]) {
                 "adb", "adb.exe", "./adb" -> {
                     val rest = skipAdbOptions(words.drop(1))
-                    if (rest.isEmpty()) return Parsed(null, "\"adb\" לבד אינו פקודה.")
+                    if (rest.isEmpty()) return Parsed(null, tr("\"adb\" לבד אינו פקודה.", "\"adb\" alone isn't a command."))
                     val tail = joinFrom(line, rest)
                     val sub = rest[0]
                     when (sub) {
                         "shell" -> {
                             val cmd = joinFrom(line, rest.drop(1))
-                            if (cmd.isBlank()) return Parsed(null, "מסוף אינטראקטיבי (adb shell בלי פקודה) לא נתמך — כתוב פקודה מלאה.")
+                            if (cmd.isBlank()) return Parsed(null, tr("מסוף אינטראקטיבי (adb shell בלי פקודה) לא נתמך — כתוב פקודה מלאה.", "An interactive shell (adb shell without a command) isn't supported — write a full command."))
                             line = unquote(cmd)
                             continue
                         }
@@ -76,18 +76,18 @@ object CommandParser {
                         "uninstall" -> return Parsed("pm uninstall " + joinFrom(line, rest.drop(1)))
                         "get-serialno" -> return Parsed("getprop ro.serialno")
                         "get-state" -> return Parsed("echo device")
-                        "root" -> return Parsed(null, "\"adb root\" עובד רק בגרסאות פיתוח של Android, לא בטלפון רגיל.")
+                        "root" -> return Parsed(null, tr("\"adb root\" עובד רק בגרסאות פיתוח של Android, לא בטלפון רגיל.", "\"adb root\" only works on development builds of Android, not on a regular phone."))
                         "install", "install-multiple", "push", "pull", "sideload" ->
-                            return Parsed(null, "\"adb $sub\" מעביר קובץ מהמחשב. כאן הקובץ כבר בטלפון: להתקנה השתמש בכפתור \"בחר קבצים\" במסך הראשי.")
+                            return Parsed(null, tr("\"adb $sub\" מעביר קובץ מהמחשב. כאן הקובץ כבר בטלפון: להתקנה השתמש בכפתור \"בחר קבצים\" במסך הראשי.", "\"adb $sub\" transfers a file from a computer. Here the file is already on the phone: to install, use the \"Choose files\" button on the main screen."))
                         "devices", "connect", "disconnect", "pair", "kill-server", "start-server", "version", "tcpip", "usb", "forward", "reverse" ->
-                            return Parsed(null, "\"adb $sub\" היא פקודה של המחשב, והבוס מטפל בחיבור לבד.")
-                        else -> return Parsed(null, "פקודת adb לא מוכרת: \"$sub\". לפקודות טלפון כתוב \"adb shell …\" או את הפקודה עצמה.")
+                            return Parsed(null, tr("\"adb $sub\" היא פקודה של המחשב, והבוס מטפל בחיבור לבד.", "\"adb $sub\" is a computer command, and The Boss handles the connection by itself."))
+                        else -> return Parsed(null, tr("פקודת adb לא מוכרת: \"$sub\". לפקודות טלפון כתוב \"adb shell …\" או את הפקודה עצמה.", "Unknown adb command: \"$sub\". For phone commands write \"adb shell …\" or the command itself."))
                     }
                 }
                 // "shell ls" — there is no "shell" binary on Android; the user meant adb shell.
                 "shell" -> {
                     val cmd = joinFrom(line, words.drop(1))
-                    if (cmd.isBlank()) return Parsed(null, "מסוף אינטראקטיבי לא נתמך — כתוב פקודה מלאה.")
+                    if (cmd.isBlank()) return Parsed(null, tr("מסוף אינטראקטיבי לא נתמך — כתוב פקודה מלאה.", "Interactive shell isn't supported — write a full command."))
                     line = unquote(cmd); continue
                 }
                 else -> return Parsed(line)

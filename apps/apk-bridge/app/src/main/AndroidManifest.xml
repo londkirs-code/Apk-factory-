@@ -85,23 +85,23 @@
         <activity
             android:name=".AppsActivity"
             android:exported="false"
-            android:label="אפליקציות מותקנות"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".BackupActivity"
-            android:exported="false"
-            android:label="גיבוי ושחזור" />
+            android:exported="false" />
 
         <activity
             android:name=".GuideActivity"
-            android:exported="false"
-            android:label="מדריך התחברות" />
+            android:exported="false" />
+
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false" />
 
         <activity
             android:name=".SettingsActivity"
-            android:exported="false"
-            android:label="הגדרות" />
+            android:exported="false" />
 
         <service
             android:name=".PairingService"
@@ -128,5 +128,18 @@
         <receiver
             android:name=".PairingReplyReceiver"
             android:exported="false" />
+
+        <!-- Home-screen widget with pinned terminal shortcuts. -->
+        <receiver
+            android:name=".ShortcutWidget"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/shortcut_widget_info" />
+        </receiver>
     </application>
 </manifest>

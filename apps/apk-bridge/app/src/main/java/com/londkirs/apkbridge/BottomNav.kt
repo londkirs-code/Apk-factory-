@@ -16,12 +16,12 @@ import android.widget.TextView
  */
 object BottomNav {
     enum class Tab(val icon: String, val label: String) {
-        CONNECT("🔗", "חיבור"),
-        INSTALL("📦", "התקנה"),
-        TERMINAL("⌨", "טרמינל"),
-        APPS("📱", "אפליקציות"),
-        BACKUP("💾", "גיבוי"),
-        SETTINGS("⚙", "הגדרות"),
+        CONNECT("🔗", tr("חיבור", "Connect")),
+        INSTALL("📦", tr("התקנה", "Install")),
+        TERMINAL("⌨", tr("טרמינל", "Terminal")),
+        APPS("📱", tr("אפליקציות", "Apps")),
+        BACKUP("💾", tr("גיבוי", "Backup")),
+        SETTINGS("⚙", tr("הגדרות", "Settings")),
     }
 
     const val EXTRA_TAB = "com.londkirs.apkbridge.TAB"
@@ -39,7 +39,7 @@ object BottomNav {
         wrapper.addView(View(activity).apply { setBackgroundColor(0xFFF0E2D3.toInt()) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
         val bar = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
             setPadding(dp(4), dp(6), dp(4), dp(6))
         }
         for (tab in Tab.values()) {

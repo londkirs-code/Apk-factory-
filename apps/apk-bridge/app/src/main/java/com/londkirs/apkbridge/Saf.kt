@@ -12,18 +12,18 @@ object Saf {
 
     fun mkdir(cr: ContentResolver, parent: Uri, name: String): Uri =
         DocumentsContract.createDocument(cr, parent, DocumentsContract.Document.MIME_TYPE_DIR, name)
-            ?: error("לא ניתן ליצור תיקייה $name")
+            ?: error(tr("לא ניתן ליצור תיקייה $name", "Can't create folder $name"))
 
     fun create(cr: ContentResolver, parent: Uri, mime: String, name: String): Uri =
-        DocumentsContract.createDocument(cr, parent, mime, name) ?: error("לא ניתן ליצור קובץ $name")
+        DocumentsContract.createDocument(cr, parent, mime, name) ?: error(tr("לא ניתן ליצור קובץ $name", "Can't create file $name"))
 
     fun writeText(cr: ContentResolver, parent: Uri, name: String, text: String) {
         val uri = create(cr, parent, "application/octet-stream", name)
-        cr.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: error("לא ניתן לכתוב $name")
+        cr.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: error(tr("לא ניתן לכתוב $name", "Can't write $name"))
     }
 
     fun readText(cr: ContentResolver, uri: Uri): String =
-        cr.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: error("לא ניתן לקרוא קובץ")
+        cr.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: error(tr("לא ניתן לקרוא קובץ", "Can't read file"))
 
     fun children(cr: ContentResolver, tree: Uri, parent: Uri): List<Child> {
         val parentId = DocumentsContract.getDocumentId(parent)
