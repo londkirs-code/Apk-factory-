@@ -17,6 +17,8 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <!-- Granted through ADB (appops) by the automatic setup: real app sizes and last-used times. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <!-- Backup: contacts are exported as vCard; granted through ADB when a backup starts. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Installs the bundled Wi‑Fi helper with Android's normal installer (no ADB needed). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -83,6 +85,11 @@
             android:exported="false"
             android:label="אפליקציות מותקנות"
             android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".BackupActivity"
+            android:exported="false"
+            android:label="גיבוי ושחזור" />
 
         <activity
             android:name=".GuideActivity"

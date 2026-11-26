@@ -100,6 +100,7 @@ class AppsActivity : Activity() {
     private lateinit var bottom: FrameLayout
     private lateinit var selectionBar: LinearLayout
     private lateinit var selectionCount: TextView
+    private lateinit var strip: StatusStrip
     private var pendingBackup: List<AppRow> = emptyList()
     private var pendingSave: AppRow? = null
 
@@ -117,6 +118,16 @@ class AppsActivity : Activity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         Celebration.onFocus(this, hasFocus)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        strip.attach()
+    }
+
+    override fun onStop() {
+        strip.detach()
+        super.onStop()
     }
 
     override fun onPause() {
@@ -248,6 +259,9 @@ class AppsActivity : Activity() {
 
         val outer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BACKGROUND) }
         outer.addView(root, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        // Progress of uninstall / disable / … right here, like when installing.
+        strip = StatusStrip(this)
+        outer.addView(strip.view)
         outer.addView(bottom, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         renderBottom()
         Compat.applySystemBarInsets(this, outer, includeIme = true)
@@ -502,7 +516,6 @@ class AppsActivity : Activity() {
             .setPositiveButton("אישור") { _, _ ->
                 val started = Bridge.batch(title, apps.map { it.label to command(it) }) { load() }
                 if (started) {
-                    Toast.makeText(this, "$title… ההתקדמות מוצגת בשורת המצב בדף הראשי וביומן.", Toast.LENGTH_SHORT).show()
                     clearSelection()
                 } else {
                     Toast.makeText(this, "פעולה אחרת עדיין רצה — נסה שוב בעוד רגע.", Toast.LENGTH_SHORT).show()

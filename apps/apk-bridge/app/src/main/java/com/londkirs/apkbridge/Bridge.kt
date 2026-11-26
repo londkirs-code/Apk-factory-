@@ -374,6 +374,11 @@ object Bridge {
 
     fun cancelCurrent() { currentJob?.cancel() }
 
+    /** Public entry points for longer operations (backup / restore) that live outside this file. */
+    fun launchJob(name: String, block: suspend () -> Unit): Boolean = runJob(name, block)
+    fun progress(text: String, percent: Int) = update { it.copy(status = text, progress = percent) }
+    fun announce(text: String, percent: Int = -1) = status(text, percent)
+
     // endregion
 
     // region environment helpers

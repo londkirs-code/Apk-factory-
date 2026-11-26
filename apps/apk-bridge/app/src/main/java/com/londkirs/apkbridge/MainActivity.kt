@@ -193,11 +193,11 @@ class MainActivity : Activity() {
     /** Keypad phones: MENU opens Settings; the number keys jump to the main actions. */
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
         val focusInText = currentFocus is EditText
-        // Keypad phones: 1–5 switch tabs (like the bottom bar), 0 opens/closes the log, MENU opens Settings.
+        // Keypad phones: 1–6 switch tabs (like the bottom bar), 0 opens/closes the log, MENU opens Settings.
         val tabs = BottomNav.Tab.values()
         when {
             keyCode == android.view.KeyEvent.KEYCODE_MENU -> { onTab(BottomNav.Tab.SETTINGS); return true }
-            !focusInText && keyCode in android.view.KeyEvent.KEYCODE_1..android.view.KeyEvent.KEYCODE_5 -> {
+            !focusInText && keyCode in android.view.KeyEvent.KEYCODE_1..android.view.KeyEvent.KEYCODE_6 -> {
                 onTab(tabs[keyCode - android.view.KeyEvent.KEYCODE_1]); return true
             }
             !focusInText && keyCode == android.view.KeyEvent.KEYCODE_0 -> {
@@ -246,13 +246,6 @@ class MainActivity : Activity() {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             setPadding(dp(16), dp(12), dp(16), dp(8))
         }
-        header.addView(android.widget.ImageView(this).apply {
-            setImageResource(R.mipmap.ic_launcher_art)
-            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-            // The launcher bitmap has adaptive-icon padding (76 of 108dp); enlarge it to fill the slot.
-            scaleX = 1.4f
-            scaleY = 1.4f
-        }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(10) })
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titles.addView(TextView(this).apply {
             text = getString(R.string.app_name)
