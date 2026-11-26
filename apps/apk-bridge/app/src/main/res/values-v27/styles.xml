@@ -4,4 +4,8 @@
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:navigationBarColor">#FFF9F3</item>
     </style>
+    <style name="TerminalTheme" parent="TerminalTheme.Base">
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:navigationBarColor">@color/terminal_chat_bg</item>
+    </style>
 </resources>

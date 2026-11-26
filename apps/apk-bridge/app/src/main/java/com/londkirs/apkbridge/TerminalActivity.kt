@@ -29,7 +29,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * ADB terminal as a WhatsApp-style chat (dark mode): every command is an outgoing message,
+ * ADB terminal as a WhatsApp-style chat (light, like the regular WhatsApp): every command is an outgoing message,
  * its output is the reply. Shortcuts run on tap and go to the input line on long-press;
  * the user can add, edit and delete shortcuts. Commands run as the ADB "shell" user via [Bridge].
  */
@@ -100,18 +100,18 @@ class TerminalActivity : Activity() {
             text = ">_"
             textSize = 16f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-            setTextColor(ACCENT)
+            setTextColor(HEADER)
             gravity = Gravity.CENTER
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF0B1F17.toInt()) }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFFFFFFF.toInt()) }
         }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(4); marginEnd = dp(10) })
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titles.addView(TextView(this).apply {
             text = "ADB Terminal"
             textSize = 17f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(TEXT)
+            setTextColor(HEADER_TEXT)
         })
-        subtitle = TextView(this).apply { textSize = 12.5f; setTextColor(MUTED); maxLines = 1 }
+        subtitle = TextView(this).apply { textSize = 12.5f; setTextColor(HEADER_SUB); maxLines = 1 }
         titles.addView(subtitle)
         header.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         header.addView(iconButton("⟲") { showHistory() })
@@ -151,7 +151,7 @@ class TerminalActivity : Activity() {
             background = GradientDrawable().apply { cornerRadius = dp(24).toFloat(); setColor(INPUT_BG) }
             setPadding(dp(6), 0, dp(14), 0)
         }
-        pill.addView(iconButton("📋") { pasteFromClipboard() }.apply { textSize = 18f })
+        pill.addView(iconButton("📋") { pasteFromClipboard() }.apply { textSize = 18f; Compat.focusRing(this, ACCENT, 20f) })
         input = EditText(this).apply {
             hint = "הקלד פקודה"
             textSize = 15f
@@ -199,12 +199,12 @@ class TerminalActivity : Activity() {
     private fun iconButton(label: String, action: () -> Unit) = TextView(this).apply {
         text = label
         textSize = 20f
-        setTextColor(MUTED)
+        setTextColor(HEADER_TEXT)
         gravity = Gravity.CENTER
         setPadding(dp(10), dp(6), dp(10), dp(6))
         isClickable = true
         setOnClickListener { action() }
-        Compat.focusRing(this, ACCENT, 20f)
+        Compat.focusRing(this, HEADER_TEXT, 20f)
     }
 
     private fun renderState(state: BridgeState) {
@@ -216,7 +216,7 @@ class TerminalActivity : Activity() {
             Bridge.isPaired || Bridge.keepAdbWithoutWifi -> "Android ${Build.VERSION.RELEASE} · ${Build.MODEL}"
             else -> "לא מזווג — זווג קודם ב־APK Bridge"
         }
-        subtitle.setTextColor(if (running) ACCENT else MUTED)
+        subtitle.setTextColor(if (running) HEADER_TEXT else HEADER_SUB)
         sendButton.text = if (running) "■" else "➤"
         sendButton.scaleX = if (running) 1f else -1f
         (sendButton.background as? GradientDrawable)?.setColor(if (running) STOP else ACCENT)
@@ -284,6 +284,7 @@ class TerminalActivity : Activity() {
         bubbleTexts[m] = text
         bubbleStatus[m] = meta
         renderMeta(m)
+        box.elevation = dp(1).toFloat()  // the soft shadow WhatsApp bubbles have
         box.setOnLongClickListener { messageMenu(m); true }
         // Keypad: the arrows step through messages; OK opens the message menu.
         box.setOnClickListener { if (!box.isInTouchMode) messageMenu(m) }
@@ -563,8 +564,8 @@ class TerminalActivity : Activity() {
         setPadding(dp(12), dp(6), dp(12), dp(6))
         background = GradientDrawable().apply {
             cornerRadius = dp(16).toFloat()
-            setColor(HEADER)
-            setStroke(dp(1), if (accent) ACCENT else 0xFF2F3F48.toInt())
+            setColor(0xFFFFFFFF.toInt())
+            setStroke(dp(1), if (accent) ACCENT else 0xFFD1D7DB.toInt())
         }
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) }
         isClickable = true
@@ -726,19 +727,21 @@ class TerminalActivity : Activity() {
         private const val MAX_MESSAGES = 200
         private const val MAX_SAVED = 80
         private const val MAX_REPLY = 60_000
-        private val DIALOG = android.R.style.Theme_Material_Dialog_Alert
+        private val DIALOG = android.R.style.Theme_Material_Light_Dialog_Alert
 
-        // WhatsApp dark-mode palette
-        private val CHAT_BG = 0xFF0B141A.toInt()
-        private val HEADER = 0xFF1F2C34.toInt()
-        private val INPUT_BG = 0xFF2A3942.toInt()
-        private val OUT_BG = 0xFF005C4B.toInt()
-        private val IN_BG = 0xFF202C33.toInt()
+        // WhatsApp light palette: teal header, beige chat, light-green own messages, white replies.
+        private val CHAT_BG = 0xFFEFEAE2.toInt()
+        private val HEADER = 0xFF008069.toInt()
+        private val HEADER_TEXT = 0xFFFFFFFF.toInt()
+        private val HEADER_SUB = 0xFFD9F1EA.toInt()
+        private val INPUT_BG = 0xFFFFFFFF.toInt()
+        private val OUT_BG = 0xFFD9FDD3.toInt()
+        private val IN_BG = 0xFFFFFFFF.toInt()
         private val ACCENT = 0xFF00A884.toInt()
-        private val TEXT = 0xFFE9EDEF.toInt()
-        private val MUTED = 0xFF8696A0.toInt()
+        private val TEXT = 0xFF111B21.toInt()
+        private val MUTED = 0xFF667781.toInt()
         private val TICK_BLUE = 0xFF53BDEB.toInt()
-        private val ERROR = 0xFFFF6B6B.toInt()
+        private val ERROR = 0xFFD93025.toInt()
         private val STOP = 0xFFE5534B.toInt()
 
         private val DANGEROUS = listOf("rm -r", "rm -f", "reboot", "wipe", "pm uninstall", "pm clear", "format", "dd ", "mkfs", "svc power")
