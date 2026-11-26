@@ -1175,6 +1175,8 @@ public class MainActivity extends Activity {
         if (current == null || current instanceof EditText) return false;
         // תפריט רשת (שתי עמודות): למעלה/למטה נשארים באותה עמודה, כמו מסך אפליקציות.
         if (moveInGrid(current, direction)) return true;
+        // שורות של רשימה (✓, שם, כפתור צד): למעלה/למטה באותה עמודה, כמו רשת.
+        if (moveInListLines(current, direction)) return true;
         int explicit = direction == View.FOCUS_UP ? current.getNextFocusUpId() : current.getNextFocusDownId();
         if (explicit != View.NO_ID) return false;
         View next = android.view.FocusFinder.getInstance().findNextFocus(root, current, direction);
@@ -1188,12 +1190,78 @@ public class MainActivity extends Activity {
         }
         if (row == null) return false;
         for (ViewParent p = current.getParent(); p != null; p = p.getParent()) if (p == row) return false;
+        // כניסה לשורת רשימה מבחוץ: הפוקוס על השם עצמו, לא על ה-✓ שבתחילת השורה.
+        if (LIST_LINE_TAG.equals(row.getTag())) {
+            View main = lineMain(row);
+            if (main != null) return main == next ? false : main.requestFocus();
+        }
         boolean rtl = row.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
         for (int i = 0; i < row.getChildCount(); i++) {
             View candidate = row.getChildAt(rtl ? i : row.getChildCount() - 1 - i);
             if (candidate.getVisibility() != View.VISIBLE || !candidate.isEnabled()) continue;
             if (candidate.isFocusable()) return candidate == next ? false : candidate.requestFocus();
             if (candidate instanceof ViewGroup && candidate.requestFocus()) return true;
+        }
+        return false;
+    }
+
+    private static final String LIST_LINE_TAG = "list-line", LIST_MAIN_TAG = "list-main";
+
+    private static View lineMain(LinearLayout line) {
+        for (int i = 0; i < line.getChildCount(); i++) {
+            View child = line.getChildAt(i);
+            if (LIST_MAIN_TAG.equals(child.getTag()) && child.getVisibility() == View.VISIBLE) return child;
+        }
+        return null;
+    }
+
+    /** העמודה של רכיב בשורת רשימה: ✓, השם, או כפתור צד (לפי המקום מהסוף). */
+    private static String lineColumn(LinearLayout line, View child) {
+        if (child instanceof CheckBox) return "check";
+        if (LIST_MAIN_TAG.equals(child.getTag())) return "main";
+        int fromEnd = 0;
+        for (int i = line.getChildCount() - 1; i >= 0; i--) {
+            View c = line.getChildAt(i);
+            if (c == child) return "side" + fromEnd;
+            if (!(c instanceof CheckBox) && !LIST_MAIN_TAG.equals(c.getTag())) fromEnd++;
+        }
+        return "main";
+    }
+
+    private boolean moveInListLines(View current, int direction) {
+        ViewParent parent = current.getParent();
+        if (!(parent instanceof LinearLayout) || !LIST_LINE_TAG.equals(((View) parent).getTag())) return false;
+        LinearLayout line = (LinearLayout) parent;
+        if (!(line.getParent() instanceof ViewGroup)) return false;
+        ViewGroup container = (ViewGroup) line.getParent();
+        String column = lineColumn(line, current);
+        int step = direction == View.FOCUS_DOWN ? 1 : -1;
+        for (int i = container.indexOfChild(line) + step; i >= 0 && i < container.getChildCount(); i += step) {
+            View sibling = container.getChildAt(i);
+            if (sibling.getVisibility() != View.VISIBLE) continue;
+            if (!(sibling instanceof LinearLayout) || !LIST_LINE_TAG.equals(sibling.getTag())) {
+                if (sibling.isFocusable() || (sibling instanceof ViewGroup && ((ViewGroup) sibling).getDescendantFocusability() != ViewGroup.FOCUS_BLOCK_DESCENDANTS && hasFocusable((ViewGroup) sibling)))
+                    return false; // יציאה מהרשימה לכפתור אחר: ניווט רגיל
+                continue; // כותרת קטע וכדומה
+            }
+            LinearLayout target = (LinearLayout) sibling;
+            for (int j = 0; j < target.getChildCount(); j++) {
+                View c = target.getChildAt(j);
+                if (c.getVisibility() == View.VISIBLE && c.isEnabled() && c.isFocusable() && column.equals(lineColumn(target, c)))
+                    return c.requestFocus();
+            }
+            View main = lineMain(target);
+            return main != null && main.requestFocus();
+        }
+        return false;
+    }
+
+    private static boolean hasFocusable(ViewGroup group) {
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View c = group.getChildAt(i);
+            if (c.getVisibility() != View.VISIBLE) continue;
+            if (c.isFocusable()) return true;
+            if (c instanceof ViewGroup && hasFocusable((ViewGroup) c)) return true;
         }
         return false;
     }
@@ -2047,6 +2115,7 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• ניווט במקשים ברשימות: למעלה/למטה נשארים באותה עמודה (✓, שם, ⚙), וכניסה לרשימה נוחתת על השם ולא על ה-✓.\n"
             + "• אחרי ייבוא: הזמנה אחת נפתחת בחלון שלה; כמה הזמנות - מסומנות בניהול הזמנות כדי ליצור מהן רשימת איסוף.\n"
             + "• שינויים שעשית בהזמנה מסונכרנת (צירוף, מיזוג, ייבוא לתוכה) לא נמחקים בסנכרון: השינוי נשמר בהזמנה עצמה והסנכרון שלה נכבה.\n"
             + "• ניקוי כפילויות: חלון ההזמנות הישן הוסר; \"הזמנות\" פותח את ניהול הזמנות, וחזרה ממנו חוזרת לחלון רשימות האיסוף.\n"
@@ -3637,9 +3706,11 @@ public class MainActivity extends Activity {
                                        int moreIcon, String moreDescription) {
         Button row = Ui.listRow(this, name, details, highlighted);
         row.setOnClickListener(v -> open.run());
+        row.setTag(LIST_MAIN_TAG);
         Button actions = Ui.iconButton(this, moreIcon, moreDescription, false);
         actions.setOnClickListener(v -> more.run());
         LinearLayout line = new LinearLayout(this);
+        line.setTag(LIST_LINE_TAG);
         line.setGravity(Gravity.CENTER_VERTICAL);
         line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         line.addView(row, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -7199,8 +7270,10 @@ public class MainActivity extends Activity {
             LinearLayout row = new LinearLayout(this);
             row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setTag(LIST_LINE_TAG);
             if (!manage) {
                 Button order = Ui.listRow(this, "📦 " + label, details, false);
+                order.setTag(LIST_MAIN_TAG);
                 order.setContentDescription("הצגת ההזמנה " + label);
                 order.setOnClickListener(v -> { dialog.dismiss(); if (entry != null) showOrderPreview(entry, self); else self.run(); });
                 row.addView(order, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -7215,6 +7288,7 @@ public class MainActivity extends Activity {
                 boxLp.setMarginEnd(Ui.dp(this, Ui.S1));
                 row.addView(box, boxLp);
                 Button order = Ui.listRow(this, "✏ " + label, details, false);
+                order.setTag(LIST_MAIN_TAG);
                 order.setContentDescription("שינוי השם של ההזמנה " + label);
                 order.setOnClickListener(v -> { dialog.dismiss(); askGroupName(label, n -> {
                     if (n.isEmpty() || n.equals(original)) g.labels.remove(entryId); else g.labels.put(entryId, n);
@@ -7234,7 +7308,7 @@ public class MainActivity extends Activity {
                     if (!b.isEnabled()) b.setAlpha(0.35f);
                     row.addView(b, lp);
                 }
-                if (firstRow == null) firstRow = box;
+                if (firstRow == null) firstRow = order;
                 box.setOnCheckedChangeListener((b, checked) -> {
                     if (checked) marked.add(entryId); else marked.remove(entryId);
                     View del = dialog.findViewById(deleteId);
