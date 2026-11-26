@@ -15,6 +15,8 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <!-- Shows name/version of installed apps (update vs. downgrade preview, "open after install"). -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Granted through ADB (appops) by the automatic setup: real app sizes and last-used times. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <!-- Installs the bundled Wi‑Fi helper with Android's normal installer (no ADB needed). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 

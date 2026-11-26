@@ -733,6 +733,10 @@ object Bridge {
         if (power != null && !power.isIgnoringBatteryOptimizations(pkg)) {
             run("החרגה מחיסכון בסוללה", "dumpsys deviceidle whitelist +$pkg")
         }
+        if (!hasUsageAccess()) {
+            // Lets the apps manager show real app size (data + cache) and "last used".
+            run("גישה לנתוני שימוש (גודל ושימוש אחרון של אפליקציות)", "appops set $pkg GET_USAGE_STATS allow")
+        }
         if (Compat.hasWirelessDebugging && accessibilityAutoPair && !PairingAccessibilityService.isEnabled(app)) {
             val me = android.content.ComponentName(app, PairingAccessibilityService::class.java).flattenToString()
             val current = runCatching {
@@ -1159,6 +1163,59 @@ object Bridge {
 
     /** Smart "adb shell" handling (no doubling, prompts, code blocks, host commands) — see [CommandParser]. */
     fun normalizeCommand(raw: String): String = CommandParser.normalize(raw)
+
+    /** "Usage access" lets the apps manager read real app sizes and last-used times. */
+    fun hasUsageAccess(): Boolean = runCatching {
+        val ops = app.getSystemService(android.app.AppOpsManager::class.java) ?: return false
+        val mode = if (Build.VERSION.SDK_INT >= 29) {
+            ops.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), app.packageName)
+        } else {
+            @Suppress("DEPRECATION")
+            ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), app.packageName)
+        }
+        mode == android.app.AppOpsManager.MODE_ALLOWED
+    }.getOrDefault(false)
+
+    fun grantUsageAccess(onDone: () -> Unit) = runJob("מתן גישה לנתוני שימוש") {
+        try {
+            withClient { c -> c.shell("appops set ${app.packageName} GET_USAGE_STATS allow") }
+            status(if (hasUsageAccess()) "✔ ניתנה גישה לנתוני שימוש." else "הפקודה נשלחה; ייתכן שיש לפתוח את המסך מחדש.")
+        } finally {
+            main.post(onDone)
+        }
+    }
+
+    /**
+     * Runs one shell command per item over a single ADB connection and reports a summary.
+     * [items] are (label, command). [onDone] runs on the main thread when finished.
+     */
+    fun batch(title: String, items: List<Pair<String, String>>, onDone: () -> Unit) = runJob(title) {
+        val failed = mutableListOf<String>()
+        var ok = 0
+        try {
+            withClient { c ->
+                items.forEachIndexed { i, (label, cmd) ->
+                    update { it.copy(progress = i * 100 / items.size.coerceAtLeast(1), status = "$title: $label (${i + 1}/${items.size})") }
+                    val r = c.shell(cmd)
+                    val out = (r.stdoutText + r.stderrText).trim()
+                    if (r.exitCode == 0 && !out.contains("Failure") && !out.startsWith("Error") && !out.contains("Exception")) {
+                        ok++
+                        log("✔ $title: $label")
+                    } else {
+                        failed += label
+                        log("✖ $title: $label — ${out.ifBlank { "exit ${r.exitCode}" }}")
+                    }
+                }
+            }
+            status(
+                "$title: הצליח $ok מתוך ${items.size}." +
+                    if (failed.isNotEmpty()) "\nנכשל: ${failed.joinToString(", ")} (פרטים ביומן)." else "",
+                100,
+            )
+        } finally {
+            main.post(onDone)
+        }
+    }
 
     fun uninstall(pkg: String, keepData: Boolean) = runJob("הסרת ההתקנה") {
         val name = pkg.trim()
