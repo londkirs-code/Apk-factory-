@@ -170,6 +170,9 @@ class SettingsActivity : Activity() {
         val display = card(page)
         display.addView(heading(tr("תצוגה", "Display")), matchWrap())
         display.addView(checkBox(tr("להציג את היומן פתוח", "Show the log expanded"), Bridge.logExpanded) { Bridge.logExpanded = it }, matchWrap(0))
+        display.addView(button(tr("👋 הצג את מסך הפתיחה", "👋 Show the welcome screens"), false) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+        }, matchWrap())
 
         val scroll = ScrollView(this).apply {
             setBackgroundColor(BACKGROUND)

@@ -203,6 +203,6 @@ class OnboardingActivity : Activity() {
             !context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getBoolean("onboarding_seen", false) && !Bridge.isPaired
 
         fun markSeen(context: Context) =
-            context.getSharedPreferences("bridge", Context.MODE_PRIVATE).edit().putBoolean("onboarding_seen", true).apply()
+            context.getSharedPreferences("bridge", Context.MODE_PRIVATE).edit().putBoolean("onboarding_seen", true).commit()
     }
 }

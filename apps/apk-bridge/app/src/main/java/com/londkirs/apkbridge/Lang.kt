@@ -28,7 +28,7 @@ object Lang {
     }
 
     fun setMode(context: Context, mode: String) {
-        context.getSharedPreferences("bridge", Context.MODE_PRIVATE).edit().putString("lang", mode).apply()
+        context.getSharedPreferences("bridge", Context.MODE_PRIVATE).edit().putString("lang", mode).commit()  // commit, not apply: restart() kills the process right after
         init(context)
     }
 
