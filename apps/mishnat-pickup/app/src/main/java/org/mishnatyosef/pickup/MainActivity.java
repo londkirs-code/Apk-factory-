@@ -223,6 +223,8 @@ public class MainActivity extends Activity {
     private Screen savedListsReturn = Screen.HOME, historyReturn = Screen.SAVED_LISTS;
     private Button savedListsDeleteTile;
     private boolean loginReturnToSettings = false;
+    /** במסך הפתיחה: האם טופס ההתחברות פתוח (ההתחברות היא אפשרות, לא חובה). */
+    private boolean loginFormVisible = false;
     /** הפריט שהיה בפוקוס לפני שעזבנו את מסך הרשימה, כדי לחזור אליו ולא לראש הרשימה. */
     private String homeFocusKey = null;
     /** כפתורי הכותרת במסך הרשימה, לפי סדר הקריאה מימין לשמאל. */
@@ -493,6 +495,11 @@ public class MainActivity extends Activity {
         loginProgress = null;
         loginErrorText = null;
 
+        // בלי בקשה מפורשת להתחבר מוצג מסך ברוכים הבאים: אפשר לעבוד עם רשימות בלי חשבון ובלי אינטרנט.
+        boolean wantsLogin = returnToSettings || loginFormVisible || (notice != null && notice.contains("התחבר"));
+        if (!wantsLogin) { showWelcomeScreen(notice); return; }
+        loginFormVisible = true;
+
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         LinearLayout root = Ui.screen(this);
@@ -510,21 +517,15 @@ public class MainActivity extends Activity {
         TextView appTitle = Ui.title(this, "משנת אוסף");
         appTitle.setGravity(Gravity.CENTER);
         root.addView(appTitle);
-        TextView loginSubtitle = Ui.text(this, "התחברות מאובטחת לחשבון משנת יוסף", Ui.T_BODY, Ui.MUTED, false);
+        TextView loginSubtitle = Ui.text(this, "התחברות לחשבון משנת יוסף (לא חובה): סנכרון ההזמנות מהאתר, היסטוריית הזמנות ופרטי איסוף.", Ui.T_BODY, Ui.MUTED, false);
         loginSubtitle.setGravity(Gravity.CENTER);
         root.addView(loginSubtitle, Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildNativeLoginForm());
-        if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S2));
-        Button savedLists = Ui.button(this, "ניהול רשימות", Ui.Kind.PRIMARY);
-        savedLists.setOnClickListener(v -> showSavedListsScreen(true));
-        root.addView(savedLists, Ui.row(this, Ui.S2, Ui.S2));
-        Button importOffline = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
-        importOffline.setOnClickListener(v -> openImportPicker());
-        root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
-        // גם בלי חשבון אפשר להביא רשימה שמישהו שיתף בענן.
-        Button cloudFetch = Ui.button(this, "הבאה מהענן לפי מספר", Ui.Kind.SOFT);
-        cloudFetch.setOnClickListener(v -> showCloudFetchDialog());
-        root.addView(cloudFetch, Ui.row(this, Ui.S2, Ui.S2));
+        if (!returnToSettings) {
+            Button back = Ui.button(this, "חזרה בלי להתחבר", Ui.Kind.SOFT);
+            back.setOnClickListener(v -> { loginFormVisible = false; showLoginScreen(""); });
+            root.addView(back, Ui.row(this, Ui.S2, Ui.S2));
+        }
         if (sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
             Button connections = Ui.button(this, returnToSettings ? "חזרה להגדרות" : "ניהול חיבורים", Ui.Kind.SOFT);
             connections.setOnClickListener(v -> { loginReturnToSettings = false; showAccountsScreen(); });
@@ -534,6 +535,62 @@ public class MainActivity extends Activity {
         if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice), 3);
         presentScreen(scroll, Screen.LOGIN);
         if (loginEmailInput != null) loginEmailInput.requestFocus();
+    }
+
+    /**
+     * מסך הפתיחה: ברוכים הבאים, כפתור ענק לייבוא רשימות (בלי חשבון ובלי אינטרנט),
+     * וההתחברות לאתר כאפשרות נוספת למי שרוצה סנכרון.
+     */
+    private void showWelcomeScreen(String notice) {
+        loginFormVisible = false;
+        loginEmailInput = null; loginPasswordInput = null; loginButton = null; loginProgress = null; loginErrorText = null;
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout root = Ui.screen(this);
+        scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
+        if (notice != null && !notice.isEmpty()) root.addView(Ui.banner(this, notice));
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.app_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("משנת אוסף");
+        boolean small = getResources().getConfiguration().screenWidthDp < 330;
+        int logoSize = Ui.dp(this, small ? 64 : 88);
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(logoSize, logoSize);
+        logoLp.gravity = Gravity.CENTER_HORIZONTAL;
+        logoLp.topMargin = Ui.dp(this, Ui.S2);
+        root.addView(logo, logoLp);
+        TextView welcome = Ui.title(this, "ברוכים הבאים למשנת אוסף 👋");
+        welcome.setGravity(Gravity.CENTER);
+        root.addView(welcome);
+        TextView intro = Ui.text(this, Ui.rtlParagraph("רשימת איסוף נוחה וברורה להזמנות של משנת יוסף: מסמנים כל מוצר שנאסף, "
+                + "רואים מה נשאר, ומאחדים כמה רשימות יחד."), Ui.T_BODY, Ui.INK, false);
+        intro.setGravity(Gravity.CENTER);
+        root.addView(intro, Ui.row(this, Ui.S2, 0));
+        TextView now = Ui.text(this, Ui.rtlParagraph("✨ אפשר להתחיל כבר עכשיו: לייבא רשימות מקובץ, מקוד QR, מהענן, בבלוטות' או מטקסט, "
+                + "בלי התחברות ובלי חיבור לאינטרנט."), Ui.T_BODY, Ui.P800, true);
+        now.setGravity(Gravity.CENTER);
+        root.addView(now, Ui.row(this, Ui.S2, Ui.S3));
+
+        Button importNow = Ui.button(this, "📥  ייבוא רשימות עכשיו", Ui.Kind.PRIMARY);
+        importNow.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, small ? 20 : 24);
+        importNow.setMinHeight(Ui.dp(this, small ? 72 : 96));
+        importNow.setOnClickListener(v -> createNewSavedList());
+        root.addView(importNow, Ui.row(this, Ui.S2, Ui.S3));
+
+        if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S1));
+        Button savedLists = Ui.button(this, "ניהול רשימות", Ui.Kind.SOFT);
+        savedLists.setOnClickListener(v -> showSavedListsScreen(true));
+        root.addView(savedLists, Ui.row(this, Ui.S1, Ui.S3));
+
+        root.addView(Ui.section(this, "🔐 יש לכם חשבון באתר משנת יוסף?"));
+        TextView why = Ui.text(this, Ui.rtlParagraph("לא חובה. התחברות מוסיפה סנכרון אוטומטי של ההזמנות מהאתר, "
+                + "היסטוריית הזמנות, פרטי איסוף והתראה על הזמנה חדשה."), Ui.T_BODY, Ui.MUTED, false);
+        root.addView(why, Ui.row(this, Ui.S1, Ui.S2));
+        Button login = Ui.button(this, "התחברות לחשבון", Ui.Kind.SOFT);
+        login.setOnClickListener(v -> { loginFormVisible = true; showLoginScreen(""); });
+        root.addView(login, Ui.row(this, Ui.S1, Ui.S3));
+        presentScreen(scroll, Screen.LOGIN);
+        importNow.requestFocus();
     }
 
     private LinearLayout buildNativeLoginForm() {
@@ -1452,6 +1509,8 @@ public class MainActivity extends Activity {
             case SAVED_LISTS: leaveSavedListsScreen(); return;
             case HISTORY: leaveHistoryScreen(); return;
             case LOGIN:
+                // טופס ההתחברות (לא מההגדרות) חוזר למסך הפתיחה.
+                if (loginFormVisible && !loginReturnToSettings) { loginFormVisible = false; showLoginScreen(""); return; }
                 // מסך התחברות שנפתח מההגדרות (הוספת חשבון / התחברות מחדש) חוזר להגדרות.
                 if (loginReturnToSettings && sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
                     loginReturnToSettings = false;
@@ -1497,6 +1556,7 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showHomeScreen(boolean loadData) {
+        loginFormVisible = false;
         accountsScreenVisible = false;
         savedListsScreenVisible = false;
         savedListsReturnToLogin = false;
@@ -1947,6 +2007,7 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• מסך פתיחה חדש: ברוכים הבאים וכפתור גדול \"ייבוא רשימות עכשיו\". ההתחברות לאתר היא אפשרות נוספת לסנכרון, לא חובה.\n"
             + "• ZIP עם תמונות: התמונות באמת נכנסות לקובץ (מהמטמון, ומה שחסר מורד), ובייבוא הן נשמרות לשימוש גם בלי אינטרנט.\n"
             + "• ענן: שם הרשימה כולל את הפרשה, ובהודעה וברשימה שהתקבלה רואים מתי הועלתה (יום ושעה).\n"
             + "• איסוף לפי רשימה (לחיצה ארוכה על 5 / אנטר) כבר לא נסגר מיד.\n"
