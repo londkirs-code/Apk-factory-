@@ -45,8 +45,28 @@ object Lang {
         android.os.Process.killProcess(android.os.Process.myPid())
     }
 
+    /**
+     * The app's language for a screen: with "he" / "en" chosen in Settings, dialogs, system views
+     * and resources follow it too (not only the texts in tr()). "auto" keeps the phone's language.
+     */
+    fun wrap(base: Context): Context {
+        init(base)
+        if (mode(base) == "auto") return base
+        @Suppress("DEPRECATION")
+        val locale = if (hebrew) Locale("iw") else Locale.ENGLISH
+        val config = android.content.res.Configuration(base.resources.configuration)
+        config.setLocale(locale)
+        config.setLayoutDirection(locale)
+        return base.createConfigurationContext(config)
+    }
+
     /** Layout direction for the screens' root containers. */
     val direction: Int get() = if (hebrew) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
 }
 
 fun tr(he: String, en: String): String = if (Lang.hebrew) he else en
+
+/** Base of every screen: applies the app's language (see [Lang.wrap]). */
+abstract class BossActivity : android.app.Activity() {
+    override fun attachBaseContext(newBase: Context) = super.attachBaseContext(Lang.wrap(newBase))
+}

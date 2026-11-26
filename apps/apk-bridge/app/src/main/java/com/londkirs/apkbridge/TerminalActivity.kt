@@ -37,7 +37,7 @@ import java.util.Locale
  * its output is the reply. Shortcuts run on tap and go to the input line on long-press;
  * the user can add, edit and delete shortcuts. Commands run as the ADB "shell" user via [Bridge].
  */
-class TerminalActivity : Activity() {
+class TerminalActivity : BossActivity() {
     private class Message(
         val outgoing: Boolean,
         val time: String,

@@ -31,7 +31,7 @@ import android.widget.Toast
  * Step-by-step connection guide for people with no technical background: one step per screen,
  * big text, an action button where it helps, and an automatic ✔ when the app can see the step is done.
  */
-class GuideActivity : Activity() {
+class GuideActivity : BossActivity() {
     private enum class Part(val label: String) { WIRELESS(tr("📱 בלי מחשב", "📱 Without a computer")), COMPUTER(tr("💻 עם מחשב", "💻 With a computer")), FAQ(tr("❓ שאלות ותקלות", "❓ Questions & problems")) }
 
     private class Step(

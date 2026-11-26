@@ -21,7 +21,7 @@ import android.widget.Toast
  * actions and every terminal shortcut, by category. The row widget takes up to four (in the order
  * they were ticked), the single-button widget takes one.
  */
-class WidgetConfigActivity : Activity() {
+class WidgetConfigActivity : BossActivity() {
     private var widgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var slots = ShortcutWidget.MAX
     private val chosen = mutableListOf<ShortcutWidget.Pin>()
@@ -103,6 +103,7 @@ class WidgetConfigActivity : Activity() {
                 text = pin.label
                 textSize = 15f
                 setTextColor(INK)
+                textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_START
                 isChecked = chosen.any { it.command == pin.command }
                 setOnCheckedChangeListener { box, on -> toggle(pin, box as CheckBox, on) }
             }

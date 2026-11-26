@@ -47,7 +47,7 @@ import java.util.zip.ZipOutputStream
  * Installed apps: filters, sorting, search, and multi-select with bulk actions
  * (uninstall, disable/enable, force-stop, clear data, restore removed system apps, back up APKs).
  */
-class AppsActivity : Activity() {
+class AppsActivity : BossActivity() {
     private class AppRow(
         val label: String,
         val pkg: String,
@@ -315,8 +315,9 @@ class AppsActivity : Activity() {
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         addView(ImageView(this@AppsActivity), LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(12) })
         val texts = LinearLayout(this@AppsActivity).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(TextView(this@AppsActivity).apply { textSize = 15f; setTextColor(INK); typeface = Typeface.DEFAULT_BOLD; maxLines = 1 })
-        texts.addView(TextView(this@AppsActivity).apply { textSize = 12f; setTextColor(MUTED) })
+        // App and package names usually start in Latin letters; still align them to the screen's side (right in Hebrew).
+        texts.addView(TextView(this@AppsActivity).apply { textSize = 15f; setTextColor(INK); typeface = Typeface.DEFAULT_BOLD; maxLines = 1; textAlignment = View.TEXT_ALIGNMENT_VIEW_START })
+        texts.addView(TextView(this@AppsActivity).apply { textSize = 12f; setTextColor(MUTED); textAlignment = View.TEXT_ALIGNMENT_VIEW_START })
         addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
     }
 

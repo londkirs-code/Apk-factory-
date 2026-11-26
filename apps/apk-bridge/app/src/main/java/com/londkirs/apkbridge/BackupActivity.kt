@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
  * 💾 Backup & restore. Pick exactly what goes in: which apps, which storage (internal / memory
  * card), which folders (ready-made or any folder), Termux, contacts, calls, SMS and settings.
  */
-class BackupActivity : Activity() {
+class BackupActivity : BossActivity() {
     // ── backup state
     private val backupBoxes = linkedMapOf<String, CheckBox>()
     private var backupApps: Set<String>? = null            // null = all user apps
@@ -198,7 +198,10 @@ class BackupActivity : Activity() {
         fun refresh() {
             val q = search.text.toString().trim().lowercase()
             shown = apps.filter { q.isEmpty() || it.second.lowercase().contains(q) || it.first.contains(q) }
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_multiple_choice, shown.map { it.second })
+            list.adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_multiple_choice, shown.map { it.second }) {
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                    super.getView(position, convertView, parent).also { it.textAlignment = View.TEXT_ALIGNMENT_VIEW_START }
+            }
             shown.forEachIndexed { i, a -> list.setItemChecked(i, a.first in chosen) }
         }
         list.setOnItemClickListener { _, _, pos, _ ->
@@ -313,6 +316,7 @@ class BackupActivity : Activity() {
             textSize = 15f
             isChecked = checked
             setTextColor(INK)
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
         row.addView(cb, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         if (set.key.startsWith("custom_")) {
@@ -587,6 +591,7 @@ class BackupActivity : Activity() {
 
     private fun check(parent: LinearLayout, label: String, checked: Boolean) = CheckBox(this).apply {
         textSize = 15f; isChecked = checked; setTextColor(INK)
+        textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         text = TerminalIcon.inText(label, textSize)  // Termux: black terminal-window icon instead of an emoji
         parent.addView(this, wrap(0))
     }

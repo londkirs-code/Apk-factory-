@@ -36,7 +36,7 @@ class BridgeApp : Application() {
     }
 }
 
-class MainActivity : Activity() {
+class MainActivity : BossActivity() {
     private lateinit var statusText: TextView
     private lateinit var connectionText: TextView
     private lateinit var progressBar: ProgressBar

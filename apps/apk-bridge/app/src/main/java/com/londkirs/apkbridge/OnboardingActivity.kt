@@ -19,7 +19,7 @@ import android.widget.TextView
  * Welcome screens, shown once on first launch: what the app does, what pairing means, and a
  * choice of language. The last page opens the step-by-step pairing guide (or skips to the app).
  */
-class OnboardingActivity : Activity() {
+class OnboardingActivity : BossActivity() {
 
     private class Page(val emoji: String, val title: () -> String, val body: () -> String)
 
