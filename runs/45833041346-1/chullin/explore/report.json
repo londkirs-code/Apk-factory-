@@ -1,0 +1,414 @@
+{
+  "app": "chullin",
+  "package": "com.londkirs.chullin",
+  "mode": "explore",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "he-IL",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 210.0,
+  "crashes": [],
+  "warnings": [
+    "explore: uiautomator dump failed: ",
+    "explore: 10 distinct screens, 33 elements tapped, 0 relaunches, 199s"
+  ],
+  "screens": [
+    {
+      "signature": "c201e274bfb8",
+      "screenshot": "screenshots/001-screen-1.png",
+      "found_at_action": "0"
+    },
+    {
+      "signature": "77a3235f4a43",
+      "screenshot": "screenshots/002-screen-2.png",
+      "found_at_action": "1"
+    },
+    {
+      "signature": "318a8b1918d0",
+      "screenshot": "screenshots/003-screen-3.png",
+      "found_at_action": "3"
+    },
+    {
+      "signature": "55890da82ec6",
+      "screenshot": "screenshots/004-screen-4.png",
+      "found_at_action": "8"
+    },
+    {
+      "signature": "9964b8c81dda",
+      "screenshot": "screenshots/005-screen-5.png",
+      "found_at_action": "11"
+    },
+    {
+      "signature": "37e195271416",
+      "screenshot": "screenshots/006-screen-6.png",
+      "found_at_action": "12"
+    },
+    {
+      "signature": "68dfa826797e",
+      "screenshot": "screenshots/007-screen-7.png",
+      "found_at_action": "16"
+    },
+    {
+      "signature": "ffbb20230e90",
+      "screenshot": "screenshots/008-screen-8.png",
+      "found_at_action": "26"
+    },
+    {
+      "signature": "ca67c2ff4b6d",
+      "screenshot": "screenshots/012-screen-9.png",
+      "found_at_action": "34"
+    },
+    {
+      "signature": "fb9d6c4963c1",
+      "screenshot": "screenshots/013-screen-10.png",
+      "found_at_action": "37"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "explore-tap",
+      "detail": "⚙",
+      "status": "passed",
+      "seconds": 1.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "explore-tap",
+      "detail": "כהה",
+      "status": "passed",
+      "seconds": 2.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "explore-tap",
+      "detail": "רש\"י",
+      "status": "passed",
+      "seconds": 1.37,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "explore-tap",
+      "detail": "⚙",
+      "status": "passed",
+      "seconds": 1.53,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "explore-tap",
+      "detail": "בהיר",
+      "status": "passed",
+      "seconds": 2.37,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "explore-tap",
+      "detail": "✓ רש\"י",
+      "status": "passed",
+      "seconds": 1.47,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "explore-tap",
+      "detail": "גמרא",
+      "status": "passed",
+      "seconds": 1.37,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "explore-tap",
+      "detail": "⚙",
+      "status": "passed",
+      "seconds": 1.45,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "explore-tap",
+      "detail": "נקה",
+      "status": "passed",
+      "seconds": 1.66,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "explore-tap",
+      "detail": "בחר תאריך",
+      "status": "passed",
+      "seconds": 1.68,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "explore-tap",
+      "detail": "2026 / #date_picker_header_year",
+      "status": "passed",
+      "seconds": 1.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "explore-tap",
+      "detail": "2026 / #date_picker_header_year",
+      "status": "passed",
+      "seconds": 1.47,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "explore-tap",
+      "detail": "יום ה׳, 26 בנוב׳ / #date_picker_header_date",
+      "status": "passed",
+      "seconds": 1.41,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "explore-tap",
+      "detail": "יום ה׳, 26 בנוב׳ / #date_picker_header_date",
+      "status": "passed",
+      "seconds": 1.34,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "explore-tap",
+      "detail": "החודש הבא / #next",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "explore-tap",
+      "detail": "2026 / #date_picker_header_year",
+      "status": "passed",
+      "seconds": 1.46,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "explore-tap",
+      "detail": "אישור / #button1",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "explore-tap",
+      "detail": "גמרא",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "explore-tap",
+      "detail": "גמרא+רש\"י",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "explore-tap",
+      "detail": "מלא",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "explore-tap",
+      "detail": "100%",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "explore-tap",
+      "detail": "75%",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 23,
+      "action": "explore-tap",
+      "detail": "50%",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 24,
+      "action": "explore-tap",
+      "detail": "25%",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "explore-tap",
+      "detail": "החלף מסכת: חולין",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 26,
+      "action": "explore-tap",
+      "detail": "ייבוא קובץ תוספות למסכת חולין",
+      "status": "passed",
+      "seconds": 1.98,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 27,
+      "action": "explore",
+      "detail": "left app to com.google.android.documentsui",
+      "status": "passed",
+      "seconds": 0,
+      "error": "",
+      "screenshot": "screenshots/009-left-app-to-com-google-android-documentsui.png"
+    },
+    {
+      "index": 28,
+      "action": "explore-tap",
+      "detail": "שחזור",
+      "status": "passed",
+      "seconds": 1.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "explore",
+      "detail": "left app to com.google.android.documentsui",
+      "status": "passed",
+      "seconds": 0,
+      "error": "",
+      "screenshot": "screenshots/010-left-app-to-com-google-android-documentsui.png"
+    },
+    {
+      "index": 30,
+      "action": "explore-tap",
+      "detail": "ייצוא גיבוי",
+      "status": "passed",
+      "seconds": 1.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 31,
+      "action": "explore",
+      "detail": "left app to com.google.android.documentsui",
+      "status": "passed",
+      "seconds": 0,
+      "error": "",
+      "screenshot": "screenshots/011-left-app-to-com-google-android-documentsui.png"
+    },
+    {
+      "index": 32,
+      "action": "explore-tap",
+      "detail": "סגור / #button1",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "explore-tap",
+      "detail": "⚙",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 34,
+      "action": "explore-tap",
+      "detail": "רש\"י",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 35,
+      "action": "explore-tap",
+      "detail": "⚙",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 36,
+      "action": "explore-tap",
+      "detail": "✓ רש\"י",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-screen-1.png",
+    "002-screen-2.png",
+    "003-screen-3.png",
+    "004-screen-4.png",
+    "005-screen-5.png",
+    "006-screen-6.png",
+    "007-screen-7.png",
+    "008-screen-8.png",
+    "009-left-app-to-com-google-android-documentsui.png",
+    "010-left-app-to-com-google-android-documentsui.png",
+    "011-left-app-to-com-google-android-documentsui.png",
+    "012-screen-9.png",
+    "013-screen-10.png",
+    "014-final.png"
+  ]
+}
