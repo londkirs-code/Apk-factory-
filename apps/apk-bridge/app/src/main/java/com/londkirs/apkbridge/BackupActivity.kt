@@ -85,6 +85,19 @@ class BackupActivity : Activity() {
         backupBoxes[BackupEngine.CALLS] = check(backup, "📞 יומן שיחות", true)
         backupBoxes[BackupEngine.SMS] = check(backup, "💬 הודעות SMS", true)
         backupBoxes[BackupEngine.SETTINGS] = check(backup, "⚙ הגדרות טלפון", true)
+        if (BackupEngine.isTermuxInstalled(this)) {
+            backupBoxes[BackupEngine.TERMUX] = check(backup, "🐚 טרמוקס — גיבוי מלא ‎.tar (home + usr)", true)
+            backup.addView(box(
+                "🐚 טרמוקס מגבה את עצמו לפי פקודה מלאה שהבוס שולח לו (לא צריך את הפקודות ששמרת ב־.bashrc). " +
+                    "פעם אחת צריך לאשר בטרמוקס שאפליקציות אחרות ישלחו לו פקודות — מעתיקים את השורה, מדביקים בטרמוקס ולוחצים Enter:\n" +
+                    BackupEngine.TERMUX_SETUP_COMMAND
+            ), wrap(4))
+            backup.addView(button("העתק את שורת ההגדרה לטרמוקס", false) {
+                getSystemService(android.content.ClipboardManager::class.java)
+                    ?.setPrimaryClip(android.content.ClipData.newPlainText("termux", BackupEngine.TERMUX_SETUP_COMMAND))
+                toast("הועתק. פתח את טרמוקס, הדבק ולחץ Enter.")
+            }, wrap(6))
+        }
         backup.addView(TextView(this).apply {
             text = "📁 קבצים"
             textSize = 15f
@@ -193,6 +206,7 @@ class BackupActivity : Activity() {
         if (BackupEngine.CALLS in ins.available) restoreBoxes[BackupEngine.CALLS] = check(restoreOptions, "📞 יומן שיחות${count(BackupEngine.CALLS)}", true)
         if (BackupEngine.SMS in ins.available) restoreBoxes[BackupEngine.SMS] = check(restoreOptions, "💬 הודעות SMS${count(BackupEngine.SMS)}", true)
         if (BackupEngine.SETTINGS in ins.available) restoreBoxes[BackupEngine.SETTINGS] = check(restoreOptions, "⚙ הגדרות טלפון", true)
+        if (BackupEngine.TERMUX in ins.available) restoreBoxes[BackupEngine.TERMUX] = check(restoreOptions, "🐚 טרמוקס — שחזור מלא (home + usr)", true)
         for (key in ins.fileSets) {
             val label = BackupEngine.FILE_SETS.firstOrNull { it.key == key }?.label ?: key
             restoreFileBoxes[key] = check(restoreOptions, label, true)
@@ -216,7 +230,8 @@ class BackupActivity : Activity() {
                 "• אפליקציות שכבר מותקנות בגרסה זהה או חדשה יותר לא יותקנו מחדש — רק ההרשאות שלהן יוחזרו.\n" +
                     "• שיחות והודעות שכבר נמצאות בטלפון לא ישוכפלו.\n" +
                     "• קבצים בשם זהה יוחלפו בגרסה מהגיבוי.\n" +
-                    "• אנשי קשר: בסוף ייפתח מסך הייבוא של אפליקציית אנשי הקשר — שם מאשרים."
+                    "• אנשי קשר: בסוף ייפתח מסך הייבוא של אפליקציית אנשי הקשר — שם מאשרים.\n" +
+                    "• טרמוקס: הקבצים שלו יוחלפו בקבצים מהגיבוי, והוא יופעל מחדש. השאר את המסך פתוח עד הסוף."
             )
             .setPositiveButton("שחזר") { _, _ ->
                 val started = BackupEngine.restore(this, ins, items, files) { result ->

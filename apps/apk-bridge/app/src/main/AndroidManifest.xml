@@ -19,6 +19,8 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <!-- Backup: contacts are exported as vCard; granted through ADB when a backup starts. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Backup: asks Termux (its official RUN_COMMAND) to archive / restore its own files. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <!-- Installs the bundled Wi‑Fi helper with Android's normal installer (no ADB needed). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 

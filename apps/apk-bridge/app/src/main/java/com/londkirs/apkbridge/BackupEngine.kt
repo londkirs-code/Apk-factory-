@@ -29,6 +29,20 @@ object BackupEngine {
     const val CALLS = "calls"
     const val SMS = "sms"
     const val SETTINGS = "settings"
+    const val TERMUX = "termux"
+
+    const val TERMUX_PKG = "com.termux"
+    private const val TERMUX_FILES = "/data/data/com.termux/files"
+    private const val TERMUX_BASH = "$TERMUX_FILES/usr/bin/bash"
+    /** Shared-storage folder where Termux writes / reads the archive (Termux can, ADB can too). */
+    private const val TERMUX_SHARED = "/sdcard/TheBoss/termux"
+    private const val TERMUX_ARCHIVE = "termux_full_backup.tar.gz"
+
+    /** What the user has to run once in Termux so other apps may send it commands. */
+    const val TERMUX_SETUP_COMMAND =
+        "mkdir -p ~/.termux && echo \"allow-external-apps = true\" >> ~/.termux/termux.properties && termux-reload-settings"
+
+    fun isTermuxInstalled(context: Context) = runCatching { context.packageManager.getPackageInfo(TERMUX_PKG, 0); true }.getOrDefault(false)
 
     data class FileSet(val key: String, val label: String, val path: String)
 
@@ -103,6 +117,11 @@ object BackupEngine {
                             "\n[global]\n" + c.shell("settings list global").stdoutText
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "settings.txt", text) }
                         counts.put(SETTINGS, 1); lines += "⚙ הגדרות טלפון"
+                        step++
+                    }
+                    if (TERMUX in items) {
+                        lines += "🐚 טרמוקס: " + backupTermux(c, app, folder) { msg -> Bridge.progress(msg, stepPct()) }
+                        counts.put(TERMUX, 1)
                         step++
                     }
                     if (APPS in items) {
@@ -272,6 +291,7 @@ object BackupEngine {
             if ("calls.json" in names) add(CALLS)
             if ("sms.json" in names) add(SMS)
             if ("settings.txt" in names) add(SETTINGS)
+            if ("termux" in names) add(TERMUX)
         }
         val sets = if ("files" in names) {
             val filesDir = Saf.child(cr, tree, folder, "files")!!.uri
@@ -314,6 +334,10 @@ object BackupEngine {
                     if (SETTINGS in items) {
                         Bridge.progress("משחזר הגדרות טלפון…", stepPct())
                         lines += "⚙ הגדרות: " + restoreSettings(c, cr, tree, folder)
+                        step++
+                    }
+                    if (TERMUX in items) {
+                        lines += "🐚 טרמוקס: " + restoreTermux(c, app, tree, folder) { msg -> Bridge.progress(msg, stepPct()) }
                         step++
                     }
                     if (fileSets.isNotEmpty()) {
@@ -478,6 +502,158 @@ object BackupEngine {
         // Let the gallery and other apps see the restored files.
         runCatching { c.shell("am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d ${q("file://" + set.path)}") }
         return count
+    }
+
+    // endregion
+
+    // region Termux
+
+    /**
+     * Full Termux backup (home + usr) as one .tar.gz. Termux's files are private to Termux, so the
+     * archive is created *by Termux itself* through its official RUN_COMMAND interface, with the
+     * complete command spelled out here (no aliases or scripts from the user's .bashrc are needed).
+     */
+    private val TERMUX_BACKUP_SCRIPT = """
+        OUT='$TERMUX_SHARED'
+        mkdir -p "${'$'}OUT" || exit 1
+        rm -f "${'$'}OUT/$TERMUX_ARCHIVE" "${'$'}OUT/$TERMUX_ARCHIVE.part" "${'$'}OUT/done" "${'$'}OUT/failed" "${'$'}OUT/log.txt"
+        cd '$TERMUX_FILES' || { echo 'no termux files dir' > "${'$'}OUT/failed"; exit 1; }
+        tar -czf "${'$'}OUT/$TERMUX_ARCHIVE.part" --exclude='./home/.cache' --exclude='./home/storage' ./home ./usr > "${'$'}OUT/log.txt" 2>&1
+        RC=${'$'}?
+        if [ "${'$'}RC" -eq 0 ] || [ "${'$'}RC" -eq 1 ]; then
+          mv "${'$'}OUT/$TERMUX_ARCHIVE.part" "${'$'}OUT/$TERMUX_ARCHIVE" && echo ok > "${'$'}OUT/done"
+        else
+          echo "tar exit ${'$'}RC" > "${'$'}OUT/failed"
+        fi
+    """.trimIndent()
+
+    /** Full Termux restore: extract home + usr back into Termux's own folder and fix ownership. */
+    private val TERMUX_RESTORE_SCRIPT = """
+        OUT='$TERMUX_SHARED'
+        IN="${'$'}OUT/$TERMUX_ARCHIVE"
+        rm -f "${'$'}OUT/done" "${'$'}OUT/failed" "${'$'}OUT/log.txt"
+        [ -f "${'$'}IN" ] || { echo 'archive missing' > "${'$'}OUT/failed"; exit 1; }
+        cd '$TERMUX_FILES' || { echo 'no termux files dir' > "${'$'}OUT/failed"; exit 1; }
+        tar -xzf "${'$'}IN" > "${'$'}OUT/log.txt" 2>&1
+        RC=${'$'}?
+        U=${'$'}(id -u)
+        chown -R "${'$'}U:${'$'}U" '$TERMUX_FILES/usr' '$TERMUX_FILES/home' 2>/dev/null
+        if [ "${'$'}RC" -eq 0 ]; then echo ok > "${'$'}OUT/done"; else echo "tar exit ${'$'}RC" > "${'$'}OUT/failed"; fi
+    """.trimIndent()
+
+    /** Sends a full bash script to Termux (RUN_COMMAND, in the background). */
+    private fun runInTermux(context: Context, script: String) {
+        val intent = android.content.Intent("com.termux.RUN_COMMAND")
+            .setClassName(TERMUX_PKG, "com.termux.app.RunCommandService")
+            .putExtra("com.termux.RUN_COMMAND_PATH", TERMUX_BASH)
+            .putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", script))
+            .putExtra("com.termux.RUN_COMMAND_WORKDIR", "$TERMUX_FILES/home")
+            .putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+            .putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
+        context.startForegroundService(intent)
+    }
+
+    /** Lets this app send commands to Termux, and Termux write to shared storage. */
+    private suspend fun prepareTermux(c: AdbClient, context: Context) {
+        c.shell(
+            "pm grant ${context.packageName} com.termux.permission.RUN_COMMAND 2>/dev/null ; " +
+                "pm grant $TERMUX_PKG android.permission.READ_EXTERNAL_STORAGE 2>/dev/null ; " +
+                "pm grant $TERMUX_PKG android.permission.WRITE_EXTERNAL_STORAGE 2>/dev/null ; " +
+                "appops set $TERMUX_PKG MANAGE_EXTERNAL_STORAGE allow 2>/dev/null ; " +
+                "mkdir -p '$TERMUX_SHARED'"
+        )
+    }
+
+    /**
+     * Waits for Termux to write "done" (ok) or "failed". While the archive grows the wait goes on;
+     * if nothing at all happens for a while, Termux most likely does not accept external commands.
+     */
+    private suspend fun waitForTermux(c: AdbClient, watchFile: String, onProgress: (String) -> Unit): String? {
+        var lastSize = -1L
+        var idleSince = System.currentTimeMillis()
+        var sawActivity = false
+        while (true) {
+            val out = c.shell(
+                "if [ -f '$TERMUX_SHARED/done' ]; then echo DONE; " +
+                    "elif [ -f '$TERMUX_SHARED/failed' ]; then echo FAILED; cat '$TERMUX_SHARED/failed'; tail -n 3 '$TERMUX_SHARED/log.txt' 2>/dev/null; " +
+                    "else echo WAIT; stat -c %s '$watchFile' 2>/dev/null; [ -f '$TERMUX_SHARED/log.txt' ] && echo LOG; fi"
+            ).stdoutText.trim().lines()
+            when (out.firstOrNull()) {
+                "DONE" -> return null
+                "FAILED" -> return out.drop(1).joinToString(" ").ifBlank { "טרמוקס דיווח על שגיאה" }
+            }
+            val size = out.getOrNull(1)?.toLongOrNull() ?: -1L
+            if (out.any { it == "LOG" }) sawActivity = true
+            if (size != lastSize) {
+                lastSize = size
+                idleSince = System.currentTimeMillis()
+                if (size > 0) { sawActivity = true; onProgress(Bridge.formatSize(size)) }
+            }
+            val idle = System.currentTimeMillis() - idleSince
+            if (!sawActivity && idle > 45_000) return "NO_RESPONSE"
+            if (sawActivity && idle > 10 * 60_000) return "טרמוקס הפסיק להתקדם (10 דקות בלי שינוי)"
+            kotlinx.coroutines.delay(2_000)
+        }
+    }
+
+    private fun termuxHelp(reason: String) = if (reason == "NO_RESPONSE")
+        "טרמוקס לא הגיב. צריך לאשר פעם אחת שאפליקציות אחרות ישלחו לו פקודות — בטרמוקס מריצים:\n$TERMUX_SETUP_COMMAND\nואז מנסים שוב."
+    else "נכשל: $reason"
+
+    private suspend fun backupTermux(c: AdbClient, context: Context, folder: Uri, onProgress: (String) -> Unit): String {
+        if (!isTermuxInstalled(context)) return "טרמוקס לא מותקן — דילוג"
+        val cr = context.contentResolver
+        prepareTermux(c, context)
+        onProgress("טרמוקס: יוצר קובץ גיבוי מלא (home + usr)…")
+        runCatching { runInTermux(context, TERMUX_BACKUP_SCRIPT) }.onFailure {
+            return "לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן הגיבוי)"
+        }
+        val error = waitForTermux(c, "$TERMUX_SHARED/$TERMUX_ARCHIVE.part") { size -> onProgress("טרמוקס: נארז $size…") }
+        if (error != null) return termuxHelp(error)
+        onProgress("טרמוקס: מעתיק את הקובץ לתיקיית הגיבוי…")
+        val size = c.shell("stat -c %s '$TERMUX_SHARED/$TERMUX_ARCHIVE'").stdoutText.trim().toLongOrNull() ?: 0L
+        val ok = runCatching {
+            val dir = withContext(Dispatchers.IO) { Saf.mkdir(cr, folder, "termux") }
+            val doc = withContext(Dispatchers.IO) { Saf.create(cr, dir, "application/gzip", TERMUX_ARCHIVE) }
+            val out = withContext(Dispatchers.IO) { cr.openOutputStream(doc) } ?: error("no stream")
+            out.use { c.sync.pull("$TERMUX_SHARED/$TERMUX_ARCHIVE", it) }
+            withContext(Dispatchers.IO) {
+                Saf.writeText(
+                    cr, dir, "README.txt",
+                    "Full Termux backup (home + usr) made by The Boss.\n" +
+                        "Manual restore inside Termux:\n" +
+                        "  cd /data/data/com.termux/files && tar -xzf /path/to/$TERMUX_ARCHIVE && chown -R \$(id -u):\$(id -u) usr home\n",
+                )
+            }
+        }
+        c.shell("rm -rf '$TERMUX_SHARED'")
+        return if (ok.isSuccess) "גיבוי מלא (${Bridge.formatSize(size)})" else "העתקת הקובץ נכשלה: ${Bridge.explain(ok.exceptionOrNull()!!)}"
+    }
+
+    private suspend fun restoreTermux(c: AdbClient, context: Context, tree: Uri, folder: Uri, onProgress: (String) -> Unit): String {
+        if (!isTermuxInstalled(context)) return "טרמוקס לא מותקן. אפשר לשחזר אותו קודם עם \"אפליקציות\", ואז לשחזר שוב את טרמוקס."
+        val cr = context.contentResolver
+        val dir = Saf.child(cr, tree, folder, "termux")?.uri ?: return "אין בגיבוי"
+        val archive = Saf.child(cr, tree, dir, TERMUX_ARCHIVE) ?: return "קובץ הגיבוי חסר"
+        prepareTermux(c, context)
+        onProgress("טרמוקס: מעתיק את קובץ הגיבוי לטלפון…")
+        c.shell("rm -f '$TERMUX_SHARED/done' '$TERMUX_SHARED/failed'")
+        val pushed = runCatching {
+            val input = withContext(Dispatchers.IO) { cr.openInputStream(archive.uri) } ?: error("no stream")
+            input.use { c.sync.push(it, "$TERMUX_SHARED/$TERMUX_ARCHIVE") }
+        }
+        if (pushed.isFailure) return "העתקת הקובץ נכשלה: ${Bridge.explain(pushed.exceptionOrNull()!!)}"
+        onProgress("טרמוקס: מחלץ ומשחזר (home + usr)…")
+        runCatching { runInTermux(context, TERMUX_RESTORE_SCRIPT) }.onFailure {
+            c.shell("rm -rf '$TERMUX_SHARED'")
+            return "לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן השחזור)"
+        }
+        val error = waitForTermux(c, "$TERMUX_SHARED/log.txt") { onProgress("טרמוקס: משחזר…") }
+        c.shell("rm -rf '$TERMUX_SHARED'")
+        if (error != null) return termuxHelp(error)
+        // Restart Termux so it starts with the restored files.
+        c.shell("am force-stop $TERMUX_PKG")
+        return "שוחזר במלואו (${Bridge.formatSize(archive.size)}). טרמוקס הופעל מחדש — פתח אותו."
     }
 
     // endregion
