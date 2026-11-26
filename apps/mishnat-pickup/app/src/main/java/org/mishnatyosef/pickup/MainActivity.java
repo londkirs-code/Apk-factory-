@@ -2204,7 +2204,9 @@ public class MainActivity extends Activity {
         clearImages.setOnClickListener(v -> confirmClearImageCache());
         Button clear = Ui.gridButton(this, "מחיקת כל הנתונים", Ui.Kind.SOFT); // מוגן בחלון אישור
         clear.setOnClickListener(v -> confirmClearSavedData());
-        addGridButtons(data, pickupGroups, savedLists, sync, cloudServer, clearImages, clear);
+        // "סנכרון עם האתר" רק כשיש חשבון מחובר.
+        if (connectedAccounts().isEmpty()) addGridButtons(data, pickupGroups, savedLists, cloudServer, clearImages, clear);
+        else addGridButtons(data, pickupGroups, savedLists, sync, cloudServer, clearImages, clear);
         TextView dataStatus = Ui.text(this, (cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר")
                 + " · מטמון התמונות: מחשב…", Ui.T_NOTE, Ui.MUTED, false);
         data.addView(dataStatus, Ui.row(this, Ui.S2, Ui.S1));
@@ -2266,7 +2268,7 @@ public class MainActivity extends Activity {
         LinearLayout display = settingsCard(content, "📏 תצוגה");
         addDisplaySettings(display);
         addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "🏷️ כותרות הקטגוריות", false, Ui.S1, Ui.S1);
-        addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "📋 כמות לפי הזמנה", true, 0, Ui.S1);
+        // "כמות לפי הזמנה" נקבעת לכל רשימת איסוף בהגדרות שלה (לא כאן, כדי שלא יהיו שתי הגדרות סותרות).
 
         LinearLayout sound = settingsCard(content, "🔔 צליל ורטט");
         addFeedbackSettings(sound);
