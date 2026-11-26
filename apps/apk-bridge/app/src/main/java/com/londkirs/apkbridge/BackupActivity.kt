@@ -153,7 +153,7 @@ class BackupActivity : Activity() {
     }
 
     private fun setAll(on: Boolean) {
-        backupBoxes.forEach { (key, box) -> if (key != BackupEngine.TERMUX || !on || BackupEngine.isTermuxInstalled(this)) box.isChecked = on }
+        backupBoxes.forEach { (key, box) -> if (key != BackupEngine.TERMUX || !on || TermuxBackup.isInstalled(this)) box.isChecked = on }
         if (on) backupApps = null
         renderBackupAppsButton()
         folders.forEach { it.second.isChecked = on }
@@ -230,7 +230,7 @@ class BackupActivity : Activity() {
                 if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     Bridge.withClient { it.shell("pm grant $packageName android.permission.READ_CONTACTS") }
                 }
-                withContext(Dispatchers.IO) { BackupEngine.contactSources(this@BackupActivity) }
+                withContext(Dispatchers.IO) { ContactSources.list(this@BackupActivity) }
             }
             runOnUiThread {
                 result.onFailure { toast(tr("לא ניתן לקרוא את אנשי הקשר: ${Bridge.explain(it)}", "Can't read contacts: ${Bridge.explain(it)}")) }
@@ -295,7 +295,7 @@ class BackupActivity : Activity() {
         parent.addView(this, wrap(0))
         if (under != null) {
             visibility = if (under.isChecked) View.VISIBLE else View.GONE
-            val previous = under.tag as? (Boolean) -> Unit
+            @Suppress("UNCHECKED_CAST") val previous = under.tag as? (Boolean) -> Unit
             val show: (Boolean) -> Unit = { on -> visibility = if (on) View.VISIBLE else View.GONE; previous?.invoke(on) }
             under.tag = show
             under.setOnCheckedChangeListener { _, on -> show(on) }
@@ -380,35 +380,35 @@ class BackupActivity : Activity() {
         status.removeAllViews()
         status.visibility = View.VISIBLE
         status.addView(note(tr("⏳ בודק את טרמוקס…", "⏳ Checking Termux…")))
-        BackupEngine.checkTermux(this) { result, error ->
+        TermuxBackup.check(this) { result, error ->
             status.removeAllViews()
             when (result) {
-                BackupEngine.TermuxStatus.READY -> status.addView(TextView(this).apply {
+                TermuxBackup.Status.READY -> status.addView(TextView(this).apply {
                     text = tr("✔ טרמוקס מותקן ומוכן.", "✔ Termux is installed and ready.")
                     textSize = 14f
                     setTextColor(0xFF1E8E3E.toInt())
                     typeface = Typeface.DEFAULT_BOLD
                 })
-                BackupEngine.TermuxStatus.NOT_INSTALLED -> {
+                TermuxBackup.Status.NOT_INSTALLED -> {
                     status.addView(note(tr("טרמוקס לא מותקן בטלפון.", "Termux isn't installed on this phone.")))
                     target.isChecked = false
                     status.visibility = View.VISIBLE
                 }
-                BackupEngine.TermuxStatus.NO_ACCESS -> {
+                TermuxBackup.Status.NO_ACCESS -> {
                     status.addView(box(
                         tr("טרמוקס מותקן אבל עדיין לא מקבל פקודות מהבוס. פעם אחת: מעתיקים את השורה, פותחים את טרמוקס, מדביקים ולוחצים Enter:\n", "Termux is installed but doesn't accept commands from The Boss yet. Once: copy the line, open Termux, paste and press Enter:\n") +
-                            BackupEngine.TERMUX_SETUP_COMMAND
+                            TermuxBackup.SETUP_COMMAND
                     ), wrap(4))
                     val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                     row.addView(button(tr("העתק ופתח את טרמוקס", "Copy and open Termux"), true) {
-                        getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("termux", BackupEngine.TERMUX_SETUP_COMMAND))
-                        packageManager.getLaunchIntentForPackage(BackupEngine.TERMUX_PKG)?.let { runCatching { startActivity(it) } }
+                        getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("termux", TermuxBackup.SETUP_COMMAND))
+                        packageManager.getLaunchIntentForPackage(TermuxBackup.PKG)?.let { runCatching { startActivity(it) } }
                         toast(tr("הועתק. הדבק בטרמוקס ולחץ Enter, ואז חזור ולחץ \"בדוק שוב\".", "Copied. Paste in Termux and press Enter, then come back and tap \"Check again\"."))
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
                     row.addView(button(tr("בדוק שוב", "Check again"), false) { verifyTermux(target, status) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     status.addView(row)
                 }
-                BackupEngine.TermuxStatus.NO_CONNECTION -> {
+                TermuxBackup.Status.NO_CONNECTION -> {
                     status.addView(note(tr("אין חיבור ADB כרגע (${error ?: ""}). התחבר בלשונית חיבור, ואז סמן שוב.", "No ADB connection right now (${error ?: ""}). Connect in the Connection tab, then check again.")))
                     status.addView(button(tr("בדוק שוב", "Check again"), false) { verifyTermux(target, status) })
                 }

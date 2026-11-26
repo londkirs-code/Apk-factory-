@@ -9,7 +9,6 @@ import android.provider.ContactsContract
 import io.github.rhythmcache.adb.AdbClient
 import io.github.rhythmcache.adb.io.RandomAccessSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,19 +30,6 @@ object BackupEngine {
     const val SMS = "sms"
     const val SETTINGS = "settings"
     const val TERMUX = "termux"
-
-    const val TERMUX_PKG = "com.termux"
-    private const val TERMUX_FILES = "/data/data/com.termux/files"
-    private const val TERMUX_BASH = "$TERMUX_FILES/usr/bin/bash"
-    /** Shared-storage folder where Termux writes / reads the archive (Termux can, ADB can too). */
-    private const val TERMUX_SHARED = "/sdcard/TheBoss/termux"
-    private const val TERMUX_ARCHIVE = "termux_full_backup.tar.gz"
-
-    /** What the user has to run once in Termux so other apps may send it commands. */
-    const val TERMUX_SETUP_COMMAND =
-        "mkdir -p ~/.termux && echo \"allow-external-apps = true\" >> ~/.termux/termux.properties && termux-reload-settings"
-
-    fun isTermuxInstalled(context: Context) = runCatching { context.packageManager.getPackageInfo(TERMUX_PKG, 0); true }.getOrDefault(false)
 
     data class FileSet(val key: String, val label: String, val path: String)
 
@@ -73,75 +59,6 @@ object BackupEngine {
      * in ms (0 = everything).
      */
     data class Filters(val contactSources: Set<String>? = null, val callsSince: Long = 0, val smsSince: Long = 0)
-
-    /** A contacts account (Google, phone, SIM…) or a contacts group, with how many contacts it holds. */
-    data class ContactSource(val key: String, val label: String, val count: Int)
-
-    /** Accounts and groups to choose from. Needs READ_CONTACTS (granted over ADB by the caller). */
-    fun contactSources(context: Context): List<ContactSource> {
-        val cr = context.contentResolver
-        val byAccount = linkedMapOf<Pair<String, String>, MutableSet<Long>>()
-        cr.query(ContactsContract.RawContacts.CONTENT_URI,
-            arrayOf(ContactsContract.RawContacts.ACCOUNT_TYPE, ContactsContract.RawContacts.ACCOUNT_NAME, ContactsContract.RawContacts.CONTACT_ID),
-            "${ContactsContract.RawContacts.DELETED}=0", null, null)?.use { c ->
-            while (c.moveToNext()) {
-                val id = c.getLong(2).takeIf { it > 0 } ?: continue
-                byAccount.getOrPut((c.getString(0) ?: "") to (c.getString(1) ?: "")) { mutableSetOf() } += id
-            }
-        }
-        val out = mutableListOf<ContactSource>()
-        for ((acct, ids) in byAccount) {
-            val (type, name) = acct
-            val label = when {
-                type.contains("sim", ignoreCase = true) || name.contains("sim", ignoreCase = true) -> "📇 SIM" + if (name.isNotBlank()) " ($name)" else ""
-                type.contains("google") -> "🟢 Google · $name"
-                type.isBlank() && name.isBlank() -> tr("📱 בטלפון", "📱 On the phone")
-                type.contains("whatsapp") -> "💚 WhatsApp"
-                type.contains("telegram") -> "✈ Telegram"
-                name.isBlank() -> "📱 $type"
-                else -> "👤 $name"
-            }
-            out += ContactSource("acct:$type|$name", label, ids.size)
-        }
-        for ((key, title, ids) in groups(context)) out += ContactSource(key, "👥 $title", ids.size)
-        return out.filter { it.count > 0 }
-    }
-
-    /** Contact groups (Family, Coworkers…) as (key, title, contact ids). */
-    private fun groups(context: Context): List<Triple<String, String, Set<Long>>> {
-        val cr = context.contentResolver
-        val titles = linkedMapOf<Long, String>()
-        cr.query(ContactsContract.Groups.CONTENT_URI, arrayOf(ContactsContract.Groups._ID, ContactsContract.Groups.TITLE),
-            "${ContactsContract.Groups.DELETED}=0", null, null)?.use { c ->
-            while (c.moveToNext()) c.getString(1)?.takeIf { it.isNotBlank() }?.let { titles[c.getLong(0)] = it }
-        }
-        if (titles.isEmpty()) return emptyList()
-        val members = HashMap<Long, MutableSet<Long>>()
-        cr.query(ContactsContract.Data.CONTENT_URI,
-            arrayOf(ContactsContract.CommonDataKinds.GroupMembership.GROUP_ROW_ID, ContactsContract.Data.CONTACT_ID),
-            "${ContactsContract.Data.MIMETYPE}=?", arrayOf(ContactsContract.CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE), null)?.use { c ->
-            while (c.moveToNext()) members.getOrPut(c.getLong(0)) { mutableSetOf() } += c.getLong(1)
-        }
-        // The same group name can exist once per account: merge them.
-        return titles.entries.groupBy { it.value }.map { (title, entries) ->
-            Triple("group:$title", title, entries.flatMap { members[it.key].orEmpty() }.toSet())
-        }
-    }
-
-    /** Contact ids in any of the chosen accounts / groups. */
-    private fun contactIdsFor(context: Context, keys: Set<String>): Set<Long> {
-        val cr = context.contentResolver
-        val ids = mutableSetOf<Long>()
-        val accounts = keys.filter { it.startsWith("acct:") }.map { it.removePrefix("acct:").split('|', limit = 2).let { p -> p[0] to p.getOrElse(1) { "" } } }.toSet()
-        if (accounts.isNotEmpty()) cr.query(ContactsContract.RawContacts.CONTENT_URI,
-            arrayOf(ContactsContract.RawContacts.ACCOUNT_TYPE, ContactsContract.RawContacts.ACCOUNT_NAME, ContactsContract.RawContacts.CONTACT_ID),
-            "${ContactsContract.RawContacts.DELETED}=0", null, null)?.use { c ->
-            while (c.moveToNext()) if (((c.getString(0) ?: "") to (c.getString(1) ?: "")) in accounts) ids += c.getLong(2)
-        }
-        val groupKeys = keys.filter { it.startsWith("group:") }.toSet()
-        if (groupKeys.isNotEmpty()) groups(context).filter { it.first in groupKeys }.forEach { ids += it.third }
-        return ids
-    }
 
     // region backup
 
@@ -204,7 +121,7 @@ object BackupEngine {
                         step++
                     }
                     if (TERMUX in items) {
-                        lines += tr("🐚 טרמוקס: ", "🐚 Termux: ") + backupTermux(c, app, folder) { msg -> Bridge.progress(msg, stepPct()) }
+                        lines += tr("🐚 טרמוקס: ", "🐚 Termux: ") + TermuxBackup.backup(c, app, folder) { msg -> Bridge.progress(msg, stepPct()) }
                         counts.put(TERMUX, 1)
                         step++
                     }
@@ -245,7 +162,7 @@ object BackupEngine {
     private fun backupContacts(context: Context, folder: Uri, sources: Set<String>?): Int {
         val cr = context.contentResolver
         val keys = mutableListOf<String>()
-        val only = sources?.let { contactIdsFor(context, it) }
+        val only = sources?.let { ContactSources.contactIdsFor(context, it) }
         cr.query(ContactsContract.Contacts.CONTENT_URI, arrayOf(ContactsContract.Contacts.LOOKUP_KEY, ContactsContract.Contacts._ID), null, null, null)?.use { c ->
             while (c.moveToNext()) if (only == null || c.getLong(1) in only) c.getString(0)?.let(keys::add)
         } ?: error(tr("אין גישה לאנשי הקשר.", "No access to contacts."))
@@ -441,7 +358,7 @@ object BackupEngine {
                         step++
                     }
                     if (TERMUX in items) {
-                        lines += tr("🐚 טרמוקס: ", "🐚 Termux: ") + restoreTermux(c, app, tree, folder) { msg -> Bridge.progress(msg, stepPct()) }
+                        lines += tr("🐚 טרמוקס: ", "🐚 Termux: ") + TermuxBackup.restore(c, app, tree, folder) { msg -> Bridge.progress(msg, stepPct()) }
                         step++
                     }
                     if (fileSets.isNotEmpty()) {
@@ -643,192 +560,6 @@ object BackupEngine {
 
     // endregion
 
-    // region Termux
-
-    enum class TermuxStatus { READY, NOT_INSTALLED, NO_ACCESS, NO_CONNECTION }
-
-    /**
-     * Checks that Termux is installed and accepts commands from The Boss: grants what ADB can,
-     * sends a tiny command, and waits for the answer file.
-     */
-    fun checkTermux(context: Context, onResult: (TermuxStatus, String?) -> Unit) {
-        val app = context.applicationContext
-        val main = android.os.Handler(android.os.Looper.getMainLooper())
-        if (!isTermuxInstalled(app)) { onResult(TermuxStatus.NOT_INSTALLED, null); return }
-        Bridge.scope.launch {
-            val result: Pair<TermuxStatus, String?> = try {
-                Bridge.withClient { c ->
-                    prepareTermux(c, app)
-                    c.shell("rm -f '$TERMUX_SHARED/ping'")
-                    runInTermux(app, "mkdir -p '$TERMUX_SHARED' && echo ok > '$TERMUX_SHARED/ping'")
-                    var ok = false
-                    repeat(12) {
-                        if (!ok) {
-                            kotlinx.coroutines.delay(1000)
-                            ok = c.shell("cat '$TERMUX_SHARED/ping' 2>/dev/null").stdoutText.trim() == "ok"
-                        }
-                    }
-                    c.shell("rm -f '$TERMUX_SHARED/ping'")
-                    (if (ok) TermuxStatus.READY else TermuxStatus.NO_ACCESS) to null
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                TermuxStatus.NO_CONNECTION to Bridge.explain(e)
-            }
-            main.post { onResult(result.first, result.second) }
-        }
-    }
-
-    /**
-     * Full Termux backup (home + usr) as one .tar.gz. Termux's files are private to Termux, so the
-     * archive is created *by Termux itself* through its official RUN_COMMAND interface, with the
-     * complete command spelled out here (no aliases or scripts from the user's .bashrc are needed).
-     */
-    private val TERMUX_BACKUP_SCRIPT = """
-        OUT='$TERMUX_SHARED'
-        mkdir -p "${'$'}OUT" || exit 1
-        rm -f "${'$'}OUT/$TERMUX_ARCHIVE" "${'$'}OUT/$TERMUX_ARCHIVE.part" "${'$'}OUT/done" "${'$'}OUT/failed" "${'$'}OUT/log.txt"
-        cd '$TERMUX_FILES' || { echo 'no termux files dir' > "${'$'}OUT/failed"; exit 1; }
-        tar -czf "${'$'}OUT/$TERMUX_ARCHIVE.part" --exclude='./home/.cache' --exclude='./home/storage' ./home ./usr > "${'$'}OUT/log.txt" 2>&1
-        RC=${'$'}?
-        if [ "${'$'}RC" -eq 0 ] || [ "${'$'}RC" -eq 1 ]; then
-          mv "${'$'}OUT/$TERMUX_ARCHIVE.part" "${'$'}OUT/$TERMUX_ARCHIVE" && echo ok > "${'$'}OUT/done"
-        else
-          echo "tar exit ${'$'}RC" > "${'$'}OUT/failed"
-        fi
-    """.trimIndent()
-
-    /** Full Termux restore: extract home + usr back into Termux's own folder and fix ownership. */
-    private val TERMUX_RESTORE_SCRIPT = """
-        OUT='$TERMUX_SHARED'
-        IN="${'$'}OUT/$TERMUX_ARCHIVE"
-        rm -f "${'$'}OUT/done" "${'$'}OUT/failed" "${'$'}OUT/log.txt"
-        [ -f "${'$'}IN" ] || { echo 'archive missing' > "${'$'}OUT/failed"; exit 1; }
-        cd '$TERMUX_FILES' || { echo 'no termux files dir' > "${'$'}OUT/failed"; exit 1; }
-        tar -xzf "${'$'}IN" > "${'$'}OUT/log.txt" 2>&1
-        RC=${'$'}?
-        U=${'$'}(id -u)
-        chown -R "${'$'}U:${'$'}U" '$TERMUX_FILES/usr' '$TERMUX_FILES/home' 2>/dev/null
-        if [ "${'$'}RC" -eq 0 ]; then echo ok > "${'$'}OUT/done"; else echo "tar exit ${'$'}RC" > "${'$'}OUT/failed"; fi
-    """.trimIndent()
-
-    /** Sends a full bash script to Termux (RUN_COMMAND, in the background). */
-    private fun runInTermux(context: Context, script: String) {
-        val intent = android.content.Intent("com.termux.RUN_COMMAND")
-            .setClassName(TERMUX_PKG, "com.termux.app.RunCommandService")
-            .putExtra("com.termux.RUN_COMMAND_PATH", TERMUX_BASH)
-            .putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", script))
-            .putExtra("com.termux.RUN_COMMAND_WORKDIR", "$TERMUX_FILES/home")
-            .putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
-            .putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
-        context.startForegroundService(intent)
-    }
-
-    /** Lets this app send commands to Termux, and Termux write to shared storage. */
-    private suspend fun prepareTermux(c: AdbClient, context: Context) {
-        c.shell(
-            "pm grant ${context.packageName} com.termux.permission.RUN_COMMAND 2>/dev/null ; " +
-                "pm grant $TERMUX_PKG android.permission.READ_EXTERNAL_STORAGE 2>/dev/null ; " +
-                "pm grant $TERMUX_PKG android.permission.WRITE_EXTERNAL_STORAGE 2>/dev/null ; " +
-                "appops set $TERMUX_PKG MANAGE_EXTERNAL_STORAGE allow 2>/dev/null ; " +
-                "mkdir -p '$TERMUX_SHARED'"
-        )
-    }
-
-    /**
-     * Waits for Termux to write "done" (ok) or "failed". While the archive grows the wait goes on;
-     * if nothing at all happens for a while, Termux most likely does not accept external commands.
-     */
-    private suspend fun waitForTermux(c: AdbClient, watchFile: String, onProgress: (String) -> Unit): String? {
-        var lastSize = -1L
-        var idleSince = System.currentTimeMillis()
-        var sawActivity = false
-        while (true) {
-            val out = c.shell(
-                "if [ -f '$TERMUX_SHARED/done' ]; then echo DONE; " +
-                    "elif [ -f '$TERMUX_SHARED/failed' ]; then echo FAILED; cat '$TERMUX_SHARED/failed'; tail -n 3 '$TERMUX_SHARED/log.txt' 2>/dev/null; " +
-                    "else echo WAIT; stat -c %s '$watchFile' 2>/dev/null; [ -f '$TERMUX_SHARED/log.txt' ] && echo LOG; fi"
-            ).stdoutText.trim().lines()
-            when (out.firstOrNull()) {
-                "DONE" -> return null
-                "FAILED" -> return out.drop(1).joinToString(" ").ifBlank { tr("טרמוקס דיווח על שגיאה", "Termux reported an error") }
-            }
-            val size = out.getOrNull(1)?.toLongOrNull() ?: -1L
-            if (out.any { it == "LOG" }) sawActivity = true
-            if (size != lastSize) {
-                lastSize = size
-                idleSince = System.currentTimeMillis()
-                if (size > 0) { sawActivity = true; onProgress(Bridge.formatSize(size)) }
-            }
-            val idle = System.currentTimeMillis() - idleSince
-            if (!sawActivity && idle > 45_000) return "NO_RESPONSE"
-            if (sawActivity && idle > 10 * 60_000) return tr("טרמוקס הפסיק להתקדם (10 דקות בלי שינוי)", "Termux stopped progressing (10 minutes without change)")
-            kotlinx.coroutines.delay(2_000)
-        }
-    }
-
-    private fun termuxHelp(reason: String) = if (reason == "NO_RESPONSE")
-        tr("טרמוקס לא הגיב. צריך לאשר פעם אחת שאפליקציות אחרות ישלחו לו פקודות — בטרמוקס מריצים:\n$TERMUX_SETUP_COMMAND\nואז מנסים שוב.", "Termux didn't respond. You need to allow once that other apps may send it commands — in Termux run:\n$TERMUX_SETUP_COMMAND\nthen try again.")
-    else tr("נכשל: $reason", "failed: $reason")
-
-    private suspend fun backupTermux(c: AdbClient, context: Context, folder: Uri, onProgress: (String) -> Unit): String {
-        if (!isTermuxInstalled(context)) return tr("טרמוקס לא מותקן — דילוג", "Termux isn't installed — skipped")
-        val cr = context.contentResolver
-        prepareTermux(c, context)
-        onProgress(tr("טרמוקס: יוצר קובץ גיבוי מלא (home + usr)…", "Termux: creating a full backup file (home + usr)…"))
-        runCatching { runInTermux(context, TERMUX_BACKUP_SCRIPT) }.onFailure {
-            return tr("לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן הגיבוי)", "Can't send a command to Termux: ${Bridge.explain(it)} (keep The Boss open during the backup)")
-        }
-        val error = waitForTermux(c, "$TERMUX_SHARED/$TERMUX_ARCHIVE.part") { size -> onProgress(tr("טרמוקס: נארז $size…", "Termux: packed $size…")) }
-        if (error != null) return termuxHelp(error)
-        onProgress(tr("טרמוקס: מעתיק את הקובץ לתיקיית הגיבוי…", "Termux: copying the file to the backup folder…"))
-        val size = c.shell("stat -c %s '$TERMUX_SHARED/$TERMUX_ARCHIVE'").stdoutText.trim().toLongOrNull() ?: 0L
-        val ok = runCatching {
-            val dir = withContext(Dispatchers.IO) { Saf.mkdir(cr, folder, "termux") }
-            val doc = withContext(Dispatchers.IO) { Saf.create(cr, dir, "application/gzip", TERMUX_ARCHIVE) }
-            val out = withContext(Dispatchers.IO) { cr.openOutputStream(doc) } ?: error("no stream")
-            out.use { c.sync.pull("$TERMUX_SHARED/$TERMUX_ARCHIVE", it) }
-            withContext(Dispatchers.IO) {
-                Saf.writeText(
-                    cr, dir, "README.txt",
-                    "Full Termux backup (home + usr) made by The Boss.\n" +
-                        "Manual restore inside Termux:\n" +
-                        "  cd /data/data/com.termux/files && tar -xzf /path/to/$TERMUX_ARCHIVE && chown -R \$(id -u):\$(id -u) usr home\n",
-                )
-            }
-        }
-        c.shell("rm -rf '$TERMUX_SHARED'")
-        return if (ok.isSuccess) tr("גיבוי מלא (${Bridge.formatSize(size)})", "full backup (${Bridge.formatSize(size)})") else tr("העתקת הקובץ נכשלה: ${Bridge.explain(ok.exceptionOrNull()!!)}", "copying the file failed: ${Bridge.explain(ok.exceptionOrNull()!!)}")
-    }
-
-    private suspend fun restoreTermux(c: AdbClient, context: Context, tree: Uri, folder: Uri, onProgress: (String) -> Unit): String {
-        if (!isTermuxInstalled(context)) return tr("טרמוקס לא מותקן. אפשר לשחזר אותו קודם עם \"אפליקציות\", ואז לשחזר שוב את טרמוקס.", "Termux isn't installed. You can restore it first with \"Apps\", then restore Termux again.")
-        val cr = context.contentResolver
-        val dir = Saf.child(cr, tree, folder, "termux")?.uri ?: return tr("אין בגיבוי", "not in the backup")
-        val archive = Saf.child(cr, tree, dir, TERMUX_ARCHIVE) ?: return tr("קובץ הגיבוי חסר", "backup file missing")
-        prepareTermux(c, context)
-        onProgress(tr("טרמוקס: מעתיק את קובץ הגיבוי לטלפון…", "Termux: copying the backup file to the phone…"))
-        c.shell("rm -f '$TERMUX_SHARED/done' '$TERMUX_SHARED/failed'")
-        val pushed = runCatching {
-            val input = withContext(Dispatchers.IO) { cr.openInputStream(archive.uri) } ?: error("no stream")
-            input.use { c.sync.push(it, "$TERMUX_SHARED/$TERMUX_ARCHIVE") }
-        }
-        if (pushed.isFailure) return tr("העתקת הקובץ נכשלה: ${Bridge.explain(pushed.exceptionOrNull()!!)}", "copying the file failed: ${Bridge.explain(pushed.exceptionOrNull()!!)}")
-        onProgress(tr("טרמוקס: מחלץ ומשחזר (home + usr)…", "Termux: extracting and restoring (home + usr)…"))
-        runCatching { runInTermux(context, TERMUX_RESTORE_SCRIPT) }.onFailure {
-            c.shell("rm -rf '$TERMUX_SHARED'")
-            return tr("לא ניתן לשלוח פקודה לטרמוקס: ${Bridge.explain(it)} (השאר את מסך הבוס פתוח בזמן השחזור)", "Can't send a command to Termux: ${Bridge.explain(it)} (keep The Boss open during the restore)")
-        }
-        val error = waitForTermux(c, "$TERMUX_SHARED/log.txt") { onProgress(tr("טרמוקס: משחזר…", "Termux: restoring…")) }
-        c.shell("rm -rf '$TERMUX_SHARED'")
-        if (error != null) return termuxHelp(error)
-        // Restart Termux so it starts with the restored files.
-        c.shell("am force-stop $TERMUX_PKG")
-        return tr("שוחזר במלואו (${Bridge.formatSize(archive.size)}). טרמוקס הופעל מחדש — פתח אותו.", "fully restored (${Bridge.formatSize(archive.size)}). Termux was restarted — open it.")
-    }
-
-    // endregion
 
     // region helpers
 
@@ -863,8 +594,7 @@ object BackupEngine {
         return "/sdcard/Restored/$name"
     }
 
-    /** Single-quotes a value for the device shell. */
-    private fun q(value: String) = "'" + value.replace("'", "'\\''") + "'"
+    private fun q(value: String) = shellQuote(value)
 
     /**
      * Runs `content query` and parses its "Row: N a=1, b=2, body=…" output. Columns are parsed

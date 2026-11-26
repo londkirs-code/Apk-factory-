@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
-import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.Handler
@@ -29,7 +28,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
-import java.io.FileInputStream
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -39,7 +37,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArraySet
-import java.util.zip.ZipFile
 
 /** A network endpoint advertised by Wireless Debugging. */
 data class Endpoint(val host: String, val port: Int)
@@ -612,7 +609,7 @@ object Bridge {
             runCatching { connected.close() }
             if (renewed && !prefs.getBoolean("legacy_authorized", false)) authorizeLegacyOnce()
         }
-        return result!!.getOrThrow()
+        return result.getOrThrow()
     }
 
     /** First time only: connect to 5555 so Android asks "Allow debugging?" while the user is here. */
@@ -668,7 +665,7 @@ object Bridge {
             val list = (current.split(':').filter { it.isNotBlank() } + me).distinct().joinToString(":")
             run(
                 tr("שירות הנגישות לצימוד אוטומטי", "Accessibility service for automatic pairing"),
-                "settings put secure enabled_accessibility_services '$list' && settings put secure accessibility_enabled 1",
+                "settings put secure enabled_accessibility_services ${shellQuote(list)} && settings put secure accessibility_enabled 1",
             )
         }
         if (autoWifi && !isWifiHelperInstalled() && isWifiHelperBundled()) {

@@ -1,47 +1,16 @@
 package com.londkirs.apkbridge
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.Uri
-import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.provider.OpenableColumns
-import android.provider.Settings
 import io.github.rhythmcache.adb.AdbClient
-import io.github.rhythmcache.adb.AdbException
-import io.github.rhythmcache.adb.FileKeyProvider
 import io.github.rhythmcache.adb.io.RandomAccessSource
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileInputStream
-import java.net.Inet4Address
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.Socket
-import java.net.NetworkInterface
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.concurrent.CopyOnWriteArraySet
 import java.util.zip.ZipFile
 import com.londkirs.apkbridge.Bridge.app
-import com.londkirs.apkbridge.Bridge.prefs
 import com.londkirs.apkbridge.Bridge.status
 import com.londkirs.apkbridge.Bridge.log
 import com.londkirs.apkbridge.Bridge.update
@@ -53,12 +22,9 @@ import com.londkirs.apkbridge.Bridge.sizeOf
 import com.londkirs.apkbridge.Bridge.sanitize
 import com.londkirs.apkbridge.Bridge.KNOWN_ABIS
 import com.londkirs.apkbridge.Bridge.PLAY_STORE
-import com.londkirs.apkbridge.Bridge.INSTALL_CHANNEL
 import com.londkirs.apkbridge.Bridge.state
-import com.londkirs.apkbridge.Bridge.main
 import com.londkirs.apkbridge.Bridge.openAfterInstall
 import com.londkirs.apkbridge.Bridge.installNotifications
-import com.londkirs.apkbridge.Bridge.explain
 import com.londkirs.apkbridge.Bridge.isScreenListening
 import com.londkirs.apkbridge.Bridge.notifyInfo
 
@@ -123,7 +89,7 @@ object Installer {
             status(tr("${prefix}ההתקנה הסתיימה בהצלחה.", "${prefix}Install finished successfully."), 100)
             return
         }
-        val line = client.shell("pm list packages -i --show-versioncode $pkg").stdoutText
+        val line = client.shell("pm list packages -i --show-versioncode ${shellQuote(pkg)}").stdoutText
             .lines().map { it.trim() }
             .firstOrNull { it == "package:$pkg" || it.startsWith("package:$pkg ") }
         val installer = line?.substringAfter("installer=", "")?.substringBefore(' ')?.takeIf { it.isNotBlank() && it != "null" }
@@ -187,7 +153,7 @@ object Installer {
 
     private suspend fun pushObbs(client: AdbClient, pkg: String, obbs: List<Pair<String, File>>) {
         val dir = "/sdcard/Android/obb/$pkg"
-        client.shell("mkdir -p '$dir'")
+        client.shell("mkdir -p ${shellQuote(dir)}")
         for ((name, file) in obbs) {
             val safe = name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
             log(tr("מעתיק קובץ OBB: $safe (${formatSize(file.length())})", "Copying OBB file: $safe (${formatSize(file.length())})"))
