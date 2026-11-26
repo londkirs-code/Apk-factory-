@@ -296,7 +296,7 @@ final class Ui {
      */
     private static final Object[][] BUTTON_ICONS = {
             {"מחיקת המסומנות", IC_TRASH}, {"סיום", IC_CHECK}, {"הבנתי", IC_CHECK}, {"אישור", IC_CHECK},
-            {"פתיחה לאיסוף", IC_PLAY}, {"לאיסוף", IC_PLAY}, {"פתיחת רשימת", IC_PLAY},
+            {"פתיחה לאיסוף", IC_PLAY}, {"לאיסוף", IC_PLAY}, {"המשך איסוף", IC_PLAY}, {"פתיחת רשימת", IC_PLAY},
             {"רשימת איסוף", IC_BASKET}, {"רשימות איסוף", IC_BASKET}, {"לרשימת", IC_BASKET}, {"לרשימה", IC_BASKET},
             {"יציאה", IC_LOGOUT}, {"מאוחדת", IC_MERGE}, {"איחוד", IC_MERGE}, {"מיזוג", IC_MERGE}, {"מזג", IC_MERGE},
             {"מחיקת", IC_TRASH}, {"מחיקה", IC_TRASH}, {"מחק", IC_TRASH}, {"הסר", IC_TRASH},
