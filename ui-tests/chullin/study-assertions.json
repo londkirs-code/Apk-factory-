@@ -30,10 +30,20 @@
       "name": "study-start"
     },
     {
-      "action": "scroll_to",
-      "text": "גמרא",
-      "direction": "down",
-      "max_swipes": 6
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
     },
     {
       "action": "tap",
@@ -41,20 +51,40 @@
       "exact": true
     },
     {
-      "action": "scroll_to",
-      "text": "גמרא",
-      "direction": "down",
-      "max_swipes": 6
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
     },
     {
       "action": "assert_text",
       "text": "✓ גמרא"
     },
     {
-      "action": "scroll_to",
-      "text": "גמרא",
-      "direction": "down",
-      "max_swipes": 6
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "swipe",
+      "direction": "down"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
     },
     {
       "action": "tap",
