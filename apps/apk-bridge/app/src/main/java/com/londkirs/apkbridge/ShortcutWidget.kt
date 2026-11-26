@@ -52,9 +52,15 @@ open class ShortcutWidget : AppWidgetProvider() {
             val message = try {
                 withTimeoutOrNull(60_000) {
                     Bridge.withClient { c ->
-                        val r = c.shell(CommandParser.normalize(pin.command))
+                        val toggle = Toggle.of(pin.command)
+                        val r = c.shell(toggle?.command ?: CommandParser.normalize(pin.command))
                         val out = (r.stdoutText + r.stderrText).trim().lines().filter { it.isNotBlank() }.takeLast(2).joinToString("\n")
-                        (if (r.exitCode == 0) "✔ " else "✖ ") + pin.label + if (out.isNotEmpty()) "\n${out.take(160)}" else ""
+                        // Toggles: read the real state of every toggle on the widgets, so their colors are right.
+                        runCatching { readStates(app, c.shell(Toggle.stateCommand()).stdoutText) }
+                        when {
+                            toggle != null -> toggle.label + "  " + if (out.endsWith("ON")) tr("— פועל", "— on") else if (out.endsWith("OFF")) tr("— כבוי", "— off") else out.take(80)
+                            else -> (if (r.exitCode == 0) "✔ " else "✖ ") + pin.label + if (out.isNotEmpty()) "\n${out.take(160)}" else ""
+                        }
                     }
                 } ?: "✖ ${pin.label} — ${tr("אין חיבור (נסה לפתוח את האפליקציה)", "no connection (try opening the app)")}"
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -63,9 +69,50 @@ open class ShortcutWidget : AppWidgetProvider() {
                 "✖ ${pin.label} — ${Bridge.explain(e)}"
             }
             android.os.Handler(android.os.Looper.getMainLooper()).post {
+                refresh(app)
                 Toast.makeText(app, message, Toast.LENGTH_LONG).show()
                 pending.finish()
             }
+        }
+    }
+
+    /**
+     * A switch for the widget: one tap flips it (Wi‑Fi on ⇄ off…). [isOn] is a shell test; the widget
+     * colors the button by the last known state.
+     */
+    class Toggle(val id: String, val icon: String, private val he: String, private val en: String, private val isOn: String, private val on: String, private val off: String) {
+        val label get() = "$icon " + tr(he, en)
+        val pin get() = Pin(label, "@toggle:$id")
+        val command get() = "if $isOn; then ($off) >/dev/null 2>&1; echo OFF; else ($on) >/dev/null 2>&1; echo ON; fi"
+        val check get() = "if $isOn; then echo $id=1; else echo $id=0; fi"
+
+        companion object {
+            private fun setting(ns: String, key: String, test: String) = "[ \"\$(settings get $ns $key)\" $test ]"
+            val ALL = listOf(
+                Toggle("wifi", "📶", "Wi‑Fi", "Wi‑Fi", setting("global", "wifi_on", "!= \"0\""),
+                    "cmd wifi set-wifi-enabled enabled || svc wifi enable", "cmd wifi set-wifi-enabled disabled || svc wifi disable"),
+                Toggle("bt", "🔵", "בלוטות׳", "Bluetooth", setting("global", "bluetooth_on", "= \"1\""),
+                    "cmd bluetooth_manager enable || svc bluetooth enable", "cmd bluetooth_manager disable || svc bluetooth disable"),
+                Toggle("data", "📡", "נתונים סלולריים", "Mobile data", setting("global", "mobile_data", "= \"1\""), "svc data enable", "svc data disable"),
+                Toggle("airplane", "✈", "מצב טיסה", "Airplane mode", setting("global", "airplane_mode_on", "= \"1\""),
+                    "cmd connectivity airplane-mode enable", "cmd connectivity airplane-mode disable"),
+                Toggle("location", "📍", "מיקום", "Location", setting("secure", "location_mode", "!= \"0\""),
+                    "cmd location set-location-enabled true || settings put secure location_mode 3",
+                    "cmd location set-location-enabled false || settings put secure location_mode 0"),
+                Toggle("dnd", "🔕", "נא לא להפריע", "Do not disturb", setting("global", "zen_mode", "!= \"0\""),
+                    "cmd notification set_dnd priority", "cmd notification set_dnd off"),
+                Toggle("saver", "🔋", "חיסכון בסוללה", "Battery saver", setting("global", "low_power", "= \"1\""), "cmd power set-mode 1", "cmd power set-mode 0"),
+                Toggle("rotate", "🔄", "סיבוב אוטומטי", "Auto-rotate", setting("system", "accelerometer_rotation", "= \"1\""),
+                    "settings put system accelerometer_rotation 1", "settings put system accelerometer_rotation 0"),
+                Toggle("brightness", "🌗", "בהירות אוטומטית", "Auto brightness", setting("system", "screen_brightness_mode", "= \"1\""),
+                    "settings put system screen_brightness_mode 1", "settings put system screen_brightness_mode 0"),
+                Toggle("nfc", "💳", "NFC", "NFC", "dumpsys nfc 2>/dev/null | grep -qiE 'mState=(on|3)'", "svc nfc enable", "svc nfc disable"),
+            )
+
+            fun of(command: String) = if (command.startsWith("@toggle:")) ALL.firstOrNull { it.id == command.removePrefix("@toggle:") } else null
+
+            /** One shell line that prints "id=1/0" for every toggle. */
+            fun stateCommand() = ALL.joinToString("; ") { it.check }
         }
     }
 
@@ -96,8 +143,8 @@ open class ShortcutWidget : AppWidgetProvider() {
         )
 
         private fun defaults(slots: Int) = if (slots == 1) listOf(Pin(tr("🧠 פנה RAM", "🧠 Free RAM"), "@ram")) else listOf(
-            Pin("📶 Wi‑Fi", WIFI_TOGGLE),
-            Pin(tr("🔵 בלוטות׳", "🔵 Bluetooth"), BT_TOGGLE),
+            Toggle.ALL[0].pin,
+            Toggle.ALL[1].pin,
             Pin(tr("🔒 נעל", "🔒 Lock"), "input keyevent KEYCODE_SLEEP"),
             Pin(tr("📦 התקן APK", "📦 Install APK"), "@pick"),
         )
@@ -122,9 +169,39 @@ open class ShortcutWidget : AppWidgetProvider() {
         }
 
         /** "@ram" stands for the terminal's RAM shortcut (its command lives there). */
-        private fun resolve(context: Context, pin: Pin): Pin = if (pin.command != "@ram") pin else
+        private fun resolve(context: Context, pin: Pin): Pin = when (pin.command) {
+            WIFI_TOGGLE -> Toggle.ALL[0].pin
+            BT_TOGGLE -> Toggle.ALL[1].pin
+            else -> Toggle.of(pin.command)?.pin ?: resolveRam(context, pin)
+        }
+
+        private fun resolveRam(context: Context, pin: Pin): Pin = if (pin.command != "@ram") pin else
             TerminalActivity.shortcutChoices(context).flatMap { it.second }.firstOrNull { it.command.contains("send-trim-memory") }
                 ?.let { Pin(pin.label, it.command) } ?: pin
+
+        private fun readStates(context: Context, out: String) {
+            val edit = prefs(context).edit()
+            Regex("(?m)^([a-z]+)=([01])$").findAll(out).forEach { edit.putBoolean("toggle_${it.groupValues[1]}", it.groupValues[2] == "1") }
+            edit.apply()
+        }
+
+        private fun stateOf(context: Context, id: String): Boolean? =
+            prefs(context).takeIf { it.contains("toggle_$id") }?.getBoolean("toggle_$id", false)
+
+        /** Reads the toggles' real state over ADB (when connected) and re-draws the widgets. */
+        fun refreshStates(context: Context) {
+            val app = context.applicationContext
+            Bridge.scope.launch {
+                runCatching { withTimeoutOrNull(10_000) { Bridge.withClient { c -> readStates(app, c.shell(Toggle.stateCommand()).stdoutText) } } }
+                android.os.Handler(android.os.Looper.getMainLooper()).post { refresh(app) }
+            }
+        }
+
+        /** The icon part of a label ("📶 Wi‑Fi" → "📶"), or null when the label doesn't start with one. */
+        fun iconOf(label: String): String? {
+            val first = label.trim().substringBefore(' ')
+            return first.takeIf { it.isNotEmpty() && it.codePoints().noneMatch { c -> Character.isLetterOrDigit(c) } }
+        }
 
         fun save(context: Context, id: Int, pins: List<Pin>) {
             val arr = JSONArray()
@@ -187,7 +264,17 @@ open class ShortcutWidget : AppWidgetProvider() {
                     return@forEachIndexed
                 }
                 v.setViewVisibility(slot, View.VISIBLE)
-                v.setTextViewText(slot, pin.label)
+                // Only the icon, large (the full name is read out by TalkBack). Labels without an icon stay as text.
+                val icon = iconOf(pin.label)
+                v.setTextViewText(slot, icon ?: pin.label)
+                v.setTextViewTextSize(slot, android.util.TypedValue.COMPLEX_UNIT_SP, if (icon == null) 13f else if (slots == 1) 44f else 30f)
+                v.setContentDescription(slot, pin.label)
+                val toggle = Toggle.of(pin.command)
+                v.setInt(slot, "setBackgroundResource", when {
+                    toggle == null -> R.drawable.widget_button
+                    stateOf(context, toggle.id) == true -> R.drawable.widget_button_on
+                    else -> R.drawable.widget_button
+                })
                 val target = actionIntent(context, pin.command)
                 val pending = if (target != null) PendingIntent.getActivity(context, id * 10 + 1 + i, target, flags())
                 else PendingIntent.getBroadcast(

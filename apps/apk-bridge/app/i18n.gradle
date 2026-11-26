@@ -1,6 +1,6 @@
 // Bilingual rule (Hebrew + English), enforced on every build:
 //  1. Every Kotlin string literal with Hebrew text must be inside tr("עברית", "English"),
-//     inside a Def(...) shortcut definition, or on a line marked `// i18n-ok` (e.g. keys, not UI text).
+//     inside a Def(...) shortcut or Toggle(...) switch definition (Hebrew and English side by side), or on a line marked `// i18n-ok` (e.g. keys, not UI text).
 //  2. Every <string> in res/values/strings.xml (English) must also exist in res/values-iw/strings.xml
 //     (Hebrew), and the other way round.
 // So a new screen or message can't be added in only one language: the build fails and names the line.
@@ -42,7 +42,7 @@ class I18nScan {
             boolean here = inTr || parens.any { it }
             if (c == '"' as char) { j = string(j, here); continue }
             if (c == '\'' as char) { j = skipChar(j); continue }
-            if (c == '(' as char) { parens << (identBefore(j) in ['tr', 'T', 'Def']) }
+            if (c == '(' as char) { parens << (identBefore(j) in ['tr', 'T', 'Def', 'Toggle']) }
             else if (c == ')' as char) { if (parens) parens.remove(parens.size() - 1) }
             else if (c == '{' as char) depth++
             else if (c == '}' as char) {

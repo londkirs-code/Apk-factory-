@@ -865,7 +865,7 @@ class TerminalActivity : Activity() {
 
         private val DANGEROUS = listOf("rm -r", "rm -f", "reboot", "wipe", "pm uninstall", "pm clear", "format", "dd ", "mkfs", "svc power")
         private const val MINE = "mine"
-        private const val SHORTCUTS_VERSION = 6
+        private const val SHORTCUTS_VERSION = 7
 
         /** Built-in commands fixed in 1.4.3: lists saved by 1.4–1.4.2 get the new version (index into DEFAULT_SHORTCUTS by label). */
         private val FIXED_COMMANDS: Map<String, String> by lazy {
@@ -896,7 +896,10 @@ class TerminalActivity : Activity() {
          * Every terminal shortcut (the user's list, plus built-ins it doesn't have yet), grouped by
          * category in the current language — for the home-screen widget settings.
          */
-        fun shortcutChoices(context: Context): List<Pair<String, List<ShortcutWidget.Pin>>> {
+        /** Category id of the on/off shortcuts (the widget offers real toggles instead). */
+        const val TOGGLES_GROUP = "toggles"
+
+        fun shortcutChoices(context: Context, exclude: Set<String> = emptySet()): List<Pair<String, List<ShortcutWidget.Pin>>> {
             val json = context.getSharedPreferences("terminal", Context.MODE_PRIVATE).getString("shortcuts", null)
             val saved = json?.let {
                 runCatching {
@@ -910,7 +913,7 @@ class TerminalActivity : Activity() {
             val all = saved + DEFAULT_SHORTCUTS.filter { it.command !in have }.map { Triple(it.group, it.label, it.command) }
             fun label(l: String, c: String) = DEFAULT_SHORTCUTS.firstOrNull { it.command == c && (l == it.he || l == it.en) }?.label ?: l
             val byGroup = all.groupBy { it.first }
-            val order = GROUP_ORDER.filter { it in byGroup } + byGroup.keys.filter { it !in GROUP_ORDER }
+            val order = (GROUP_ORDER.filter { it in byGroup } + byGroup.keys.filter { it !in GROUP_ORDER }).filter { it !in exclude }
             return order.map { g -> groupLabel(g) to byGroup.getValue(g).map { ShortcutWidget.Pin(label(it.second, it.third), it.third) } }
         }
 
@@ -977,6 +980,9 @@ class TerminalActivity : Activity() {
             // Maintenance: cache cleaning and phone health (output from the device, in English)
             Def("maint", "🧠 פנה זיכרון RAM", "🧠 Free up RAM",
                 "m(){ awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo; }; b=$(m); me=com.londkirs.apkbridge; n=0; for p in $(ps -A -o NAME | grep -E '^[a-z][a-z0-9_]*(\\.[A-Za-z0-9_]+)+$' | grep -vE \"^(\$me|com\\.android\\.systemui|com\\.android\\.phone|system)$\" | sort -u); do am send-trim-memory \"\$p\" COMPLETE >/dev/null 2>&1 || am send-trim-memory \"\$p\" RUNNING_CRITICAL >/dev/null 2>&1 && n=$((n+1)); done; am kill-all; am compact system >/dev/null 2>&1; sleep 2; a=$(m); echo \"Asked \$n apps to release memory, stopped background processes.\"; echo \"Available RAM: \$b MB -> \$a MB ($((a-b)) MB)\""),
+            // Aggressive: also force-stops every running downloaded app (except The Boss, the keyboard and the home screen).
+            Def("maint", "🧨 פינוי RAM אגרסיבי (סוגר אפליקציות)", "🧨 Aggressive RAM cleanup (closes apps)",
+                "m(){ awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo; }; b=$(m); me=com.londkirs.apkbridge; ime=$(settings get secure default_input_method | cut -d/ -f1); home=$(cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null | tail -1 | cut -d/ -f1); keep=\"^(\$me|\$ime|\$home|com\\.android\\.systemui|com\\.android\\.phone|system)$\"; running=$(ps -A -o NAME | grep -E '^[a-z][a-z0-9_]*(\\.[A-Za-z0-9_]+)+(:.*)?$' | cut -d: -f1 | sort -u); user=$(pm list packages -3 | cut -d: -f2); s=0; for p in \$running; do echo \"\$p\" | grep -qE \"\$keep\" && continue; if echo \"\$user\" | grep -qx \"\$p\"; then am force-stop \"\$p\" && s=$((s+1)); else am send-trim-memory \"\$p\" COMPLETE >/dev/null 2>&1 || am send-trim-memory \"\$p\" RUNNING_CRITICAL >/dev/null 2>&1; fi; done; am kill-all; am compact system >/dev/null 2>&1; sleep 3; a=$(m); echo \"Closed \$s apps, stopped all background processes.\"; echo \"Available RAM: \$b MB -> \$a MB ($((a-b)) MB)\""),
             Def("maint", "🧹 נקה מטמון לכל האפליקציות", "🧹 Clear cache of all apps",
                 "b=$(df /data | awk 'NR==2{print $4}'); pm trim-caches 999G; a=$(df /data | awk 'NR==2{print $4}'); echo \"Cache cleared. Freed: $(( (a-b)/1024 )) MB\""),
             Def("maint", "🔋 בריאות סוללה", "🔋 Battery health",

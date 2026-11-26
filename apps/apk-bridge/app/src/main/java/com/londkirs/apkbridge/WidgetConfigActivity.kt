@@ -61,8 +61,10 @@ class WidgetConfigActivity : Activity() {
             setTextColor(MUTED)
         }, wrap(10))
 
+        // Switches: one tap flips them, and the button lights up green while on.
+        section(page, tr("🔀 מתגים — לחיצה משנה מצב", "🔀 Switches — a tap flips them"), ShortcutWidget.Toggle.ALL.map { it.pin })
         section(page, tr("🕴 פעולות באפליקציה", "🕴 App actions"), ShortcutWidget.appActions())
-        for ((group, pins) in TerminalActivity.shortcutChoices(this)) section(page, "💬 $group", pins)
+        for ((group, pins) in TerminalActivity.shortcutChoices(this, exclude = setOf(TerminalActivity.TOGGLES_GROUP))) section(page, "💬 $group", pins)
 
         summary = TextView(this).apply { textSize = 13.5f; setTextColor(INK); setPadding(dp(4), dp(8), dp(4), dp(8)) }
         val save = Button(this).apply {
@@ -139,6 +141,7 @@ class WidgetConfigActivity : Activity() {
     private fun save() {
         if (chosen.isEmpty()) { Toast.makeText(this, tr("בחר לפחות פעולה אחת.", "Choose at least one action."), Toast.LENGTH_SHORT).show(); return }
         ShortcutWidget.save(this, widgetId, chosen)
+        ShortcutWidget.refreshStates(this)
         setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
         Toast.makeText(this, tr("✔ הווידג'ט עודכן.", "✔ Widget updated."), Toast.LENGTH_SHORT).show()
         finish()
