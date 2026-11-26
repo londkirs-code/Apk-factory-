@@ -70,6 +70,16 @@ class TerminalActivity : Activity() {
         rebuildChips()
     }
 
+    override fun onResume() {
+        super.onResume()
+        Celebration.onResume(this)
+    }
+
+    override fun onPause() {
+        Celebration.onPause(this)
+        super.onPause()
+    }
+
     override fun onStart() {
         super.onStart()
         Bridge.addStateListener(stateListener)

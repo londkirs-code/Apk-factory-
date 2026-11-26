@@ -57,6 +57,9 @@ class MainActivity : Activity() {
     private lateinit var repairToggle: Button
     private lateinit var pairStateText: TextView
     private val optionBoxes = mutableMapOf<String, CheckBox>()
+    private lateinit var guideTitle: TextView
+    private lateinit var guideInfo: TextView
+    private lateinit var guideButton: Button
     private lateinit var installButton: Button
     private lateinit var cancelButton: Button
     private lateinit var openAppButton: Button
@@ -163,10 +166,16 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        Celebration.onResume(this)
         HelperInstaller.resumeIfPermitted(this)
         refreshConnectionInfo()
         refreshOptionsSummary()
         applyLogExpanded()
+    }
+
+    override fun onPause() {
+        Celebration.onPause(this)
+        super.onPause()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -406,41 +415,20 @@ class MainActivity : Activity() {
         logCard.addView(logBody, matchWrap(0))
     }
 
-    /** 📖 Connection guide: wireless debugging (Android 11+), computer (Android 8–10 or any), troubleshooting. */
+    /** 📖 Short card that opens the step-by-step guide; folds to one line once the phone is paired. */
     private fun buildGuide(page: LinearLayout) {
         val guide = card(page)
-        guide.addView(heading("📖 מדריך התחברות"), matchWrap())
-        val modern = Compat.hasWirelessDebugging
-        guide.addView(body(
-            "הגרסה שלך: Android ${Build.VERSION.RELEASE}. " +
-                if (modern) "מומלץ: חיבור אלחוטי, בלי מחשב." else "בגרסה הזו מתחברים בעזרת מחשב (פעם אחת אחרי כל הפעלה מחדש)."
-        ), matchWrap(8))
-        guideSection(guide, "📱 Android 11 ומעלה — בלי מחשב (מומלץ)", GUIDE_WIRELESS, expanded = modern)
-        guideSection(guide, "💻 Android 8–10 — עם מחשב", GUIDE_COMPUTER_OLD, expanded = !modern)
-        guideSection(guide, "💻 Android 11 ומעלה — גם עם מחשב", GUIDE_COMPUTER_NEW, expanded = false)
-        guideSection(guide, "🛠 פתרון בעיות", GUIDE_TROUBLESHOOT, expanded = false)
-        guide.addView(button("פתח אפשרויות למפתחים", primary = false) { openDeveloperOptions() }, matchWrap(0))
-    }
-
-    private fun guideSection(parent: LinearLayout, title: String, text: String, expanded: Boolean) {
-        val content = TextView(this).apply {
-            this.text = text
-            textSize = 14f
-            setTextColor(0xFF55483E.toInt())
-            setLineSpacing(0f, 1.15f)
-            setTextIsSelectable(true)
-            setPadding(dp(4), dp(4), dp(4), dp(10))
-            visibility = if (expanded) View.VISIBLE else View.GONE
+        guideTitle = heading("📖 איך מתחברים?")
+        guide.addView(guideTitle, matchWrap(2))
+        guideInfo = body(
+            "בטלפון שלך: אנדרואיד ${Build.VERSION.RELEASE}\n" +
+                if (Compat.hasWirelessDebugging) "מתאים לך: חיבור בלי מחשב (כ־5 דקות)" else "מתאים לך: חיבור עם מחשב (כ־10 דקות, פעם אחת)"
+        )
+        guide.addView(guideInfo, matchWrap(10))
+        guideButton = button("▶  התחל מדריך שלב אחר שלב", primary = true) {
+            startActivity(Intent(this, GuideActivity::class.java))
         }
-        val header = button((if (expanded) "▴ " else "▾ ") + title, primary = false) {}
-        header.gravity = Gravity.CENTER_VERTICAL or Gravity.START
-        header.setOnClickListener {
-            val open = content.visibility != View.VISIBLE
-            content.visibility = if (open) View.VISIBLE else View.GONE
-            header.text = (if (open) "▴ " else "▾ ") + title
-        }
-        parent.addView(header, matchWrap(4))
-        parent.addView(content, matchWrap(6))
+        guide.addView(guideButton, matchWrap(0))
     }
 
     /** 📦 Install: pick files → install; options live in Settings. */
@@ -660,6 +648,10 @@ class MainActivity : Activity() {
         if (!paired) pairControls.visibility = View.VISIBLE
         else if (pairControls.tag == null) pairControls.visibility = View.GONE
         pairControls.tag = "init"
+        // Already paired: the guide card shrinks to a single small button.
+        guideInfo.visibility = if (paired) View.GONE else View.VISIBLE
+        guideTitle.visibility = if (paired) View.GONE else View.VISIBLE
+        guideButton.text = if (paired) "📖 מדריך התחברות" else "▶  התחל מדריך שלב אחר שלב"
 
     }
 
@@ -954,40 +946,6 @@ class MainActivity : Activity() {
         private const val KEY_SHOWN_SEQ = "shown_install_seq"
         private const val KEY_TAB = "tab"
 
-        private const val GUIDE_WIRELESS =
-            "1. הפעלת אפשרויות למפתחים: הגדרות ← אודות הטלפון ← הקש 7 פעמים על \"מספר Build\".\n" +
-                "   סמסונג: אודות הטלפון ← מידע תוכנה ← מספר Build. שיאומי: הקש על \"גרסת MIUI / HyperOS\".\n" +
-                "2. ודא שהטלפון מחובר ל־Wi‑Fi (כל רשת, גם בלי אינטרנט).\n" +
-                "3. הגדרות ← אפשרויות למפתחים ← הפעל \"ניפוי באגים אלחוטי\" ואשר.\n" +
-                "4. ב־APK Bridge לחץ \"הפעל צימוד אוטומטי\" ואשר את שירות הנגישות (פעם אחת).\n" +
-                "5. חזור ל\"ניפוי באגים אלחוטי\" ← \"התאמת מכשיר עם קוד התאמה\". APK Bridge יזהה את הקוד ויבצע את הצימוד לבד.\n" +
-                "   בלי צימוד אוטומטי: \"צימוד עם קוד דרך התראה\" — מקלידים את הקוד בהתראה, בלי לצאת מהמסך.\n" +
-                "6. בפעם הראשונה יופיע \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\" ואשר.\n\n" +
-                "מכאן הכול אוטומטי: החיבור נשמר גם כשה־Wi‑Fi כבוי, עד הפעלה מחדש של הטלפון, ואחרי הפעלה מחדש הוא מתחדש לבד כשיש Wi‑Fi."
-
-        private const val GUIDE_COMPUTER_OLD =
-            "ב־Android 8–10 אין ניפוי באגים אלחוטי עם קוד, לכן מפעילים ADB פעם אחת ממחשב:\n\n" +
-                "1. הפעל אפשרויות למפתחים (הקש 7 פעמים על \"מספר Build\") ← הפעל \"ניפוי באגים ב־USB\".\n" +
-                "2. במחשב: הורד את Android SDK Platform-Tools מאתר developer.android.com וחלץ לתיקייה.\n" +
-                "3. חבר את הטלפון בכבל USB ואשר בטלפון \"לאפשר ניפוי באגים ב־USB?\" (סמן \"אפשר תמיד\").\n" +
-                "4. פתח חלון פקודה בתיקייה והרץ:\n" +
-                "   adb devices   (לוודא שהטלפון מופיע)\n" +
-                "   adb tcpip 5555\n" +
-                "5. נתק את הכבל. ב־APK Bridge לחץ \"בדוק חיבור\" ואשר שוב \"לאפשר ניפוי באגים?\" עם \"אפשר תמיד\".\n\n" +
-                "אחרי כל הפעלה מחדש של הטלפון — חוזרים על שלב 4 (adb tcpip 5555). לא צריך Wi‑Fi."
-
-        private const val GUIDE_COMPUTER_NEW =
-            "אם אין Wi‑Fi או שהחיבור האלחוטי לא מצליח, אפשר גם ב־Android 11 ומעלה להתחבר דרך מחשב — בדיוק כמו ב־Android 8–10:\n" +
-                "ניפוי באגים ב־USB ← כבל ← adb tcpip 5555 ← לנתק ← \"בדוק חיבור\" ב־APK Bridge.\n" +
-                "החיבור עובד בלי Wi‑Fi עד הפעלה מחדש של הטלפון."
-
-        private const val GUIDE_TROUBLESHOOT =
-            "• ניפוי הבאגים האלחוטי נכבה כשה־Wi‑Fi מתנתק — הדלק שוב, או השאר את \"ADB קבוע\" פעיל (ברירת מחדל).\n" +
-                "• \"הפעל צימוד אוטומטי\" אפור (Android 13+): פרטי האפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\".\n" +
-                "• שיאומי / Redmi / POCO: הפעל גם \"ניפוי באגים ב־USB (הגדרות אבטחה)\" ו\"התקנה דרך USB\" באפשרויות למפתחים.\n" +
-                "• אופו / ריאלמי / ויוו: אם ההתקנה נחסמת, כבה \"ניטור הרשאות\" באפשרויות למפתחים.\n" +
-                "• החיבור נכשל שוב ושוב: מחק את APK Bridge מ\"מכשירים מותאמים\" בניפוי באגים אלחוטי, ב־APK Bridge ← הגדרות ← \"שכח צימוד\", ובצע צימוד מחדש.\n" +
-                "• עדיין לא עובד? פתח את היומן למטה ← \"העתק יומן\" ושלח אותו."
         private val INK = 0xFF30251D.toInt()
         private val MUTED = 0xFF8A7868.toInt()
         private val ACCENT = 0xFFF09A45.toInt()

@@ -37,8 +37,14 @@ class SettingsActivity : Activity() {
 
     private val stateListener: (BridgeState) -> Unit = { if (!it.busy) refresh() }
 
+    override fun onPause() {
+        Celebration.onPause(this)
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        Celebration.onResume(this)
         HelperInstaller.resumeIfPermitted(this)
         refresh()
     }

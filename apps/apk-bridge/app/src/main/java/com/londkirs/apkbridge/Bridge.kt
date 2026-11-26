@@ -106,6 +106,14 @@ object Bridge {
 
     @Volatile private var currentJob: Job? = null
 
+    @Volatile private var celebrationPending = false
+
+    /** True once per successful pairing; the screen that shows the confetti consumes it. */
+    fun consumeCelebration(): Boolean = celebrationPending.also { celebrationPending = false }
+
+    /** Set when a "test connection" (or connection after pairing) reached the device in this session. */
+    @Volatile var lastConnectionOk = false
+
     fun init(context: Context) {
         if (::app.isInitialized) return
         app = context.applicationContext
@@ -525,6 +533,9 @@ object Bridge {
         isPaired = true
         targetHost = target
         log("הצימוד הצליח. המפתח נשמר באחסון הפרטי של האפליקציה.")
+        // 🎉 Confetti on the visible screen (or as soon as the user comes back to the app).
+        celebrationPending = true
+        main.post { Celebration.celebrate() }
         return true
     }
 
@@ -860,6 +871,7 @@ object Bridge {
     private suspend fun describeDevice(client: AdbClient) {
         val info = client.shell("echo \"\$(getprop ro.product.manufacturer) \$(getprop ro.product.model) · Android \$(getprop ro.build.version.release) (SDK \$(getprop ro.build.version.sdk))\"")
             .stdoutText.trim()
+        lastConnectionOk = true
         status("מחובר ומוכן: $info")
     }
 

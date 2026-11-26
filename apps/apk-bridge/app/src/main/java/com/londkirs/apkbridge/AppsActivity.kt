@@ -57,8 +57,14 @@ class AppsActivity : Activity() {
         buildUi()
     }
 
+    override fun onPause() {
+        Celebration.onPause(this)
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        Celebration.onResume(this)
         load()
     }
 
