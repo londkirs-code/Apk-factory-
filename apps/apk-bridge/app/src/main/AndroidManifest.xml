@@ -68,11 +68,22 @@
             </intent-filter>
         </activity>
 
+        <!-- Stand-alone terminal: own launcher icon and its own task in Recents. -->
         <activity
             android:name=".TerminalActivity"
-            android:exported="false"
-            android:label="מסוף ADB"
-            android:windowSoftInputMode="adjustResize" />
+            android:exported="true"
+            android:icon="@mipmap/ic_terminal"
+            android:roundIcon="@mipmap/ic_terminal"
+            android:label="ADB Terminal"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.londkirs.apkbridge.terminal"
+            android:theme="@style/TerminalTheme"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".AppsActivity"
