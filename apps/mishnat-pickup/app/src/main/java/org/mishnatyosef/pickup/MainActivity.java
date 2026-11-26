@@ -2573,7 +2573,8 @@ public class MainActivity extends Activity {
         row.addView(button, new LinearLayout.LayoutParams(0, -1, 1f));
         View spacer = new View(this);
         spacer.setTag(GRID_SPACER_TAG);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 1, 1f);
+        // גם המרווח בגובה "מלא": אחרת שורה עם כפתור יחיד מתכווצת לגובה 0 (כך נעלם "התחברות לחשבון").
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
         lp.setMarginStart(gap);
         row.addView(spacer, lp);
         container.addView(row, Ui.row(this, gap, 0));
