@@ -1,1 +1,1 @@
-APK for chullin, versionName 0.1.0, versionCode 2, built from commit 0dc0202bccc3b2a18bdf723ba7a3b3c761954a6b.
+APK for chullin, versionName 0.2.0, versionCode 3, built from commit db0e800eed92b93d1bfcb4cd9561dde869c07059.
