@@ -15,6 +15,12 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <!-- Shows name/version of installed apps (update vs. downgrade preview, "open after install"). -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Granted through ADB (appops) by the automatic setup: real app sizes and last-used times. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <!-- Backup: contacts are exported as vCard; granted through ADB when a backup starts. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Backup: asks Termux (its official RUN_COMMAND) to archive / restore its own files. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <!-- Installs the bundled Wi‑Fi helper with Android's normal installer (no ADB needed). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -79,13 +85,33 @@
         <activity
             android:name=".AppsActivity"
             android:exported="false"
-            android:label="אפליקציות מותקנות"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".BackupActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".GuideActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false" />
+
+        <!-- Choosing a widget's buttons: opened by the launcher when the widget is added (must be exported). -->
+        <activity
+            android:name=".WidgetConfigActivity"
+            android:exported="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".SettingsActivity"
-            android:exported="false"
-            android:label="הגדרות" />
+            android:exported="false" />
 
         <service
             android:name=".PairingService"
@@ -112,5 +138,31 @@
         <receiver
             android:name=".PairingReplyReceiver"
             android:exported="false" />
+
+        <!-- Home-screen widget with pinned terminal shortcuts. -->
+        <receiver
+            android:name=".ShortcutWidget"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/shortcut_widget_info" />
+        </receiver>
+
+        <!-- One-button home-screen widget. -->
+        <receiver
+            android:name=".SingleShortcutWidget"
+            android:exported="false"
+            android:label="@string/widget_single_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/single_widget_info" />
+        </receiver>
     </application>
 </manifest>

@@ -16,11 +16,12 @@ import android.widget.TextView
  */
 object BottomNav {
     enum class Tab(val icon: String, val label: String) {
-        CONNECT("🔗", "חיבור"),
-        INSTALL("📦", "התקנה"),
-        TERMINAL("⌨", "טרמינל"),
-        APPS("📱", "אפליקציות"),
-        SETTINGS("⚙", "הגדרות"),
+        CONNECT("🔗", tr("חיבור", "Connect")),
+        INSTALL("📦", tr("התקנה", "Install")),
+        TERMINAL("⌨", tr("טרמינל", "Terminal")),
+        APPS("📱", tr("אפליקציות", "Apps")),
+        BACKUP("💾", tr("גיבוי", "Backup")),
+        SETTINGS("⚙", tr("הגדרות", "Settings")),
     }
 
     const val EXTRA_TAB = "com.londkirs.apkbridge.TAB"
@@ -38,7 +39,7 @@ object BottomNav {
         wrapper.addView(View(activity).apply { setBackgroundColor(0xFFF0E2D3.toInt()) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
         val bar = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = Lang.direction
             setPadding(dp(4), dp(6), dp(4), dp(6))
         }
         for (tab in Tab.values()) {
@@ -56,12 +57,12 @@ object BottomNav {
                 text = tab.icon
                 textSize = 19f
                 gravity = Gravity.CENTER
-                setPadding(dp(14), dp(2), dp(14), dp(2))
+                setPadding(dp(10), dp(2), dp(10), dp(2))
                 if (isSelected) background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(0xFFFFE7D1.toInt()) }
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             item.addView(TextView(activity).apply {
                 text = tab.label
-                textSize = 11.5f
+                textSize = 11f
                 gravity = Gravity.CENTER
                 setTextColor(if (isSelected) ACCENT else INK)
                 typeface = if (isSelected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -91,8 +92,12 @@ object BottomNav {
                 if (!isMain) from.finish()
             }
             Tab.TERMINAL -> from.startActivity(Intent(from, TerminalActivity::class.java))
-            Tab.APPS, Tab.SETTINGS -> {
-                val target = if (tab == Tab.APPS) AppsActivity::class.java else SettingsActivity::class.java
+            Tab.APPS, Tab.BACKUP, Tab.SETTINGS -> {
+                val target = when (tab) {
+                    Tab.APPS -> AppsActivity::class.java
+                    Tab.BACKUP -> BackupActivity::class.java
+                    else -> SettingsActivity::class.java
+                }
                 if (from.javaClass == target) return
                 from.startActivity(Intent(from, target))
                 if (!isMain) from.finish()

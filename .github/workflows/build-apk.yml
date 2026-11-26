@@ -465,6 +465,13 @@ jobs:
             mkdir -p "$HISTORY_DIR"
             cp "$APK_PATH" "$HISTORY_DIR/${app}-v${VERSION_NAME}-code${NEXT_CODE}.apk"
             printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
+            if [[ "$app" == "apk-bridge" ]]; then
+              # The Boss: also publish the APK under its app name and version (e.g. הבוס-1.4.3.apk); keep only the latest.
+              NAMED_APK="הבוס-${VERSION_NAME}.apk"
+              find "downloads/$app" -maxdepth 1 -name 'הבוס-*.apk' ! -name "$NAMED_APK" -delete
+              cp "$APK_PATH" "downloads/$app/$NAMED_APK"
+              printf 'File name: %s\n' "$NAMED_APK" >> "downloads/$app/README.md"
+            fi
             if [[ "$app" == "mishnat-yosef" ]]; then
               # Publish version metadata and the exact APK checksum together with every successful build.
               python3 - "$BUILD_FILE" "downloads/$app/app.apk" "apps/$app/RELEASE_NOTES.md" "downloads/$app/update.json" <<'PY'
@@ -571,9 +578,18 @@ jobs:
               core.warning("No built apps were reported; skipping the GitHub notification.");
               return;
             }
-            const links = apps.map(app =>
-              `- **${app}**: https://github.com/${context.repo.owner}/${context.repo.repo}/raw/refs/heads/${process.env.BRANCH}/downloads/${app}/app.apk`
-            );
+            const fs = require("fs");
+            const base = `https://github.com/${context.repo.owner}/${context.repo.repo}/raw/refs/heads/${process.env.BRANCH}/downloads`;
+            const links = apps.map(app => {
+              // Apps published under a name with the version (The Boss: הבוס-<version>.apk) get that link.
+              let named = null;
+              try {
+                named = fs.readdirSync(`downloads/${app}`).find(f => f.startsWith("הבוס-") && f.endsWith(".apk")) || null;
+              } catch (e) {}
+              return named
+                ? `- **${app}**: [${named}](${base}/${app}/${encodeURIComponent(named)})`
+                : `- **${app}**: ${base}/${app}/app.apk`;
+            });
             const body = [
               `✅ @${process.env.ACTOR} APK Factory finished building successfully.`,
               "",

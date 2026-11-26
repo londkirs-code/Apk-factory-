@@ -10,8 +10,8 @@ android {
         applicationId 'com.londkirs.apkbridge'
         minSdk 26
         targetSdk 35
-        versionCode 24
-        versionName '3.2.0'
+        versionCode 40
+        versionName '1.6'
     }
     buildTypes { release { minifyEnabled false } }
     packaging {
@@ -39,6 +39,9 @@ tasks.register('bundleWifiHelper', Copy) {
 }
 android.sourceSets.main.assets.srcDirs += helperAssetsDir
 tasks.named('preBuild') { dependsOn 'bundleWifiHelper' }
+
+// Every text must exist in Hebrew and English — see i18n.gradle.
+apply from: 'i18n.gradle'
 
 dependencies {
     // v1.0.7+ fixes the RSA key ClassCastException on Android 8-11 and the BouncyCastle
