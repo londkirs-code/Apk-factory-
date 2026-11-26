@@ -114,7 +114,9 @@ class TerminalActivity : Activity() {
         subtitle = TextView(this).apply { textSize = 12.5f; setTextColor(HEADER_SUB); maxLines = 1 }
         titles.addView(subtitle)
         header.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(iconButton("⟲") { showHistory() })
+        header.addView(iconButton("⧉") { copyChat() }.apply { contentDescription = "העתק שיחה" })
+        header.addView(iconButton("🗑") { confirmClearChat() }.apply { contentDescription = "נקה שיחה"; textSize = 18f })
+        header.addView(iconButton("⟲") { showHistory() }.apply { contentDescription = "היסטוריה" })
         header.addView(iconButton("⋮") { menu() })
         root.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
@@ -655,12 +657,31 @@ class TerminalActivity : Activity() {
                     0 -> pasteFromClipboard()
                     1 -> manageShortcuts()
                     2 -> prefs().edit().putBoolean("clipboard_detect", !detect).apply()
-                    3 -> copy(messages.joinToString("\n\n") { (if (it.outgoing) "$ " else "") + it.text })
-                    4 -> clearChat()
+                    3 -> copyChat()
+                    4 -> confirmClearChat()
                     5 -> keyHelp()
                     6 -> finish()
                 }
             }
+            .show()
+    }
+
+    /** Copies the whole conversation: commands as "$ cmd", replies as plain text. */
+    private fun copyChat() {
+        if (messages.isEmpty()) {
+            Toast.makeText(this, "השיחה ריקה.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        copy(messages.joinToString("\n\n") { (if (it.outgoing) "$ " else "") + it.text })
+    }
+
+    private fun confirmClearChat() {
+        if (messages.isEmpty()) return
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle("לנקות את השיחה?")
+            .setMessage("כל ההודעות בצ'אט יימחקו. הקיצורים וההיסטוריה של הפקודות יישארו.")
+            .setPositiveButton("נקה") { _, _ -> clearChat() }
+            .setNegativeButton("ביטול", null)
             .show()
     }
 
