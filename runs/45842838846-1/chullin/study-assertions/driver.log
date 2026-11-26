@@ -1,0 +1,10 @@
+[ok] 01 launch clear_data=True
+[ok] 02 wait_for text='חולין'
+[ok] 03 assert_text text='הכל שוחטין'
+[ok] 04 scroll_to text='הבא'
+[ok] 05 assert_text text='הבא'
+[ok] 06 screenshot name='study-start'
+[ok] 07 scroll_to text='גמרא'
+[FAIL] 08 tap text='גמרא' element not found within 10s: text='גמרא'
+
+Result: FAILED — 8 steps, 3 screenshots, 0 crashes
