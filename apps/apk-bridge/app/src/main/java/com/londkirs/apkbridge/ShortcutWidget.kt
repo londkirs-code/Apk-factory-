@@ -46,6 +46,18 @@ open class ShortcutWidget : AppWidgetProvider() {
         val pin = pins(context, id, slots).getOrNull(intent.getIntExtra(EXTRA_INDEX, -1)) ?: return
         Bridge.init(context)
         val app = context.applicationContext
+        if (isTorch(pin.command)) {
+            // Flashlight: switched by the app itself, no ADB needed.
+            Torch.set(app) { on ->
+                refresh(app)
+                Toast.makeText(app, when (on) {
+                    true -> tr("🔦 פנס — פועל", "🔦 Flashlight — on")
+                    false -> tr("🔦 פנס — כבוי", "🔦 Flashlight — off")
+                    null -> tr("🔦 לא ניתן להפעיל את הפנס (המצלמה בשימוש?)", "🔦 Can't switch the flashlight (camera in use?)")
+                }, Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
         Toast.makeText(app, "⏳ ${pin.label}", Toast.LENGTH_SHORT).show()
         val pending = goAsync()
         Bridge.scope.launch {
@@ -106,6 +118,14 @@ open class ShortcutWidget : AppWidgetProvider() {
                     "settings put system accelerometer_rotation 1", "settings put system accelerometer_rotation 0"),
                 Toggle("brightness", "🌗", "בהירות אוטומטית", "Auto brightness", setting("system", "screen_brightness_mode", "= \"1\""),
                     "settings put system screen_brightness_mode 1", "settings put system screen_brightness_mode 0"),
+                Toggle("dark", "🌙", "מצב כהה", "Dark mode", "cmd uimode night | grep -q yes", "cmd uimode night yes", "cmd uimode night no"),
+                Toggle("anim", "⚡", "בלי אנימציות", "No animations", setting("global", "animator_duration_scale", "= \"0\""),
+                    "settings put global window_animation_scale 0; settings put global transition_animation_scale 0; settings put global animator_duration_scale 0",
+                    "settings put global window_animation_scale 1; settings put global transition_animation_scale 1; settings put global animator_duration_scale 1"),
+                Toggle("stayon", "🔌", "דלוק בזמן טעינה", "Stay awake charging", setting("global", "stay_on_while_plugged_in", "!= \"0\""),
+                    "svc power stayon true", "svc power stayon false"),
+                Toggle("touches", "👆", "הצג נגיעות", "Show touches", setting("system", "show_touches", "= \"1\""),
+                    "settings put system show_touches 1", "settings put system show_touches 0"),
                 Toggle("nfc", "💳", "NFC", "NFC", "dumpsys nfc 2>/dev/null | grep -qiE 'mState=(on|3)'", "svc nfc enable", "svc nfc disable"),
             )
 
@@ -132,6 +152,7 @@ open class ShortcutWidget : AppWidgetProvider() {
 
         /** App actions (open a screen) and app features, offered next to the terminal shortcuts. */
         fun appActions() = listOf(
+            Pin(tr("🔦 פנס", "🔦 Flashlight"), "@torch"),
             Pin(tr("📦 התקן APK", "📦 Install APK"), "@pick"),
             Pin(tr("🔌 בדוק חיבור", "🔌 Check connection"), CHECK),
             Pin(tr("💬 טרמינל", "💬 Terminal"), "@tab:TERMINAL"),
@@ -231,6 +252,9 @@ open class ShortcutWidget : AppWidgetProvider() {
             for (id in m.getAppWidgetIds(ComponentName(context, SingleShortcutWidget::class.java))) m.updateAppWidget(id, views(context, id, 1, R.layout.widget_single))
         }
 
+        /** The flashlight: the widget's "@torch" or the terminal's "boss torch" shortcut. */
+        private fun isTorch(command: String) = command == "@torch" || command.trim().startsWith("boss torch", ignoreCase = true)
+
         private fun flags() = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
 
         /** App actions open the screen directly (an activity, not a broadcast: Android 12+ requires it). */
@@ -267,10 +291,10 @@ open class ShortcutWidget : AppWidgetProvider() {
                 v.setTextViewText(slot, icon ?: pin.label)
                 v.setTextViewTextSize(slot, android.util.TypedValue.COMPLEX_UNIT_SP, if (icon == null) 13f else if (slots == 1) 44f else 30f)
                 v.setContentDescription(slot, pin.label)
-                val toggle = Toggle.of(pin.command)
+                val toggleId = if (isTorch(pin.command)) "torch" else Toggle.of(pin.command)?.id
                 v.setInt(slot, "setBackgroundResource", when {
-                    toggle == null -> R.drawable.widget_button
-                    stateOf(context, toggle.id) == true -> R.drawable.widget_button_on
+                    toggleId == null -> R.drawable.widget_button
+                    stateOf(context, toggleId) == true -> R.drawable.widget_button_on
                     else -> R.drawable.widget_button
                 })
                 val target = actionIntent(context, pin.command)

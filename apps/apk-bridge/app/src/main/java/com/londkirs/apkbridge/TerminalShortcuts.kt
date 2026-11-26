@@ -13,7 +13,7 @@ object TerminalShortcuts {
     class Shortcut(var label: String, var command: String, var group: String = MINE)
 
     const val MINE = "mine"
-    const val VERSION = 7
+    const val VERSION = 8
 
     /** Built-in commands fixed in 1.4.3: lists saved by 1.4–1.4.2 get the new version (index into DEFAULT_SHORTCUTS by label). */
     private val FIXED_COMMANDS: Map<String, String> by lazy {
@@ -27,10 +27,14 @@ object TerminalShortcuts {
             "dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'" to "Foreground app",
         ).mapValues { (_, en) -> DEFAULT_SHORTCUTS.first { it.en == en }.command }
     }
-    val GROUP_ORDER = listOf("toggles", "screen", "info", "maint", "tools", MINE)
+    val GROUP_ORDER = listOf("toggles", "screen", "display", "media", "net", "battery", "info", "maint", "tools", MINE)
     fun groupLabel(id: String) = when (id) {
         "toggles" -> tr("מתגים", "Toggles")
         "screen" -> tr("מסך ומקשים", "Screen & keys")
+        "display" -> tr("תצוגה", "Display")
+        "media" -> tr("הקלטה", "Recording")
+        "net" -> tr("רשת", "Network")
+        "battery" -> tr("סוללה (תצוגה בלבד)", "Battery (display only)")
         "info" -> tr("מידע", "Info")
         "maint" -> tr("תחזוקה", "Maintenance")
         "tools" -> tr("כלים", "Tools")
@@ -118,6 +122,46 @@ object TerminalShortcuts {
                 "awk -F': ' '{printf \"%-16s %.2f GB\\n\", $1, $2/1073741824}'"),
         Def("maint", "📂 התיקיות הגדולות", "📂 Largest folders",
             "du -sk /sdcard/* /sdcard/Android/media/* 2>/dev/null | sort -rn | head -12 | awk '{s=$1; $1=\"\"; sub(/^ /,\"\"); if (s>=1048576) printf \"%6.1f GB  %s\\n\", s/1048576, $0; else printf \"%6.0f MB  %s\\n\", s/1024, $0}'"),
+
+        // 1.8: flashlight, vibration, media, notification, display, recording, battery (display only), network, tools
+        Def("screen", "🔦 פנס הפעל/כבה", "🔦 Flashlight on/off", "boss torch"),
+        Def("screen", "📳 רטט ארוך (2 שנ׳)", "📳 Long vibration (2 s)", "cmd vibrator_manager synced oneshot 2000 2>/dev/null || cmd vibrator vibrate 2000"),
+        Def("screen", "⏭ השיר הבא", "⏭ Next track", "input keyevent KEYCODE_MEDIA_NEXT"),
+        Def("screen", "⏮ השיר הקודם", "⏮ Previous track", "input keyevent KEYCODE_MEDIA_PREVIOUS"),
+        Def("screen", "🔔 שלח התראה", "🔔 Send a notification", "cmd notification post -S bigtext -t 'The Boss' boss 'Hello from The Boss 👋' >/dev/null && echo 'Notification sent'"),
+        Def("display", "🌙 מצב כהה פועל", "🌙 Dark mode on", "cmd uimode night yes"),
+        Def("display", "☀ מצב כהה כבוי", "☀ Dark mode off", "cmd uimode night no"),
+        Def("display", "⚡ אנימציות מהירות (0.5x)", "⚡ Fast animations (0.5x)", "settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5; echo 'Animations 0.5x'"),
+        Def("display", "🚫 בלי אנימציות", "🚫 No animations", "settings put global window_animation_scale 0; settings put global transition_animation_scale 0; settings put global animator_duration_scale 0; echo 'Animations off'"),
+        Def("display", "↺ אנימציות רגילות", "↺ Normal animations", "settings put global window_animation_scale 1; settings put global transition_animation_scale 1; settings put global animator_duration_scale 1; echo 'Animations 1x'"),
+        Def("display", "🔠 גופן גדול", "🔠 Large font", "settings put system font_scale 1.3 && echo 'Font 1.3x'"),
+        Def("display", "🔤 גופן רגיל", "🔤 Normal font", "settings put system font_scale 1.0 && echo 'Font 1x'"),
+        Def("display", "📐 יותר תוכן במסך", "📐 More content on screen", "d=$(wm density | awk '/Physical/{print $3}'); wm density $((d*85/100)) && echo \"Density $((d*85/100)) (was \$d)\""),
+        Def("display", "↺ גודל תצוגה מקורי", "↺ Original display size", "wm size reset; wm density reset; echo 'Display size reset'"),
+        Def("display", "👆 הצג נגיעות", "👆 Show touches", "settings put system show_touches 1"),
+        Def("display", "✋ הסתר נגיעות", "✋ Hide touches", "settings put system show_touches 0"),
+        Def("display", "🔌 מסך דולק בזמן טעינה", "🔌 Stay awake while charging", "svc power stayon true && echo 'Stays awake while charging'"),
+        Def("display", "💤 מסך רגיל בזמן טעינה", "💤 Normal screen while charging", "svc power stayon false && echo 'Normal'"),
+        Def("media", "🎬 התחל הקלטת מסך", "🎬 Start screen recording", "f=/sdcard/Movies/TheBoss-$(date +%Y%m%d-%H%M%S).mp4; if command -v setsid >/dev/null 2>&1; then setsid screenrecord --time-limit 180 \"\$f\" >/dev/null 2>&1 < /dev/null & else nohup screenrecord --time-limit 180 \"\$f\" >/dev/null 2>&1 < /dev/null & fi; sleep 1; pgrep screenrecord >/dev/null && echo \"Recording (up to 3 min): \$f\" || echo 'Recording did not start'"),
+        Def("media", "⏹ עצור הקלטה", "⏹ Stop recording", "pkill -INT screenrecord && sleep 1 && echo \"Saved: $(ls -t /sdcard/Movies/TheBoss-*.mp4 2>/dev/null | head -1)\" || echo 'Not recording'"),
+        Def("media", "🎥 הקלט 15 שניות", "🎥 Record 15 seconds", "f=/sdcard/Movies/TheBoss-$(date +%Y%m%d-%H%M%S).mp4; screenrecord --time-limit 15 \"\$f\" && echo \"Saved: \$f\""),
+        Def("media", "🖼 צילומי מסך אחרונים", "🖼 Recent screenshots", "ls -t /sdcard/Download/screenshot*.png /sdcard/Pictures/Screenshots/* /sdcard/DCIM/Screenshots/* 2>/dev/null | head -10"),
+        Def("battery", "🔋 הצג 100%", "🔋 Show 100%", "dumpsys battery set level 100 && echo 'Shows 100% (display only)'"),
+        Def("battery", "🪫 הצג 5%", "🪫 Show 5%", "dumpsys battery set level 5 && echo 'Shows 5% (display only)'"),
+        Def("battery", "⚡ הצג \"בטעינה\"", "⚡ Show \"charging\"", "dumpsys battery set ac 1; dumpsys battery set status 2; echo 'Shows charging (display only)'"),
+        Def("battery", "🔌 הצג \"לא בטעינה\"", "🔌 Show \"not charging\"", "dumpsys battery unplug && echo 'Shows not charging (display only)'"),
+        Def("battery", "↺ החזר סוללה אמיתית", "↺ Back to real battery", "dumpsys battery reset && echo 'Real battery values'"),
+        Def("net", "📡 נקודה חמה פועלת", "📡 Hotspot on", "cmd wifi start-softap TheBoss wpa2 TheBoss1234 && echo 'Hotspot: TheBoss / password TheBoss1234'"),
+        Def("net", "📴 נקודה חמה כבויה", "📴 Hotspot off", "cmd wifi stop-softap && echo 'Hotspot off'"),
+        Def("net", "🛡 חסימת פרסומות (DNS)", "🛡 Block ads (DNS)", "settings put global private_dns_mode hostname; settings put global private_dns_specifier dns.adguard-dns.com; echo 'Private DNS: AdGuard (blocks ads)'"),
+        Def("net", "↺ DNS רגיל", "↺ Normal DNS", "settings put global private_dns_mode opportunistic; echo 'Private DNS: automatic'"),
+        Def("net", "🏓 בדיקת אינטרנט", "🏓 Internet check", "ping -c 3 -W 2 8.8.8.8 | tail -2"),
+        Def("net", "📶 פרטי Wi‑Fi", "📶 Wi‑Fi details", "cmd wifi status 2>/dev/null | head -15"),
+        Def("info", "🆔 פרטי מכשיר", "🆔 Device details", "getprop | grep -E 'ro.product.(brand|model|manufacturer)\\]|ro.build.version.(release|sdk|security_patch)\\]|ro.board.platform\\]'"),
+        Def("tools", "⚙ אפשרויות למפתחים", "⚙ Developer options", "am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS"),
+        Def("tools", "📷 פתח מצלמה", "📷 Open camera", "am start -a android.media.action.STILL_IMAGE_CAMERA"),
+        Def("tools", "☎ פתח חייגן", "☎ Open dialer", "am start -a android.intent.action.DIAL"),
+        Def("tools", "🔗 פתח את Google", "🔗 Open Google", "am start -a android.intent.action.VIEW -d https://www.google.com"),
     )
 
     /** The regular "free up RAM" command (the widget's one-button default). */

@@ -45,7 +45,8 @@
 | `AppsActivity.kt` | מנהל האפליקציות |
 | `BackupActivity.kt` / `BackupEngine.kt` | מסך ומנוע הגיבוי והשחזור |
 | `TermuxBackup.kt` / `ContactSources.kt` | גיבוי טרמוקס / חשבונות וקבוצות של אנשי קשר |
-| `TerminalActivity.kt` / `TerminalShortcuts.kt` | טרמינל הצ'אט / רשימת הקיצורים, שמירה ושדרוג |
+| `TerminalActivity.kt` / `TerminalShortcuts.kt` / `TerminalChats.kt` | טרמינל הצ'אט וסרגל הצד / רשימת הקיצורים / השיחות השמורות |
+| `Torch.kt` | הפנס (אין לו פקודת shell) |
 | `ShortcutWidget.kt` / `WidgetConfigActivity.kt` | הווידג'טים (כולל מתגים) / מסך בחירת הכפתורים |
 | `SettingsActivity.kt`, `BottomNav.kt`, `StatusStrip.kt`, `Confetti.kt`, `Compat.kt`, `Saf.kt`, `TerminalIcon.kt` | הגדרות, סרגל תחתון, פס התקדמות, קונפטי, תאימות לגרסאות, גישה לתיקיות, אייקון טרמוקס |
 | `PairingService.kt`, `PairingAccessibilityService.kt`, `HelperInstaller.kt` | צימוד דרך התראה, צימוד אוטומטי, התקנת עזר ה־Wi‑Fi |

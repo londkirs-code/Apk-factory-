@@ -40,15 +40,25 @@ import java.util.Locale
 class TerminalActivity : BossActivity() {
     private class Message(
         val outgoing: Boolean,
-        val time: String,
+        val ts: Long,             // when it was sent (ms); 0 for messages saved before 1.8
         var text: CharSequence,
         var status: String = "",  // outgoing: "run" | "ok" | "err:<code>" | "stop"
-    )
+        val legacyTime: String = "",
+    ) {
+        val time: String get() = if (ts > 0) SimpleDateFormat("HH:mm", Locale.US).format(Date(ts)) else legacyTime
+    }
 
 
     private val messages = mutableListOf<Message>()
     private val bubbleTexts = HashMap<Message, TextView>()
     private val bubbleStatus = HashMap<Message, TextView>()
+    private val rowViews = HashMap<Message, View>()
+    private val dayViews = HashMap<Message, View>()   // the date chip shown above the first message of a day
+    private var chatId = 0L
+    private lateinit var titleView: TextView
+    private lateinit var drawer: LinearLayout
+    private lateinit var drawerList: LinearLayout
+    private lateinit var scrim: View
 
     private lateinit var list: LinearLayout
     private lateinit var scroll: ScrollView
@@ -68,9 +78,11 @@ class TerminalActivity : BossActivity() {
         super.onCreate(savedInstanceState)
         Bridge.init(this)
         buildUi()
+        chatId = TerminalChats.currentId(this)
         loadChat()
         if (messages.isEmpty()) welcome()
         rebuildChips()
+        renderTitle()
     }
 
     override fun onResume() {
@@ -111,6 +123,7 @@ class TerminalActivity : BossActivity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
         header.addView(iconButton("→") { finish() })
+        header.addView(iconButton("☰") { openDrawer() }.apply { contentDescription = tr("שיחות", "Chats") })
         header.addView(TextView(this).apply {
             text = ">_"
             textSize = 16f
@@ -120,12 +133,15 @@ class TerminalActivity : BossActivity() {
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFFFFFFF.toInt()) }
         }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(4); marginEnd = dp(10) })
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(TextView(this).apply {
+        titleView = TextView(this).apply {
             text = "ADB Terminal"
             textSize = 17f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(HEADER_TEXT)
-        })
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        titles.addView(titleView)
         subtitle = TextView(this).apply { textSize = 12.5f; setTextColor(HEADER_SUB); maxLines = 1 }
         titles.addView(subtitle)
         header.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -217,8 +233,21 @@ class TerminalActivity : BossActivity() {
         bar.addView(sendButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        Compat.applySystemBarInsets(this, root, includeIme = true)
-        setContentView(root)
+        // Side panel with the chats (opens with ☰), over a dimmed screen.
+        val frame = android.widget.FrameLayout(this)
+        frame.addView(root, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        scrim = View(this).apply {
+            setBackgroundColor(0x66000000)
+            visibility = View.GONE
+            setOnClickListener { closeDrawer() }
+        }
+        frame.addView(scrim, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        drawer = buildDrawer()
+        val width = minOf(dp(320), (resources.displayMetrics.widthPixels * 0.82f).toInt())
+        frame.addView(drawer, android.widget.FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START))
+        frame.layoutDirection = Lang.direction
+        Compat.applySystemBarInsets(this, frame, includeIme = true)
+        setContentView(frame)
         renderState(Bridge.state)
     }
 
@@ -252,26 +281,72 @@ class TerminalActivity : BossActivity() {
 
     // region messages
 
-    private fun now() = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+    private fun now() = System.currentTimeMillis()
 
     private fun welcome() {
         addMessage(Message(false, now(), tr("שלום! כאן אפשר להריץ כל פקודת ADB.\n\n", "Hi! Here you can run any ADB command.\n\n") +
             tr("• הקלד פקודה ולחץ ➤ (אפשר גם \"adb shell …\").\n", "• Type a command and tap ➤ (\"adb shell …\" works too).\n") +
             tr("• קיצור: לחיצה מריצה מיד, לחיצה ארוכה מעבירה לעריכה.\n", "• Shortcut: tap runs it right away, long-press moves it to editing.\n") +
             tr("• + מוסיף קיצור משלך, ⚙ עורך ומוחק.\n", "• + adds your own shortcut, ⚙ edits and deletes.\n") +
-            tr("• לחיצה ארוכה על הודעה: העתקה, הרצה שוב או עריכה.\n\n", "• Long-press a message: copy, run again or edit.\n\n") +
+            tr("• לחיצה על הודעה מעתיקה אותה. לחיצה ארוכה: הרצה שוב, עריכה, שיתוף, שמירה כקובץ ועוד.\n", "• Tap a message to copy it. Long-press: run again, edit, share, save as a file and more.\n") +
+            tr("• ☰ למעלה: כל השיחות, ושיחה חדשה.\n", "• ☰ at the top: all chats, and a new chat.\n") +
+            tr("• boss torch — פנס. בקטגוריות למטה: הקלטת מסך, נקודה חמה, התראה, תצוגה ועוד.\n\n", "• boss torch — flashlight. In the categories below: screen recording, hotspot, notification, display and more.\n\n") +
             tr("הפקודות רצות כמשתמש shell (לא root).", "Commands run as the shell user (not root).")))
     }
 
     private fun addMessage(m: Message) {
-        messages += m
-        list.addView(bubble(m))
-        while (messages.size > MAX_MESSAGES) {
-            val old = messages.removeAt(0)
-            bubbleTexts.remove(old); bubbleStatus.remove(old)
-            list.removeViewAt(0)
+        val previous = messages.lastOrNull { it.ts > 0 }
+        if (m.ts > 0 && (previous == null || !sameDay(previous.ts, m.ts))) {
+            val chip = dayChip(m.ts)
+            dayViews[m] = chip
+            list.addView(chip)
         }
+        messages += m
+        val row = bubble(m)
+        rowViews[m] = row
+        list.addView(row)
+        while (messages.size > MAX_MESSAGES) removeMessageViews(messages.removeAt(0))
         scrollDown()
+    }
+
+    private fun removeMessageViews(m: Message) {
+        bubbleTexts.remove(m); bubbleStatus.remove(m)
+        rowViews.remove(m)?.let { list.removeView(it) }
+        dayViews.remove(m)?.let { list.removeView(it) }
+    }
+
+    private fun sameDay(a: Long, b: Long): Boolean {
+        val f = SimpleDateFormat("yyyyMMdd", Locale.US)
+        return f.format(Date(a)) == f.format(Date(b))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun dateLocale() = if (Lang.hebrew) Locale("iw") else Locale.ENGLISH
+
+    /** "Today", "Yesterday", the weekday for the last week, or the date. */
+    private fun dayLabel(ts: Long): String {
+        val day = 24L * 60 * 60 * 1000
+        val now = System.currentTimeMillis()
+        return when {
+            sameDay(ts, now) -> tr("היום", "Today")
+            sameDay(ts, now - day) -> tr("אתמול", "Yesterday")
+            now - ts < 6 * day -> SimpleDateFormat("EEEE", dateLocale()).format(Date(ts))
+            else -> SimpleDateFormat("d MMMM yyyy", dateLocale()).format(Date(ts))
+        }
+    }
+
+    /** The date chip between days, as in WhatsApp. */
+    private fun dayChip(ts: Long) = LinearLayout(this).apply {
+        gravity = Gravity.CENTER
+        setPadding(0, dp(6), 0, dp(6))
+        addView(TextView(this@TerminalActivity).apply {
+            text = dayLabel(ts)
+            textSize = 12f
+            setTextColor(0xFF54656F.toInt())
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            background = GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setColor(0xFFFFFFFF.toInt()) }
+            elevation = dp(1).toFloat()
+        })
     }
 
     private fun bubble(m: Message): View {
@@ -312,8 +387,8 @@ class TerminalActivity : BossActivity() {
         renderMeta(m)
         box.elevation = dp(1).toFloat()  // the soft shadow WhatsApp bubbles have
         box.setOnLongClickListener { messageMenu(m); true }
-        // Keypad: the arrows step through messages; OK opens the message menu.
-        box.setOnClickListener { if (!box.isInTouchMode) messageMenu(m) }
+        // Tap copies the message; on keypad phones (no touch) OK opens the message menu.
+        box.setOnClickListener { if (box.isInTouchMode) copy(m.text.toString()) else messageMenu(m) }
         Compat.focusRing(box, ACCENT, 10f)
         val maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
         text.maxWidth = maxWidth - dp(20)
@@ -359,20 +434,86 @@ class TerminalActivity : BossActivity() {
 
     private fun scrollDown() = scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
 
+    /** Long-press menu of a message (title: its date and time). */
     private fun messageMenu(m: Message) {
         val raw = m.text.toString()
-        val items = mutableListOf(tr("העתק", "Copy"))
-        if (m.outgoing) { items += tr("הרץ שוב", "Run again"); items += tr("ערוך", "Edit"); items += tr("שמור כקיצור", "Save as shortcut") }
+        val i = messages.indexOf(m)
+        // The command and its reply, as a pair.
+        val command = if (m.outgoing) m else messages.getOrNull(i - 1)?.takeIf { it.outgoing }
+        val reply = if (m.outgoing) messages.getOrNull(i + 1)?.takeIf { !it.outgoing } else m
+        val pair = if (command != null && reply != null) "$ ${command.text}\n${reply.text}" else null
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        actions += tr("📋 העתק", "📋 Copy") to { copy(raw) }
+        if (pair != null) actions += tr("📋 העתק פקודה ותוצאה", "📋 Copy command and output") to { copy(pair) }
+        if (m.outgoing) {
+            actions += tr("▶ הרץ שוב", "▶ Run again") to { submit(raw) }
+            actions += tr("✏ ערוך", "✏ Edit") to { setInput(raw) }
+            actions += tr("⭐ שמור כקיצור", "⭐ Save as shortcut") to { addShortcut(raw) }
+        } else {
+            actions += tr("🔍 בחר חלק מהטקסט", "🔍 Select part of the text") to { selectText(m) }
+        }
+        actions += tr("📤 שתף", "📤 Share") to { share(pair ?: raw) }
+        actions += tr("💾 שמור כקובץ", "💾 Save as file") to { saveAsFile(pair ?: raw) }
+        actions += tr("🗑 מחק הודעה", "🗑 Delete message") to { deleteMessage(m) }
+        val title = if (m.ts > 0) SimpleDateFormat("EEEE, d MMMM yyyy · HH:mm", dateLocale()).format(Date(m.ts)) else m.time
         AlertDialog.Builder(this, DIALOG)
-            .setItems(items.toTypedArray()) { _, which ->
-                when (items[which]) {
-                    tr("העתק", "Copy") -> copy(raw)
-                    tr("הרץ שוב", "Run again") -> submit(raw)
-                    tr("ערוך", "Edit") -> setInput(raw)
-                    tr("שמור כקיצור", "Save as shortcut") -> addShortcut(raw)
-                }
-            }
+            .setTitle(title)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
             .show()
+    }
+
+    /** The message in a dialog where any part of it can be selected and copied. */
+    private fun selectText(m: Message) {
+        val view = TextView(this).apply {
+            text = m.text
+            textSize = 13f
+            typeface = Typeface.MONOSPACE
+            setTextColor(TEXT)
+            setTextIsSelectable(true)
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            textDirection = View.TEXT_DIRECTION_LTR
+        }
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle(tr("סמן את החלק להעתקה", "Select the part to copy"))
+            .setView(ScrollView(this).apply { addView(view) })
+            .setPositiveButton(tr("סגור", "Close"), null)
+            .show()
+    }
+
+    private fun share(text: String) {
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
+        runCatching { startActivity(android.content.Intent.createChooser(send, tr("שיתוף", "Share"))) }
+    }
+
+    private var pendingFileText: String? = null
+
+    /** Saves the text to a .txt file the user picks (Android's "save as" screen). */
+    private fun saveAsFile(text: String) {
+        pendingFileText = text
+        val name = "TheBoss-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".txt"
+        val intent = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(android.content.Intent.EXTRA_TITLE, name)
+        runCatching { startActivityForResult(intent, REQUEST_SAVE_TEXT) }
+            .onFailure { Toast.makeText(this, tr("לא נמצא מסך שמירת קבצים.", "No file-saving screen found."), Toast.LENGTH_SHORT).show() }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_SAVE_TEXT) return
+        val uri = data?.data
+        val text = pendingFileText
+        pendingFileText = null
+        if (resultCode != RESULT_OK || uri == null || text == null) return
+        val ok = runCatching { contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } ?: error("no stream") }.isSuccess
+        Toast.makeText(this, if (ok) tr("✔ נשמר.", "✔ Saved.") else tr("השמירה נכשלה.", "Saving failed."), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun deleteMessage(m: Message) {
+        if (m === current || m === currentReply) return
+        messages.remove(m)
+        removeMessageViews(m)
+        saveChat()
     }
 
     // endregion
@@ -386,6 +527,7 @@ class TerminalActivity : BossActivity() {
             "clear", "cls" -> { clearChat(); input.setText(""); return }
             "exit" -> { finish(); return }
         }
+        if (raw.equals("boss", true) || raw.startsWith("boss ", true)) { runLocal(raw); return }
         val parsed = CommandParser.parse(raw)
         val cmd = parsed.command
         if (cmd.isNullOrBlank()) {
@@ -403,6 +545,39 @@ class TerminalActivity : BossActivity() {
                 .show()
         } else {
             execute(raw, cmd)
+        }
+    }
+
+    /**
+     * Commands the app runs itself, where the shell can't: "boss torch [on|off]" (flashlight),
+     * "boss help".
+     */
+    private fun runLocal(raw: String) {
+        val args = raw.trim().split(Regex("\\s+")).drop(1)
+        val msg = Message(true, now(), raw, "run")
+        addMessage(msg)
+        saveHistory(raw)
+        input.setText("")
+        fun reply(text: String, ok: Boolean) {
+            msg.status = if (ok) "ok" else "err:1"
+            renderMeta(msg)
+            addMessage(Message(false, now(), text))
+            saveChat()
+        }
+        when (args.firstOrNull()?.lowercase()) {
+            "torch", "flashlight", "פנס" -> {  // i18n-ok: a word the user may type, not a text the app shows
+                val want = when (args.getOrNull(1)?.lowercase()) { "on" -> true; "off" -> false; else -> null }
+                Torch.set(this, want) { on ->
+                    when (on) {
+                        true -> reply(tr("🔦 הפנס פועל", "🔦 Flashlight on"), true)
+                        false -> reply(tr("🔦 הפנס כבוי", "🔦 Flashlight off"), true)
+                        null -> reply(tr("לא ניתן להפעיל את הפנס (אין פנס, או שהמצלמה בשימוש).", "Can't switch the flashlight (no flash, or the camera is in use)."), false)
+                    }
+                    ShortcutWidget.refresh(this)
+                }
+            }
+            else -> reply(tr("פקודות של הבוס:\n  boss torch       פנס — הפעל/כבה\n  boss torch on    פנס — הפעל\n  boss torch off   פנס — כבה",
+                "The Boss commands:\n  boss torch       flashlight on/off\n  boss torch on    flashlight on\n  boss torch off   flashlight off"), args.firstOrNull()?.lowercase() == "help")
         }
     }
 
@@ -508,6 +683,7 @@ class TerminalActivity : BossActivity() {
      * 1–9 run the matching shortcut and * pastes, while the input line is not focused.
      */
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && drawerOpen()) { closeDrawer(); return true }
         val typing = input.hasFocus()
         when (keyCode) {
             android.view.KeyEvent.KEYCODE_MENU -> { menu(); return true }
@@ -757,7 +933,7 @@ class TerminalActivity : BossActivity() {
     }
 
     private fun clearChat() {
-        messages.clear(); bubbleTexts.clear(); bubbleStatus.clear()
+        messages.clear(); bubbleTexts.clear(); bubbleStatus.clear(); rowViews.clear(); dayViews.clear()
         list.removeAllViews()
         current = null; currentReply = null
         saveChat()
@@ -793,22 +969,188 @@ class TerminalActivity : BossActivity() {
 
     /** Keeps the conversation between visits (plain text; colors of stderr are not kept). */
     private fun saveChat() {
+        if (chatId == 0L) return
         val arr = JSONArray()
         messages.takeLast(MAX_SAVED).forEach {
-            arr.put(JSONObject().put("o", it.outgoing).put("t", it.time).put("x", it.text.toString().takeLast(MAX_REPLY)).put("s", if (it.status == "run") "stop" else it.status))
+            arr.put(JSONObject().put("o", it.outgoing).put("ts", it.ts).put("t", it.time)
+                .put("x", it.text.toString().takeLast(MAX_REPLY)).put("s", if (it.status == "run") "stop" else it.status))
         }
-        prefs().edit().putString("chat", arr.toString()).apply()
+        TerminalChats.save(this, chatId, arr, messages.firstOrNull { it.outgoing }?.text?.toString())
+        renderTitle()
     }
 
     private fun loadChat() {
-        val json = prefs().getString("chat", null) ?: return
+        val arr = TerminalChats.messages(this, chatId) ?: return
         runCatching {
-            val arr = JSONArray(json)
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
-                addMessage(Message(o.getBoolean("o"), o.getString("t"), o.getString("x"), o.optString("s")))
+                addMessage(Message(o.getBoolean("o"), o.optLong("ts", 0), o.getString("x"), o.optString("s"), o.optString("t")))
             }
         }
+    }
+
+    // endregion
+
+    // region chats (side panel)
+
+    private fun renderTitle() {
+        if (!::titleView.isInitialized) return
+        val chat = TerminalChats.list(this).firstOrNull { it.id == chatId }
+        titleView.text = chat?.title?.takeIf { it.isNotBlank() } ?: "ADB Terminal"
+    }
+
+    private fun buildDrawer() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setBackgroundColor(0xFFFFFFFF.toInt())
+        elevation = dp(12).toFloat()
+        visibility = View.GONE
+        isClickable = true  // touches on the panel don't reach the chat behind it
+        addView(TextView(this@TerminalActivity).apply {
+            text = tr("💬 שיחות", "💬 Chats")
+            textSize = 19f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(HEADER_TEXT)
+            setBackgroundColor(HEADER)
+            setPadding(dp(16), dp(18), dp(16), dp(14))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        addView(TextView(this@TerminalActivity).apply {
+            text = tr("＋  שיחה חדשה", "＋  New chat")
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(ACCENT)
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            isClickable = true
+            setOnClickListener { newChat() }
+            Compat.focusRing(this, ACCENT, 8f)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        addView(View(this@TerminalActivity).apply { setBackgroundColor(0xFFE9EDEF.toInt()) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
+        drawerList = LinearLayout(this@TerminalActivity).apply { orientation = LinearLayout.VERTICAL }
+        addView(ScrollView(this@TerminalActivity).apply { addView(drawerList) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        addView(TextView(this@TerminalActivity).apply {
+            text = tr("לחיצה ארוכה על שיחה: שינוי שם או מחיקה", "Long-press a chat: rename or delete")
+            textSize = 12f
+            setTextColor(MUTED)
+            setPadding(dp(16), dp(8), dp(16), dp(12))
+        })
+    }
+
+    private fun renderDrawer() {
+        drawerList.removeAllViews()
+        val chats = TerminalChats.list(this)
+        val dateFormat = SimpleDateFormat("d.M.yy · HH:mm", Locale.US)
+        for (chat in chats) {
+            val selected = chat.id == chatId
+            drawerList.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(10), dp(16), dp(10))
+                if (selected) setBackgroundColor(0xFFE7F8F2.toInt())
+                isClickable = true
+                isFocusable = true
+                addView(TextView(this@TerminalActivity).apply {
+                    text = TerminalChats.titleOf(chat)
+                    textSize = 15f
+                    typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+                    setTextColor(TEXT)
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                })
+                addView(TextView(this@TerminalActivity).apply {
+                    text = dateFormat.format(Date(chat.updated)) + "  ·  " + tr("${chat.count} הודעות", "${chat.count} messages")
+                    textSize = 12f
+                    setTextColor(MUTED)
+                    textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                })
+                setOnClickListener { switchChat(chat.id) }
+                setOnLongClickListener { chatMenu(chat); true }
+                Compat.focusRing(this, ACCENT, 6f)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
+    private fun drawerOpen() = ::drawer.isInitialized && drawer.visibility == View.VISIBLE
+
+    private fun openDrawer() {
+        saveChat()
+        renderDrawer()
+        val w = drawer.layoutParams.width.toFloat()
+        drawer.translationX = if (Lang.hebrew) w else -w
+        drawer.visibility = View.VISIBLE
+        scrim.visibility = View.VISIBLE
+        drawer.animate().translationX(0f).setDuration(180).start()
+        drawerList.getChildAt(0)?.requestFocus()
+    }
+
+    private fun closeDrawer() {
+        if (!drawerOpen()) return
+        val w = drawer.width.toFloat()
+        drawer.animate().translationX(if (Lang.hebrew) w else -w).setDuration(160).withEndAction { drawer.visibility = View.GONE }.start()
+        scrim.visibility = View.GONE
+    }
+
+    private fun showChat(id: Long) {
+        chatId = id
+        TerminalChats.setCurrent(this, id)
+        messages.clear(); bubbleTexts.clear(); bubbleStatus.clear(); rowViews.clear(); dayViews.clear()
+        list.removeAllViews()
+        current = null; currentReply = null
+        loadChat()
+        renderTitle()
+    }
+
+    private fun switchChat(id: Long) {
+        if (Bridge.state.busy && current != null) {
+            Toast.makeText(this, tr("המתן לסיום הפקודה שרצה.", "Wait for the running command to finish."), Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (id != chatId) { saveChat(); showChat(id) }
+        closeDrawer()
+    }
+
+    private fun newChat() {
+        if (Bridge.state.busy && current != null) {
+            Toast.makeText(this, tr("המתן לסיום הפקודה שרצה.", "Wait for the running command to finish."), Toast.LENGTH_SHORT).show()
+            return
+        }
+        saveChat()
+        showChat(TerminalChats.create(this).id)
+        closeDrawer()
+        input.requestFocus()
+    }
+
+    private fun chatMenu(chat: TerminalChats.Chat) {
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle(TerminalChats.titleOf(chat))
+            .setItems(arrayOf(tr("✏ שינוי שם", "✏ Rename"), tr("🗑 מחק שיחה", "🗑 Delete chat"))) { _, which ->
+                if (which == 0) renameChat(chat) else confirmDeleteChat(chat)
+            }
+            .show()
+    }
+
+    private fun renameChat(chat: TerminalChats.Chat) {
+        val field = EditText(this).apply { setText(chat.title); setSingleLine(true); setSelection(text.length) }
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle(tr("שם השיחה", "Chat name"))
+            .setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(field, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)) })
+            .setPositiveButton(tr("שמור", "Save")) { _, _ ->
+                TerminalChats.rename(this, chat.id, field.text.toString().trim())
+                renderDrawer(); renderTitle()
+            }
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
+            .show()
+    }
+
+    private fun confirmDeleteChat(chat: TerminalChats.Chat) {
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle(tr("למחוק את השיחה?", "Delete the chat?"))
+            .setMessage(TerminalChats.titleOf(chat))
+            .setPositiveButton(tr("מחק", "Delete")) { _, _ ->
+                TerminalChats.delete(this, chat.id)
+                if (chat.id == chatId) showChat(TerminalChats.currentId(this))
+                renderDrawer()
+            }
+            .setNegativeButton(tr("ביטול", "Cancel"), null)
+            .show()
     }
 
     // endregion
@@ -816,6 +1158,7 @@ class TerminalActivity : BossActivity() {
 
     companion object {
         private const val MAX_MESSAGES = 200
+        private const val REQUEST_SAVE_TEXT = 7301
         private const val MAX_SAVED = 80
         private const val MAX_REPLY = 60_000
         private val DIALOG = android.R.style.Theme_Material_Light_Dialog_Alert
