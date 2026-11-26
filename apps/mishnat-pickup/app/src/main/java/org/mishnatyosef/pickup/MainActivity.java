@@ -225,6 +225,8 @@ public class MainActivity extends Activity {
     private boolean loginReturnToSettings = false;
     /** במסך הפתיחה: האם טופס ההתחברות פתוח (ההתחברות היא אפשרות, לא חובה). */
     private boolean loginFormVisible = false;
+    /** רשימות איסוף (רשימה עם משתמשים בתוכה). */
+    private PickupGroups groups;
     /** הפריט שהיה בפוקוס לפני שעזבנו את מסך הרשימה, כדי לחזור אליו ולא לראש הרשימה. */
     private String homeFocusKey = null;
     /** כפתורי הכותרת במסך הרשימה, לפי סדר הקריאה מימין לשמאל. */
@@ -317,6 +319,8 @@ public class MainActivity extends Activity {
         secretStore = new SecretStore(this);
         savedListStore = new SavedListStore(this);
         uiPreferences = getSharedPreferences("mishnat_pickup_ui", MODE_PRIVATE);
+        groups = new PickupGroups(uiPreferences);
+        migrateListGroup();
         Ui.applyTheme(nightModeActive());
         displayMode = Math.max(0, Math.min(5, uiPreferences.getInt("display_mode", 3)));
         sourceRegistry.migrateLegacy(legacyPreferences);
@@ -1448,6 +1452,7 @@ public class MainActivity extends Activity {
         String next = "COMBINED_SUM".equals(sourceRegistry.viewMode())
                 ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
         sourceRegistry.setViewMode(next);
+        rememberGroupView(next);
         showingSavedList = false;
         showHomeScreen(false);
         showActionToast("מצב הרשימה שונה ל־" +
@@ -2018,6 +2023,7 @@ public class MainActivity extends Activity {
             + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
             + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
             + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
+            + "• רשימות איסוף: רשימה אחת עם שם ובתוכה משתמשים, עם הגדרות משלה (תצוגה, כמות לפי משתמש, סנכרון), שמות לכל משתמש וסדר. מצב האיסוף נשמר לכל רשימה גם כשעוברים לאחרת.\n"
             + "• הרשימות המסומנות (✓) לא מתבטלות יותר מעצמן: סנכרון ופתיחה מחדש של האפליקציה לא משנים אותן.\n"
             + "• במסך הפתיחה: אריח ריבועי גדול לייבוא, כפתור הגדרות, והודעה פשוטה \"אין רשימות\" כשעוד אין רשימות.\n"
             + "• \"הזמנות קודמות\" בלי חשבון מחובר פותח את ההתחברות.\n"            + "• מסך פתיחה חדש: ברוכים הבאים וכפתור גדול \"ייבוא רשימות עכשיו\". ההתחברות לאתר היא אפשרות נוספת לסנכרון, לא חובה.\n"
@@ -3150,6 +3156,9 @@ public class MainActivity extends Activity {
         Button shareTile=Ui.tile(this,Ui.IC_SHARE,"שיתוף");
         shareTile.setOnClickListener(v->shareTileClicked(null));
         top.addView(tileRow(history,create,shareTile,mergeLists,deleteTile),Ui.row(this,0,0));
+        Button groupsButton=Ui.button(this,"📋 רשימות איסוף · "+groups.all().size(),Ui.Kind.SOFT);
+        groupsButton.setOnClickListener(v->showGroupsDialog(null));
+        top.addView(groupsButton,Ui.row(this,Ui.GRID_GAP,0));
         root.addView(top,new LinearLayout.LayoutParams(-1,-2));
 
         LinearLayout content=Ui.column(this);
@@ -3542,11 +3551,17 @@ public class MainActivity extends Activity {
         final SavedListStore.Entry shownForShare = combinedView ? null : findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
         shareTile.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, () -> shareTileClicked(shownForShare)); });
         panel.addView(tileRow(history, create, shareTile, merge, deleteTile), Ui.row(this, Ui.S2, 0));
+        Button groupsButton = Ui.button(this, "📋 רשימות איסוף · " + groups.all().size(), Ui.Kind.SOFT);
+        groupsButton.setOnClickListener(v -> { dialog.dismiss(); showGroupsDialog(this::showListSwitcher); });
+        panel.addView(groupsButton, Ui.row(this, Ui.S1, 0));
 
         if (listGroupActive()) {
-            Button leave = Ui.button(this, "ביטול כל הסימונים ויציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
+            PickupGroups.Group activeGroup = groups.active();
+            Button manageGroup = Ui.button(this, "משתמשים והגדרות: " + activeGroup.name, Ui.Kind.SOFT);
+            manageGroup.setOnClickListener(v -> { dialog.dismiss(); showGroupEditor(activeGroup, this::showListSwitcher); });
+            Button leave = Ui.button(this, "יציאה מרשימת האיסוף (היא נשמרת)", Ui.Kind.SOFT);
             leave.setOnClickListener(v -> { dialog.dismiss(); leaveListGroup(); showHomeScreen(false); });
-            panel.addView(leave, Ui.row(this, Ui.S1, 0));
+            panel.addView(buttonPair(manageGroup, leave), Ui.row(this, Ui.S1, 0));
         }
         if (showingSavedList && !connectedAccounts().isEmpty()) {
             Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
@@ -3793,10 +3808,10 @@ public class MainActivity extends Activity {
             final boolean wiped = activeWiped;
             mainHandler.post(() -> {
                 if (wiped) { cacheTrusted = false; activeOwner = ""; clearOrderMemory(); }
-                // רק הרשימות שנמחקו יוצאות מהסימון; השאר נשארות מסומנות.
-                List<String> group = listGroup();
-                for (SavedListStore.Entry entry : entries) group.remove(entry.id);
-                setListGroup(group);
+                // רשימה שנמחקה יוצאת מכל רשימות האיסוף; השאר נשארות כמו שהן.
+                for (SavedListStore.Entry entry : entries) groups.removeMemberEverywhere(entry.id);
+                PickupGroups.Group active = groups.active();
+                if (active != null && active.members.isEmpty()) groups.delete(active.id);
                 if (done != null) done.run();
             });
         });
@@ -4875,6 +4890,7 @@ public class MainActivity extends Activity {
         button.setOnClickListener(v -> {
             if (syncAllRunning || active) return;
             sourceRegistry.setViewMode(mode);
+            rememberGroupView(mode);
             showingSavedList = false;
             showHomeScreen(false);
             importantToast("COMBINED_SUM".equals(mode) ? "תצוגה מאוחדת" : "תצוגה לפי רשימה");
@@ -6485,6 +6501,7 @@ public class MainActivity extends Activity {
         currentPickupInfo = null;
         boolean group = listGroupActive();
         Set<String> usedListLabels = new HashSet<>();
+        PickupGroups.Group pickupGroup = group ? groups.active() : null;
         if (group) {
             List<String> names = new ArrayList<>();
             for (String entryId : listGroup()) {
@@ -6494,7 +6511,7 @@ public class MainActivity extends Activity {
                     JSONObject snapshot = savedListStore.readEntry(entryId);
                     JSONArray rows = snapshot.optJSONArray("products");
                     if (rows == null) continue;
-                    String label = displayTitle(entry);
+                    String label = pickupGroup == null ? displayTitle(entry) : pickupGroup.label(entryId, displayTitle(entry));
                     names.add(label);
                     JSONObject savedInfo = snapshot.optJSONObject("pickup_info");
                     if (savedInfo != null) combinedPickupInfos.add(new JSONObject(savedInfo.toString()).put("_source_label", label));
@@ -6525,7 +6542,8 @@ public class MainActivity extends Activity {
                     }
                 } catch (Exception ignored) { }
             }
-            orderNames.add(names.size() <= 2 ? android.text.TextUtils.join(" + ", names) : names.size() + " רשימות יחד");
+            orderNames.add(pickupGroup != null && !pickupGroup.name.isEmpty() ? pickupGroup.name
+                    : names.size() <= 2 ? android.text.TextUtils.join(" + ", names) : names.size() + " רשימות יחד");
         }
         if (!group) for (SourceRegistry.Source source : sourceRegistry.all()) {
             File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
@@ -6657,42 +6675,370 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
+    /** המשתמשים (רשימות שמורות) של רשימת האיסוף הפעילה, לפי הסדר. */
     private List<String> listGroup() {
-        List<String> ids = new ArrayList<>();
-        if (uiPreferences == null) return ids;
-        try {
-            JSONArray a = new JSONArray(uiPreferences.getString(PREF_LIST_GROUP, "[]"));
-            for (int i = 0; i < a.length(); i++) ids.add(a.optString(i, ""));
-        } catch (Exception ignored) { }
-        return ids;
+        PickupGroups.Group g = groups == null ? null : groups.active();
+        return g == null ? new ArrayList<>() : new ArrayList<>(g.members);
     }
 
-    /** כמה רשימות יחד: פעיל כשמסומנות (✓) לפחות שתי רשימות. */
+    /** רשימת איסוף פעילה עם לפחות משתמש אחד. */
     private boolean listGroupActive() {
-        return listGroup().size() >= 2;
+        return !listGroup().isEmpty();
     }
 
+    /** הסימון הישן (✓ על כמה רשימות) הופך לרשימת איסוף אחת. */
+    private void migrateListGroup() {
+        try {
+            JSONArray old = new JSONArray(uiPreferences.getString(PREF_LIST_GROUP, "[]"));
+            if (old.length() > 0 && groups.all().isEmpty()) {
+                List<String> ids = new ArrayList<>();
+                for (int i = 0; i < old.length(); i++) ids.add(old.optString(i, ""));
+                PickupGroups.Group g = groups.create("רשימת איסוף", ids);
+                if (ids.size() >= 2) groups.setActive(g.id);
+            }
+        } catch (Exception ignored) { }
+        uiPreferences.edit().remove(PREF_LIST_GROUP).remove(PREF_LIST_GROUP_ACTIVE).apply();
+    }
+
+    /** משתמשי רשימת האיסוף הפעילה. בלי רשימה פעילה - נוצרת חדשה. רשימה בלי משתמשים נמחקת. */
     private void setListGroup(List<String> ids) {
-        JSONArray a = new JSONArray(); for (String id : ids) a.put(id);
-        uiPreferences.edit().putString(PREF_LIST_GROUP, a.toString()).remove(PREF_LIST_GROUP_ACTIVE).apply();
+        PickupGroups.Group g = groups.active();
+        if (g == null) {
+            if (ids.isEmpty()) return;
+            g = groups.create(defaultGroupName(), ids);
+            g.view = sourceRegistry == null ? PickupGroups.VIEW_COMBINED : sourceRegistry.viewMode();
+            groups.save(g);
+            groups.setActive(g.id);
+            return;
+        }
+        if (ids.isEmpty()) { groups.delete(g.id); return; }
+        g.members.clear(); g.members.addAll(ids);
+        groups.save(g);
     }
 
-    /** סימון ✓ ליד רשימה: מוסיף או מוריד אותה מהתצוגה המשותפת. */
+    private String defaultGroupName() {
+        return "רשימת איסוף " + new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date());
+    }
+
+    /** ✓ ליד רשימה: מוסיף אותה כמשתמש לרשימת האיסוף הפעילה, או מוציא אותה. */
     private void setListChecked(SavedListStore.Entry entry, boolean checked) {
         List<String> ids = listGroup();
-        // הרשימה המוצגת עכשיו נשמרת, כדי שהסימונים העדכניים שלה ייכנסו לתצוגה המשותפת.
+        // הרשימה המוצגת עכשיו נשמרת, כדי שהסימונים העדכניים שלה ייכנסו לרשימת האיסוף.
         if (checked && !combinedView && !currentOrderId.isEmpty()) archiveCurrentSnapshot(activeSourceId);
         if (checked && !ids.contains(entry.id)) ids.add(entry.id);
         if (!checked) ids.remove(entry.id);
         setListGroup(ids);
-        if (ids.size() >= 2) showActionToast(ids.size() + " רשימות מסומנות יוצגו יחד");
-        else if (ids.size() == 1) showActionToast("סמנו עוד רשימה כדי להציג יחד");
-        if (ids.size() >= 2) showingSavedList = false;
+        if (!ids.isEmpty()) showingSavedList = false;
     }
 
-    /** יציאה מהתצוגה המשותפת: כל הסימונים (✓) מתבטלים. */
+    /** יציאה מרשימת האיסוף: היא נשמרת כמו שהיא (משתמשים, הגדרות ומצב האיסוף), ואפשר לחזור אליה. */
     private void leaveListGroup() {
-        if (uiPreferences != null && !listGroup().isEmpty()) setListGroup(new ArrayList<>());
+        if (groups != null) groups.setActive("");
+    }
+
+    private void activateGroup(PickupGroups.Group g) {
+        if (!combinedView && !currentOrderId.isEmpty()) archiveCurrentSnapshot(activeSourceId);
+        groups.setActive(g.id);
+        if (sourceRegistry != null) sourceRegistry.setViewMode(g.view);
+        showingSavedList = false;
+        showHomeScreen(false);
+    }
+
+    /** החלפת תצוגה כשרשימת איסוף פעילה נשמרת בהגדרות שלה. */
+    private void rememberGroupView(String mode) {
+        PickupGroups.Group g = groups == null ? null : groups.active();
+        if (g == null) return;
+        g.view = PickupGroups.VIEW_BY_USER.equals(mode) ? PickupGroups.VIEW_BY_USER : PickupGroups.VIEW_COMBINED;
+        groups.save(g);
+    }
+
+    private String groupProgress(PickupGroups.Group g) {
+        int total = 0, done = 0;
+        for (String id : g.members) {
+            SavedListStore.Entry e = findSavedEntry(id);
+            if (e == null) continue;
+            try {
+                JSONObject snapshot = savedListStore.readEntry(id);
+                JSONArray rows = snapshot.optJSONArray("products");
+                JSONArray ticks = new JSONArray(snapshot.optString("_collected_ticks", "[]"));
+                total += rows == null ? 0 : rows.length();
+                done += Math.min(ticks.length(), rows == null ? 0 : rows.length());
+            } catch (Exception ignored) { }
+        }
+        return total == 0 ? "" : "נאספו " + done + " מתוך " + total;
+    }
+
+    // ---------- מסכי רשימות האיסוף ----------
+
+    /** כל רשימות האיסוף: פתיחה, ניהול, ויצירת רשימה חדשה. */
+    private void showGroupsDialog(Runnable parent) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "רשימות איסוף", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "רשימה אחת ובתוכה משתמשים. מצב האיסוף נשמר לכל רשימה, גם כשעוברים לאחרת.",
+                Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        Runnable self = () -> showGroupsDialog(parent);
+        Button create = Ui.button(this, "➕ רשימת איסוף חדשה", Ui.Kind.PRIMARY);
+        create.setOnClickListener(v -> { dialog.dismiss(); showGroupEditor(null, self); });
+        panel.addView(create, Ui.row(this, 0, Ui.S2));
+        LinearLayout body = Ui.column(this);
+        PickupGroups.Group active = groups.active();
+        View focus = null;
+        List<PickupGroups.Group> all = groups.all();
+        for (PickupGroups.Group g : all) {
+            String details = g.members.size() + (g.members.size() == 1 ? " משתמש" : " משתמשים");
+            String progress = groupProgress(g);
+            if (!progress.isEmpty()) details += " · " + progress;
+            if (active != null && active.id.equals(g.id)) details = "פתוחה עכשיו · " + details;
+            LinearLayout line = buildListLine(g.name, details, active != null && active.id.equals(g.id),
+                    () -> { dialog.dismiss(); activateGroup(g); },
+                    () -> { dialog.dismiss(); showGroupActions(g, self); });
+            body.addView(line, Ui.row(this, 0, Ui.S1));
+            if (focus == null) focus = line.getChildAt(0);
+        }
+        if (all.isEmpty()) body.addView(Ui.text(this, "אין רשימות איסוף", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (parent != null) addDialogBackButton(dialog, parent);
+        sizeLargeDialog(dialog);
+        (focus != null ? focus : create).requestFocus();
+    }
+
+    private void sizeLargeDialog(Dialog dialog) {
+        if (dialog.getWindow() == null) return;
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int width = Math.min(metrics.widthPixels - Ui.dp(this, 16), Ui.dp(this, 640));
+        dialog.getWindow().setLayout(width, (int) (metrics.heightPixels * 0.9f));
+    }
+
+    private void showGroupActions(PickupGroups.Group g, Runnable parent) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, g.name, Ui.T_NAME, Ui.P900, true));
+        Runnable self = () -> { PickupGroups.Group fresh = groups.find(g.id); if (fresh != null) showGroupActions(fresh, parent); };
+        Button open = Ui.gridButton(this, "פתיחה", Ui.Kind.SOFT);
+        open.setOnClickListener(v -> { dialog.dismiss(); activateGroup(g); });
+        Button manage = Ui.gridButton(this, "משתמשים והגדרות", Ui.Kind.SOFT);
+        manage.setOnClickListener(v -> { dialog.dismiss(); showGroupEditor(g, self); });
+        Button rename = Ui.gridButton(this, "שינוי שם", Ui.Kind.SOFT);
+        rename.setOnClickListener(v -> { dialog.dismiss(); askGroupName(g.name, name -> { g.name = name; groups.save(g); refreshHomeTitleIfGroup(); self.run(); }); });
+        Button delete = Ui.gridButton(this, "מחיקת רשימת האיסוף", Ui.Kind.SOFT);
+        delete.setOnClickListener(v -> { dialog.dismiss(); confirmDeleteGroup(g, parent); });
+        addGridButtons(panel, open, manage, rename, delete);
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (parent != null) addDialogBackButton(dialog, parent);
+        open.requestFocus();
+    }
+
+    private void refreshHomeTitleIfGroup() {
+        if (screen == Screen.HOME && listGroupActive()) showHomeScreen(false);
+    }
+
+    private void confirmDeleteGroup(PickupGroups.Group g, Runnable parent) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "למחוק את \"" + g.name + "\"?", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "נמחקת רק רשימת האיסוף. הרשימות של המשתמשים ומצב האיסוף שלהן נשארים בניהול רשימות.",
+                Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
+        Button yes = Ui.button(this, "מחיקה", Ui.Kind.PRIMARY), no = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        yes.setOnClickListener(v -> {
+            dialog.dismiss();
+            boolean wasActive = groups.active() != null && groups.active().id.equals(g.id);
+            groups.delete(g.id);
+            if (wasActive) showHomeScreen(false);
+            if (parent != null) parent.run();
+        });
+        no.setOnClickListener(v -> { dialog.dismiss(); if (parent != null) parent.run(); });
+        panel.addView(buttonPair(yes, no), Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        no.requestFocus();
+    }
+
+    private interface NameCallback { void done(String name); }
+
+    private void askGroupName(String current, NameCallback callback) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "שם", Ui.T_NAME, Ui.P900, true));
+        EditText input = createLoginInput("שם", InputType.TYPE_CLASS_TEXT);
+        input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        input.setTextDirection(View.TEXT_DIRECTION_RTL);
+        input.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        input.setText(current == null ? "" : current);
+        input.setSelection(input.getText().length());
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        panel.addView(input, Ui.row(this, Ui.S3, Ui.S3));
+        Button save = Ui.button(this, "שמירה", Ui.Kind.PRIMARY), cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        Runnable apply = () -> {
+            String value = input.getText().toString().trim();
+            if (value.length() > 60) value = value.substring(0, 60);
+            hideKeyboard(input);
+            dialog.dismiss();
+            callback.done(value);
+        };
+        save.setOnClickListener(v -> apply.run());
+        cancel.setOnClickListener(v -> { hideKeyboard(input); dialog.dismiss(); });
+        input.setOnEditorActionListener((v, actionId, event) -> { apply.run(); return true; });
+        panel.addView(buttonPair(save, cancel), Ui.row(this, 0, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        input.requestFocus();
+    }
+
+    /**
+     * עריכת רשימת איסוף: שם, תצוגה (מאוחדת / לפי משתמש), כמות לפי משתמש, סנכרון,
+     * ומשתמשים: הוספה, שם תצוגה, סדר והסרה. group==null יוצר רשימה חדשה.
+     */
+    private void showGroupEditor(PickupGroups.Group existing, Runnable parent) {
+        final PickupGroups.Group g;
+        if (existing == null) {
+            g = groups.create(defaultGroupName(), new ArrayList<>());
+        } else g = groups.find(existing.id) != null ? groups.find(existing.id) : existing;
+        Runnable self = () -> { PickupGroups.Group fresh = groups.find(g.id); if (fresh != null) showGroupEditor(fresh, parent); };
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, g.name, Ui.T_NAME, Ui.P900, true));
+        LinearLayout body = Ui.column(this);
+
+        body.addView(compactSection("הגדרות"));
+        Button name = Ui.gridButton(this, "שינוי שם", Ui.Kind.SOFT);
+        name.setOnClickListener(v -> { dialog.dismiss(); askGroupName(g.name, n -> { if (!n.isEmpty()) { g.name = n; groups.save(g); } self.run(); }); });
+        boolean byUser = PickupGroups.VIEW_BY_USER.equals(g.view);
+        Button combined = Ui.gridButton(this, (byUser ? "" : "✓ ") + "תצוגה מאוחדת", Ui.Kind.SOFT);
+        combined.setOnClickListener(v -> { g.view = PickupGroups.VIEW_COMBINED; groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+        Button perUser = Ui.gridButton(this, (byUser ? "✓ " : "") + "תצוגה לפי משתמש", Ui.Kind.SOFT);
+        perUser.setOnClickListener(v -> { g.view = PickupGroups.VIEW_BY_USER; groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+        Button breakdown = Ui.gridButton(this, (g.breakdown ? "✓ " : "") + "כמות לפי משתמש", Ui.Kind.SOFT);
+        breakdown.setOnClickListener(v -> { g.breakdown = !g.breakdown; groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+        boolean anySync = false;
+        for (String id : g.members) if (!uiPreferences.getBoolean("nosync_" + id, false)) anySync = true;
+        final boolean syncOn = anySync;
+        Button sync = Ui.gridButton(this, (syncOn ? "✓ " : "") + "סנכרון מהאתר", Ui.Kind.SOFT);
+        sync.setOnClickListener(v -> {
+            SharedPreferences.Editor edit = uiPreferences.edit();
+            for (String id : g.members) edit.putBoolean("nosync_" + id, syncOn);
+            edit.apply();
+            dialog.dismiss(); self.run();
+        });
+        LinearLayout settings = Ui.column(this);
+        addGridButtons(settings, combined, perUser, breakdown, sync, name);
+        body.addView(settings);
+
+        body.addView(compactSection(g.members.isEmpty() ? "אין משתמשים" : "משתמשים · " + g.members.size()));
+        for (int i = 0; i < g.members.size(); i++) {
+            final int index = i;
+            final String entryId = g.members.get(i);
+            SavedListStore.Entry entry = findSavedEntry(entryId);
+            String original = entry == null ? "רשימה שנמחקה" : displayTitle(entry);
+            String label = g.label(entryId, original);
+            LinearLayout row = new LinearLayout(this);
+            row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            Button user = Ui.listRow(this, "👤 " + label, entry == null ? "" : entry.itemCount + " פריטים"
+                    + (label.equals(original) ? "" : " · " + original), false);
+            user.setOnClickListener(v -> { dialog.dismiss(); askGroupName(label, n -> {
+                if (n.isEmpty() || n.equals(original)) g.labels.remove(entryId); else g.labels.put(entryId, n);
+                groups.save(g); applyGroupIfActive(g); self.run(); }); });
+            row.addView(user, new LinearLayout.LayoutParams(0, -2, 1f));
+            Button up = Ui.button(this, "⬆", Ui.Kind.SOFT), down = Ui.button(this, "⬇", Ui.Kind.SOFT), remove = Ui.button(this, "✕", Ui.Kind.SOFT);
+            up.setContentDescription("הזזה למעלה: " + label);
+            down.setContentDescription("הזזה למטה: " + label);
+            remove.setContentDescription("הוצאה מרשימת האיסוף: " + label);
+            up.setEnabled(index > 0);
+            down.setEnabled(index < g.members.size() - 1);
+            up.setOnClickListener(v -> { java.util.Collections.swap(g.members, index, index - 1); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+            down.setOnClickListener(v -> { java.util.Collections.swap(g.members, index, index + 1); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+            remove.setOnClickListener(v -> { g.members.remove(entryId); g.labels.remove(entryId); groups.save(g); applyGroupIfActive(g); dialog.dismiss(); self.run(); });
+            int size = Ui.dp(this, 44), gap = Ui.dp(this, Ui.S1);
+            for (Button b : new Button[]{up, down, remove}) {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+                lp.setMarginStart(gap);
+                b.setPadding(0, 0, 0, 0);
+                row.addView(b, lp);
+            }
+            body.addView(row, Ui.row(this, 0, Ui.S1));
+        }
+        Button add = Ui.button(this, "➕ הוספת משתמש (רשימה)", Ui.Kind.SOFT);
+        add.setOnClickListener(v -> { dialog.dismiss(); pickGroupMembers(g, self); });
+        body.addView(add, Ui.row(this, Ui.S1, Ui.S2));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button open = Ui.button(this, "פתיחת רשימת האיסוף", Ui.Kind.PRIMARY);
+        open.setEnabled(!g.members.isEmpty());
+        open.setOnClickListener(v -> { dialog.dismiss(); activateGroup(g); });
+        panel.addView(open, Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (parent != null) addDialogBackButton(dialog, parent);
+        sizeLargeDialog(dialog);
+        (g.members.isEmpty() ? add : combined).requestFocus();
+    }
+
+    /** רשימת האיסוף הפעילה השתנתה: מרעננים את המסך הראשי עם ההגדרות שלה. */
+    private void applyGroupIfActive(PickupGroups.Group g) {
+        PickupGroups.Group active = groups.active();
+        if (active == null || !active.id.equals(g.id)) return;
+        if (sourceRegistry != null) sourceRegistry.setViewMode(g.view);
+        if (screen == Screen.HOME) showHomeScreen(false);
+    }
+
+    /** בחירת רשימות שמורות שיתווספו כמשתמשים. */
+    private void pickGroupMembers(PickupGroups.Group g, Runnable parent) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "הוספת משתמשים", Ui.T_NAME, Ui.P900, true));
+        LinearLayout body = Ui.column(this);
+        final List<CheckBox> boxes = new ArrayList<>();
+        final List<String> ids = new ArrayList<>();
+        for (SavedListStore.Entry entry : savedListStore.list()) {
+            if (g.members.contains(entry.id)) continue;
+            CheckBox box = new CheckBox(this);
+            box.setText(displayTitle(entry) + " · " + entry.itemCount + " פריטים");
+            box.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
+            box.setTextColor(Ui.INK);
+            if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
+            box.setBackground(Ui.focusFrame(this));
+            body.addView(box, Ui.row(this, 0, Ui.S1));
+            boxes.add(box); ids.add(entry.id);
+        }
+        if (boxes.isEmpty()) body.addView(Ui.text(this, "אין רשימות נוספות להוספה. אפשר לייבא רשימה ב\"ניהול רשימות\".",
+                Ui.T_BODY, Ui.MUTED, false));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button ok = Ui.button(this, "הוספה", Ui.Kind.PRIMARY), cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        ok.setOnClickListener(v -> {
+            for (int i = 0; i < boxes.size(); i++) if (boxes.get(i).isChecked() && !g.members.contains(ids.get(i))) g.members.add(ids.get(i));
+            groups.save(g);
+            applyGroupIfActive(g);
+            dialog.dismiss();
+            if (parent != null) parent.run();
+        });
+        cancel.setOnClickListener(v -> { dialog.dismiss(); if (parent != null) parent.run(); });
+        panel.addView(buttonPair(ok, cancel), Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        sizeLargeDialog(dialog);
+        if (!boxes.isEmpty()) boxes.get(0).requestFocus(); else cancel.requestFocus();
     }
 
     private static final String PREF_FAMILY_BREAKDOWN = "show_family_breakdown";
@@ -6702,7 +7048,9 @@ public class MainActivity extends Activity {
         boolean any=false,all=true;
         StringBuilder detail=new StringBuilder();
         // בהגדרות אפשר להסתיר את הפירוט לפי משפחה (שם החשבון וכמה כל אחד הזמין).
-        boolean breakdown=uiPreferences==null||uiPreferences.getBoolean(PREF_FAMILY_BREAKDOWN,true);
+        PickupGroups.Group activeGroup=groups==null?null:groups.active();
+        boolean breakdown=activeGroup!=null&&listGroupActive()?activeGroup.breakdown
+                :uiPreferences==null||uiPreferences.getBoolean(PREF_FAMILY_BREAKDOWN,true);
         // לפי משתמש יש כותרת עם שם המשתמש, ולכן אין צורך לחזור על השם בכל מוצר.
         if(parts.size()==1&&perUserLayout())breakdown=false;
         Set<String> notes=new java.util.LinkedHashSet<>();
