@@ -40,6 +40,7 @@
 - **בכל עדכון של APK Bridge חובה למסור למשתמש קישור ישיר להורדת APK חדש** — לא רק לדווח על שינוי קוד.
 - **כל טקסט חדש באפליקציה נכתב בעברית ובאנגלית יחד:** בקוד `tr("עברית", "English")`, ובמשאבים גם ב־`res/values/strings.xml` (אנגלית) וגם ב־`res/values-iw/strings.xml` (עברית). הבדיקה `app/i18n.gradle` רצה בכל בנייה ומכשילה אותה אם חסר תרגום. מפתח פנימי בעברית שאינו טקסט מוצג מסמנים בהערה `// i18n-ok`.
 - אחרי כל שינוי: להריץ את `.github/workflows/build-apk.yml` עם `app=apk-bridge` על הענף שבו נעשה השינוי, לחכות שהריצה תסתיים ב־`success`, ולוודא ש־`downloads/apk-bridge/README.md` מציין את ה־commit של השינוי ואת ה־versionCode החדש.
+- **שם הקובץ להורדה: `הבוס-<versionName>.apk`** (ה־workflow מפרסם אותו ליד `app.apk` ומשאיר רק את האחרון). קישור עם שם: `https://github.com/londkirs-code/Apk-factory-/raw/refs/heads/<branch>/downloads/apk-bridge/הבוס-<versionName>.apk`. גם כותרת ה־PR: `הבוס <versionName>`.
 - קישור ההורדה: `https://github.com/londkirs-code/Apk-factory-/raw/refs/heads/<branch>/downloads/apk-bridge/app.apk` (ב־main: `https://raw.githubusercontent.com/londkirs-code/Apk-factory-/main/downloads/apk-bridge/app.apk`). למסור אותו יחד עם קישור לריצה, ה־versionName וה־versionCode.
 
 ## חתימה ותאימות עדכון

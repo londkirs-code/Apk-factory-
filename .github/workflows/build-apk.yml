@@ -465,6 +465,13 @@ jobs:
             mkdir -p "$HISTORY_DIR"
             cp "$APK_PATH" "$HISTORY_DIR/${app}-v${VERSION_NAME}-code${NEXT_CODE}.apk"
             printf 'APK for %s, versionName %s, versionCode %s, built from commit %s.\n' "$app" "$VERSION_NAME" "$NEXT_CODE" "$GITHUB_SHA" > "downloads/$app/README.md"
+            if [[ "$app" == "apk-bridge" ]]; then
+              # The Boss: also publish the APK under its app name and version (e.g. הבוס-1.4.3.apk); keep only the latest.
+              NAMED_APK="הבוס-${VERSION_NAME}.apk"
+              find "downloads/$app" -maxdepth 1 -name 'הבוס-*.apk' ! -name "$NAMED_APK" -delete
+              cp "$APK_PATH" "downloads/$app/$NAMED_APK"
+              printf 'File name: %s\n' "$NAMED_APK" >> "downloads/$app/README.md"
+            fi
             if [[ "$app" == "mishnat-yosef" ]]; then
               # Publish version metadata and the exact APK checksum together with every successful build.
               python3 - "$BUILD_FILE" "downloads/$app/app.apk" "apps/$app/RELEASE_NOTES.md" "downloads/$app/update.json" <<'PY'
