@@ -494,7 +494,8 @@ class BackupActivity : Activity() {
     }
 
     private fun check(parent: LinearLayout, label: String, checked: Boolean) = CheckBox(this).apply {
-        text = label; textSize = 15f; isChecked = checked; setTextColor(INK)
+        textSize = 15f; isChecked = checked; setTextColor(INK)
+        text = TerminalIcon.inText(label, textSize)  // Termux: black terminal-window icon instead of an emoji
         parent.addView(this, wrap(0))
     }
 
