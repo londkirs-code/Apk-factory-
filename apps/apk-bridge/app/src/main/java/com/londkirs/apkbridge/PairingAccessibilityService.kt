@@ -46,7 +46,7 @@ class PairingAccessibilityService : AccessibilityService() {
             // Only remember the code once a pairing job actually started (another job may be running).
             if (Bridge.autoPair(port, code)) {
                 lastPairKey = key
-                Toast.makeText(this, "APK Bridge זיהה את קוד הצימוד — מבצע צימוד…", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "הבוס זיהה את קוד הצימוד — מבצע צימוד…", Toast.LENGTH_SHORT).show()
                 Bridge.log("זוהה חלון צימוד במסך: פורט $port.")
             }
         } else if (port != lastConnectPort) {

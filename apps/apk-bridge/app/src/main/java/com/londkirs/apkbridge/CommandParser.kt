@@ -80,7 +80,7 @@ object CommandParser {
                         "install", "install-multiple", "push", "pull", "sideload" ->
                             return Parsed(null, "\"adb $sub\" מעביר קובץ מהמחשב. כאן הקובץ כבר בטלפון: להתקנה השתמש בכפתור \"בחר קבצים\" במסך הראשי.")
                         "devices", "connect", "disconnect", "pair", "kill-server", "start-server", "version", "tcpip", "usb", "forward", "reverse" ->
-                            return Parsed(null, "\"adb $sub\" היא פקודה של המחשב, ו־APK Bridge מטפל בחיבור לבד.")
+                            return Parsed(null, "\"adb $sub\" היא פקודה של המחשב, והבוס מטפל בחיבור לבד.")
                         else -> return Parsed(null, "פקודת adb לא מוכרת: \"$sub\". לפקודות טלפון כתוב \"adb shell …\" או את הפקודה עצמה.")
                     }
                 }

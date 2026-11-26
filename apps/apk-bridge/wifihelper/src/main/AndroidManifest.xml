@@ -9,7 +9,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="APK Bridge Wi‑Fi">
+        android:label="הבוס – Wi‑Fi">
         <receiver
             android:name=".EnableWifiReceiver"
             android:exported="true"

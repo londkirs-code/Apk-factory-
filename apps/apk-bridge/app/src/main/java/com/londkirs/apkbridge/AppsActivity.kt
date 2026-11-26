@@ -114,6 +114,11 @@ class AppsActivity : Activity() {
         buildUi()
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        Celebration.onFocus(this, hasFocus)
+    }
+
     override fun onPause() {
         Celebration.onPause(this)
         super.onPause()

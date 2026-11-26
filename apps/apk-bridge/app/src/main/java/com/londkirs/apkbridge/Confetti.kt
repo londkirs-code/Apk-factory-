@@ -127,24 +127,34 @@ class ConfettiView(context: Context) : View(context) {
 }
 
 /**
- * Celebrates a successful pairing on whatever APK Bridge screen is visible. If the pairing
- * finished while the user was in the phone's Settings, the confetti waits for the return.
+ * Celebrates a successful pairing — but only while the user is really looking at an APK Bridge
+ * screen (resumed *and* focused, so not hidden behind Settings, the notification shade or a
+ * system dialog). Otherwise it waits; the "pending" flag is saved, so it is not lost even if the
+ * app process is closed in the meantime.
  */
 object Celebration {
     private var visible: Activity? = null
 
     fun onResume(activity: Activity) {
         visible = activity
-        if (Bridge.consumeCelebration()) ConfettiView.show(activity)
+        tryShow()
     }
 
     fun onPause(activity: Activity) {
         if (visible === activity) visible = null
     }
 
+    /** Call from Activity.onWindowFocusChanged: focus arrives after onResume and returns after the shade closes. */
+    fun onFocus(activity: Activity, hasFocus: Boolean) {
+        if (hasFocus && visible === activity) tryShow()
+    }
+
     /** Called on the main thread by [Bridge] right after a successful pairing. */
-    fun celebrate() {
-        val a = visible ?: return  // shown on the next onResume instead
+    fun celebrate() = tryShow()
+
+    private fun tryShow() {
+        val a = visible ?: return
+        if (!a.hasWindowFocus() || a.isFinishing || a.isDestroyed) return  // wait for the user
         if (Bridge.consumeCelebration()) ConfettiView.show(a)
     }
 }

@@ -33,7 +33,7 @@ object HelperInstaller {
         }
         if (!activity.packageManager.canRequestPackageInstalls()) {
             waitingForPermission = true
-            Toast.makeText(activity, "אפשר ל־APK Bridge להתקין אפליקציות, וחזור — ההתקנה תמשיך לבד.", Toast.LENGTH_LONG).show()
+            Toast.makeText(activity, "אפשר לאפליקציית הבוס להתקין אפליקציות, וחזור — ההתקנה תמשיך לבד.", Toast.LENGTH_LONG).show()
             runCatching {
                 activity.startActivity(
                     Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}"))

@@ -58,8 +58,10 @@ class GuideActivity : Activity() {
     private var part = Part.WIRELESS
     private var index = 0
     private var showAll = false
-    private var finished = false
     private val checkViews = mutableListOf<Pair<TextView, Step>>()
+    private lateinit var checkBar: TextView
+    private var pulse: android.animation.AnimatorSet? = null
+    private var nextHighlighted = false
     private val handler = Handler(Looper.getMainLooper())
     private val poll = object : Runnable {
         override fun run() {
@@ -94,6 +96,11 @@ class GuideActivity : Activity() {
         super.onResume()
         Celebration.onResume(this)
         handler.post(poll)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        Celebration.onFocus(this, hasFocus)
     }
 
     override fun onPause() {
@@ -131,7 +138,7 @@ class GuideActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        allButton = smallButton("הצג הכול ברצף") { showAll = !showAll; finished = false; render() }
+        allButton = smallButton("הצג הכול ברצף") { showAll = !showAll; render() }
         header.addView(allButton)
         root.addView(header)
 
@@ -159,6 +166,17 @@ class GuideActivity : Activity() {
         progressText = TextView(this).apply { textSize = 13f; setTextColor(MUTED) }
         progress.addView(progressText)
         root.addView(progress)
+
+        // Pinned at the top (not at the bottom of a long step): has the app already seen this step done?
+        checkBar = TextView(this).apply {
+            textSize = 15.5f
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            visibility = View.GONE
+        }
+        root.addView(checkBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = dp(14); marginEnd = dp(14); bottomMargin = dp(6)
+        })
 
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -205,7 +223,7 @@ class GuideActivity : Activity() {
                     setStroke(dp(1), if (selected) ACCENT else 0xFFE8D6C4.toInt())
                 }
                 isClickable = true
-                setOnClickListener { part = p; index = 0; finished = false; render() }
+                setOnClickListener { part = p; index = 0; render() }
                 Compat.focusRing(this, INK, 18f)
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
         }
@@ -213,21 +231,20 @@ class GuideActivity : Activity() {
         content.removeAllViews()
         checkViews.clear()
         val steps = stepsFor(part)
-        val wizard = part != Part.FAQ && !showAll && !finished
+        val wizard = part != Part.FAQ && !showAll
         allButton.visibility = if (part == Part.FAQ) View.GONE else View.VISIBLE
         allButton.text = if (showAll) "שלב אחר שלב" else "הצג הכול ברצף"
 
         when {
             part == Part.FAQ -> { faq(); progressText.text = ""; dots.removeAllViews() }
-            finished -> { finishScreen(); progressText.text = ""; dots.removeAllViews() }
             showAll -> {
-                steps.forEachIndexed { i, s -> stepCard(i + 1, s) }
+                steps.forEachIndexed { i, s -> stepCard(i + 1, s, inlineCheck = true) }
                 progressText.text = "${steps.size} שלבים"
                 dots.removeAllViews()
             }
             else -> {
                 index = index.coerceIn(0, steps.lastIndex)
-                stepCard(index + 1, steps[index])
+                stepCard(index + 1, steps[index], inlineCheck = false)
                 progressText.text = "שלב ${index + 1} מתוך ${steps.size}"
                 dots.removeAllViews()
                 for (i in steps.indices) {
@@ -250,12 +267,17 @@ class GuideActivity : Activity() {
 
     private fun go(delta: Int) {
         val steps = stepsFor(part)
-        if (delta > 0 && index == steps.lastIndex) { finished = true; render(); return }
+        if (delta > 0 && index == steps.lastIndex) {
+            // "Finish": back to wherever the user opened the guide from.
+            Toast.makeText(this, "🎉 הכול מוכן!", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         index = (index + delta).coerceIn(0, steps.lastIndex)
         render()
     }
 
-    private fun stepCard(number: Int, step: Step) {
+    private fun stepCard(number: Int, step: Step, inlineCheck: Boolean) {
         val card = card()
         val titleRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         titleRow.addView(TextView(this).apply {
@@ -304,47 +326,65 @@ class GuideActivity : Activity() {
         for ((label, action) in step.actions) {
             card.addView(bigButton(label, primary = false) { action() }, wrap(8))
         }
-        if (step.check != null) {
+        // In "show all" mode each card shows its own status; step by step it is the pinned bar at the top.
+        if (step.check != null && inlineCheck) {
             val status = TextView(this).apply { textSize = 15f; setPadding(dp(4), dp(4), dp(4), 0) }
             card.addView(status, wrap(0))
             checkViews += status to step
         }
     }
 
+    private fun isDone(step: Step) = runCatching { step.check?.invoke() == true }.getOrDefault(false)
+
     private fun refreshChecks() {
         for ((view, step) in checkViews) {
-            val ok = runCatching { step.check?.invoke() == true }.getOrDefault(false)
+            val ok = isDone(step)
             view.text = if (ok) "✔ ${step.okText}" else "○ עדיין לא זוהה — אפשר לבצע ולחזור לכאן."
             view.setTextColor(if (ok) 0xFF1E8E3E.toInt() else MUTED)
             view.typeface = if (ok) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
+        // Step-by-step: pinned bar + "next" button that lights up and pulses once the step is done.
+        val wizard = part != Part.FAQ && !showAll
+        val step = if (wizard) stepsFor(part).getOrNull(index) else null
+        if (step?.check == null) {
+            checkBar.visibility = View.GONE
+            highlightNext(false)
+            return
+        }
+        val ok = isDone(step)
+        checkBar.visibility = View.VISIBLE
+        checkBar.text = if (ok) "✔ ${step.okText}" else "○ עדיין לא זוהה — בצע את השלב, והסימן יופיע כאן לבד."
+        checkBar.setTextColor(if (ok) 0xFF1E6B34.toInt() else 0xFF6D5B4C.toInt())
+        checkBar.typeface = if (ok) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        checkBar.background = GradientDrawable().apply {
+            cornerRadius = dp(12).toFloat()
+            setColor(if (ok) 0xFFDDF5E3.toInt() else 0xFFF4EEE8.toInt())
+            setStroke(dp(1), if (ok) 0xFF7FCB93.toInt() else 0xFFE8D6C4.toInt())
+        }
+        highlightNext(ok)
     }
 
-    private fun finishScreen() {
-        val card = card()
-        card.addView(TextView(this).apply {
-            text = "🎉"
-            textSize = 56f
-            gravity = Gravity.CENTER
-        }, wrap(6))
-        card.addView(TextView(this).apply {
-            text = "סיימת! הכול מוכן"
-            textSize = 24f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(INK)
-        }, wrap(8))
-        card.addView(bodyText(
-            if (part == Part.WIRELESS) "מעכשיו לא צריך לחזור על ההגדרה. גם כשה־Wi‑Fi כבוי האפליקציה ממשיכה לעבוד, ואחרי הפעלה מחדש של הטלפון הכול מתחדש לבד."
-            else "אחרי שהטלפון נכבה או מופעל מחדש, חוזרים רק על שלבים 4, 5 ו־6 (כבל ← adb tcpip 5555 ← לנתק)."
-        ).apply { gravity = Gravity.CENTER }, wrap(14))
-        card.addView(bigButton("עבור להתקנת אפליקציות", primary = true) {
-            startActivity(Intent(this, MainActivity::class.java)
-                .putExtra(BottomNav.EXTRA_TAB, BottomNav.Tab.INSTALL.name)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
-            finish()
-        }, wrap(8))
-        card.addView(bigButton("חזרה למדריך", primary = false) { finished = false; render() }, wrap(0))
+    /** Green, gently pulsing "next" button, so it is clear that you can move on. */
+    private fun highlightNext(on: Boolean) {
+        if (on == nextHighlighted) return
+        nextHighlighted = on
+        pulse?.cancel()
+        nextButton.scaleX = 1f
+        nextButton.scaleY = 1f
+        (nextButton.background as? GradientDrawable)?.setColor(if (on) 0xFF1E8E3E.toInt() else ACCENT)
+        if (on) {
+            val sx = android.animation.ObjectAnimator.ofFloat(nextButton, View.SCALE_X, 1f, 1.07f).apply {
+                repeatMode = android.animation.ValueAnimator.REVERSE; repeatCount = android.animation.ValueAnimator.INFINITE
+            }
+            val sy = android.animation.ObjectAnimator.ofFloat(nextButton, View.SCALE_Y, 1f, 1.07f).apply {
+                repeatMode = android.animation.ValueAnimator.REVERSE; repeatCount = android.animation.ValueAnimator.INFINITE
+            }
+            pulse = android.animation.AnimatorSet().apply {
+                playTogether(sx, sy)
+                duration = 550
+                start()
+            }
+        }
     }
 
     private fun faq() {
@@ -354,16 +394,16 @@ class GuideActivity : Activity() {
             "אני לא מוצא את ניפוי באגים אלחוטי." to
                 "הוא קיים רק באנדרואיד 11 ומעלה. אם יש לך גרסה ישנה יותר — עוברים ל־**💻 עם מחשב** למעלה.",
             "ניפוי הבאגים האלחוטי נכבה לבד." to
-                "זה קורה כשה־Wi‑Fi מתנתק. בדרך כלל APK Bridge מדליקה אותו שוב לבד. אם לא — מדליקים ידנית כמו בשלב 3.",
+                "זה קורה כשה־Wi‑Fi מתנתק. בדרך כלל הבוס מדליק אותו שוב לבד. אם לא — מדליקים ידנית כמו בשלב 3.",
             "יש לי שיאומי — החיבור עובד אבל ההתקנה נכשלת." to
                 "באפשרויות למפתחים מדליקים גם **ניפוי באגים ב־USB (הגדרות אבטחה)** וגם **התקנה דרך USB**. ייתכן שיידרש כרטיס SIM בטלפון וכניסה לחשבון שיאומי.",
             "יש לי אופו / ריאלמי / ויוו — ההתקנה נחסמת." to
                 "באפשרויות למפתחים מכבים את **ניטור הרשאות**.",
             "המתג של הצימוד האוטומטי אפור ולא נלחץ." to
-                "הגדרות ← **אפליקציות** ← **APK Bridge** ← **שלוש הנקודות ⋮** למעלה ← **אפשר הגדרות מוגבלות**. ואז מנסים שוב.",
+                "הגדרות ← **אפליקציות** ← **הבוס** ← **שלוש הנקודות ⋮** למעלה ← **אפשר הגדרות מוגבלות**. ואז מנסים שוב.",
             "שום דבר לא עוזר." to
-                "1. בהגדרות ← אפשרויות למפתחים ← ניפוי באגים אלחוטי ← **מכשירים מותאמים** — לוחצים על APK Bridge ← **שכח**.\n" +
-                "2. ב־APK Bridge ← ⚙ הגדרות ← **שכח צימוד**.\n" +
+                "1. בהגדרות ← אפשרויות למפתחים ← ניפוי באגים אלחוטי ← **מכשירים מותאמים** — לוחצים על **apkbridge** ← **שכח**.\n" +
+                "2. באפליקציית הבוס ← ⚙ הגדרות ← **שכח צימוד**.\n" +
                 "3. מתחילים שוב את המדריך משלב 5.\n" +
                 "4. עדיין לא עובד? לוחצים כאן **העתק יומן** ושולחים אותו לתמיכה.",
         )
@@ -451,9 +491,9 @@ class GuideActivity : Activity() {
             title = "להדליק צימוד אוטומטי",
             body = "1. לוחצים על הכפתור **הפעל צימוד אוטומטי** כאן למטה.\n" +
                 "2. נפתחת רשימת הנגישות של הטלפון.\n" +
-                "3. מחפשים **APK Bridge** ולוחצים עליו (אם לא רואים — מחפשים תחת **אפליקציות מותקנות** או **שירותים שהורדו**).\n" +
+                "3. מחפשים **הבוס** ולוחצים עליו (אם לא רואים — מחפשים תחת **אפליקציות מותקנות** או **שירותים שהורדו**).\n" +
                 "4. מדליקים את המתג ומאשרים.",
-            warn = "אם המתג אפור ולא נלחץ (נפוץ באנדרואיד 13 ומעלה): הגדרות ← **אפליקציות** ← **APK Bridge** ← **שלוש הנקודות ⋮** למעלה ← **אפשר הגדרות מוגבלות**. אחר כך חוזרים לכאן ומנסים שוב.",
+            warn = "אם המתג אפור ולא נלחץ (נפוץ באנדרואיד 13 ומעלה): הגדרות ← **אפליקציות** ← **הבוס** ← **שלוש הנקודות ⋮** למעלה ← **אפשר הגדרות מוגבלות**. אחר כך חוזרים לכאן ומנסים שוב.",
             actions = listOf(
                 "הפעל צימוד אוטומטי" to { openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
                 "פרטי האפליקציה (אם המתג אפור)" to { openAppDetails() },
@@ -467,8 +507,8 @@ class GuideActivity : Activity() {
                 "2. לוחצים **על המילים** ניפוי באגים אלחוטי (לא על המתג) — כדי להיכנס פנימה.\n" +
                 "3. לוחצים על **התאמת מכשיר עם קוד התאמה**.\n" +
                 "4. נפתח חלון עם **קוד של 6 ספרות**.\n" +
-                "5. **לא עושים כלום — רק מחכים כמה שניות.** APK Bridge קוראת את הקוד ומבצעת את הצימוד לבד.\n" +
-                "6. מופיעה הודעה **APK Bridge צומד בהצלחה** — ומטר קונפטי 🎉",
+                "5. **לא עושים כלום — רק מחכים כמה שניות.** הבוס קורא את הקוד ומבצע את הצימוד לבד.\n" +
+                "6. מופיעה הודעה **הבוס צומד בהצלחה** — ומטר קונפטי 🎉",
             tip = "אם לא הדלקת צימוד אוטומטי: לוחצים כאן **צימוד עם קוד דרך התראה**, נכנסים ל**התאמת מכשיר עם קוד התאמה**, מושכים את ההתראות מלמעלה ← **הזן קוד** ← מקלידים את 6 הספרות. לא סוגרים את חלון הקוד בזמן הזה.",
             actions = listOf(
                 "פתח אפשרויות למפתחים" to { openDeveloperOptions() },
@@ -545,7 +585,7 @@ class GuideActivity : Activity() {
             copies = listOf("פקודה" to "adb tcpip 5555"),
         ),
         Step(
-            title = "לבדוק ב־APK Bridge",
+            title = "לבדוק באפליקציית הבוס",
             body = "1. לוחצים על **בדוק חיבור** כאן למטה.\n" +
                 "2. אם מופיעה שוב השאלה **לאפשר ניפוי באגים?** — מסמנים ✔ **אפשר תמיד** ומאשרים.\n" +
                 "3. אם כתוב **מחובר ומוכן** — סיימתם! 🎉",
@@ -600,7 +640,7 @@ class GuideActivity : Activity() {
     }
 
     private fun copy(text: String) {
-        getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("APK Bridge", text))
+        getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("הבוס", text))
         Toast.makeText(this, "הועתק.", Toast.LENGTH_SHORT).show()
     }
 

@@ -37,6 +37,11 @@ class SettingsActivity : Activity() {
 
     private val stateListener: (BridgeState) -> Unit = { if (!it.busy) refresh() }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        Celebration.onFocus(this, hasFocus)
+    }
+
     override fun onPause() {
         Celebration.onPause(this)
         super.onPause()
@@ -77,7 +82,7 @@ class SettingsActivity : Activity() {
         // Automatic install
         val auto = card(page)
         auto.addView(heading("התקנה אוטומטית"), matchWrap())
-        auto.addView(body("מה לעשות כשקובץ APK / APKS / XAPK / APKM נפתח או משותף אל APK Bridge מאפליקציה אחרת (מנהל קבצים, דפדפן, טלגרם…):"), matchWrap(4))
+        auto.addView(body("מה לעשות כשקובץ APK / APKS / XAPK / APKM נפתח או משותף אל הבוס מאפליקציה אחרת (מנהל קבצים, דפדפן, טלגרם…):"), matchWrap(4))
         auto.addView(radios(
             listOf("off" to "כבוי — רק לבחור את הקובץ, ולהתקין בלחיצה", "ask" to "לשאול אותי לפני ההתקנה", "auto" to "להתקין מיד בלי לשאול"),
             Bridge.autoInstallMode,
@@ -96,7 +101,7 @@ class SettingsActivity : Activity() {
             listOf("ask" to "לשאול אם לפתוח", "auto" to "לפתוח מיד", "never" to "לא לפתוח"),
             Bridge.openAfterInstall,
         ) { Bridge.openAfterInstall = it }, matchWrap(4))
-        after.addView(checkBox("התראה על סיום התקנה כש־APK Bridge ברקע", Bridge.installNotifications) {
+        after.addView(checkBox("התראה על סיום התקנה כשאפליקציית הבוס ברקע", Bridge.installNotifications) {
             Bridge.installNotifications = it
         }, matchWrap(0))
 
@@ -106,7 +111,7 @@ class SettingsActivity : Activity() {
         pair.addView(checkBox("הגדרה אוטומטית אחרי חיבור מוצלח (הרשאות, נגישות, סוללה, עזר Wi‑Fi)", Bridge.autoSetupEnabled) {
             Bridge.autoSetupEnabled = it
         }, matchWrap(0))
-        pair.addView(note("אחרי חיבור ADB ראשון APK Bridge נותן לעצמו דרך ADB: הדלקה אוטומטית של ניפוי באגים, התראות, התקנת אפליקציות, החרגה מחיסכון בסוללה ושירות הנגישות — ומתקין את עזר ה־Wi‑Fi."), matchWrap(12))
+        pair.addView(note("אחרי חיבור ADB ראשון הבוס נותן לעצמו דרך ADB: הדלקה אוטומטית של ניפוי באגים, התראות, התקנת אפליקציות, החרגה מחיסכון בסוללה ושירות הנגישות — ומתקין את עזר ה־Wi‑Fi."), matchWrap(12))
         pair.addView(checkBox("צימוד אוטומטי: לזהות את קוד הצימוד מהמסך (נגישות)", Bridge.accessibilityAutoPair) {
             Bridge.accessibilityAutoPair = it
             refresh()
@@ -143,7 +148,7 @@ class SettingsActivity : Activity() {
         pair.addView(button("שכח צימוד (מחק מפתח ADB)", false) {
             AlertDialog.Builder(this)
                 .setTitle("לשכוח את הצימוד?")
-                .setMessage("מפתח ה־ADB של APK Bridge יימחק ויהיה צורך לצמד מחדש. מומלץ גם למחוק את \"APK Bridge\" מרשימת המכשירים המצומדים בהגדרות ניפוי הבאגים האלחוטי.")
+                .setMessage("מפתח ה־ADB של הבוס יימחק ויהיה צורך לצמד מחדש. מומלץ גם למחוק את \"apkbridge\" מרשימת המכשירים המותאמים בהגדרות ניפוי הבאגים האלחוטי.")
                 .setPositiveButton("מחק") { _, _ -> Bridge.forgetPairing(); toast("הצימוד נמחק.") }
                 .setNegativeButton("ביטול", null)
                 .show()
@@ -172,9 +177,9 @@ class SettingsActivity : Activity() {
         // Already enabled → no button to enable it.
         a11yButton.visibility = if (enabled || !Bridge.accessibilityAutoPair) View.GONE else View.VISIBLE
         a11yState.text = when {
-            !Bridge.accessibilityAutoPair -> "כבוי ב־APK Bridge (השירות לא יפעל גם אם מופעל בנגישות)."
+            !Bridge.accessibilityAutoPair -> "כבוי באפליקציית הבוס (השירות לא יפעל גם אם מופעל בנגישות)."
             enabled -> "✔ שירות הנגישות מופעל."
-            else -> "שירות הנגישות עדיין לא מופעל: הגדרות נגישות ← APK Bridge ← הפעל."
+            else -> "שירות הנגישות עדיין לא מופעל: הגדרות נגישות ← הבוס ← הפעל."
         }
         wirelessState.text = if (Bridge.canWriteSecureSettings()) {
             "✔ להרשאה הדרושה יש אישור."
@@ -184,7 +189,7 @@ class SettingsActivity : Activity() {
         val helper = Bridge.isWifiHelperInstalled()
         wifiHelperState.text = when {
             helper -> "✔ עזר ה־Wi‑Fi מותקן: Wi‑Fi כבוי יודלק לבד, בלי הקשה."
-            Bridge.isWifiHelperBundled() -> "בלי עזר ה־Wi‑Fi תיפתח חלונית Wi‑Fi שבה צריך להקיש פעם אחת. עזר ה־Wi‑Fi הוא אפליקציה קטנה (מובנית ב־APK Bridge) שבנויה ל־Android 9, ולכן Android עדיין מרשה לה להדליק Wi‑Fi — כמו Termux:API. ההתקנה חד־פעמית דרך מתקין האפליקציות של Android — לא נדרש ניפוי באגים."
+            Bridge.isWifiHelperBundled() -> "בלי עזר ה־Wi‑Fi תיפתח חלונית Wi‑Fi שבה צריך להקיש פעם אחת. עזר ה־Wi‑Fi הוא אפליקציה קטנה (מובנית באפליקציית הבוס) שבנויה ל־Android 9, ולכן Android עדיין מרשה לה להדליק Wi‑Fi — כמו Termux:API. ההתקנה חד־פעמית דרך מתקין האפליקציות של Android — לא נדרש ניפוי באגים."
             else -> "עזר ה־Wi‑Fi לא נכלל בגרסה הזו."
         }
         wifiHelperButton.visibility = if (!helper && Bridge.isWifiHelperBundled()) View.VISIBLE else View.GONE

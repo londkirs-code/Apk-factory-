@@ -237,7 +237,7 @@ class TerminalActivity : Activity() {
             running -> "מריץ…"
             state.busy -> "עסוק…"
             Bridge.isPaired || Bridge.keepAdbWithoutWifi -> "Android ${Build.VERSION.RELEASE} · ${Build.MODEL}"
-            else -> "לא מצומד — בצע צימוד קודם ב־APK Bridge"
+            else -> "לא מצומד — בצע צימוד קודם באפליקציית הבוס"
         }
         subtitle.setTextColor(if (running) HEADER_TEXT else HEADER_SUB)
         sendButton.text = if (running) "■" else "➤"
@@ -424,7 +424,7 @@ class TerminalActivity : Activity() {
                 }
                 renderMeta(msg)
                 if (currentReply == null) {
-                    addMessage(Message(false, now(), if (code == null) "הפקודה לא הושלמה. הסיבה מופיעה ביומן של APK Bridge." else "(אין פלט)"))
+                    addMessage(Message(false, now(), if (code == null) "הפקודה לא הושלמה. הסיבה מופיעה ביומן של הבוס." else "(אין פלט)"))
                 }
                 current = null
                 currentReply = null
@@ -486,6 +486,7 @@ class TerminalActivity : Activity() {
     /** When the user returns with a new command on the clipboard (e.g. copied from a guide), ask once. */
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        Celebration.onFocus(this, hasFocus)
         if (!hasFocus || !prefs().getBoolean("clipboard_detect", true) || Bridge.state.busy) return
         val text = clipboardText() ?: return
         val key = text.hashCode()

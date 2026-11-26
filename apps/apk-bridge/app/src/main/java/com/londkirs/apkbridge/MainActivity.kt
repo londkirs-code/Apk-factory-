@@ -95,8 +95,8 @@ class MainActivity : Activity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("להתקין את עזר ה־Wi‑Fi?")
             .setMessage(
-                "אפליקציה זעירה שמאפשרת ל־APK Bridge להדליק Wi‑Fi לבד כשהוא כבוי (ניפוי באגים אלחוטי עובד רק עם Wi‑Fi).\n\n" +
-                    "ההתקנה נעשית דרך מתקין האפליקציות הרגיל של Android — בלי ניפוי באגים. ייתכן שתתבקש פעם אחת לאשר ל־APK Bridge להתקין אפליקציות.\n\n" +
+                "אפליקציה זעירה שמאפשרת לאפליקציית הבוס להדליק Wi‑Fi לבד כשהוא כבוי (ניפוי באגים אלחוטי עובד רק עם Wi‑Fi).\n\n" +
+                    "ההתקנה נעשית דרך מתקין האפליקציות הרגיל של Android — בלי ניפוי באגים. ייתכן שתתבקש פעם אחת לאשר לאפליקציית הבוס להתקין אפליקציות.\n\n" +
                     "אפשר להתקין גם מאוחר יותר: ⚙ הגדרות ← צימוד וחיבור."
             )
             .setPositiveButton("התקן") { _, _ -> HelperInstaller.start(this) }
@@ -108,7 +108,7 @@ class MainActivity : Activity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("ADB קבוע (גם בלי Wi‑Fi)")
             .setMessage(
-                "APK Bridge יעביר את ADB למצב רשת רגיל בפורט 5555 (כמו adb tcpip 5555), ויתחבר אליו דרך הכתובת הפנימית של המכשיר — כך הוא עובד גם כשה־Wi‑Fi כבוי.\n\n" +
+                "הבוס יעביר את ADB למצב רשת רגיל בפורט 5555 (כמו adb tcpip 5555), ויתחבר אליו דרך הכתובת הפנימית של המכשיר — כך הוא עובד גם כשה־Wi‑Fi כבוי.\n\n" +
                     "• בפעם הראשונה Android ישאל \"לאפשר ניפוי באגים?\" — סמן \"אפשר תמיד\" ואשר.\n" +
                     "• ניפוי באגים ב־USB יודלק (נדרש כדי ש־ADB יישאר פעיל).\n" +
                     "• המצב נמחק בהפעלה מחדש של המכשיר, ומתחדש אוטומטית בחיבור הבא דרך Wi‑Fi.\n" +
@@ -171,6 +171,11 @@ class MainActivity : Activity() {
         refreshConnectionInfo()
         refreshOptionsSummary()
         applyLogExpanded()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        Celebration.onFocus(this, hasFocus)
     }
 
     override fun onPause() {
@@ -250,7 +255,7 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(10) })
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titles.addView(TextView(this).apply {
-            text = "APK Bridge"
+            text = "הבוס"
             textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(INK)
@@ -457,7 +462,7 @@ class MainActivity : Activity() {
 
         val tip = card(page)
         tip.addView(heading("טיפ"), matchWrap())
-        tip.addView(body("אפשר גם לפתוח או לשתף קובץ APK מכל אפליקציה (מנהל קבצים, דפדפן, וואטסאפ, טלגרם) ולבחור ב־APK Bridge — והוא יותקן לפי ההגדרות."), matchWrap(0))
+        tip.addView(body("אפשר גם לפתוח או לשתף קובץ APK מכל אפליקציה (מנהל קבצים, דפדפן, וואטסאפ, טלגרם) ולבחור באפליקציית הבוס — והוא יותקן לפי ההגדרות."), matchWrap(0))
     }
 
     private fun card(parent: LinearLayout) = LinearLayout(this).apply {
@@ -593,8 +598,8 @@ class MainActivity : Activity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("צימוד אוטומטי")
             .setMessage(
-                "APK Bridge יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד הצימוד והפורט ויבצע את הצימוד בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n" +
-                    "במסך הבא: בחר \"APK Bridge\" ← הפעל.\n\n" +
+                "הבוס יקרא רק את מסכי ההגדרות (com.android.settings), יזהה את קוד הצימוד והפורט ויבצע את הצימוד בעצמו. שום מידע לא נשמר או נשלח מחוץ למכשיר.\n\n" +
+                    "במסך הבא: בחר \"הבוס\" ← הפעל.\n\n" +
                     "אם האפשרות אפורה (Android 13+): פתח פרטי אפליקציה ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", וחזור לכאן."
             )
             .setPositiveButton("להגדרות נגישות") { _, _ -> openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) }
@@ -636,7 +641,7 @@ class MainActivity : Activity() {
         a11yText.text = if (a11y) {
             "✔ צימוד אוטומטי פעיל: פתח \"התאמת מכשיר עם קוד התאמה\" בהגדרות, והקוד יזוהה ויוזן לבד."
         } else {
-            "צימוד אוטומטי: APK Bridge יכול לקרוא את קוד הצימוד מהמסך ולצמד בעצמו (דורש הפעלת שירות נגישות)."
+            "צימוד אוטומטי: הבוס יכול לקרוא את קוד הצימוד מהמסך ולצמד בעצמו (דורש הפעלת שירות נגישות)."
         }
         // Permission already granted → no "enable" button.
         a11yButton.visibility = if (a11y) View.GONE else View.VISIBLE
@@ -922,7 +927,7 @@ class MainActivity : Activity() {
 
     private fun copyLog() {
         val cm = getSystemService(ClipboardManager::class.java) ?: return
-        cm.setPrimaryClip(ClipData.newPlainText("APK Bridge log", Bridge.logSnapshot()))
+        cm.setPrimaryClip(ClipData.newPlainText("הבוס log", Bridge.logSnapshot()))
         toast("היומן הועתק.")
     }
 

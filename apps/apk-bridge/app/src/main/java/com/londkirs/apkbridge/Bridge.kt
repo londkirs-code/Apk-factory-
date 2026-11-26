@@ -86,7 +86,7 @@ object Bridge {
     private const val INSTALL_CHANNEL = "installs"
     const val LEGACY_PORT = 5555
     val LEGACY_HELP = "ב־Android ${Build.VERSION.RELEASE} אין ניפוי באגים אלחוטי עם קוד צימוד (קיים רק מ־Android 11). " +
-        "כדי להשתמש ב־APK Bridge: הפעל \"ניפוי באגים ב־USB\" באפשרויות למפתחים, חבר פעם אחת למחשב והרץ: adb tcpip 5555 — " +
+        "כדי להשתמש באפליקציית הבוס: הפעל \"ניפוי באגים ב־USB\" באפשרויות למפתחים, חבר פעם אחת למחשב והרץ: adb tcpip 5555 — " +
         "ואז אפשר לנתק את הכבל. יש לחזור על כך אחרי כל הפעלה מחדש של המכשיר."
     const val WIFI_HELPER_PKG = "com.londkirs.apkbridge.wifihelper"
     private const val WIFI_HELPER_ACTION = "com.londkirs.apkbridge.wifihelper.ENABLE_WIFI"
@@ -106,10 +106,13 @@ object Bridge {
 
     @Volatile private var currentJob: Job? = null
 
-    @Volatile private var celebrationPending = false
+    /** Saved, so a celebration that is still waiting survives the app being closed. */
+    private var celebrationPending: Boolean
+        get() = prefs.getBoolean("celebration_pending", false)
+        set(value) { prefs.edit().putBoolean("celebration_pending", value).commit() }
 
     /** True once per successful pairing; the screen that shows the confetti consumes it. */
-    fun consumeCelebration(): Boolean = celebrationPending.also { celebrationPending = false }
+    fun consumeCelebration(): Boolean = synchronized(this) { celebrationPending.also { if (it) celebrationPending = false } }
 
     /** Set when a "test connection" (or connection after pairing) reached the device in this session. */
     @Volatile var lastConnectionOk = false
@@ -263,7 +266,7 @@ object Bridge {
         }
         log("אין חיבור Wi‑Fi — פותח את חלונית ה־Wi‑Fi של Android.")
         if (wifiPanelListeners.isEmpty()) {
-            notifyInfo("APK Bridge צריך Wi‑Fi", "הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", Compat.wifiPanelIntent())
+            notifyInfo("הבוס צריך Wi‑Fi", "הקש כדי להדליק Wi‑Fi. הפעולה תמשיך אוטומטית.", Compat.wifiPanelIntent())
         } else {
             main.post { wifiPanelListeners.forEach { it() } }
         }
@@ -553,7 +556,7 @@ object Bridge {
     fun autoPair(port: Int, code: String) = runJob("הצימוד האוטומטי") {
         status("זוהה קוד צימוד במסך — מבצע צימוד אוטומטית…")
         if (pairNow(LOCAL_HOST, port, code)) {
-            notifyInfo("APK Bridge צומד בהצלחה", "הצימוד האוטומטי הצליח. אפשר לחזור ל־APK Bridge ולהתקין.", null)
+            notifyInfo("הבוס צומד בהצלחה", "הצימוד האוטומטי הצליח. אפשר לחזור לאפליקציית הבוס ולהתקין.", null)
             status("הצימוד האוטומטי הצליח. בודק חיבור…")
             withClient { describeDevice(it) }
         } else {
@@ -608,7 +611,7 @@ object Bridge {
                 }
             } catch (e: AdbException.NotPaired) {
                 isPaired = false
-                throw IllegalStateException("המכשיר דחה את המפתח של APK Bridge. יש לבצע צימוד מחדש.", e)
+                throw IllegalStateException("המכשיר דחה את המפתח של הבוס. יש לבצע צימוד מחדש.", e)
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 lastError = e
                 log("החיבור ל־${ep.port} לא הגיב בזמן.")
@@ -699,7 +702,7 @@ object Bridge {
         val ok = runCatching { connectLegacy(60_000).close() }.isSuccess
         if (ok) {
             prefs.edit().putBoolean("legacy_authorized", true).apply()
-            status("✔ ADB קבוע פעיל: APK Bridge יעבוד גם כשה־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר.")
+            status("✔ ADB קבוע פעיל: הבוס יעבוד גם כשה־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר.")
         } else {
             log("החיבור הקבוע עדיין לא אושר; ינוסה שוב בפעולה הבאה.")
         }
@@ -805,7 +808,7 @@ object Bridge {
         val c = connectLegacy(90_000)
         try {
             val model = c.shell("getprop ro.product.model").stdoutText.trim()
-            status("✔ ADB קבוע פעיל ($model): APK Bridge יעבוד גם כש־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר. אחרי הפעלה מחדש הוא יחודש אוטומטית בחיבור הראשון דרך Wi‑Fi.")
+            status("✔ ADB קבוע פעיל ($model): הבוס יעבוד גם כש־Wi‑Fi כבוי, עד ההפעלה מחדש הבאה של המכשיר. אחרי הפעלה מחדש הוא יחודש אוטומטית בחיבור הראשון דרך Wi‑Fi.")
         } finally {
             runCatching { c.close() }
         }
@@ -1229,14 +1232,14 @@ object Bridge {
     }
 
     fun grantAutoEnable() = runJob("הענקת ההרשאה") {
-        status("מעניק ל־APK Bridge הרשאה להפעיל ניפוי באגים אלחוטי בעצמו…")
+        status("מעניק לאפליקציית הבוס הרשאה להפעיל ניפוי באגים אלחוטי בעצמו…")
         withClient { client ->
             val r = client.shell("pm grant ${app.packageName} android.permission.WRITE_SECURE_SETTINGS")
             val out = (r.stdoutText + r.stderrText).trim()
             if (r.exitCode != 0) error(out.ifBlank { "exit ${r.exitCode}" })
         }
         status(
-            if (canWriteSecureSettings()) "✔ ההרשאה ניתנה. מעכשיו APK Bridge יפעיל את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (כל עוד יש Wi‑Fi)."
+            if (canWriteSecureSettings()) "✔ ההרשאה ניתנה. מעכשיו הבוס יפעיל את ניפוי הבאגים האלחוטי בעצמו כשהוא כבוי (כל עוד יש Wi‑Fi)."
             else "הפקודה נשלחה; ההרשאה תיכנס לתוקף לאחר הפעלה מחדש של האפליקציה."
         )
     }
