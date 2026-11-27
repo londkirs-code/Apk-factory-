@@ -114,24 +114,26 @@ class MainActivity : Activity() {
             setTextColor(mutedColor)
             setPadding(0, dp(4), 0, 0)
         })
-        if (supported) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(10), 0, 0)
-            }
-            val gap = { LinearLayout.LayoutParams(dp(8), 1) }
-            if (installed) {
-                row.addView(smallButton(getString(R.string.start_agy), true) { openTerminal(TerminalService.KIND_AGY) })
-                row.addView(View(this), gap())
-                row.addView(smallButton(getString(R.string.shell), false) { openTerminal(TerminalService.KIND_SHELL) })
-                row.addView(View(this), gap())
-                row.addView(smallButton(getString(R.string.update), false) { install() })
-            } else {
-                row.addView(smallButton(getString(R.string.install_agy), true) { install() })
-            }
-            card.addView(row)
+        // Shell is always available; agy can be started whenever it is installed.
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, 0)
         }
+        val gap = { LinearLayout.LayoutParams(dp(8), 1) }
+        if (installed) {
+            row.addView(smallButton(getString(R.string.start_agy), true) { openTerminal(TerminalService.KIND_AGY) })
+            row.addView(View(this), gap())
+        } else if (supported) {
+            row.addView(smallButton(getString(R.string.install_agy), true) { install() })
+            row.addView(View(this), gap())
+        }
+        row.addView(smallButton(getString(R.string.shell), false) { openTerminal(TerminalService.KIND_SHELL) })
+        if (installed && supported) {
+            row.addView(View(this), gap())
+            row.addView(smallButton(getString(R.string.update), false) { install() })
+        }
+        card.addView(row)
         localBox.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
     }
 

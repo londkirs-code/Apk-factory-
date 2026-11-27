@@ -1,0 +1,70 @@
+{
+  "name": "antigravity-install-and-start-agy",
+  "grant_permissions": true,
+  "steps": [
+    {
+      "action": "launch",
+      "clear_data": true
+    },
+    {
+      "action": "wait_for",
+      "text": "Antigravity",
+      "timeout": 20
+    },
+    {
+      "action": "tap",
+      "text": "Install agy",
+      "optional": true
+    },
+    {
+      "action": "wait",
+      "seconds": 3,
+      "optional": true
+    },
+    {
+      "action": "screenshot",
+      "name": "installing",
+      "optional": true
+    },
+    {
+      "action": "wait_gone",
+      "text": "Installing Antigravity CLI",
+      "timeout": 300,
+      "optional": true
+    },
+    {
+      "action": "wait",
+      "seconds": 8
+    },
+    {
+      "action": "screenshot",
+      "name": "after-install"
+    },
+    {
+      "action": "back",
+      "optional": true
+    },
+    {
+      "action": "wait_for",
+      "text": "Start Antigravity",
+      "timeout": 20,
+      "optional": true
+    },
+    {
+      "action": "tap",
+      "text": "Start Antigravity",
+      "optional": true
+    },
+    {
+      "action": "wait",
+      "seconds": 12
+    },
+    {
+      "action": "screenshot",
+      "name": "agy-running"
+    },
+    {
+      "action": "assert_foreground"
+    }
+  ]
+}
