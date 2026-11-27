@@ -1,16 +1,21 @@
 <resources>
-    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+    <!-- Colours are painted at runtime from the theme tokens (Theme.kt); this only avoids a flash on start. -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#1F6FEB</item>
+        <item name="android:colorPrimaryDark">#FFFFFF</item>
+        <item name="android:colorAccent">#1F6FEB</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:textColorHighlight">#551F6FEB</item>
+    </style>
+    <style name="TerminalTheme" parent="android:Theme.Material.NoActionBar">
         <item name="android:colorPrimary">#1A1F36</item>
         <item name="android:colorPrimaryDark">#0E1222</item>
         <item name="android:colorAccent">#7C8CFF</item>
         <item name="android:windowBackground">#0E1222</item>
         <item name="android:statusBarColor">#0E1222</item>
         <item name="android:navigationBarColor">#0E1222</item>
-    </style>
-    <style name="ChatTheme" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:colorAccent">#087E55</item>
-        <item name="android:windowBackground">#FFFFFF</item>
-        <item name="android:statusBarColor">#FFFFFF</item>
-        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

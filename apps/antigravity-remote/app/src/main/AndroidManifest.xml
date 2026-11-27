@@ -4,8 +4,17 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Saving pictures to the gallery on Android 9 and older. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -27,20 +36,42 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/AppTheme">
 
+        <!-- Home: the list of chats (also the archive). -->
         <activity
             android:name=".MainActivity"
-            android:theme="@style/ChatTheme"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".SetupActivity" android:exported="false" />
+        <activity android:name=".SettingsActivity" android:exported="false" />
+        <activity android:name=".ConnectionsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ChatInfoActivity" android:exported="false" />
+        <activity android:name=".StarredActivity" android:exported="false" />
+        <activity android:name=".GalleryActivity" android:exported="false" />
+        <activity android:name=".TemplatesActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".MediaViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+
+        <receiver android:name=".NotifReceiver" android:exported="false" />
+
+        <!-- Shares the app's own files (pictures, videos, camera output) with other apps on request. -->
+        <provider
+            android:name=".FilesProvider"
+            android:authorities="com.londkirs.antigravityremote.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <!-- Built-in terminal running Google's official Android build of agy. -->
         <activity
             android:name=".TerminalActivity"
+            android:theme="@style/TerminalTheme"
             android:exported="false"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|smallestScreenSize|uiMode|density|navigation"
@@ -48,12 +79,7 @@
 
         <!-- WhatsApp-style chat with agy running on the phone (via its local hub). -->
         <activity
-            android:name=".ChatListActivity"
-            android:theme="@style/ChatTheme"
-            android:exported="false" />
-        <activity
             android:name=".ChatActivity"
-            android:theme="@style/ChatTheme"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
@@ -63,7 +89,6 @@
 
         <activity
             android:name=".WebActivity"
-            android:theme="@style/ChatTheme"
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|smallestScreenSize|uiMode|density"
             android:windowSoftInputMode="adjustResize">

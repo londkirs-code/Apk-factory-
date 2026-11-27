@@ -29,10 +29,8 @@ import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
 
 class WebActivity : Activity() {
 
@@ -75,23 +73,25 @@ class WebActivity : Activity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        T.init(this)
         super.onCreate(savedInstanceState)
+        paintWindow(this)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#0E1222"))
+            setBackgroundColor(T.bg)
         }
 
         // Compact toolbar so the remote session gets almost the whole screen.
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(ChatUi.SURFACE)
+            setBackgroundColor(T.bar)
             setPadding(dp(4), 0, dp(4), 0)
         }
-        bar.addView(iconButton(R.drawable.ic_chat_back, R.string.back) { goBack() })
+        bar.addView(iconButton(R.drawable.ic_back, R.string.back) { goBack() })
         title = TextView(this).apply {
-            setTextColor(ChatUi.TEXT)
+            setTextColor(T.text)
             textSize = 14f
             setSingleLine()
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -173,10 +173,7 @@ class WebActivity : Activity() {
         return Connections.OFFICIAL_URL
     }
 
-    private fun iconButton(icon: Int, desc: Int, onClick: () -> Unit) = ChatUi.icon(this, icon, desc).apply {
-        layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
-        setOnClickListener { onClick() }
-    }
+    private fun iconButton(icon: Int, desc: Int, onClick: () -> Unit) = Ui.iconButton(this, icon, getString(desc), T.text) { onClick() }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
@@ -246,7 +243,7 @@ class WebActivity : Activity() {
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (!request.isForMainFrame) return
                 val msg = if (!isOnline()) getString(R.string.offline) else error.description.toString()
-                Toast.makeText(this@WebActivity, getString(R.string.load_error, msg), Toast.LENGTH_LONG).show()
+                Snack.show(this@WebActivity, getString(R.string.load_error, msg), long = true)
             }
         }
 
@@ -303,7 +300,7 @@ class WebActivity : Activity() {
                     setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
                 }
                 (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
-                Toast.makeText(this, R.string.download_started, Toast.LENGTH_SHORT).show()
+                Snack.show(this, getString(R.string.download_started))
             } catch (e: Exception) {
                 Connections.openInChrome(this, url)
             }
@@ -342,7 +339,7 @@ class WebActivity : Activity() {
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             handlePermission(req)
         } else {
-            Toast.makeText(this, R.string.mic_denied, Toast.LENGTH_SHORT).show()
+            Snack.show(this, getString(R.string.mic_denied))
             req.deny()
         }
     }
@@ -356,54 +353,39 @@ class WebActivity : Activity() {
     }
 
     private fun showMenu(anchor: View) {
-        val menu = PopupMenu(this, anchor)
-        menu.menu.add(0, MENU_DESKTOP, 0, R.string.desktop_mode).apply {
-            isCheckable = true; isChecked = prefs.getBoolean("desktop", false)
+        fun check(on: Boolean) = if (on) R.drawable.ic_check_circle else R.drawable.ic_circle
+        val m = Menu(this)
+        m.item(check(prefs.getBoolean("desktop", false)), getString(R.string.desktop_mode)) {
+            prefs.edit().putBoolean("desktop", !prefs.getBoolean("desktop", false)).apply()
+            applyUserAgent(); web.reload()
         }
-        menu.menu.add(0, MENU_SCREEN, 1, R.string.keep_screen_on).apply {
-            isCheckable = true; isChecked = prefs.getBoolean("screen_on", true)
+        m.item(check(prefs.getBoolean("screen_on", true)), getString(R.string.keep_screen_on)) {
+            prefs.edit().putBoolean("screen_on", !prefs.getBoolean("screen_on", true)).apply()
+            applyKeepScreenOn()
         }
-        menu.menu.add(0, MENU_CHROME, 2, R.string.open_externally)
-        menu.menu.add(0, MENU_HOME, 3, R.string.home)
+        m.item(R.drawable.ic_open, getString(R.string.open_externally)) { Connections.openInChrome(this, web.url ?: Connections.OFFICIAL_URL) }
+        m.item(R.drawable.ic_chat, getString(R.string.home)) {
+            startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+            finish()
+        }
         if (isHubUrl(web.url)) {
-            menu.menu.add(0, MENU_REC, 4, if (recorder.enabled) R.string.rec_stop else R.string.rec_start)
-            menu.menu.add(0, MENU_REC_NOTE, 5, R.string.rec_note)
-            menu.menu.add(0, MENU_REC_SHARE, 6, getString(R.string.rec_share, recorder.entries()))
-            menu.menu.add(0, MENU_REC_CLEAR, 7, R.string.rec_clear)
-        }
-        menu.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                MENU_DESKTOP -> {
-                    prefs.edit().putBoolean("desktop", !prefs.getBoolean("desktop", false)).apply()
-                    applyUserAgent()
-                    web.reload()
-                }
-                MENU_SCREEN -> {
-                    prefs.edit().putBoolean("screen_on", !prefs.getBoolean("screen_on", true)).apply()
-                    applyKeepScreenOn()
-                }
-                MENU_CHROME -> Connections.openInChrome(this, web.url ?: Connections.OFFICIAL_URL)
-                MENU_REC -> {
-                    recorder.enabled = !recorder.enabled
-                    updateRecBadge()
-                    if (recorder.enabled) {
-                        recorder.note("recording started")
-                        Toast.makeText(this, R.string.rec_started_hint, Toast.LENGTH_LONG).show()
-                        web.reload() // capture the page's startup calls too
-                    }
-                }
-                MENU_REC_NOTE -> addNote()
-                MENU_REC_SHARE -> recorder.export()?.let { startActivity(Intent.createChooser(it, getString(R.string.rec_share_title))) }
-                    ?: Toast.makeText(this, R.string.rec_empty, Toast.LENGTH_SHORT).show()
-                MENU_REC_CLEAR -> { recorder.clear(); Toast.makeText(this, R.string.rec_cleared, Toast.LENGTH_SHORT).show() }
-                MENU_HOME -> {
-                    startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
-                    finish()
+            m.item(if (recorder.enabled) R.drawable.ic_stop else R.drawable.ic_mic, getString(if (recorder.enabled) R.string.rec_stop else R.string.rec_start)) {
+                recorder.enabled = !recorder.enabled
+                updateRecBadge()
+                if (recorder.enabled) {
+                    recorder.note("recording started")
+                    Snack.show(this, getString(R.string.rec_started_hint), long = true)
+                    web.reload() // capture the page's startup calls too
                 }
             }
-            true
+            m.item(R.drawable.ic_edit, getString(R.string.rec_note)) { addNote() }
+            m.item(R.drawable.ic_share, getString(R.string.rec_share, recorder.entries())) {
+                recorder.export()?.let { startActivity(Intent.createChooser(it, getString(R.string.rec_share_title))) }
+                    ?: Snack.show(this, getString(R.string.rec_empty))
+            }
+            m.item(R.drawable.ic_delete, getString(R.string.rec_clear)) { recorder.clear(); Snack.show(this, getString(R.string.rec_cleared)) }
         }
-        menu.show()
+        m.show(anchor)
     }
 
     private fun updateRecBadge() {
@@ -412,15 +394,9 @@ class WebActivity : Activity() {
 
     /** Labels the next part of the recording ("attached an image", "typed /"…). */
     private fun addNote() {
-        val input = android.widget.EditText(this).apply { setHint(R.string.rec_note_hint) }
-        android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.rec_note)
-            .setView(input)
-            .setPositiveButton(R.string.save) { _, _ ->
-                input.text.toString().trim().takeIf { it.isNotEmpty() }?.let { recorder.note(it) }
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
+        Ui.prompt(this, getString(R.string.rec_note), "", getString(R.string.rec_note_hint), getString(R.string.save)) { v ->
+            v.takeIf { it.isNotEmpty() }?.let { recorder.note(it) }
+        }
     }
 
     private fun applyUserAgent() {

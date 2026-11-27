@@ -1,7 +1,6 @@
 package com.londkirs.antigravityremote
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
@@ -20,9 +19,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.TextView
-import android.widget.Toast
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
@@ -61,6 +58,7 @@ class TerminalActivity : Activity(), ServiceConnection, TerminalService.Listener
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        T.init(this)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val root = LinearLayout(this).apply {
@@ -320,45 +318,28 @@ class TerminalActivity : Activity(), ServiceConnection, TerminalService.Listener
     // ---- Menu -----------------------------------------------------------------------------------
 
     private fun showMenu(anchor: View) {
-        val m = PopupMenu(this, anchor)
-        m.menu.add(0, MENU_NEW_AGY, 0, R.string.new_agy)
-        m.menu.add(0, MENU_NEW_SHELL, 1, R.string.new_shell)
-        if ((service?.sessions?.size ?: 0) > 1) m.menu.add(0, MENU_SWITCH, 2, R.string.switch_session)
-        m.menu.add(0, MENU_PASTE, 3, R.string.paste)
-        m.menu.add(0, MENU_KEYBOARD, 4, R.string.keyboard)
-        m.menu.add(0, MENU_FONT_UP, 5, R.string.font_bigger)
-        m.menu.add(0, MENU_FONT_DOWN, 6, R.string.font_smaller)
-        m.menu.add(0, MENU_CLOSE, 7, R.string.close_session)
-        m.menu.add(0, MENU_STOP_ALL, 8, R.string.stop_all)
-        m.setOnMenuItemClickListener { item ->
-            val s = service
-            when (item.itemId) {
-                MENU_NEW_AGY -> s?.let { show(it.startAgy()) }
-                MENU_NEW_SHELL -> s?.let { show(it.startShell()) }
-                MENU_SWITCH -> s?.let { svc ->
-                    val i = svc.sessions.indexOf(current)
-                    show(svc.sessions[(i + 1) % svc.sessions.size])
-                }
-                MENU_PASTE -> paste()
-                MENU_KEYBOARD -> toggleKeyboard()
-                MENU_FONT_UP -> changeFont(dp(1))
-                MENU_FONT_DOWN -> changeFont(-dp(1))
-                MENU_CLOSE -> current?.let { c -> confirm(R.string.close_session_confirm) { s?.remove(c) } }
-                MENU_STOP_ALL -> confirm(R.string.stop_all_confirm) {
-                    startService(Intent(this, TerminalService::class.java).setAction(TerminalService.ACTION_STOP))
-                    finish()
-                }
-            }
-            true
+        val s = service
+        val m = Menu(this)
+        m.item(R.drawable.ic_sparkle, getString(R.string.new_agy)) { s?.let { show(it.startAgy()) } }
+        m.item(R.drawable.ic_terminal, getString(R.string.new_shell)) { s?.let { show(it.startShell()) } }
+        if ((s?.sessions?.size ?: 0) > 1) m.item(R.drawable.ic_refresh, getString(R.string.switch_session)) {
+            s?.let { svc -> val i = svc.sessions.indexOf(current); show(svc.sessions[(i + 1) % svc.sessions.size]) }
         }
-        m.show()
+        m.item(R.drawable.ic_paste, getString(R.string.paste)) { paste() }
+        m.item(R.drawable.ic_textsize, getString(R.string.keyboard)) { toggleKeyboard() }
+        m.item(R.drawable.ic_add, getString(R.string.font_bigger)) { changeFont(dp(1)) }
+        m.item(R.drawable.ic_textsize, getString(R.string.font_smaller)) { changeFont(-dp(1)) }
+        m.item(R.drawable.ic_close, getString(R.string.close_session)) { current?.let { c -> confirm(R.string.close_session_confirm) { s?.remove(c) } } }
+        m.item(R.drawable.ic_stop, getString(R.string.stop_all), danger = true) {
+            confirm(R.string.stop_all_confirm) {
+                startService(Intent(this, TerminalService::class.java).setAction(TerminalService.ACTION_STOP))
+                finish()
+            }
+        }
+        m.show(anchor)
     }
 
-    private fun confirm(msg: Int, action: () -> Unit) {
-        AlertDialog.Builder(this).setMessage(msg)
-            .setPositiveButton(android.R.string.ok) { _, _ -> action() }
-            .setNegativeButton(R.string.cancel, null).show()
-    }
+    private fun confirm(msg: Int, action: () -> Unit) = Ui.confirm(this, getString(msg), getString(android.R.string.ok), danger = true) { action() }
 
     private fun changeFont(delta: Int) {
         fontSize = (fontSize + delta).coerceIn(dp(6), dp(30))

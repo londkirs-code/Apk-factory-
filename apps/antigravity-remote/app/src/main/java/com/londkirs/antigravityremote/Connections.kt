@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -76,7 +75,7 @@ object Connections {
             try {
                 ctx.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             } catch (e2: Exception) {
-                Toast.makeText(ctx, R.string.no_browser, Toast.LENGTH_SHORT).show()
+                (ctx as? android.app.Activity)?.let { Snack.show(it, it.getString(R.string.no_browser)) }
             }
         }
     }

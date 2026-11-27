@@ -79,6 +79,8 @@ class TerminalService : Service(), TerminalSessionClient {
         super.onCreate()
         AgyInstaller.prepareDirs(this)
         watchUrlFile()
+        // Keeps chat badges fresh and notifies while agents work in the background.
+        ChatWatcher.start(this)
     }
 
     override fun onDestroy() {
