@@ -18,6 +18,12 @@
       "optional": true
     },
     {
+      "action": "tap",
+      "regex": "^Wait$",
+      "timeout": 3,
+      "optional": true
+    },
+    {
       "action": "shell",
       "cmd": "run-as com.londkirs.antigravityremote sh -c 'mkdir -p files/bin && echo \"#!/system/bin/sh\" > files/bin/agy && echo \"echo STAND-IN-AGY started; pwd; echo BROWSER=\\$BROWSER; exit 0\" >> files/bin/agy && chmod 700 files/bin/agy && echo test-stand-in > files/agy.version && cat files/bin/agy'",
       "expect": "STAND-IN-AGY"
@@ -41,6 +47,12 @@
       "optional": true
     },
     {
+      "action": "tap",
+      "regex": "^Wait$",
+      "timeout": 3,
+      "optional": true
+    },
+    {
       "action": "wait_for",
       "text": "Start Antigravity",
       "timeout": 20
@@ -60,6 +72,12 @@
     {
       "action": "tap",
       "regex": "^Allow$",
+      "timeout": 3,
+      "optional": true
+    },
+    {
+      "action": "tap",
+      "regex": "^Wait$",
       "timeout": 3,
       "optional": true
     },

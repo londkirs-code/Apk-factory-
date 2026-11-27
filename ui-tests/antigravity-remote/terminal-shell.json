@@ -18,6 +18,12 @@
       "optional": true
     },
     {
+      "action": "tap",
+      "regex": "^Wait$",
+      "timeout": 3,
+      "optional": true
+    },
+    {
       "action": "wait_for",
       "text": "Antigravity on Android",
       "timeout": 20
@@ -37,6 +43,12 @@
     {
       "action": "tap",
       "regex": "^Allow$",
+      "timeout": 3,
+      "optional": true
+    },
+    {
+      "action": "tap",
+      "regex": "^Wait$",
       "timeout": 3,
       "optional": true
     },
