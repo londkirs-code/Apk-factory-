@@ -129,8 +129,12 @@ class TerminalService : Service(), TerminalSessionClient {
      */
     fun startHub(): TerminalSession {
         val agy = AgyInstaller.binary(this).absolutePath
+        // A fresh CSRF token per hub start: agy reads it from the environment (ResolveCsrfTokensFromEnv)
+        // and the app sends it back in x-antigravity-csrf-token.
+        val token = HubClient.newToken(this)
         val script = "cd \"\$HOME/projects\" 2>/dev/null || cd \"\$HOME\"\n" +
-            "export AGY_ENABLE_HUB=1 GOMEMLIMIT=1536MiB\n" +
+            "export AGY_ENABLE_HUB=1 GOMEMLIMIT=1536MiB AGY_NO_UPDATE_PROMPT=1\n" +
+            "export ANTIGRAVITY_SERVER_CSRF_TOKEN=$token ANTIGRAVITY_CSRF_TOKEN=$token\n" +
             "echo \"Starting Antigravity UI on http://localhost:$HUB_PORT ...\"\n" +
             "\"$agy\" --hub --hub-port=$HUB_PORT\n" +
             "rc=\$?\n" +

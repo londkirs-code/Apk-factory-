@@ -106,12 +106,12 @@ class ChatListActivity : Activity() {
                 text = DateUtils.getRelativeTimeSpanString(c.updated, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE)
                 textSize = 12f; setTextColor(ChatUi.MUTED); setPadding(dp(8), 0, 0, 0)
             })
-            texts.addView(top)
+            texts.addView(top, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
             texts.addView(TextView(this).apply {
                 text = c.preview.ifBlank { "…" }.replace('\n', ' ')
                 textSize = 14f; setTextColor(ChatUi.MUTED)
                 setSingleLine(); ellipsize = TextUtils.TruncateAt.END
-            })
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
             row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             list.addView(row)
             list.addView(View(this).apply { setBackgroundColor(Color.parseColor("#E9EDEF")) },

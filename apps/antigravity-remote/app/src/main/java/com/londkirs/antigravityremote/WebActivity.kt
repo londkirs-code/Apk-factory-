@@ -132,13 +132,21 @@ class WebActivity : Activity() {
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState)
         } else {
-            web.loadUrl(resolveStartUrl(intent))
+            load(resolveStartUrl(intent))
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        web.loadUrl(resolveStartUrl(intent))
+        load(resolveStartUrl(intent))
+    }
+
+    /** The local agy hub checks a CSRF header; send it with the page request. */
+    private fun load(url: String) {
+        val isHub = url.startsWith("http://localhost:${TerminalService.HUB_PORT}") || url.startsWith("http://127.0.0.1:${TerminalService.HUB_PORT}")
+        val token = if (isHub) HubClient.token(this) else null
+        if (token != null) web.loadUrl(url, mapOf("x-antigravity-csrf-token" to token, "x-codeium-csrf-token" to token))
+        else web.loadUrl(url)
     }
 
     private fun resolveStartUrl(intent: Intent?): String {
