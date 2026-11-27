@@ -1,6 +1,7 @@
 name: Inspect Antigravity CLI for Android
 
-# One-off read-only research: downloads and prints reference files (nothing downloaded is executed).
+# One-off read-only research: downloads the official Android build of agy and inspects it
+# statically (readelf/strings). Nothing downloaded is executed.
 on:
   push:
     branches: [ccr-0929c2b8-l3mjm7]
@@ -13,21 +14,29 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Print official installer (not executed)
+      - name: Official Android manifest and binary (static inspection only)
         run: |
-          curl -fsSL https://antigravity.google/cli/install.sh -o install.sh || true
-          echo "===== install.sh ====="; cat install.sh || true; echo "===== end ====="
-      - name: Print community VA39 patch gist (not executed)
-        run: |
-          curl -fsSL https://gist.githubusercontent.com/Brajesh2022/e42160d29b55417db6c18c52dd1d6d37/raw -o gist.txt || true
-          echo "===== gist ====="; cat gist.txt || true; echo "===== end ====="
-      - name: Termux package metadata (proot, libtalloc)
-        run: |
-          curl -fsSL https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages -o Packages
-          for p in proot libtalloc; do awk -v p="$p" '$0=="Package: "p{f=1} f&&/^(Package|Filename|Version|Depends):/{print} f&&/^$/{exit}' Packages; done
-      - name: Ubuntu base and JitPack availability
-        run: |
-          curl -fsSL https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ | grep -Eo 'ubuntu-base-[0-9.]+-base-arm64\.tar\.gz' | sort -u || true
-          for v in v0.118.1 v0.118.0; do
-            curl -s -o /dev/null -w "terminal-view $v: %{http_code}\n" https://jitpack.io/com/github/termux/termux-app/terminal-view/$v/terminal-view-$v.pom
+          BASE=https://antigravity-cli-auto-updater-974169037036.us-central1.run.app
+          for p in android_arm64 android_amd64 linux_arm64; do
+            echo "== $p"; curl -fsSL "$BASE/manifests/$p.json" || echo "(missing)"; echo
           done
+          M=$(curl -fsSL "$BASE/manifests/android_arm64.json")
+          URL=$(echo "$M" | sed -n 's/.*"url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          SHA=$(echo "$M" | sed -n 's/.*"sha512"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          echo "URL=$URL"
+          curl -fsSL -o payload "$URL"
+          ls -la payload; file payload
+          echo "$SHA  payload" | sha512sum -c -
+          case "$URL" in *.tar.gz*) tar -tzvf payload; tar -xzf payload antigravity; B=antigravity;; *) B=payload;; esac
+          file "$B"
+          readelf -h "$B" | grep -E 'Class|Machine|Type'
+          readelf -l "$B" | grep -E 'interpreter|INTERP|TLS|LOAD' -A1 | head -30
+          readelf -d "$B" | grep -E 'NEEDED|RUNPATH|RPATH|FLAGS' || echo "(no dynamic section: static)"
+          readelf -n "$B" | grep -iE 'android|ndk|Go' | head
+          echo "== Termux / system paths referenced"
+          strings -a "$B" | grep -oE '/data/data/com\.termux[^ "]*|/system/(bin|etc)/[A-Za-z0-9_./-]+|/etc/(resolv\.conf|ssl[^ "]*|hosts)' | sort | uniq -c | sort -rn | head -40
+          echo "== Shell / env references"
+          strings -a "$B" | grep -E '^(/bin/(ba)?sh|SHELL|TERMUX_|PREFIX|ANTIGRAVITY_[A-Z_]+|AGY_[A-Z_]+)$' | sort -u | head -40
+          echo "== OAuth / login hints"
+          strings -a "$B" | grep -oE 'https://[a-z0-9.-]*(google|googleapis)\.com/[A-Za-z0-9/._-]{0,60}' | sort -u | head -40
+          strings -a "$B" | grep -oiE '(localhost|127\.0\.0\.1):?[0-9]*/[a-z/_-]*(callback|oauth|redirect)[a-z/_-]*|device[_ ]?code|xdg-open|BROWSER' | sort -u | head -20
