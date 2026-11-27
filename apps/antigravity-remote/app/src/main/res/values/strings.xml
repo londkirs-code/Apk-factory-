@@ -125,4 +125,24 @@
     <string name="chat_exec_ask">Commands: ask before running (tap for automatic)</string>
     <string name="chat_exec_now_ask">The agent will ask before running commands</string>
     <string name="chat_exec_now_auto">Commands will run automatically</string>
+    <string name="msg_reply">Reply</string>
+    <string name="msg_share">Share</string>
+    <string name="msg_select">Select text</string>
+    <string name="msg_edit">Edit</string>
+    <string name="msg_resend">Send again</string>
+    <string name="chat_me">Me</string>
+    <string name="chat_search">Search</string>
+    <string name="chat_search_hint">Search in this chat</string>
+    <string name="chat_search_hits">%1$d messages found</string>
+    <string name="chat_search_clear">Clear search</string>
+    <string name="chat_voice_prompt">Speak your message</string>
+    <string name="chat_voice_unavailable">Voice typing is not available on this phone</string>
+    <string name="chat_today">Today</string>
+    <string name="chat_yesterday">Yesterday</string>
+    <string name="chat_copy_all">Copy the whole chat</string>
+    <string name="chat_share_all">Share the whole chat</string>
+    <string name="chat_paste">Paste from clipboard</string>
+    <string name="chat_delete">Delete chat</string>
+    <string name="chat_rename">Rename</string>
+    <string name="chat_search_chats">Search chats</string>
 </resources>

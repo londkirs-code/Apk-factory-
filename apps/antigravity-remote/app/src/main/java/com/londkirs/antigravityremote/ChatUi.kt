@@ -32,6 +32,33 @@ object ChatUi {
 
     fun circle(color: Int) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
 
+    val TICK_BLUE = Color.parseColor("#53BDEB")
+    val DATE_CHIP = Color.parseColor("#E1F3FB")
+
+    /** Round Antigravity avatar (the app icon). */
+    fun avatarImage(ctx: Context, sizeDp: Int) = android.widget.ImageView(ctx).apply {
+        setImageResource(R.drawable.agy_avatar)
+        scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+        val px = dp(ctx, sizeDp)
+        layoutParams = android.widget.LinearLayout.LayoutParams(px, px)
+    }
+
+    /**
+     * Bubble with a WhatsApp-like "tail": the top corner on the sender's side is sharp.
+     * [rtl] flips sides; outgoing bubbles sit at the layout end.
+     */
+    fun bubbleBg(ctx: Context, color: Int, outgoing: Boolean, rtl: Boolean, tail: Boolean): GradientDrawable {
+        val r = dp(ctx, 10).toFloat(); val t = dp(ctx, 2).toFloat()
+        val sharpLeft = tail && (outgoing == rtl)   // outgoing+RTL → left; incoming+LTR → left
+        val sharpRight = tail && !sharpLeft
+        val tl = if (sharpLeft) t else r
+        val tr = if (sharpRight) t else r
+        return GradientDrawable().apply {
+            setColor(color)
+            cornerRadii = floatArrayOf(tl, tl, tr, tr, r, r, r, r)
+        }
+    }
+
     /** Round avatar with initials. */
     fun avatar(ctx: Context, text: String, sizeDp: Int, color: Int = Color.parseColor("#4A5AE8")) = TextView(ctx).apply {
         this.text = text

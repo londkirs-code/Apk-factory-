@@ -64,6 +64,7 @@ data class ChatItem(
     val stepIndex: Int = -1,
     val interaction: JSONObject? = null,
     val step: JSONObject? = null,
+    val millis: Long = 0L,
 ) {
     companion object {
         const val USER = 0
@@ -108,48 +109,49 @@ object StepMapper {
             if (status in busy) isBusy = true
             if (status == "CORTEX_STEP_STATUS_CLEARED" || status == "CORTEX_STEP_STATUS_INVALID") continue
             val time = time(s)
+            val ms = millis(s)
 
             val u = s.optJSONObject("userInput")
             if (u != null) {
                 val text = userText(u)
-                if (text.isNotBlank()) { items += ChatItem(ChatItem.USER, text, time, i); lastUser = text }
+                if (text.isNotBlank()) { items += ChatItem(ChatItem.USER, text, time, i, millis = ms); lastUser = text }
                 continue
             }
 
             val p = s.optJSONObject("plannerResponse")
             if (p != null) {
                 val text = p.optString("modifiedResponse").ifBlank { p.optString("response") }.trim()
-                if (text.isNotEmpty()) { items += ChatItem(ChatItem.AGENT, text, time, i); lastAgent = text }
-                addInteraction(items, s, i, status, time)
+                if (text.isNotEmpty()) { items += ChatItem(ChatItem.AGENT, text, time, i, millis = ms); lastAgent = text }
+                addInteraction(items, s, i, status, time, ms)
                 continue
             }
 
             val n = s.optJSONObject("notifyUser")
             if (n != null) {
                 val text = n.optString("notificationContent").trim()
-                if (text.isNotEmpty()) { items += ChatItem(ChatItem.AGENT, text, time, i); lastAgent = text }
+                if (text.isNotEmpty()) { items += ChatItem(ChatItem.AGENT, text, time, i, millis = ms); lastAgent = text }
                 continue
             }
 
             val err = s.optJSONObject("errorMessage")?.optJSONObject("error") ?: s.optJSONObject("error")
             if (err != null && (type.contains("ERROR") || status == "CORTEX_STEP_STATUS_ERROR")) {
                 val msg = err.optString("userErrorMessage").ifBlank { err.optString("shortError") }.ifBlank { err.optString("modelErrorMessage") }
-                if (msg.isNotBlank()) items += ChatItem(ChatItem.ERROR, msg, time, i, step = s)
+                if (msg.isNotBlank()) items += ChatItem(ChatItem.ERROR, msg, time, i, step = s, millis = ms)
                 continue
             }
 
             if (hidden.any { type.contains(it) }) continue
             val label = toolLabel(s, type, status)
-            if (label != null) items += ChatItem(ChatItem.TOOL, label, time, i, step = s)
-            addInteraction(items, s, i, status, time)
+            if (label != null) items += ChatItem(ChatItem.TOOL, label, time, i, step = s, millis = ms)
+            addInteraction(items, s, i, status, time, ms)
         }
         return Result(items, isBusy, lastUser, lastAgent)
     }
 
-    private fun addInteraction(items: MutableList<ChatItem>, s: JSONObject, i: Int, status: String, time: String) {
+    private fun addInteraction(items: MutableList<ChatItem>, s: JSONObject, i: Int, status: String, time: String, ms: Long) {
         val req = s.optJSONObject("requestedInteraction") ?: return
         if (status != "CORTEX_STEP_STATUS_WAITING") return
-        items += ChatItem(ChatItem.APPROVAL, toolLabel(s, s.optString("type"), status) ?: "", time, i, interaction = req, step = s)
+        items += ChatItem(ChatItem.APPROVAL, toolLabel(s, s.optString("type"), status) ?: "", time, i, interaction = req, step = s, millis = ms)
     }
 
     private fun userText(u: JSONObject): String {
@@ -230,6 +232,12 @@ object StepMapper {
             req.has("approvalInteraction") -> base.put("approvalInteraction", JSONObject().put("confirm", allow))
             else -> null
         }
+    }
+
+    private fun millis(s: JSONObject): Long {
+        val raw = s.optJSONObject("metadata")?.optString("createdAt").orEmpty()
+        if (raw.length < 19) return 0L
+        return runCatching { iso.parse(raw.substring(0, 19))?.time ?: 0L }.getOrDefault(0L)
     }
 
     private fun time(s: JSONObject): String {

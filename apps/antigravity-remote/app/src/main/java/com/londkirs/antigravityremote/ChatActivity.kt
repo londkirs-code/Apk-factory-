@@ -65,6 +65,10 @@ class ChatActivity : Activity() {
     private val autoPolicy get() = modelPrefs.getString("auto_policy", "CASCADE_COMMANDS_AUTO_EXECUTION_EAGER")!!
     private var sending = false
     private var lastItems: List<ChatItem> = emptyList()
+    private var quote: String? = null                 // message being replied to
+    private var searchQuery: String? = null
+    private lateinit var downFab: TextView
+    private val rtl get() = resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
     private var models: List<HubClient.ModelChoice> = emptyList()
     private val modelPrefs by lazy { getSharedPreferences("models", Context.MODE_PRIVATE) }
 
@@ -124,7 +128,7 @@ class ChatActivity : Activity() {
             textSize = 22f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
             setOnClickListener { finish() }
         }, LinearLayout.LayoutParams(dp(40), dp(56)))
-        header.addView(ChatUi.avatar(this, "AG", 40))
+        header.addView(ChatUi.avatarImage(this, 40))
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, 0, 0) }
         titleView = TextView(this).apply {
             text = chat.title.ifBlank { "Antigravity" }
@@ -155,7 +159,19 @@ class ChatActivity : Activity() {
 
         messages = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)) }
         scroll = ScrollView(this).apply { addView(messages); isFillViewport = true }
-        root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        val frame = FrameLayout(this)
+        frame.addView(scroll, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        downFab = TextView(this).apply {
+            text = "⌄"; textSize = 22f; gravity = Gravity.CENTER; setTextColor(ChatUi.MUTED)
+            background = ChatUi.circle(Color.WHITE); elevation = dp(4).toFloat()
+            visibility = View.GONE
+            setOnClickListener { scroll.post { scroll.fullScroll(View.FOCUS_DOWN) } }
+        }
+        frame.addView(downFab, FrameLayout.LayoutParams(dp(42), dp(42), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(14), dp(12)) })
+        scroll.setOnScrollChangeListener { _, _, _, _, _ ->
+            downFab.visibility = if (scroll.canScrollVertically(1)) View.VISIBLE else View.GONE
+        }
+        root.addView(frame, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
 
         suggestions = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -198,13 +214,12 @@ class ChatActivity : Activity() {
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun afterTextChanged(e: android.text.Editable?) { updateSuggestions(e?.toString().orEmpty()) }
+            override fun afterTextChanged(e: android.text.Editable?) { updateSuggestions(e?.toString().orEmpty()); updateSendButton() }
         })
         sendBtn = TextView(this).apply {
-            text = "➤"; textSize = 20f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+            text = "🎤"; textSize = 20f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
             background = ChatUi.circle(ChatUi.SEND)
             contentDescription = getString(R.string.send)
-            if (resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL) rotationY = 180f
             setOnClickListener { onSendOrStop() }
         }
         bar.addView(sendBtn, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(6) })
@@ -213,6 +228,15 @@ class ChatActivity : Activity() {
     }
 
     private fun setStatus(text: String) { status.text = text }
+
+    private var runningNow = false
+
+    /** WhatsApp-style: ➤ when there is something to send, 🎤 when empty, ■ to stop a running agent. */
+    private fun updateSendButton() {
+        val hasContent = input.text.isNotBlank() || activeSlash != null || pendingImage != null
+        sendBtn.text = when { hasContent -> "➤"; runningNow -> "■"; else -> "🎤" }
+        sendBtn.rotationY = if (rtl && sendBtn.text == "➤") 180f else 0f
+    }
 
     private fun showBanner(text: String?, button: String? = null, action: (() -> Unit)? = null) {
         if (text == null) { banner.visibility = View.GONE; return }
@@ -308,7 +332,8 @@ class ChatActivity : Activity() {
         pending.removeAll { userCount > it.second }
         busy = r.busy || pending.isNotEmpty() || sending
         setStatus(getString(if (busy) R.string.chat_typing else if (authOk) R.string.chat_online else R.string.chat_signed_out))
-        sendBtn.text = if (r.busy) "■" else "➤"
+        runningNow = r.busy
+        updateSendButton()
 
         val all = r.items.toMutableList()
         pending.forEach { all += ChatItem(ChatItem.USER, it.first, "🕓") }
@@ -318,7 +343,15 @@ class ChatActivity : Activity() {
             val atBottom = !scroll.canScrollVertically(1)
             lastSignature = sig
             messages.removeAllViews()
-            all.forEach { messages.addView(viewFor(it)) }
+            var lastDay = ""
+            all.forEachIndexed { idx, it ->
+                if (it.millis > 0) {
+                    val day = dayLabel(it.millis)
+                    if (day != lastDay) { messages.addView(dateChip(day)); lastDay = day }
+                }
+                val replied = it.kind == ChatItem.USER && all.drop(idx + 1).any { x -> x.kind == ChatItem.AGENT }
+                messages.addView(viewFor(it, replied))
+            }
             if (atBottom || all.lastOrNull()?.kind == ChatItem.TYPING) scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
         }
         // Keep the chat list preview fresh.
@@ -331,8 +364,31 @@ class ChatActivity : Activity() {
 
     // ---- Message views ----------------------------------------------------------------------------
 
-    private fun viewFor(item: ChatItem): View = when (item.kind) {
-        ChatItem.USER -> bubble(item, outgoing = true)
+    private fun dayLabel(ms: Long): String {
+        val cal = java.util.Calendar.getInstance()
+        val today = cal.get(java.util.Calendar.YEAR) * 1000 + cal.get(java.util.Calendar.DAY_OF_YEAR)
+        cal.timeInMillis = ms
+        val d = cal.get(java.util.Calendar.YEAR) * 1000 + cal.get(java.util.Calendar.DAY_OF_YEAR)
+        return when (today - d) {
+            0 -> getString(R.string.chat_today)
+            1 -> getString(R.string.chat_yesterday)
+            else -> android.text.format.DateFormat.getMediumDateFormat(this).format(java.util.Date(ms))
+        }
+    }
+
+    private fun dateChip(label: String): View {
+        val r = row(Gravity.CENTER_HORIZONTAL)
+        r.addView(TextView(this).apply {
+            text = label; textSize = 12.5f; setTextColor(Color.parseColor("#54656F"))
+            background = ChatUi.rounded(ChatUi.DATE_CHIP, dp(8).toFloat())
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+        })
+        (r.layoutParams as LinearLayout.LayoutParams).setMargins(0, dp(8), 0, dp(4))
+        return r
+    }
+
+    private fun viewFor(item: ChatItem, replied: Boolean = false): View = when (item.kind) {
+        ChatItem.USER -> bubble(item, outgoing = true, replied = replied)
         ChatItem.AGENT -> bubble(item, outgoing = false)
         ChatItem.TOOL -> chip(item.text, ChatUi.TOOL_BG) { showDetails(item) }
         ChatItem.ERROR -> chip("⚠️ " + item.text, ChatUi.ERROR_BG) { showError(item) }
@@ -346,27 +402,133 @@ class ChatActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(3) }
     }
 
-    private fun bubble(item: ChatItem, outgoing: Boolean): View {
+    private fun bubble(item: ChatItem, outgoing: Boolean, replied: Boolean = false): View {
         val r = row(if (outgoing) Gravity.END else Gravity.START)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = ChatUi.rounded(if (outgoing) ChatUi.OUT_BUBBLE else ChatUi.IN_BUBBLE, dp(10).toFloat())
+            background = ChatUi.bubbleBg(this@ChatActivity, if (outgoing) ChatUi.OUT_BUBBLE else ChatUi.IN_BUBBLE, outgoing, rtl, tail = true)
             setPadding(dp(10), dp(6), dp(10), dp(4))
             elevation = dp(1).toFloat()
-            setOnLongClickListener { copy(item.text); true }
+            setOnLongClickListener { messageMenu(item, outgoing); true }
         }
+        val body: CharSequence = if (outgoing) item.text else ChatUi.markdown(item.text)
         box.addView(TextView(this).apply {
-            text = if (outgoing) item.text else ChatUi.markdown(item.text)
+            text = highlight(body)
             textSize = 16f; setTextColor(ChatUi.TEXT)
             maxWidth = (resources.displayMetrics.widthPixels * 0.78).toInt()
             setLineSpacing(0f, 1.1f)
+            android.text.util.Linkify.addLinks(this, android.text.util.Linkify.WEB_URLS)
+            setOnLongClickListener { messageMenu(item, outgoing); true }
         })
-        if (item.time.isNotEmpty()) box.addView(TextView(this).apply {
-            text = item.time; textSize = 11f; setTextColor(ChatUi.MUTED)
+        val meta = android.text.SpannableStringBuilder(item.time)
+        if (outgoing && item.time != "🕓") {
+            val start = meta.length
+            meta.append(if (meta.isNotEmpty()) "  ✓✓" else "✓✓")
+            meta.setSpan(android.text.style.ForegroundColorSpan(if (replied) ChatUi.TICK_BLUE else ChatUi.MUTED), start, meta.length, 0)
+        }
+        if (meta.isNotEmpty()) box.addView(TextView(this).apply {
+            text = meta; textSize = 11f; setTextColor(ChatUi.MUTED)
             gravity = Gravity.END
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         r.addView(box)
         return r
+    }
+
+    private fun highlight(text: CharSequence): CharSequence {
+        val q = searchQuery?.takeIf { it.isNotBlank() } ?: return text
+        val sb = android.text.SpannableStringBuilder(text)
+        val lower = text.toString().lowercase(); val ql = q.lowercase()
+        var i = lower.indexOf(ql)
+        while (i >= 0) {
+            sb.setSpan(android.text.style.BackgroundColorSpan(Color.parseColor("#FFE066")), i, i + ql.length, 0)
+            i = lower.indexOf(ql, i + ql.length)
+        }
+        return sb
+    }
+
+    /** Long-press actions, like The Boss chat plus WhatsApp's reply/share. */
+    private fun messageMenu(item: ChatItem, outgoing: Boolean) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>(
+            getString(R.string.msg_reply) to { setQuote(item.text) },
+            getString(R.string.copy) to { copy(item.text) },
+            getString(R.string.msg_share) to { share(item.text) },
+            getString(R.string.msg_select) to { selectText(item.text) },
+        )
+        if (outgoing) {
+            actions += getString(R.string.msg_edit) to { input.setText(item.text); input.setSelection(input.text.length); input.requestFocus(); Unit }
+            actions += getString(R.string.msg_resend) to { input.setText(item.text); onSendOrStop() }
+        }
+        AlertDialog.Builder(this)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
+            .show()
+    }
+
+    private fun setQuote(text: String) {
+        quote = text
+        refreshExtras()
+        input.requestFocus()
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+            .showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun share(text: String) {
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), getString(R.string.msg_share)))
+    }
+
+    private fun selectText(text: String) {
+        val tv = TextView(this).apply {
+            this.text = text; setTextIsSelectable(true); textSize = 16f
+            setPadding(dp(20), dp(16), dp(20), dp(8)); setTextColor(ChatUi.TEXT)
+        }
+        AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(tv) })
+            .setPositiveButton(R.string.close, null).show()
+    }
+
+    /** Whole conversation as text ("Me:"/"Antigravity:"), for copy / share. */
+    private fun transcript(): String = lastItems.filter { it.kind == ChatItem.USER || it.kind == ChatItem.AGENT || it.kind == ChatItem.TOOL }
+        .joinToString("\n\n") {
+            when (it.kind) {
+                ChatItem.USER -> getString(R.string.chat_me) + ": " + it.text
+                ChatItem.AGENT -> "Antigravity: " + it.text
+                else -> "  " + it.text
+            }
+        }
+
+    private fun searchInChat() {
+        val field = EditText(this).apply { setHint(R.string.chat_search_hint); setText(searchQuery ?: ""); setSingleLine() }
+        AlertDialog.Builder(this).setTitle(R.string.chat_search).setView(field)
+            .setPositiveButton(R.string.chat_search) { _, _ ->
+                searchQuery = field.text.toString().trim().ifEmpty { null }
+                lastSignature = ""
+                render(StepMapper.Result(lastItems, runningNow, null, null))
+                val q = searchQuery ?: return@setPositiveButton
+                val hits = lastItems.count { it.text.contains(q, ignoreCase = true) }
+                Toast.makeText(this, getString(R.string.chat_search_hits, hits), Toast.LENGTH_SHORT).show()
+                // Scroll to the first matching row.
+                scroll.post {
+                    for (i in 0 until messages.childCount) {
+                        val v = messages.getChildAt(i)
+                        if (textOf(v).contains(q, ignoreCase = true)) { scroll.smoothScrollTo(0, v.top); break }
+                    }
+                }
+            }
+            .setNeutralButton(R.string.chat_search_clear) { _, _ -> searchQuery = null; lastSignature = ""; render(StepMapper.Result(lastItems, runningNow, null, null)) }
+            .show()
+    }
+
+    private fun textOf(v: View): String = when (v) {
+        is TextView -> v.text.toString()
+        is ViewGroup -> (0 until v.childCount).joinToString(" ") { textOf(v.getChildAt(it)) }
+        else -> ""
+    }
+
+    private fun startVoice() {
+        val i = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, getString(R.string.chat_voice_prompt))
+        try { startActivityForResult(i, 42) } catch (e: Exception) {
+            Toast.makeText(this, R.string.chat_voice_unavailable, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun chip(text: String, color: Int, onClick: () -> Unit): View {
@@ -432,11 +594,15 @@ class ChatActivity : Activity() {
     // ---- Actions ----------------------------------------------------------------------------------
 
     private fun onSendOrStop() {
-        val text = input.text.toString().trim()
+        val typed = input.text.toString().trim()
+        val q = quote
+        val text = if (q != null && typed.isNotEmpty())
+            q.lineSequence().take(6).joinToString("\n") { "> $it" } + "\n\n" + typed else typed
+        if (typed.isNotEmpty()) quote = null
         val slash = activeSlash
         val image = pendingImage
         if (text.isEmpty() && slash == null && image == null) {
-            if (busy) stop()
+            if (runningNow) stop() else startVoice()
             return
         }
         if (!hubReady) { Toast.makeText(this, R.string.chat_not_ready, Toast.LENGTH_SHORT).show(); return }
@@ -481,7 +647,7 @@ class ChatActivity : Activity() {
                 sending = false
                 res.onFailure { e ->
                     pending.removeAll { it.first == shown }
-                    input.setText(text)
+                    input.setText(typed); quote = q
                     activeSlash = slash; pendingImage = image; refreshExtras()
                     AlertDialog.Builder(this).setTitle(R.string.chat_send_failed)
                         .setMessage(e.message ?: e.toString())
@@ -546,12 +712,17 @@ class ChatActivity : Activity() {
             setPadding(dp(12), dp(6), dp(12), dp(6))
             setOnClickListener { onRemove(); refreshExtras() }
         }
+        quote?.let { q ->
+            extras.addView(chip("↩ " + q.replace('\n', ' ').take(40)) { quote = null })
+            extras.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        }
         activeSlash?.let { c ->
             extras.addView(chip("/" + c.title) { activeSlash = null })
             extras.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         }
         pendingImage?.let { extras.addView(chip("🖼️ " + getString(R.string.chat_image)) { pendingImage = null }) }
         extras.visibility = if (extras.childCount > 0) View.VISIBLE else View.GONE
+        updateSendButton()
     }
 
     // ---- Images -----------------------------------------------------------------------------------
@@ -563,6 +734,13 @@ class ChatActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 42 && resultCode == RESULT_OK) {
+            val said = data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return
+            val cur = input.text.toString()
+            input.setText(if (cur.isBlank()) said else "$cur $said")
+            input.setSelection(input.text.length)
+            return
+        }
         val uri = data?.data
         if (requestCode != 41 || resultCode != RESULT_OK || uri == null) return
         io.execute {
@@ -677,6 +855,11 @@ class ChatActivity : Activity() {
         m.menu.add(0, 2, 1, R.string.visual_ui)
         m.menu.add(0, 3, 2, R.string.terminal)
         m.menu.add(0, 4, 3, R.string.chat_signin)
+        m.menu.add(0, 7, 4, R.string.chat_search)
+        m.menu.add(0, 8, 5, R.string.chat_copy_all)
+        m.menu.add(0, 9, 6, R.string.chat_share_all)
+        m.menu.add(0, 10, 7, R.string.chat_paste)
+        m.menu.add(0, 11, 8, R.string.chat_delete)
         m.setOnMenuItemClickListener {
             when (it.itemId) {
                 1 -> stop()
@@ -684,6 +867,18 @@ class ChatActivity : Activity() {
                 3 -> startActivity(Intent(this, TerminalActivity::class.java))
                 4 -> signIn()
                 5 -> pickModel()
+                7 -> searchInChat()
+                8 -> copy(transcript())
+                9 -> share(transcript())
+                10 -> {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val t = cm.primaryClip?.takeIf { c -> c.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString()
+                    if (t.isNullOrEmpty()) Toast.makeText(this, R.string.clipboard_empty, Toast.LENGTH_SHORT).show()
+                    else { input.setText(input.text.toString() + t); input.setSelection(input.text.length) }
+                }
+                11 -> AlertDialog.Builder(this).setMessage(R.string.chat_delete_confirm)
+                    .setPositiveButton(R.string.delete) { _, _ -> ChatStore.delete(this, chat.id); finish() }
+                    .setNegativeButton(R.string.cancel, null).show()
                 6 -> {
                     val next = if (autoPolicy == "CASCADE_COMMANDS_AUTO_EXECUTION_OFF") "CASCADE_COMMANDS_AUTO_EXECUTION_EAGER" else "CASCADE_COMMANDS_AUTO_EXECUTION_OFF"
                     modelPrefs.edit().putString("auto_policy", next).apply()

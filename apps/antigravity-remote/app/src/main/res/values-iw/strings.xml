@@ -127,4 +127,24 @@
     <string name="chat_exec_ask">פקודות: שואל לפני הרצה (לחיצה תעביר להרצה אוטומטית)</string>
     <string name="chat_exec_now_ask">הסוכן ישאל לפני שהוא מריץ פקודות</string>
     <string name="chat_exec_now_auto">פקודות ירוצו אוטומטית</string>
+    <string name="msg_reply">השב</string>
+    <string name="msg_share">שתף</string>
+    <string name="msg_select">בחירת טקסט</string>
+    <string name="msg_edit">ערוך</string>
+    <string name="msg_resend">שלח שוב</string>
+    <string name="chat_me">אני</string>
+    <string name="chat_search">חיפוש</string>
+    <string name="chat_search_hint">חיפוש בשיחה</string>
+    <string name="chat_search_hits">נמצאו %1$d הודעות</string>
+    <string name="chat_search_clear">ניקוי החיפוש</string>
+    <string name="chat_voice_prompt">אמור את ההודעה</string>
+    <string name="chat_voice_unavailable">הקלדה קולית לא זמינה בטלפון הזה</string>
+    <string name="chat_today">היום</string>
+    <string name="chat_yesterday">אתמול</string>
+    <string name="chat_copy_all">העתק את כל השיחה</string>
+    <string name="chat_share_all">שתף את כל השיחה</string>
+    <string name="chat_paste">הדבק מהלוח</string>
+    <string name="chat_delete">מחק שיחה</string>
+    <string name="chat_rename">שינוי שם</string>
+    <string name="chat_search_chats">חיפוש בצ\'אטים</string>
 </resources>
