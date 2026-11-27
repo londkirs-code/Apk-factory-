@@ -1,1 +1,1 @@
-APK for antigravity-remote, versionName 3.0, versionCode 5, built from commit 784b3a772fd7b92f898c4f63d0872dfb875fbf51.
+APK for antigravity-remote, versionName 3.1, versionCode 6, built from commit f907733b47dd068b4deb17f848021c1e31380589.
