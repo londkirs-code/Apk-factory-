@@ -108,23 +108,57 @@ object HubClient {
     /** Blocks until the browser round-trip finishes: the hub keeps its OAuth callback listener only while this call is open. */
     fun login() { call("Login", JSONObject().put("isGcpTos", false), 10 * 60_000) }
 
-    fun startCascade(cascadeId: String, workspaceDir: String) {
+    data class ModelChoice(val value: Any, val name: String)
+
+    /**
+     * Models offered to the agent, in the hub's own order, with the account default first.
+     * [ModelChoice.value] is the proto3-JSON value of the Model enum (name or number) as the hub reported it.
+     */
+    fun models(): List<ModelChoice> {
+        val r = call("GetAvailableModels", JSONObject()).optJSONObject("response") ?: return emptyList()
+        val map = r.optJSONObject("models") ?: return emptyList()
+        val order = mutableListOf<String>()
+        r.optString("defaultAgentModelId").takeIf { it.isNotBlank() }?.let { order += it }
+        val sorts = r.optJSONArray("agentModelSorts")
+        if (sorts != null) for (i in 0 until sorts.length()) {
+            val groups = sorts.optJSONObject(i)?.optJSONArray("groups") ?: continue
+            for (g in 0 until groups.length()) {
+                val ids = groups.optJSONObject(g)?.optJSONArray("modelIds") ?: continue
+                for (k in 0 until ids.length()) ids.optString(k).takeIf { it.isNotBlank() && it !in order }?.let { order += it }
+            }
+        }
+        map.keys().forEach { if (it !in order) order += it }
+        val out = mutableListOf<ModelChoice>()
+        for (key in order) {
+            val d = map.optJSONObject(key) ?: continue
+            if (d.optBoolean("disabled") || d.optBoolean("isInternal")) continue
+            val value = d.opt("model") ?: continue
+            if (value == "MODEL_UNSPECIFIED" || value == 0) continue
+            if (out.any { it.value == value }) continue
+            out += ModelChoice(value, d.optString("displayName").ifBlank { key })
+        }
+        return out
+    }
+
+    fun startCascade(cascadeId: String, workspaceDir: String, model: Any?) {
         val uri = "file://$workspaceDir"
         call("StartCascade", JSONObject()
             .put("cascadeId", cascadeId)
             .put("source", "CORTEX_TRAJECTORY_SOURCE_CASCADE_CLIENT")
             .put("workspaceUris", org.json.JSONArray().put(uri))
-            .put("overrideWorkspaceUris", org.json.JSONArray().put(uri)))
+            .put("overrideWorkspaceUris", org.json.JSONArray().put(uri))
+            .apply { if (model != null) put("requestedModel", model) })
     }
 
-    fun sendMessage(cascadeId: String, text: String, clientMessageId: String) {
+    fun sendMessage(cascadeId: String, text: String, clientMessageId: String, model: Any?) {
         val config = JSONObject()
             .put("plannerConfig", JSONObject()
                 .put("toolConfig", JSONObject()
                     .put("runCommand", JSONObject().put("autoCommandConfig",
                         JSONObject().put("autoExecutionPolicy", "CASCADE_COMMANDS_AUTO_EXECUTION_EAGER")))
                     .put("notifyUser", JSONObject()))
-                .put("supportsLatexRendering", false))
+                .put("supportsLatexRendering", false)
+                .apply { if (model != null) put("requestedModel", JSONObject().put("model", model)) })
             .put("executorConfig", JSONObject().put("useCoreDirect", true))
             .put("conversationHistoryConfig", JSONObject())
         call("SendUserCascadeMessage", JSONObject()

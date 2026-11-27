@@ -1,5 +1,7 @@
 # יומן שינויים — אנטיגרוויטי באנדרואיד
 
+- 2026-11-27: גרסה 3.3. תיקון "plan model not specified": הצ'אט קורא את רשימת המודלים מה־hub ‏(GetAvailableModels; ברירת המחדל של החשבון ראשונה, ואחריה הסדר של agentModelSorts). המודל נשלח ב־StartCascade.requestedModel וב־plannerConfig.requestedModel של כל הודעה. בתפריט ⋮ של הצ'אט אפשר לבחור מודל, והבחירה נשמרת.
+
 - 2026-11-27: גרסה 3.2. ה־hub עולה עם `--app_data_dir=antigravity-cli`, כלומר עם אותה תיקיית נתונים של ה־CLI, כדי שישתמש בהתחברות ל־Google שכבר בוצעה ב־agy. הוספנו גם את `--add-dir=~/projects` ואת `CI=1`. הקריאה Login נשארת פתוחה עד 10 דקות ורצה בתהליכון נפרד, כי ה־hub מאזין ל־callback של OAuth רק כל עוד הקריאה פתוחה. בגרסה הקודמת היא נסגרה אחרי 15 שניות, ולכן התקבל ERR_CONNECTION_REFUSED. לחיצה על שגיאה בצ'אט מציגה את פרטי השגיאה המלאים (shortError, ‏fullError, ‏details) עם אפשרות להעתיק. הממשק הגרפי נפתח בכתובת שה־hub מדפיס (`http://localhost:4400/#t=<token>`), וזה תיקון המסך השחור.
 
 - 2026-11-27: גרסה 3.1. תוקנה השגיאה "missing CSRF token" בצ'אט. בכל הפעלה של ה־hub האפליקציה יוצרת טוקן אקראי ומעבירה אותו ל־agy במשתני הסביבה `ANTIGRAVITY_SERVER_CSRF_TOKEN` ו־`ANTIGRAVITY_CSRF_TOKEN` (ה־binary הרשמי קורא אותם ב־ResolveCsrfTokensFromEnv). בכל קריאה הטוקן נשלח בכותרות `x-antigravity-csrf-token` ו־`x-codeium-csrf-token`, והוא נשלח גם בטעינת הממשק הגרפי. hub שרץ בלי הטוקן שלנו מופעל מחדש. תוקנה פריסת הרשימה בצ'אטים: השעה והתצוגה המקדימה היו דחוסות.

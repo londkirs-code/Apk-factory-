@@ -106,4 +106,6 @@
     <string name="copy">Copy</string>
     <string name="copied">Copied</string>
     <string name="chat_stop">Stop the agent</string>
+    <string name="chat_model">Model: %1$s</string>
+    <string name="chat_model_title">Choose a model</string>
 </resources>

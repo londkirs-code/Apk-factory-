@@ -57,6 +57,19 @@ class ChatActivity : Activity() {
     private var pending = mutableListOf<String>()   // sent, not yet echoed by the hub
     private var sending = false
     private var lastItems: List<ChatItem> = emptyList()
+    private var models: List<HubClient.ModelChoice> = emptyList()
+    private val modelPrefs by lazy { getSharedPreferences("models", Context.MODE_PRIVATE) }
+
+    /** The model to send: the user's pick if still offered, else the account default (first in the list). */
+    private fun currentModel(): HubClient.ModelChoice? {
+        val saved = modelPrefs.getString("model", null)
+        return models.firstOrNull { it.value.toString() == saved } ?: models.firstOrNull()
+    }
+
+    private fun loadModels(): List<HubClient.ModelChoice> {
+        if (models.isEmpty()) models = runCatching { HubClient.models() }.getOrDefault(emptyList())
+        return models
+    }
 
     private fun dp(v: Int) = ChatUi.dp(this, v)
     private val started get() = prefs.getBoolean("started_${chat.id}", false)
@@ -196,6 +209,7 @@ class ChatActivity : Activity() {
                 return@ensureRunning
             }
             showBanner(null)
+            io.execute { loadModels() }
             checkAuth()
             schedulePoll(0)
         }
@@ -401,11 +415,13 @@ class ChatActivity : Activity() {
         render(StepMapper.Result(lastItems, false, null, null))
         io.execute {
             val res = runCatching {
+                loadModels()
+                val model = currentModel()?.value
                 if (!started) {
-                    HubClient.startCascade(chat.cascadeId, java.io.File(AgyInstaller.homeDir(this), "projects").absolutePath)
+                    HubClient.startCascade(chat.cascadeId, java.io.File(AgyInstaller.homeDir(this), "projects").absolutePath, model)
                     prefs.edit().putBoolean("started_${chat.id}", true).apply()
                 }
-                HubClient.sendMessage(chat.cascadeId, text, UUID.randomUUID().toString())
+                HubClient.sendMessage(chat.cascadeId, text, UUID.randomUUID().toString(), model)
             }
             main.post {
                 sending = false
@@ -418,6 +434,24 @@ class ChatActivity : Activity() {
                     checkAuth()
                 }
                 schedulePoll(200)
+            }
+        }
+    }
+
+    private fun pickModel() {
+        io.execute {
+            val list = loadModels()
+            main.post {
+                if (list.isEmpty()) { Toast.makeText(this, R.string.chat_not_ready, Toast.LENGTH_SHORT).show(); return@post }
+                val cur = list.indexOf(currentModel())
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.chat_model_title)
+                    .setSingleChoiceItems(list.map { it.name }.toTypedArray(), cur) { d, which ->
+                        modelPrefs.edit().putString("model", list[which].value.toString()).apply()
+                        d.dismiss()
+                    }
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()
             }
         }
     }
@@ -483,6 +517,7 @@ class ChatActivity : Activity() {
 
     private fun showMenu(anchor: View) {
         val m = PopupMenu(this, anchor)
+        m.menu.add(0, 5, 0, getString(R.string.chat_model, currentModel()?.name ?: "…"))
         m.menu.add(0, 1, 0, R.string.chat_stop)
         m.menu.add(0, 2, 1, R.string.visual_ui)
         m.menu.add(0, 3, 2, R.string.terminal)
@@ -493,6 +528,7 @@ class ChatActivity : Activity() {
                 2 -> openVisualUi()
                 3 -> startActivity(Intent(this, TerminalActivity::class.java))
                 4 -> signIn()
+                5 -> pickModel()
             }
             true
         }

@@ -108,4 +108,6 @@
     <string name="copy">העתקה</string>
     <string name="copied">הועתק</string>
     <string name="chat_stop">עצירת הסוכן</string>
+    <string name="chat_model">מודל: %1$s</string>
+    <string name="chat_model_title">בחירת מודל</string>
 </resources>
