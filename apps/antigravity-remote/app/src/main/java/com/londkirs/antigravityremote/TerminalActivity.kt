@@ -115,11 +115,12 @@ class TerminalActivity : Activity(), ServiceConnection, TerminalService.Listener
             isFocusable = true
             isFocusableInTouchMode = true
             setBackgroundColor(Color.BLACK)
-            setTypeface(Typeface.MONOSPACE)
             keepScreenOn = true
         }
+        // setTextSize() creates the TerminalRenderer; setTypeface() reads it, so the order matters.
         fontSize = prefs.getInt("font", dp(12))
         terminal.setTextSize(fontSize)
+        terminal.setTypeface(Typeface.MONOSPACE)
         root.addView(terminal, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(buildExtraKeys())
         setContentView(root)
@@ -181,7 +182,7 @@ class TerminalActivity : Activity(), ServiceConnection, TerminalService.Listener
         val c = current ?: return
         val idx = s.sessions.indexOf(c) + 1
         val label = if (s.kinds[c] == TerminalService.KIND_AGY) "Antigravity (agy)" else getString(R.string.shell)
-        val state = if (c.isRunning) "" else " — " + getString(R.string.finished)
+        val state = if (c.isRunning || c.emulator == null) "" else " — " + getString(R.string.finished)
         title.text = "[$idx/${s.sessions.size}] ${c.title?.takeIf { it.isNotBlank() } ?: label}$state"
     }
 
