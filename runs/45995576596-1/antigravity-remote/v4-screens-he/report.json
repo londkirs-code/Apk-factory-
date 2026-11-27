@@ -1,0 +1,586 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 388.0,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 4.46,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='מדריך הפעלה'",
+      "status": "failed",
+      "seconds": 21.11,
+      "error": "element not found within 20s: text='מדריך הפעלה'",
+      "screenshot": "screenshots/001-step2-wait_for-FAILED.png"
+    },
+    {
+      "index": 3,
+      "action": "tap",
+      "detail": "desc='חיבור למחשב במקום'",
+      "status": "failed",
+      "seconds": 11.27,
+      "error": "element not found within 10s: desc='חיבור למחשב במקום'",
+      "screenshot": "screenshots/002-step3-tap-FAILED.png"
+    },
+    {
+      "index": 4,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 4.88,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.15,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "screenshot",
+      "detail": "name='01-home-tip'",
+      "status": "passed",
+      "seconds": 3.08,
+      "error": "",
+      "screenshot": "screenshots/003-01-home-tip.png"
+    },
+    {
+      "index": 8,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "tap",
+      "detail": "text='הבנתי'",
+      "status": "skipped",
+      "seconds": 10.61,
+      "error": "element not found within 10s: text='הבנתי'",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "screenshot",
+      "detail": "name='02-home-empty'",
+      "status": "passed",
+      "seconds": 2.41,
+      "error": "",
+      "screenshot": "screenshots/004-02-home-empty.png"
+    },
+    {
+      "index": 11,
+      "action": "tap",
+      "detail": "desc='שיחה חדשה'",
+      "status": "failed",
+      "seconds": 10.5,
+      "error": "element not found within 10s: desc='שיחה חדשה'",
+      "screenshot": "screenshots/005-step11-tap-FAILED.png"
+    },
+    {
+      "index": 12,
+      "action": "wait",
+      "detail": "seconds=3",
+      "status": "passed",
+      "seconds": 3.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "screenshot",
+      "detail": "name='03-chat-empty'",
+      "status": "passed",
+      "seconds": 2.31,
+      "error": "",
+      "screenshot": "screenshots/006-03-chat-empty.png"
+    },
+    {
+      "index": 14,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.11,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "tap",
+      "detail": "text='הבנתי'",
+      "status": "skipped",
+      "seconds": 10.02,
+      "error": "element not found within 10s: text='הבנתי'",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "tap",
+      "detail": "text='הודעה'",
+      "status": "failed",
+      "seconds": 12.6,
+      "error": "element not found within 10s: text='הודעה'",
+      "screenshot": "screenshots/007-step16-tap-FAILED.png"
+    },
+    {
+      "index": 17,
+      "action": "type",
+      "detail": "text='הודעה'",
+      "status": "failed",
+      "seconds": 12.6,
+      "error": "element not found within 10s: text='הודעה'",
+      "screenshot": "screenshots/008-step17-type-FAILED.png"
+    },
+    {
+      "index": 18,
+      "action": "screenshot",
+      "detail": "name='04b-keyboard'",
+      "status": "passed",
+      "seconds": 2.29,
+      "error": "",
+      "screenshot": "screenshots/009-04b-keyboard.png"
+    },
+    {
+      "index": 19,
+      "action": "key",
+      "detail": "key='BACK'",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "screenshot",
+      "detail": "name='04-chat-typed'",
+      "status": "passed",
+      "seconds": 2.74,
+      "error": "",
+      "screenshot": "screenshots/010-04-chat-typed.png"
+    },
+    {
+      "index": 21,
+      "action": "tap",
+      "detail": "desc='צירוף'",
+      "status": "failed",
+      "seconds": 12.65,
+      "error": "element not found within 10s: desc='צירוף'",
+      "screenshot": "screenshots/011-step21-tap-FAILED.png"
+    },
+    {
+      "index": 22,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 23,
+      "action": "screenshot",
+      "detail": "name='05-attach-sheet'",
+      "status": "passed",
+      "seconds": 2.74,
+      "error": "",
+      "screenshot": "screenshots/012-05-attach-sheet.png"
+    },
+    {
+      "index": 24,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "tap",
+      "detail": "desc='עוד'",
+      "status": "failed",
+      "seconds": 12.6,
+      "error": "element not found within 10s: desc='עוד'",
+      "screenshot": "screenshots/013-step25-tap-FAILED.png"
+    },
+    {
+      "index": 26,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 27,
+      "action": "screenshot",
+      "detail": "name='06-chat-menu'",
+      "status": "passed",
+      "seconds": 2.75,
+      "error": "",
+      "screenshot": "screenshots/014-06-chat-menu.png"
+    },
+    {
+      "index": 28,
+      "action": "tap",
+      "detail": "text='פרטי השיחה'",
+      "status": "failed",
+      "seconds": 12.61,
+      "error": "element not found within 10s: text='פרטי השיחה'",
+      "screenshot": "screenshots/015-step28-tap-FAILED.png"
+    },
+    {
+      "index": 29,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 30,
+      "action": "screenshot",
+      "detail": "name='07-chat-info'",
+      "status": "passed",
+      "seconds": 2.73,
+      "error": "",
+      "screenshot": "screenshots/016-07-chat-info.png"
+    },
+    {
+      "index": 31,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 32,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 34,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 35,
+      "action": "tap",
+      "detail": "text='הבנתי'",
+      "status": "skipped",
+      "seconds": 12.61,
+      "error": "element not found within 10s: text='הבנתי'",
+      "screenshot": ""
+    },
+    {
+      "index": 36,
+      "action": "screenshot",
+      "detail": "name='08-home-draft'",
+      "status": "passed",
+      "seconds": 2.73,
+      "error": "",
+      "screenshot": "screenshots/017-08-home-draft.png"
+    },
+    {
+      "index": 37,
+      "action": "long_press",
+      "detail": "text='שיחה חדשה'",
+      "status": "failed",
+      "seconds": 12.59,
+      "error": "element not found within 10s: text='שיחה חדשה'",
+      "screenshot": "screenshots/018-step37-long_press-FAILED.png"
+    },
+    {
+      "index": 38,
+      "action": "screenshot",
+      "detail": "name='09-home-selection'",
+      "status": "passed",
+      "seconds": 2.72,
+      "error": "",
+      "screenshot": "screenshots/019-09-home-selection.png"
+    },
+    {
+      "index": 39,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 40,
+      "action": "tap",
+      "detail": "desc='עוד'",
+      "status": "failed",
+      "seconds": 12.58,
+      "error": "element not found within 10s: desc='עוד'",
+      "screenshot": "screenshots/020-step40-tap-FAILED.png"
+    },
+    {
+      "index": 41,
+      "action": "screenshot",
+      "detail": "name='10-home-menu'",
+      "status": "passed",
+      "seconds": 2.72,
+      "error": "",
+      "screenshot": "screenshots/021-10-home-menu.png"
+    },
+    {
+      "index": 42,
+      "action": "tap",
+      "detail": "text='הגדרות'",
+      "status": "failed",
+      "seconds": 12.61,
+      "error": "element not found within 10s: text='הגדרות'",
+      "screenshot": "screenshots/022-step42-tap-FAILED.png"
+    },
+    {
+      "index": 43,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 44,
+      "action": "screenshot",
+      "detail": "name='11-settings'",
+      "status": "passed",
+      "seconds": 2.72,
+      "error": "",
+      "screenshot": "screenshots/023-11-settings.png"
+    },
+    {
+      "index": 45,
+      "action": "scroll_to",
+      "detail": "text='גרסת האפליקציה'",
+      "status": "failed",
+      "seconds": 27.57,
+      "error": "not found after scrolling: text='גרסת האפליקציה'",
+      "screenshot": "screenshots/024-step45-scroll_to-FAILED.png"
+    },
+    {
+      "index": 46,
+      "action": "screenshot",
+      "detail": "name='12-settings-advanced'",
+      "status": "passed",
+      "seconds": 2.28,
+      "error": "",
+      "screenshot": "screenshots/025-12-settings-advanced.png"
+    },
+    {
+      "index": 47,
+      "action": "scroll_to",
+      "detail": "text='ערכת נושא'",
+      "status": "failed",
+      "seconds": 27.9,
+      "error": "not found after scrolling: text='ערכת נושא'",
+      "screenshot": "screenshots/026-step47-scroll_to-FAILED.png"
+    },
+    {
+      "index": 48,
+      "action": "tap",
+      "detail": "text='ערכת נושא'",
+      "status": "failed",
+      "seconds": 10.07,
+      "error": "element not found within 10s: text='ערכת נושא'",
+      "screenshot": "screenshots/027-step48-tap-FAILED.png"
+    },
+    {
+      "index": 49,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 50,
+      "action": "screenshot",
+      "detail": "name='13-theme-sheet'",
+      "status": "passed",
+      "seconds": 2.27,
+      "error": "",
+      "screenshot": "screenshots/028-13-theme-sheet.png"
+    },
+    {
+      "index": 51,
+      "action": "tap",
+      "detail": "text='כהה'",
+      "status": "failed",
+      "seconds": 12.67,
+      "error": "element not found within 10s: text='כהה'",
+      "screenshot": "screenshots/029-step51-tap-FAILED.png"
+    },
+    {
+      "index": 52,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 53,
+      "action": "screenshot",
+      "detail": "name='14-settings-dark'",
+      "status": "passed",
+      "seconds": 2.28,
+      "error": "",
+      "screenshot": "screenshots/030-14-settings-dark.png"
+    },
+    {
+      "index": 54,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.88,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 55,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 56,
+      "action": "screenshot",
+      "detail": "name='15-home-dark'",
+      "status": "passed",
+      "seconds": 2.26,
+      "error": "",
+      "screenshot": "screenshots/031-15-home-dark.png"
+    },
+    {
+      "index": 57,
+      "action": "tap",
+      "detail": "text='שיחה חדשה'",
+      "status": "failed",
+      "seconds": 10.0,
+      "error": "element not found within 10s: text='שיחה חדשה'",
+      "screenshot": "screenshots/032-step57-tap-FAILED.png"
+    },
+    {
+      "index": 58,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 59,
+      "action": "screenshot",
+      "detail": "name='16-chat-dark'",
+      "status": "passed",
+      "seconds": 2.27,
+      "error": "",
+      "screenshot": "screenshots/033-16-chat-dark.png"
+    }
+  ],
+  "screenshots": [
+    "001-step2-wait_for-FAILED.png",
+    "002-step3-tap-FAILED.png",
+    "003-01-home-tip.png",
+    "004-02-home-empty.png",
+    "005-step11-tap-FAILED.png",
+    "006-03-chat-empty.png",
+    "007-step16-tap-FAILED.png",
+    "008-step17-type-FAILED.png",
+    "009-04b-keyboard.png",
+    "010-04-chat-typed.png",
+    "011-step21-tap-FAILED.png",
+    "012-05-attach-sheet.png",
+    "013-step25-tap-FAILED.png",
+    "014-06-chat-menu.png",
+    "015-step28-tap-FAILED.png",
+    "016-07-chat-info.png",
+    "017-08-home-draft.png",
+    "018-step37-long_press-FAILED.png",
+    "019-09-home-selection.png",
+    "020-step40-tap-FAILED.png",
+    "021-10-home-menu.png",
+    "022-step42-tap-FAILED.png",
+    "023-11-settings.png",
+    "024-step45-scroll_to-FAILED.png",
+    "025-12-settings-advanced.png",
+    "026-step47-scroll_to-FAILED.png",
+    "027-step48-tap-FAILED.png",
+    "028-13-theme-sheet.png",
+    "029-step51-tap-FAILED.png",
+    "030-14-settings-dark.png",
+    "031-15-home-dark.png",
+    "032-step57-tap-FAILED.png",
+    "033-16-chat-dark.png"
+  ]
+}

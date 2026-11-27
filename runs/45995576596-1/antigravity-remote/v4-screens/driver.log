@@ -1,0 +1,61 @@
+[ok] 01 launch clear_data=True
+[FAIL] 02 wait_for text='Setup guide' element not found within 20s: text='Setup guide'
+[FAIL] 03 tap desc='Connect to a computer instead' element not found within 10s: desc='Connect to a computer instead'
+[ok] 04 wait seconds=1
+[ok] 05 launch
+[ok] 06 wait seconds=2
+[ok] 07 screenshot name='01-home-tip'
+[ok] 08 wait seconds=2
+[skip] 09 tap text='Got it' element not found within 10s: text='Got it'
+[ok] 10 screenshot name='02-home-empty'
+[FAIL] 11 tap desc='New chat' element not found within 10s: desc='New chat'
+[ok] 12 wait seconds=3
+[ok] 13 screenshot name='03-chat-empty'
+[ok] 14 wait seconds=2
+[skip] 15 tap text='Got it' element not found within 10s: text='Got it'
+[FAIL] 16 tap text='Message' element not found within 10s: text='Message'
+[FAIL] 17 type text='Message' element not found within 10s: text='Message'
+[ok] 18 screenshot name='04b-keyboard'
+[ok] 19 key key='BACK'
+[ok] 20 screenshot name='04-chat-typed'
+[FAIL] 21 tap desc='Attach' element not found within 10s: desc='Attach'
+[ok] 22 wait seconds=1
+[ok] 23 screenshot name='05-attach-sheet'
+[ok] 24 back
+[FAIL] 25 tap desc='More' element not found within 10s: desc='More'
+[ok] 26 wait seconds=1
+[ok] 27 screenshot name='06-chat-menu'
+[FAIL] 28 tap text='Chat info' element not found within 10s: text='Chat info'
+[ok] 29 wait seconds=1
+[ok] 30 screenshot name='07-chat-info'
+[ok] 31 back
+[ok] 32 back
+[ok] 33 wait seconds=1
+[ok] 34 wait seconds=2
+[skip] 35 tap text='Got it' element not found within 10s: text='Got it'
+[ok] 36 screenshot name='08-home-draft'
+[FAIL] 37 long_press text='New chat' element not found within 10s: text='New chat'
+[ok] 38 screenshot name='09-home-selection'
+[ok] 39 back
+[FAIL] 40 tap desc='More' element not found within 10s: desc='More'
+[ok] 41 screenshot name='10-home-menu'
+[FAIL] 42 tap text='Settings' element not found within 10s: text='Settings'
+[ok] 43 wait seconds=1
+[ok] 44 screenshot name='11-settings'
+[FAIL] 45 scroll_to text='App version' not found after scrolling: text='App version'
+[ok] 46 screenshot name='12-settings-advanced'
+[FAIL] 47 scroll_to text='Theme' not found after scrolling: text='Theme'
+[FAIL] 48 tap text='Theme' element not found within 10s: text='Theme'
+[ok] 49 wait seconds=1
+[ok] 50 screenshot name='13-theme-sheet'
+[FAIL] 51 tap text='Dark' element not found within 10s: text='Dark'
+[ok] 52 wait seconds=2
+[ok] 53 screenshot name='14-settings-dark'
+[ok] 54 back
+[ok] 55 wait seconds=1
+[ok] 56 screenshot name='15-home-dark'
+[FAIL] 57 tap text='New chat' element not found within 10s: text='New chat'
+[ok] 58 wait seconds=2
+[ok] 59 screenshot name='16-chat-dark'
+
+Result: FAILED — 59 steps, 33 screenshots, 0 crashes
