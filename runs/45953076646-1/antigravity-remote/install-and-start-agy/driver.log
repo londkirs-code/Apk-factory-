@@ -1,0 +1,4 @@
+[ok] 01 launch clear_data=True
+[FAIL] 02 wait_for text='Antigravity' element not found within 20s: text='Antigravity'
+
+Result: FAILED — 2 steps, 2 screenshots, 0 crashes
