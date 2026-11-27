@@ -156,10 +156,15 @@ object StepMapper {
         val items = u.optJSONArray("items")
         val sb = StringBuilder()
         if (items != null) for (k in 0 until items.length()) {
-            val t = items.optJSONObject(k)?.optString("text").orEmpty()
-            if (t.isNotBlank()) { if (sb.isNotEmpty()) sb.append('\n'); sb.append(t) }
+            val it = items.optJSONObject(k) ?: continue
+            val slash = it.optJSONObject("item")?.optJSONObject("slashCommand")?.optJSONObject("info")?.optString("name")
+            val t = if (!slash.isNullOrBlank()) "/$slash" else it.optString("text")
+            if (t.isNotBlank()) { if (sb.isNotEmpty()) sb.append(if (sb.endsWith("/$slash")) " " else "\n"); sb.append(t) }
         }
-        return sb.toString().ifBlank { u.optString("query").ifBlank { u.optString("userResponse") } }.trim()
+        var text = sb.toString().ifBlank { u.optString("query").ifBlank { u.optString("userResponse") } }.trim()
+        val media = u.optJSONArray("media")?.length() ?: 0
+        if (media > 0) text = (text + "\n" + "🖼️".repeat(media.coerceAtMost(5))).trim()
+        return text
     }
 
     /** "Ran: ls -la", "View file: /x/y.kt" … built from the step's own object. */

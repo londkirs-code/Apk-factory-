@@ -120,4 +120,11 @@
     <string name="rec_empty">ההקלטה ריקה</string>
     <string name="rec_cleared">ההקלטה נמחקה</string>
     <string name="rec_started_hint">ההקלטה פועלת. לפני כל פעולה לוחצים על ‎● REC ומוסיפים הערה שמתארת מה עומדים לעשות.</string>
+    <string name="chat_attach">צירוף תמונה</string>
+    <string name="chat_image">תמונה</string>
+    <string name="chat_image_failed">לא ניתן לקרוא את התמונה</string>
+    <string name="chat_exec_auto">פקודות: רצות אוטומטית (לחיצה תעביר לשאלה לפני הרצה)</string>
+    <string name="chat_exec_ask">פקודות: שואל לפני הרצה (לחיצה תעביר להרצה אוטומטית)</string>
+    <string name="chat_exec_now_ask">הסוכן ישאל לפני שהוא מריץ פקודות</string>
+    <string name="chat_exec_now_auto">פקודות ירוצו אוטומטית</string>
 </resources>

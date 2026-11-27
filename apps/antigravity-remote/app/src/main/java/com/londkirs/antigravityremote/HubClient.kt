@@ -108,37 +108,79 @@ object HubClient {
     /** Blocks until the browser round-trip finishes: the hub keeps its OAuth callback listener only while this call is open. */
     fun login() { call("Login", JSONObject().put("isGcpTos", false), 10 * 60_000) }
 
-    data class ModelChoice(val value: Any, val name: String)
+    data class ModelChoice(val value: Any, val name: String, val quota: Double? = null, val images: Boolean = true)
 
-    /**
-     * Models offered to the agent, in the hub's own order, with the account default first.
-     * [ModelChoice.value] is the proto3-JSON value of the Model enum (name or number) as the hub reported it.
-     */
+    /** Models as the web UI lists them (GetUserStatus → clientModelConfigs), with remaining quota. */
     fun models(): List<ModelChoice> {
+        val out = mutableListOf<ModelChoice>()
+        runCatching {
+            val cfgs = call("GetUserStatus", JSONObject()).optJSONObject("userStatus")
+                ?.optJSONObject("cascadeModelConfigData")?.optJSONArray("clientModelConfigs")
+            if (cfgs != null) for (i in 0 until cfgs.length()) {
+                val c = cfgs.optJSONObject(i) ?: continue
+                if (c.optBoolean("disabled")) continue
+                val value = c.optJSONObject("modelOrAlias")?.opt("model") ?: continue
+                if (out.any { it.value == value }) continue
+                val q = c.optJSONObject("quotaInfo")?.takeIf { it.has("remainingFraction") }?.optDouble("remainingFraction")
+                out += ModelChoice(value, c.optString("label").ifBlank { value.toString() }, q, c.optBoolean("supportsImages", true))
+            }
+        }
+        if (out.isNotEmpty()) return out
+        // Fallback: GetAvailableModels.
         val r = call("GetAvailableModels", JSONObject()).optJSONObject("response") ?: return emptyList()
         val map = r.optJSONObject("models") ?: return emptyList()
         val order = mutableListOf<String>()
         r.optString("defaultAgentModelId").takeIf { it.isNotBlank() }?.let { order += it }
-        val sorts = r.optJSONArray("agentModelSorts")
-        if (sorts != null) for (i in 0 until sorts.length()) {
-            val groups = sorts.optJSONObject(i)?.optJSONArray("groups") ?: continue
-            for (g in 0 until groups.length()) {
-                val ids = groups.optJSONObject(g)?.optJSONArray("modelIds") ?: continue
-                for (k in 0 until ids.length()) ids.optString(k).takeIf { it.isNotBlank() && it !in order }?.let { order += it }
-            }
-        }
         map.keys().forEach { if (it !in order) order += it }
-        val out = mutableListOf<ModelChoice>()
         for (key in order) {
             val d = map.optJSONObject(key) ?: continue
             if (d.optBoolean("disabled") || d.optBoolean("isInternal")) continue
             val value = d.opt("model") ?: continue
-            if (value == "MODEL_UNSPECIFIED" || value == 0) continue
-            if (out.any { it.value == value }) continue
+            if (value == "MODEL_UNSPECIFIED" || out.any { it.value == value }) continue
             out += ModelChoice(value, d.optString("displayName").ifBlank { key })
         }
         return out
     }
+
+    /** Shares the model choice with the web UI (same call it makes). */
+    fun rememberModel(model: Any) {
+        runCatching { call("JetboxWriteState", JSONObject().put("appState", JSONObject().put("lastSelectedAgentModel", model))) }
+    }
+
+    /** Agent config as the hub web UI sends it. */
+    fun cascadeConfig(model: Any?, autoPolicy: String, withExecutor: Boolean = true): JSONObject {
+        val planner = JSONObject()
+            .put("toolConfig", JSONObject()
+                .put("runCommand", JSONObject().put("autoCommandConfig", JSONObject().put("autoExecutionPolicy", autoPolicy)))
+                .put("antigravityBrowser", JSONObject().put("enableBrowserSubagentWebview", false)))
+            .put("useAiCredits", false)
+            .put("supportsLatexRendering", false)
+        if (model != null) planner.put("planModel", model)
+        val cfg = JSONObject().put("plannerConfig", planner).put("conversationHistoryConfig", JSONObject())
+        if (withExecutor) cfg.put("executorConfig", JSONObject().put("useCoreDirect", true))
+        return cfg
+    }
+
+    fun agentSpec(): JSONObject = JSONObject().put("builtinAgent", JSONObject().put("defaultAgent",
+        JSONObject().put("isGoogle", false).put("isInteractive", true).put("surface", "AGENT_SURFACE_HUB")))
+
+    data class SlashCommand(val title: String, val description: String, val info: JSONObject)
+
+    fun slashCommands(cascadeId: String?, model: Any?, autoPolicy: String): List<SlashCommand> {
+        val req = JSONObject().put("cascadeConfig", cascadeConfig(model, autoPolicy, withExecutor = false)).put("customAgentSpec", agentSpec())
+        if (cascadeId != null) req.put("cascadeId", cascadeId)
+        val arr = call("GetSlashCommands", req).optJSONArray("commands") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val c = arr.optJSONObject(i) ?: return@mapNotNull null
+            val info = c.optJSONObject("info") ?: return@mapNotNull null
+            SlashCommand(c.optString("title").ifBlank { info.optString("name") }, c.optString("description"), info)
+        }
+    }
+
+    /** Uploads an image the way the web UI does; returns the artifact URI. */
+    fun saveMedia(mime: String, base64: String): String =
+        call("SaveMediaAsArtifact", JSONObject().put("media", JSONObject().put("mimeType", mime).put("inlineData", base64)), 120_000)
+            .optString("uri")
 
     fun startCascade(cascadeId: String, workspaceDir: String, model: Any?) {
         val uri = "file://$workspaceDir"
@@ -150,25 +192,19 @@ object HubClient {
             .apply { if (model != null) put("requestedModel", model) })
     }
 
-    fun sendMessage(cascadeId: String, text: String, clientMessageId: String, model: Any?) {
-        val config = JSONObject()
-            .put("plannerConfig", JSONObject()
-                .put("toolConfig", JSONObject()
-                    .put("runCommand", JSONObject().put("autoCommandConfig",
-                        JSONObject().put("autoExecutionPolicy", "CASCADE_COMMANDS_AUTO_EXECUTION_EAGER")))
-                    .put("notifyUser", JSONObject()))
-                .put("supportsLatexRendering", false)
-                .apply { if (model != null) put("requestedModel", JSONObject().put("model", model)) })
-            .put("executorConfig", JSONObject().put("useCoreDirect", true))
-            .put("conversationHistoryConfig", JSONObject())
-        call("SendUserCascadeMessage", JSONObject()
+    fun sendMessage(
+        cascadeId: String, items: org.json.JSONArray, clientMessageId: String, model: Any?,
+        autoPolicy: String, media: org.json.JSONArray? = null, now: Boolean = false,
+    ) {
+        val req = JSONObject()
             .put("cascadeId", cascadeId)
-            .put("items", org.json.JSONArray().put(JSONObject().put("text", text)))
-            .put("cascadeConfig", config)
-            .put("customAgentSpec", JSONObject().put("builtinAgent", JSONObject().put("defaultAgent",
-                JSONObject().put("isGoogle", false).put("isInteractive", true))))
-            .put("deliveryStrategy", "MESSAGE_DELIVERY_STRATEGY_WHEN_IDLE")
-            .put("clientMessageId", clientMessageId), 60_000)
+            .put("items", items)
+            .put("cascadeConfig", cascadeConfig(model, autoPolicy))
+            .put("customAgentSpec", agentSpec())
+            .put("deliveryStrategy", if (now) "MESSAGE_DELIVERY_STRATEGY_NEXT_INVOCATION" else "MESSAGE_DELIVERY_STRATEGY_WHEN_IDLE")
+            .put("clientMessageId", clientMessageId)
+        if (media != null && media.length() > 0) req.put("media", media)
+        call("SendUserCascadeMessage", req, 120_000)
     }
 
     fun steps(cascadeId: String): org.json.JSONArray =

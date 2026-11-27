@@ -18,6 +18,24 @@
     } catch (e) {}
     return o;
   }
+  // WebSocket frames carry Connect envelopes ({procedure, headers, payload}): redact headers and shrink
+  // long strings (images) so each logged frame stays valid JSON.
+  function wsData(d) {
+    if (typeof d !== 'string') return '[binary ' + (d.byteLength || d.size || 0) + 'B]';
+    try {
+      var o = JSON.parse(d);
+      (function walk(x, key) {
+        if (!x || typeof x !== 'object') return;
+        for (var k in x) {
+          var v = x[k];
+          if (/csrf|authorization|cookie|token|secret/i.test(k) && k !== 'streamId') { x[k] = '<redacted>'; continue; }
+          if (typeof v === 'string' && v.length > 2000) x[k] = v.slice(0, 120) + '…<' + v.length + ' chars>';
+          else if (typeof v === 'object') walk(v, k);
+        }
+      })(o);
+      return JSON.stringify(o);
+    } catch (e) { return d.slice(0, MAX); }
+  }
   function b64(u8) {
     var s = '';
     for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
@@ -116,11 +134,11 @@
       if (on()) log({ t: 'ws-open', id: id, url: red(u) });
       var send = ws.send;
       ws.send = function (d) {
-        if (on()) log({ t: 'ws-send', id: id, data: typeof d === 'string' ? d.slice(0, MAX) : '[binary ' + (d.byteLength || d.size || 0) + 'B]' });
+        if (on()) log({ t: 'ws-send', id: id, data: wsData(d) });
         return send.apply(ws, arguments);
       };
       ws.addEventListener('message', function (ev) {
-        if (on()) log({ t: 'ws-message', id: id, data: typeof ev.data === 'string' ? ev.data.slice(0, MAX) : '[binary]' });
+        if (on()) log({ t: 'ws-message', id: id, data: wsData(ev.data) });
       });
       return ws;
     };

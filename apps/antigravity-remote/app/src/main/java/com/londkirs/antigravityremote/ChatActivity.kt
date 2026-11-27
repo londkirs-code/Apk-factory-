@@ -54,7 +54,15 @@ class ChatActivity : Activity() {
     private var polling = false
     private var busy = false
     private var lastSignature = ""
-    private var pending = mutableListOf<String>()   // sent, not yet echoed by the hub
+    private var pending = mutableListOf<Pair<String, Int>>()   // (text, user-message count when sent) until echoed
+    private var userCount = 0
+    private var pendingImage: Pair<String, String>? = null      // mime, base64
+    private var activeSlash: HubClient.SlashCommand? = null
+    private var slashCache: List<HubClient.SlashCommand> = emptyList()
+    private lateinit var extras: LinearLayout
+    private lateinit var suggestions: LinearLayout
+    private lateinit var suggestionsBox: ScrollView
+    private val autoPolicy get() = modelPrefs.getString("auto_policy", "CASCADE_COMMANDS_AUTO_EXECUTION_EAGER")!!
     private var sending = false
     private var lastItems: List<ChatItem> = emptyList()
     private var models: List<HubClient.ModelChoice> = emptyList()
@@ -149,11 +157,33 @@ class ChatActivity : Activity() {
         scroll = ScrollView(this).apply { addView(messages); isFillViewport = true }
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
 
+        suggestions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = ChatUi.rounded(Color.WHITE, dp(12).toFloat())
+            elevation = dp(4).toFloat()
+        }
+        suggestionsBox = ScrollView(this).apply { addView(suggestions); visibility = View.GONE }
+        root.addView(suggestionsBox, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(dp(8), 0, dp(8), 0)
+        })
+        extras = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(4), dp(10), 0)
+            visibility = View.GONE
+        }
+        root.addView(extras)
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.BOTTOM
             setPadding(dp(6), dp(6), dp(6), dp(8))
         }
+        bar.addView(TextView(this).apply {
+            text = "📎"; textSize = 22f; gravity = Gravity.CENTER
+            contentDescription = getString(R.string.chat_attach)
+            setOnClickListener { pickImage() }
+        }, LinearLayout.LayoutParams(dp(40), dp(48)))
+
         input = EditText(this).apply {
             setHint(R.string.chat_hint)
             background = ChatUi.rounded(Color.WHITE, dp(24).toFloat())
@@ -165,6 +195,11 @@ class ChatActivity : Activity() {
             minHeight = dp(48)
         }
         bar.addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(e: android.text.Editable?) { updateSuggestions(e?.toString().orEmpty()) }
+        })
         sendBtn = TextView(this).apply {
             text = "➤"; textSize = 20f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
             background = ChatUi.circle(ChatUi.SEND)
@@ -269,14 +304,14 @@ class ChatActivity : Activity() {
     private fun render(r: StepMapper.Result) {
         lastItems = r.items
         // Drop pending bubbles once the hub has echoed them.
-        val echoed = r.items.filter { it.kind == ChatItem.USER }.map { it.text }
-        pending.removeAll { p -> echoed.any { it == p.trim() } }
+        userCount = r.items.count { it.kind == ChatItem.USER }
+        pending.removeAll { userCount > it.second }
         busy = r.busy || pending.isNotEmpty() || sending
         setStatus(getString(if (busy) R.string.chat_typing else if (authOk) R.string.chat_online else R.string.chat_signed_out))
         sendBtn.text = if (r.busy) "■" else "➤"
 
         val all = r.items.toMutableList()
-        pending.forEach { all += ChatItem(ChatItem.USER, it, "🕓") }
+        pending.forEach { all += ChatItem(ChatItem.USER, it.first, "🕓") }
         if (busy) all += ChatItem(ChatItem.TYPING, "")
         val sig = all.joinToString("|") { "${it.kind}:${it.stepIndex}:${it.text.length}:${it.text.hashCode()}" }
         if (sig != lastSignature) {
@@ -398,19 +433,27 @@ class ChatActivity : Activity() {
 
     private fun onSendOrStop() {
         val text = input.text.toString().trim()
-        if (text.isEmpty()) {
+        val slash = activeSlash
+        val image = pendingImage
+        if (text.isEmpty() && slash == null && image == null) {
             if (busy) stop()
             return
         }
         if (!hubReady) { Toast.makeText(this, R.string.chat_not_ready, Toast.LENGTH_SHORT).show(); return }
         input.setText("")
-        pending += text
+        activeSlash = null; pendingImage = null; refreshExtras(); suggestionsBox.visibility = View.GONE
+        val shown = buildString {
+            if (slash != null) append("/").append(slash.info.optString("name")).append(if (text.isNotEmpty()) " " else "")
+            append(text)
+            if (image != null) append("\n🖼️")
+        }.trim()
+        pending += shown to userCount
         sending = true
         if (chat.title.isBlank()) {
-            chat.title = text.lineSequence().first().take(40)
+            chat.title = shown.lineSequence().first().take(40)
             titleView.text = chat.title
         }
-        chat.preview = text.take(200); chat.updated = System.currentTimeMillis()
+        chat.preview = shown.take(200); chat.updated = System.currentTimeMillis()
         ChatStore.update(this, chat)
         render(StepMapper.Result(lastItems, false, null, null))
         io.execute {
@@ -421,13 +464,25 @@ class ChatActivity : Activity() {
                     HubClient.startCascade(chat.cascadeId, java.io.File(AgyInstaller.homeDir(this), "projects").absolutePath, model)
                     prefs.edit().putBoolean("started_${chat.id}", true).apply()
                 }
-                HubClient.sendMessage(chat.cascadeId, text, UUID.randomUUID().toString(), model)
+                val items = org.json.JSONArray()
+                if (slash != null) items.put(org.json.JSONObject().put("item",
+                    org.json.JSONObject().put("slashCommand", org.json.JSONObject().put("info", slash.info))))
+                if (text.isNotEmpty()) items.put(org.json.JSONObject().put("text", text))
+                var media: org.json.JSONArray? = null
+                if (image != null) {
+                    val uri = HubClient.saveMedia(image.first, image.second)
+                    media = org.json.JSONArray().put(org.json.JSONObject()
+                        .put("mimeType", image.first).put("inlineData", image.second)
+                        .apply { if (uri.isNotBlank()) put("uri", uri) })
+                }
+                HubClient.sendMessage(chat.cascadeId, items, UUID.randomUUID().toString(), model, autoPolicy, media)
             }
             main.post {
                 sending = false
                 res.onFailure { e ->
-                    pending.remove(text)
+                    pending.removeAll { it.first == shown }
                     input.setText(text)
+                    activeSlash = slash; pendingImage = image; refreshExtras()
                     AlertDialog.Builder(this).setTitle(R.string.chat_send_failed)
                         .setMessage(e.message ?: e.toString())
                         .setPositiveButton(R.string.close, null).show()
@@ -438,6 +493,102 @@ class ChatActivity : Activity() {
         }
     }
 
+    // ---- Slash commands ---------------------------------------------------------------------------
+
+    private fun updateSuggestions(text: String) {
+        if (activeSlash != null || !text.startsWith("/") || text.contains(' ') || text.contains('\n')) {
+            suggestionsBox.visibility = View.GONE; return
+        }
+        if (slashCache.isEmpty()) {
+            io.execute {
+                val list = runCatching { HubClient.slashCommands(if (started) chat.cascadeId else null, currentModel()?.value, autoPolicy) }
+                    .getOrDefault(emptyList())
+                main.post { slashCache = list; if (list.isNotEmpty()) updateSuggestions(input.text.toString()) }
+            }
+            return
+        }
+        val q = text.removePrefix("/").lowercase()
+        val matches = slashCache.filter { it.title.lowercase().contains(q) || it.info.optString("name").lowercase().contains(q) }.take(8)
+        suggestions.removeAllViews()
+        matches.forEach { c ->
+            suggestions.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), dp(8), dp(14), dp(8))
+                setOnClickListener { chooseSlash(c) }
+                addView(TextView(this@ChatActivity).apply {
+                    text = "/" + c.title; textSize = 15f; setTextColor(ChatUi.TEXT); setTypeface(typeface, Typeface.BOLD)
+                    textDirection = View.TEXT_DIRECTION_LTR
+                })
+                if (c.description.isNotBlank()) addView(TextView(this@ChatActivity).apply {
+                    text = c.description; textSize = 12.5f; setTextColor(ChatUi.MUTED); maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+            })
+        }
+        suggestionsBox.visibility = if (matches.isEmpty()) View.GONE else View.VISIBLE
+        if (matches.size > 4) suggestionsBox.layoutParams = suggestionsBox.layoutParams.apply { height = dp(260) }
+        else suggestionsBox.layoutParams = suggestionsBox.layoutParams.apply { height = LinearLayout.LayoutParams.WRAP_CONTENT }
+    }
+
+    private fun chooseSlash(c: HubClient.SlashCommand) {
+        activeSlash = c
+        input.setText("")
+        suggestionsBox.visibility = View.GONE
+        refreshExtras()
+    }
+
+    /** Chips above the input: the chosen slash command and the attached image. */
+    private fun refreshExtras() {
+        extras.removeAllViews()
+        fun chip(label: String, onRemove: () -> Unit) = TextView(this).apply {
+            text = "$label  ✕"; textSize = 13.5f; setTextColor(ChatUi.TEXT)
+            background = ChatUi.rounded(Color.parseColor("#D1F4CC"), dp(14).toFloat())
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            setOnClickListener { onRemove(); refreshExtras() }
+        }
+        activeSlash?.let { c ->
+            extras.addView(chip("/" + c.title) { activeSlash = null })
+            extras.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        }
+        pendingImage?.let { extras.addView(chip("🖼️ " + getString(R.string.chat_image)) { pendingImage = null }) }
+        extras.visibility = if (extras.childCount > 0) View.VISIBLE else View.GONE
+    }
+
+    // ---- Images -----------------------------------------------------------------------------------
+
+    private fun pickImage() {
+        val i = Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE)
+        runCatching { startActivityForResult(Intent.createChooser(i, getString(R.string.chat_attach)), 41) }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data
+        if (requestCode != 41 || resultCode != RESULT_OK || uri == null) return
+        io.execute {
+            val encoded = runCatching { encodeImage(uri) }.getOrNull()
+            main.post {
+                if (encoded == null) Toast.makeText(this, R.string.chat_image_failed, Toast.LENGTH_SHORT).show()
+                else { pendingImage = "image/jpeg" to encoded; refreshExtras() }
+            }
+        }
+    }
+
+    /** Downscales to ≤1600px and encodes as JPEG/base64 (the web UI also sends JPEG). */
+    private fun encodeImage(uri: android.net.Uri): String {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)!!.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 1600) sample *= 2
+        val bmp = contentResolver.openInputStream(uri)!!.use {
+            android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: throw java.io.IOException("decode failed")
+        val scale = 1600f / maxOf(bmp.width, bmp.height)
+        val out = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
+        val bytes = java.io.ByteArrayOutputStream().also { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
+        return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    }
+
     private fun pickModel() {
         io.execute {
             val list = loadModels()
@@ -446,8 +597,11 @@ class ChatActivity : Activity() {
                 val cur = list.indexOf(currentModel())
                 AlertDialog.Builder(this)
                     .setTitle(R.string.chat_model_title)
-                    .setSingleChoiceItems(list.map { it.name }.toTypedArray(), cur) { d, which ->
-                        modelPrefs.edit().putString("model", list[which].value.toString()).apply()
+                    .setSingleChoiceItems(list.map { m -> m.name + (m.quota?.let { "  ·  ${(it * 100).toInt()}%" } ?: "") }.toTypedArray(), cur) { d, which ->
+                        val chosen = list[which]
+                        modelPrefs.edit().putString("model", chosen.value.toString()).apply()
+                        io.execute { HubClient.rememberModel(chosen.value) }
+                        slashCache = emptyList()
                         d.dismiss()
                     }
                     .setNegativeButton(R.string.cancel, null)
@@ -518,6 +672,7 @@ class ChatActivity : Activity() {
     private fun showMenu(anchor: View) {
         val m = PopupMenu(this, anchor)
         m.menu.add(0, 5, 0, getString(R.string.chat_model, currentModel()?.name ?: "…"))
+        m.menu.add(0, 6, 0, if (autoPolicy == "CASCADE_COMMANDS_AUTO_EXECUTION_OFF") R.string.chat_exec_ask else R.string.chat_exec_auto)
         m.menu.add(0, 1, 0, R.string.chat_stop)
         m.menu.add(0, 2, 1, R.string.visual_ui)
         m.menu.add(0, 3, 2, R.string.terminal)
@@ -529,6 +684,11 @@ class ChatActivity : Activity() {
                 3 -> startActivity(Intent(this, TerminalActivity::class.java))
                 4 -> signIn()
                 5 -> pickModel()
+                6 -> {
+                    val next = if (autoPolicy == "CASCADE_COMMANDS_AUTO_EXECUTION_OFF") "CASCADE_COMMANDS_AUTO_EXECUTION_EAGER" else "CASCADE_COMMANDS_AUTO_EXECUTION_OFF"
+                    modelPrefs.edit().putString("auto_policy", next).apply()
+                    Toast.makeText(this, if (next == "CASCADE_COMMANDS_AUTO_EXECUTION_OFF") R.string.chat_exec_now_ask else R.string.chat_exec_now_auto, Toast.LENGTH_SHORT).show()
+                }
             }
             true
         }

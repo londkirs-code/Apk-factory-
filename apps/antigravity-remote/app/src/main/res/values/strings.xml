@@ -118,4 +118,11 @@
     <string name="rec_empty">The recording is empty</string>
     <string name="rec_cleared">Recording cleared</string>
     <string name="rec_started_hint">Recording. Before each action, tap ● REC to add a note saying what you are about to do.</string>
+    <string name="chat_attach">Attach image</string>
+    <string name="chat_image">Image</string>
+    <string name="chat_image_failed">Could not read the image</string>
+    <string name="chat_exec_auto">Commands: run automatically (tap to ask first)</string>
+    <string name="chat_exec_ask">Commands: ask before running (tap for automatic)</string>
+    <string name="chat_exec_now_ask">The agent will ask before running commands</string>
+    <string name="chat_exec_now_auto">Commands will run automatically</string>
 </resources>
