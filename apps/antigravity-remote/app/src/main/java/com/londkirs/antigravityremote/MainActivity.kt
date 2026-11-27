@@ -159,7 +159,7 @@ class MainActivity : Activity() {
         HubClient.ensureRunning(this) { ok ->
             dialog.dismiss()
             if (ok) {
-                startActivity(Intent(this, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.HUB_URL))
+                startActivity(Intent(this, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.hubUiUrl ?: TerminalService.HUB_URL))
             } else {
                 Toast.makeText(this, R.string.hub_failed, Toast.LENGTH_LONG).show()
                 openTerminal(null)

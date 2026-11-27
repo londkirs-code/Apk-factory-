@@ -478,7 +478,7 @@ class ChatActivity : Activity() {
     }
 
     private fun openVisualUi() {
-        startActivity(Intent(this, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.HUB_URL))
+        startActivity(Intent(this, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.hubUiUrl ?: TerminalService.HUB_URL))
     }
 
     private fun showMenu(anchor: View) {

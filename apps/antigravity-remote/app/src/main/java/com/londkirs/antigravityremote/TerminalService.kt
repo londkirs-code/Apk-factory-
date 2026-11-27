@@ -47,6 +47,10 @@ class TerminalService : Service(), TerminalSessionClient {
         const val KIND_HUB = "hub"
         const val HUB_PORT = 4400
         const val HUB_URL = "http://localhost:4400/"
+
+        /** Web UI address printed by `agy --hub` ("Open in your browser: http://localhost:4400/#t=<token>"). */
+        @Volatile var hubUiUrl: String? = null
+        private val UI_URL = Regex("""http://(?:localhost|127\.0\.0\.1):\d+/#t=[0-9A-Za-z_-]+""")
     }
 
     val sessions = mutableListOf<TerminalSession>()
@@ -132,6 +136,7 @@ class TerminalService : Service(), TerminalSessionClient {
         // A fresh CSRF token per hub start: agy reads it from the environment (ResolveCsrfTokensFromEnv)
         // and the app sends it back in x-antigravity-csrf-token.
         val token = HubClient.newToken(this)
+        hubUiUrl = null
         val script = "cd \"\$HOME/projects\" 2>/dev/null || cd \"\$HOME\"\n" +
             // Same data dir as the interactive CLI, so the hub reuses the Google sign-in done in agy.
             "export AGY_ENABLE_HUB=1 GOMEMLIMIT=1536MiB AGY_NO_UPDATE_PROMPT=1 CI=1\n" +
@@ -251,7 +256,14 @@ class TerminalService : Service(), TerminalSessionClient {
 
     // ---- TerminalSessionClient -------------------------------------------------------------------
 
-    override fun onTextChanged(changedSession: TerminalSession) { listener?.onScreenChanged(changedSession) }
+    override fun onTextChanged(changedSession: TerminalSession) {
+        if (kinds[changedSession] == KIND_HUB && hubUiUrl == null) {
+            changedSession.emulator?.screen?.transcriptTextWithFullLinesJoined?.let { t ->
+                UI_URL.find(t)?.let { hubUiUrl = it.value }
+            }
+        }
+        listener?.onScreenChanged(changedSession)
+    }
     override fun onTitleChanged(changedSession: TerminalSession) { listener?.onTitleChanged(changedSession) }
     override fun onSessionFinished(finishedSession: TerminalSession) {
         // Keep the finished session visible (shows exit status) until the user closes it.

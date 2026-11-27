@@ -139,7 +139,7 @@ class ChatListActivity : Activity() {
         m.setOnMenuItemClickListener {
             when (it.itemId) {
                 1 -> HubClient.ensureRunning(this) { ok ->
-                    if (ok) startActivity(Intent(this, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.HUB_URL))
+                    if (ok) startActivity(Intent(this, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.hubUiUrl ?: TerminalService.HUB_URL))
                     else startActivity(Intent(this, TerminalActivity::class.java))
                 }
                 2 -> startActivity(Intent(this, TerminalActivity::class.java))
