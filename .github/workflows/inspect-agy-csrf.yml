@@ -1,0 +1,28 @@
+name: Inspect agy hub CSRF handling
+
+# One-off read-only research: static string search in Google's official Android agy build.
+# Nothing downloaded is executed.
+on:
+  push:
+    branches: [ccr-0929c2b8-l3mjm7]
+    paths: [".github/workflows/inspect-agy-csrf.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Strings around csrf / hub
+        run: |
+          BASE=https://antigravity-cli-auto-updater-974169037036.us-central1.run.app
+          M=$(curl -fsSL "$BASE/manifests/android_arm64.json")
+          URL=$(echo "$M" | sed -n 's/.*"url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          curl -fsSL -o p.tgz "$URL" && tar -xzf p.tgz antigravity
+          echo "== csrf words"
+          strings -a -n 4 antigravity | grep -oiE '[A-Za-z0-9_./ -]{0,40}csrf[A-Za-z0-9_./=%: -]{0,60}' | sort | uniq -c | sort -rn | head -80
+          echo "== hub flags/env"
+          strings -a -n 4 antigravity | grep -oE -- '(--|AGY_|ANTIGRAVITY_)[a-z_A-Z-]*(hub|HUB|csrf|CSRF|token|TOKEN)[a-z_A-Z-]*' | sort -u | head -60
+          echo "== header names"
+          strings -a -n 4 antigravity | grep -oiE 'x-(codeium|goog|antigravity|agy)-[a-z-]+' | sort | uniq -c | sort -rn | head -30
