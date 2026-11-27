@@ -7,9 +7,14 @@
       "clear_data": true
     },
     {
+      "action": "shell",
+      "cmd": "pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS",
+      "ignore_errors": true
+    },
+    {
       "action": "tap",
-      "text": "Allow",
-      "timeout": 4,
+      "regex": "^Allow$",
+      "timeout": 3,
       "optional": true
     },
     {
@@ -31,8 +36,8 @@
     },
     {
       "action": "tap",
-      "text": "Allow",
-      "timeout": 4,
+      "regex": "^Allow$",
+      "timeout": 3,
       "optional": true
     },
     {
