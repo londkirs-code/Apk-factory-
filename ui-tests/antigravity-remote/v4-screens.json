@@ -3,57 +3,245 @@
   "grant_permissions": true,
   "stop_on_failure": false,
   "steps": [
-    {"action": "launch", "clear_data": true},
-    {"action": "wait_for", "text": "Setup guide", "timeout": 20},
-    {"action": "tap", "desc": "Connect to a computer instead"},
-    {"action": "wait", "seconds": 1},
-    {"action": "launch"},
-    {"action": "wait", "seconds": 2},
-    {"action": "screenshot", "name": "01-home-tip"},
-    {"action": "tap", "text": "Got it", "optional": true},
-    {"action": "screenshot", "name": "02-home-empty"},
-    {"action": "tap", "desc": "New chat"},
-    {"action": "wait", "seconds": 3},
-    {"action": "screenshot", "name": "03-chat-empty"},
-    {"action": "tap", "text": "Got it", "optional": true},
-    {"action": "type", "value": "Hello agent, build me an app", "hide_keyboard": true},
-    {"action": "screenshot", "name": "04-chat-typed"},
-    {"action": "tap", "desc": "Attach"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "05-attach-sheet"},
-    {"action": "back"},
-    {"action": "tap", "desc": "More"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "06-chat-menu"},
-    {"action": "tap", "text": "Chat info"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "07-chat-info"},
-    {"action": "back"},
-    {"action": "back"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "08-home-draft"},
-    {"action": "long_press", "text": "New chat"},
-    {"action": "screenshot", "name": "09-home-selection"},
-    {"action": "back"},
-    {"action": "tap", "desc": "More"},
-    {"action": "screenshot", "name": "10-home-menu"},
-    {"action": "tap", "text": "Settings"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "11-settings"},
-    {"action": "scroll_to", "text": "App version", "direction": "up", "max_swipes": 8},
-    {"action": "screenshot", "name": "12-settings-advanced"},
-    {"action": "scroll_to", "text": "Theme", "direction": "down", "max_swipes": 8},
-    {"action": "tap", "text": "Theme"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "13-theme-sheet"},
-    {"action": "tap", "text": "Dark"},
-    {"action": "wait", "seconds": 2},
-    {"action": "screenshot", "name": "14-settings-dark"},
-    {"action": "back"},
-    {"action": "wait", "seconds": 1},
-    {"action": "screenshot", "name": "15-home-dark"},
-    {"action": "tap", "text": "New chat"},
-    {"action": "wait", "seconds": 2},
-    {"action": "screenshot", "name": "16-chat-dark"}
+    {
+      "action": "launch",
+      "clear_data": true
+    },
+    {
+      "action": "wait_for",
+      "text": "Setup guide",
+      "timeout": 20
+    },
+    {
+      "action": "tap",
+      "desc": "Connect to a computer instead"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "launch"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "01-home-tip"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "tap",
+      "text": "Got it",
+      "optional": true
+    },
+    {
+      "action": "screenshot",
+      "name": "02-home-empty"
+    },
+    {
+      "action": "tap",
+      "desc": "New chat"
+    },
+    {
+      "action": "wait",
+      "seconds": 3
+    },
+    {
+      "action": "screenshot",
+      "name": "03-chat-empty"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "tap",
+      "text": "Got it",
+      "optional": true
+    },
+    {
+      "action": "tap",
+      "text": "Message"
+    },
+    {
+      "action": "type",
+      "text": "Message",
+      "value": "Hello agent",
+      "hide_keyboard": false
+    },
+    {
+      "action": "screenshot",
+      "name": "04b-keyboard"
+    },
+    {
+      "action": "key",
+      "key": "BACK"
+    },
+    {
+      "action": "screenshot",
+      "name": "04-chat-typed"
+    },
+    {
+      "action": "tap",
+      "desc": "Attach"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "05-attach-sheet"
+    },
+    {
+      "action": "back"
+    },
+    {
+      "action": "tap",
+      "desc": "More"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "06-chat-menu"
+    },
+    {
+      "action": "tap",
+      "text": "Chat info"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "07-chat-info"
+    },
+    {
+      "action": "back"
+    },
+    {
+      "action": "back"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "tap",
+      "text": "Got it",
+      "optional": true
+    },
+    {
+      "action": "screenshot",
+      "name": "08-home-draft"
+    },
+    {
+      "action": "long_press",
+      "text": "New chat"
+    },
+    {
+      "action": "screenshot",
+      "name": "09-home-selection"
+    },
+    {
+      "action": "back"
+    },
+    {
+      "action": "tap",
+      "desc": "More"
+    },
+    {
+      "action": "screenshot",
+      "name": "10-home-menu"
+    },
+    {
+      "action": "tap",
+      "text": "Settings"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "11-settings"
+    },
+    {
+      "action": "scroll_to",
+      "text": "App version",
+      "direction": "up",
+      "max_swipes": 8
+    },
+    {
+      "action": "screenshot",
+      "name": "12-settings-advanced"
+    },
+    {
+      "action": "scroll_to",
+      "text": "Theme",
+      "direction": "down",
+      "max_swipes": 8
+    },
+    {
+      "action": "tap",
+      "text": "Theme"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "13-theme-sheet"
+    },
+    {
+      "action": "tap",
+      "text": "Dark"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "14-settings-dark"
+    },
+    {
+      "action": "back"
+    },
+    {
+      "action": "wait",
+      "seconds": 1
+    },
+    {
+      "action": "screenshot",
+      "name": "15-home-dark"
+    },
+    {
+      "action": "tap",
+      "text": "New chat"
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "16-chat-dark"
+    }
   ]
 }
