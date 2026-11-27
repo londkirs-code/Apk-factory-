@@ -14,12 +14,23 @@ import android.widget.TextView
 
 /** Shared WhatsApp-like look. */
 object ChatUi {
-    val HEADER = Color.parseColor("#075E54")
-    val HEADER_DARK = Color.parseColor("#054C44")
+    val SURFACE = Color.WHITE
+    val FIELD = Color.parseColor("#F1F4F2")
+    fun icon(ctx: Context, drawable: Int, label: Int, tint: Int = TEXT) =
+        android.widget.ImageButton(ctx).apply {
+            setImageResource(drawable)
+            setColorFilter(tint)
+            scaleType = android.widget.ImageView.ScaleType.CENTER
+            contentDescription = ctx.getString(label)
+            val value = android.util.TypedValue()
+            ctx.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, value, true)
+            setBackgroundResource(value.resourceId)
+        }
+
     val ACCENT = Color.parseColor("#25D366")
-    val SEND = Color.parseColor("#00A884")
-    val WALLPAPER = Color.parseColor("#ECE5DD")
-    val OUT_BUBBLE = Color.parseColor("#DCF8C6")
+    val SEND = Color.parseColor("#087E55")
+    val WALLPAPER = Color.parseColor("#F2EFE9")
+    val OUT_BUBBLE = Color.parseColor("#D8FDD2")
     val IN_BUBBLE = Color.WHITE
     val TOOL_BG = Color.parseColor("#E1F2FB")
     val ERROR_BG = Color.parseColor("#FDE2E1")
@@ -33,7 +44,7 @@ object ChatUi {
     fun circle(color: Int) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
 
     val TICK_BLUE = Color.parseColor("#53BDEB")
-    val DATE_CHIP = Color.parseColor("#E1F3FB")
+    val DATE_CHIP = Color.parseColor("#FFFFFF")
 
     /** Round Antigravity avatar (the app icon). */
     fun avatarImage(ctx: Context, sizeDp: Int) = android.widget.ImageView(ctx).apply {
@@ -48,7 +59,7 @@ object ChatUi {
      * [rtl] flips sides; outgoing bubbles sit at the layout end.
      */
     fun bubbleBg(ctx: Context, color: Int, outgoing: Boolean, rtl: Boolean, tail: Boolean): GradientDrawable {
-        val r = dp(ctx, 10).toFloat(); val t = dp(ctx, 2).toFloat()
+        val r = dp(ctx, 15).toFloat(); val t = dp(ctx, 2).toFloat()
         val sharpLeft = tail && (outgoing == rtl)   // outgoing+RTL → left; incoming+LTR → left
         val sharpRight = tail && !sharpLeft
         val tl = if (sharpLeft) t else r

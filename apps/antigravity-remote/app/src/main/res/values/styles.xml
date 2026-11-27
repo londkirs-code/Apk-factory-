@@ -7,4 +7,10 @@
         <item name="android:statusBarColor">#0E1222</item>
         <item name="android:navigationBarColor">#0E1222</item>
     </style>
+    <style name="ChatTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#087E55</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

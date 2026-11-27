@@ -28,7 +28,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.ProgressBar
@@ -87,12 +86,12 @@ class WebActivity : Activity() {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.parseColor("#1A1F36"))
+            setBackgroundColor(ChatUi.SURFACE)
             setPadding(dp(4), 0, dp(4), 0)
         }
-        bar.addView(iconButton(android.R.drawable.ic_media_previous, R.string.back) { goBack() })
+        bar.addView(iconButton(R.drawable.ic_chat_back, R.string.back) { goBack() })
         title = TextView(this).apply {
-            setTextColor(Color.parseColor("#E8EAF6"))
+            setTextColor(ChatUi.TEXT)
             textSize = 14f
             setSingleLine()
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -105,11 +104,11 @@ class WebActivity : Activity() {
             setOnClickListener { addNote() }
         }
         bar.addView(recBadge)
-        bar.addView(iconButton(android.R.drawable.ic_popup_sync, R.string.reload) { web.reload() })
-        val more = iconButton(android.R.drawable.ic_menu_more, R.string.more) {}
+        bar.addView(iconButton(R.drawable.ic_chat_reload, R.string.reload) { web.reload() })
+        val more = iconButton(R.drawable.ic_chat_more, R.string.more) {}
         more.setOnClickListener { showMenu(it) }
         bar.addView(more)
-        root.addView(bar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)))
+        root.addView(bar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52)))
 
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
@@ -174,11 +173,8 @@ class WebActivity : Activity() {
         return Connections.OFFICIAL_URL
     }
 
-    private fun iconButton(icon: Int, desc: Int, onClick: () -> Unit) = ImageButton(this).apply {
-        setImageResource(icon)
-        contentDescription = getString(desc)
-        setBackgroundColor(Color.TRANSPARENT)
-        setPadding(dp(10), dp(10), dp(10), dp(10))
+    private fun iconButton(icon: Int, desc: Int, onClick: () -> Unit) = ChatUi.icon(this, icon, desc).apply {
+        layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         setOnClickListener { onClick() }
     }
 

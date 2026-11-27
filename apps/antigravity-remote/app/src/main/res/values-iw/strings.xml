@@ -83,7 +83,7 @@
     <string name="hub_failed">הממשק הגרפי לא עלה. הפרטים מוצגים בטרמינל.</string>
     <string name="chat">💬 צ\'אט</string>
     <string name="new_chat">צ\'אט חדש</string>
-    <string name="chat_empty">אין עדיין צ\'אטים.\nלוחצים על + כדי לדבר עם Antigravity שרץ בטלפון.</string>
+    <string name="chat_empty">עדיין אין שיחות. אפשר להתחיל שיחה חדשה עם Antigravity.</string>
     <string name="chat_delete_confirm">למחוק את הצ\'אט מהרשימה?</string>
     <string name="terminal">טרמינל</string>
     <string name="settings_screen">הגדרות וחיבורים</string>
@@ -147,4 +147,6 @@
     <string name="chat_delete">מחק שיחה</string>
     <string name="chat_rename">שינוי שם</string>
     <string name="chat_search_chats">חיפוש בצ\'אטים</string>
+    <string name="chat_jump">מעבר להודעה האחרונה</string>
+    <string name="chat_no_matches">לא נמצאו שיחות מתאימות</string>
 </resources>

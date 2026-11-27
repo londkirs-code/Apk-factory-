@@ -26,36 +26,34 @@ class ChatListActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = ChatUi.HEADER_DARK
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         val root = FrameLayout(this).apply { setBackgroundColor(Color.WHITE) }
         val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(ChatUi.HEADER)
-            setPadding(dp(16), 0, dp(4), 0)
+            setBackgroundColor(ChatUi.SURFACE)
+            setPaddingRelative(dp(20), 0, dp(6), 0)
         }
         header.addView(TextView(this).apply {
             text = "Antigravity"
-            textSize = 21f
-            setTextColor(Color.WHITE)
+            textSize = 30f
+            setTextColor(ChatUi.SEND)
             setTypeface(typeface, Typeface.BOLD)
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(TextView(this).apply {
-            text = "🔍"; textSize = 19f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
-            contentDescription = getString(R.string.chat_search_chats)
-            setOnClickListener { toggleSearch() }
-        }, LinearLayout.LayoutParams(dp(44), dp(56)))
-        header.addView(TextView(this).apply {
-            text = "⋮"; textSize = 24f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+        header.addView(ChatUi.icon(this, R.drawable.ic_chat_more, R.string.more).apply {
             setOnClickListener { showMenu(it) }
-        }, LinearLayout.LayoutParams(dp(48), dp(56)))
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
         column.addView(header, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56)))
         searchField = android.widget.EditText(this).apply {
             setHint(R.string.chat_search_chats); setSingleLine(); textSize = 16f
-            background = ChatUi.rounded(Color.parseColor("#F0F2F5"), dp(20).toFloat())
-            setPadding(dp(16), dp(8), dp(16), dp(8)); visibility = View.GONE
+            background = ChatUi.rounded(ChatUi.FIELD, dp(24).toFloat())
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            minimumHeight = dp(48)
+            setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_chat_search, 0, 0, 0)
+            compoundDrawableTintList = android.content.res.ColorStateList.valueOf(ChatUi.MUTED)
+            compoundDrawablePadding = dp(10)
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -63,22 +61,21 @@ class ChatListActivity : Activity() {
             })
         }
         column.addView(searchField, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-            setMargins(dp(10), dp(8), dp(10), dp(4))
+            setMargins(dp(16), dp(8), dp(16), dp(12))
         })
 
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        column.addView(ScrollView(this).apply { addView(list) }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        column.addView(ScrollView(this).apply { addView(list); clipToPadding = false; setPadding(0, 0, 0, dp(84)) }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(column)
 
-        val fab = TextView(this).apply {
-            text = "+"; textSize = 30f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+        val fab = ChatUi.icon(this, R.drawable.ic_chat_compose, R.string.new_chat, Color.WHITE).apply {
             background = ChatUi.rounded(ChatUi.SEND, dp(18).toFloat())
             elevation = dp(6).toFloat()
             contentDescription = getString(R.string.new_chat)
             setOnClickListener { openChat(ChatStore.create(this@ChatListActivity).id) }
         }
         root.addView(fab, FrameLayout.LayoutParams(dp(58), dp(58), Gravity.BOTTOM or Gravity.END).apply {
-            setMargins(0, 0, dp(18), dp(22))
+            marginEnd = dp(18); bottomMargin = dp(20)
         })
         setContentView(root)
     }
@@ -95,7 +92,7 @@ class ChatListActivity : Activity() {
         }
         if (chats.isEmpty()) {
             list.addView(TextView(this).apply {
-                setText(R.string.chat_empty)
+                setText(if (filter.isEmpty()) R.string.chat_empty else R.string.chat_no_matches)
                 textSize = 15f
                 setTextColor(ChatUi.MUTED)
                 gravity = Gravity.CENTER
@@ -107,7 +104,7 @@ class ChatListActivity : Activity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(14), dp(10), dp(14), dp(10))
+                setPadding(dp(16), dp(13), dp(16), dp(13))
                 isClickable = true
                 setBackgroundResource(android.R.drawable.list_selector_background)
                 setOnClickListener { openChat(c.id) }
@@ -116,7 +113,7 @@ class ChatListActivity : Activity() {
             row.addView(ChatUi.avatarImage(this, 50))
             val texts = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(14), 0, 0, 0)
+                setPaddingRelative(dp(14), 0, 0, 0)
             }
             val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             top.addView(TextView(this).apply {
@@ -126,7 +123,7 @@ class ChatListActivity : Activity() {
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             top.addView(TextView(this).apply {
                 text = DateUtils.getRelativeTimeSpanString(c.updated, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE)
-                textSize = 12f; setTextColor(ChatUi.MUTED); setPadding(dp(8), 0, 0, 0)
+                textSize = 12f; setTextColor(ChatUi.MUTED); setPaddingRelative(dp(8), 0, 0, 0)
             })
             texts.addView(top, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
             texts.addView(TextView(this).apply {
@@ -137,20 +134,12 @@ class ChatListActivity : Activity() {
             row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             list.addView(row)
             list.addView(View(this).apply { setBackgroundColor(Color.parseColor("#E9EDEF")) },
-                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply { leftMargin = dp(78) })
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply { marginStart = dp(78) })
         }
     }
 
     private fun openChat(id: String) {
         startActivity(Intent(this, ChatActivity::class.java).putExtra(ChatActivity.EXTRA_ID, id))
-    }
-
-    private fun toggleSearch() {
-        val show = searchField.visibility != View.VISIBLE
-        searchField.visibility = if (show) View.VISIBLE else View.GONE
-        val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        if (show) { searchField.requestFocus(); imm.showSoftInput(searchField, 0) }
-        else { searchField.setText(""); imm.hideSoftInputFromWindow(searchField.windowToken, 0) }
     }
 
     private fun chatMenu(c: Chat) {

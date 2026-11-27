@@ -26,10 +26,10 @@ class MainActivity : Activity() {
 
     private lateinit var listBox: LinearLayout
     private lateinit var localBox: LinearLayout
-    private val textColor = Color.parseColor("#E8EAF6")
-    private val mutedColor = Color.parseColor("#9AA3C7")
-    private val cardColor = Color.parseColor("#1A1F36")
-    private val accent = Color.parseColor("#7C8CFF")
+    private val textColor = ChatUi.TEXT
+    private val mutedColor = ChatUi.MUTED
+    private val cardColor = ChatUi.FIELD
+    private val accent = ChatUi.SEND
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -121,29 +121,21 @@ class MainActivity : Activity() {
             setPadding(0, dp(4), 0, 0)
         })
         // Shell is always available; agy can be started whenever it is installed.
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(10), 0, 0)
+        fun action(label: Int, primary: Boolean = false, click: () -> Unit) {
+            card.addView(smallButton(getString(label), primary, click),
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = dp(8)
+                })
         }
-        val gap = { LinearLayout.LayoutParams(dp(8), 1) }
         if (installed) {
-            row.addView(smallButton(getString(R.string.chat), true) { startActivity(Intent(this, ChatListActivity::class.java)) })
-            row.addView(View(this), gap())
-            row.addView(smallButton(getString(R.string.start_agy), false) { openTerminal(TerminalService.KIND_AGY) })
-            row.addView(View(this), gap())
-            row.addView(smallButton(getString(R.string.visual_ui), false) { startHub() })
-            row.addView(View(this), gap())
+            action(R.string.chat, true) { startActivity(Intent(this, ChatListActivity::class.java)) }
+            action(R.string.start_agy) { openTerminal(TerminalService.KIND_AGY) }
+            action(R.string.visual_ui) { startHub() }
         } else if (supported) {
-            row.addView(smallButton(getString(R.string.install_agy), true) { install() })
-            row.addView(View(this), gap())
+            action(R.string.install_agy, true) { install() }
         }
-        row.addView(smallButton(getString(R.string.shell), false) { openTerminal(TerminalService.KIND_SHELL) })
-        if (installed && supported) {
-            row.addView(View(this), gap())
-            row.addView(smallButton(getString(R.string.update), false) { install() })
-        }
-        card.addView(row)
+        action(R.string.shell) { openTerminal(TerminalService.KIND_SHELL) }
+        if (installed && supported) action(R.string.update) { install() }
         localBox.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
     }
 
@@ -228,7 +220,7 @@ class MainActivity : Activity() {
         text = label
         isAllCaps = false
         setTextColor(textColor)
-        background = rounded(Color.parseColor("#2A3157"))
+        background = rounded(Color.parseColor("#DCEDE3"))
         stateListAnimator = null
         setPadding(dp(12), dp(10), dp(12), dp(10))
         setOnClickListener { onClick() }
@@ -239,10 +231,10 @@ class MainActivity : Activity() {
         text = label
         isAllCaps = false
         textSize = 13f
-        minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = 0
+        minWidth = 0; minimumWidth = 0; minHeight = dp(48); minimumHeight = dp(48)
         setPadding(dp(14), dp(8), dp(14), dp(8))
         setTextColor(if (filled) Color.WHITE else textColor)
-        background = rounded(if (filled) accent else Color.parseColor("#2A3157"), 10)
+        background = rounded(if (filled) accent else Color.parseColor("#DCEDE3"), 10)
         stateListAnimator = null
         setOnClickListener { onClick() }
     }

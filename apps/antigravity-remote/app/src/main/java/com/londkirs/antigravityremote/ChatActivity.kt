@@ -43,7 +43,7 @@ class ChatActivity : Activity() {
     private lateinit var scroll: ScrollView
     private lateinit var messages: LinearLayout
     private lateinit var input: EditText
-    private lateinit var sendBtn: TextView
+    private lateinit var sendBtn: android.widget.ImageButton
 
     private val io = Executors.newSingleThreadExecutor()
     private val main by lazy { Handler(mainLooper) }
@@ -67,7 +67,7 @@ class ChatActivity : Activity() {
     private var lastItems: List<ChatItem> = emptyList()
     private var quote: String? = null                 // message being replied to
     private var searchQuery: String? = null
-    private lateinit var downFab: TextView
+    private lateinit var downFab: android.widget.ImageButton
     private val rtl get() = resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
     private var models: List<HubClient.ModelChoice> = emptyList()
     private val modelPrefs by lazy { getSharedPreferences("models", Context.MODE_PRIVATE) }
@@ -89,7 +89,6 @@ class ChatActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         chat = ChatStore.get(this, intent.getStringExtra(EXTRA_ID) ?: "") ?: ChatStore.create(this)
-        window.statusBarColor = ChatUi.HEADER_DARK
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         buildUi()
         setStatus(getString(R.string.chat_connecting))
@@ -120,28 +119,25 @@ class ChatActivity : Activity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(ChatUi.HEADER)
+            setBackgroundColor(ChatUi.SURFACE)
             setPadding(dp(4), 0, dp(4), 0)
         }
-        header.addView(TextView(this).apply {
-            text = if (resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL) "→" else "←"
-            textSize = 22f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+        header.addView(ChatUi.icon(this, R.drawable.ic_chat_back, R.string.back).apply {
             setOnClickListener { finish() }
-        }, LinearLayout.LayoutParams(dp(40), dp(56)))
+        }, LinearLayout.LayoutParams(dp(48), dp(56)))
         header.addView(ChatUi.avatarImage(this, 40))
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, 0, 0) }
+        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPaddingRelative(dp(10), 0, 0, 0) }
         titleView = TextView(this).apply {
             text = chat.title.ifBlank { "Antigravity" }
-            textSize = 17f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); setSingleLine()
+            textSize = 17f; setTextColor(ChatUi.TEXT); setTypeface(typeface, Typeface.BOLD); setSingleLine()
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        status = TextView(this).apply { textSize = 13f; setTextColor(Color.parseColor("#D9FDD3")); setSingleLine() }
+        status = TextView(this).apply { textSize = 13f; setTextColor(ChatUi.MUTED); setSingleLine() }
         titles.addView(titleView); titles.addView(status)
         header.addView(titles, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(TextView(this).apply {
-            text = "⋮"; textSize = 24f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+        header.addView(ChatUi.icon(this, R.drawable.ic_chat_more, R.string.more).apply {
             setOnClickListener { showMenu(it) }
-        }, LinearLayout.LayoutParams(dp(44), dp(56)))
+        }, LinearLayout.LayoutParams(dp(48), dp(56)))
         root.addView(header, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56)))
 
         banner = LinearLayout(this).apply {
@@ -161,13 +157,12 @@ class ChatActivity : Activity() {
         scroll = ScrollView(this).apply { addView(messages); isFillViewport = true }
         val frame = FrameLayout(this)
         frame.addView(scroll, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-        downFab = TextView(this).apply {
-            text = "⌄"; textSize = 22f; gravity = Gravity.CENTER; setTextColor(ChatUi.MUTED)
+        downFab = ChatUi.icon(this, R.drawable.ic_chat_down, R.string.chat_jump).apply {
             background = ChatUi.circle(Color.WHITE); elevation = dp(4).toFloat()
             visibility = View.GONE
             setOnClickListener { scroll.post { scroll.fullScroll(View.FOCUS_DOWN) } }
         }
-        frame.addView(downFab, FrameLayout.LayoutParams(dp(42), dp(42), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(14), dp(12)) })
+        frame.addView(downFab, FrameLayout.LayoutParams(dp(42), dp(42), Gravity.BOTTOM or Gravity.END).apply { marginEnd = dp(14); bottomMargin = dp(12) })
         scroll.setOnScrollChangeListener { _, _, _, _, _ ->
             downFab.visibility = if (scroll.canScrollVertically(1)) View.VISIBLE else View.GONE
         }
@@ -194,32 +189,33 @@ class ChatActivity : Activity() {
             gravity = Gravity.BOTTOM
             setPadding(dp(6), dp(6), dp(6), dp(8))
         }
-        bar.addView(TextView(this).apply {
-            text = "📎"; textSize = 22f; gravity = Gravity.CENTER
-            contentDescription = getString(R.string.chat_attach)
-            setOnClickListener { pickImage() }
-        }, LinearLayout.LayoutParams(dp(40), dp(48)))
-
+        val composer = LinearLayout(this).apply {
+            gravity = Gravity.BOTTOM
+            background = ChatUi.rounded(Color.WHITE, dp(26).toFloat())
+            elevation = dp(1).toFloat()
+        }
         input = EditText(this).apply {
             setHint(R.string.chat_hint)
-            background = ChatUi.rounded(Color.WHITE, dp(24).toFloat())
-            setPadding(dp(18), dp(10), dp(18), dp(10))
+            background = null
+            setPaddingRelative(dp(18), dp(12), 0, dp(12))
             setTextColor(ChatUi.TEXT); setHintTextColor(ChatUi.MUTED)
             textSize = 16f
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             maxLines = 6
             minHeight = dp(48)
         }
-        bar.addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        composer.addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(e: android.text.Editable?) { updateSuggestions(e?.toString().orEmpty()); updateSendButton() }
         })
-        sendBtn = TextView(this).apply {
-            text = "🎤"; textSize = 20f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+        composer.addView(ChatUi.icon(this, R.drawable.ic_chat_attach, R.string.chat_attach, ChatUi.MUTED).apply {
+            setOnClickListener { pickImage() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        bar.addView(composer, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        sendBtn = ChatUi.icon(this, R.drawable.ic_chat_mic, R.string.chat_voice_prompt, Color.WHITE).apply {
             background = ChatUi.circle(ChatUi.SEND)
-            contentDescription = getString(R.string.send)
             setOnClickListener { onSendOrStop() }
         }
         bar.addView(sendBtn, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(6) })
@@ -234,8 +230,13 @@ class ChatActivity : Activity() {
     /** WhatsApp-style: ➤ when there is something to send, 🎤 when empty, ■ to stop a running agent. */
     private fun updateSendButton() {
         val hasContent = input.text.isNotBlank() || activeSlash != null || pendingImage != null
-        sendBtn.text = when { hasContent -> "➤"; runningNow -> "■"; else -> "🎤" }
-        sendBtn.rotationY = if (rtl && sendBtn.text == "➤") 180f else 0f
+        val (icon, label) = when {
+            hasContent -> R.drawable.ic_chat_send to R.string.send
+            runningNow -> R.drawable.ic_chat_stop to R.string.chat_stop
+            else -> R.drawable.ic_chat_mic to R.string.chat_voice_prompt
+        }
+        sendBtn.setImageResource(icon)
+        sendBtn.contentDescription = getString(label)
     }
 
     private fun showBanner(text: String?, button: String? = null, action: (() -> Unit)? = null) {

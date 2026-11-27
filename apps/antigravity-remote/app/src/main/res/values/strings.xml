@@ -81,7 +81,7 @@
     <string name="hub_failed">The Antigravity UI did not start. See the terminal for details.</string>
     <string name="chat">💬 Chat</string>
     <string name="new_chat">New chat</string>
-    <string name="chat_empty">No chats yet.\nTap + to talk to Antigravity running on this phone.</string>
+    <string name="chat_empty">No chats yet. Start a conversation with Antigravity.</string>
     <string name="chat_delete_confirm">Delete this chat from the list?</string>
     <string name="terminal">Terminal</string>
     <string name="settings_screen">Setup &amp; connections</string>
@@ -145,4 +145,6 @@
     <string name="chat_delete">Delete chat</string>
     <string name="chat_rename">Rename</string>
     <string name="chat_search_chats">Search chats</string>
+    <string name="chat_jump">Jump to latest message</string>
+    <string name="chat_no_matches">No matching chats</string>
 </resources>

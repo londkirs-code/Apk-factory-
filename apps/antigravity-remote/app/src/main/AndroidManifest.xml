@@ -29,6 +29,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:theme="@style/ChatTheme"
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>
@@ -48,9 +49,11 @@
         <!-- WhatsApp-style chat with agy running on the phone (via its local hub). -->
         <activity
             android:name=".ChatListActivity"
+            android:theme="@style/ChatTheme"
             android:exported="false" />
         <activity
             android:name=".ChatActivity"
+            android:theme="@style/ChatTheme"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
@@ -60,6 +63,7 @@
 
         <activity
             android:name=".WebActivity"
+            android:theme="@style/ChatTheme"
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|smallestScreenSize|uiMode|density"
             android:windowSoftInputMode="adjustResize">
