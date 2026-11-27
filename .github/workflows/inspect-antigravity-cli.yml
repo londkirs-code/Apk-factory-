@@ -1,0 +1,33 @@
+name: Inspect Antigravity CLI for Android
+
+# One-off read-only research: downloads and prints reference files (nothing downloaded is executed).
+on:
+  push:
+    branches: [ccr-0929c2b8-l3mjm7]
+    paths: [".github/workflows/inspect-antigravity-cli.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print official installer (not executed)
+        run: |
+          curl -fsSL https://antigravity.google/cli/install.sh -o install.sh || true
+          echo "===== install.sh ====="; cat install.sh || true; echo "===== end ====="
+      - name: Print community VA39 patch gist (not executed)
+        run: |
+          curl -fsSL https://gist.githubusercontent.com/Brajesh2022/e42160d29b55417db6c18c52dd1d6d37/raw -o gist.txt || true
+          echo "===== gist ====="; cat gist.txt || true; echo "===== end ====="
+      - name: Termux package metadata (proot, libtalloc)
+        run: |
+          curl -fsSL https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages -o Packages
+          for p in proot libtalloc; do awk -v p="$p" '$0=="Package: "p{f=1} f&&/^(Package|Filename|Version|Depends):/{print} f&&/^$/{exit}' Packages; done
+      - name: Ubuntu base and JitPack availability
+        run: |
+          curl -fsSL https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ | grep -Eo 'ubuntu-base-[0-9.]+-base-arm64\.tar\.gz' | sort -u || true
+          for v in v0.118.1 v0.118.0; do
+            curl -s -o /dev/null -w "terminal-view $v: %{http_code}\n" https://jitpack.io/com/github/termux/termux-app/terminal-view/$v/terminal-view-$v.pom
+          done
