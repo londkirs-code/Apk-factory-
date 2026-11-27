@@ -167,6 +167,9 @@ object TerminalShortcuts {
     /** The regular "free up RAM" command (the widget's one-button default). */
     val FREE_RAM: String get() = DEFAULT_SHORTCUTS.first { it.en == "🧠 Free up RAM" }.command
 
+    /** The aggressive one (also force-stops downloaded apps). */
+    val AGGRESSIVE_RAM: String get() = DEFAULT_SHORTCUTS.first { it.en == "🧨 Aggressive RAM cleanup (closes apps)" }.command
+
     private fun prefs(context: Context) = context.getSharedPreferences("terminal", Context.MODE_PRIVATE)
 
     fun defaults() = DEFAULT_SHORTCUTS.map { Shortcut(it.label, it.command, it.group) }.toMutableList()

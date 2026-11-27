@@ -153,6 +153,8 @@ open class ShortcutWidget : AppWidgetProvider() {
         /** App actions (open a screen) and app features, offered next to the terminal shortcuts. */
         fun appActions() = listOf(
             Pin(tr("🔦 פנס", "🔦 Flashlight"), "@torch"),
+            Pin(tr("🔋 סוללה (מיני־אפליקציה)", "🔋 Battery (mini app)"), "@mini:battery"),
+            Pin(tr("🧠 זיכרון RAM (מיני־אפליקציה)", "🧠 RAM (mini app)"), "@mini:memory"),
             Pin(tr("📦 התקן APK", "📦 Install APK"), "@pick"),
             Pin(tr("🔌 בדוק חיבור", "🔌 Check connection"), CHECK),
             Pin(tr("💬 טרמינל", "💬 Terminal"), "@tab:TERMINAL"),
@@ -262,6 +264,7 @@ open class ShortcutWidget : AppWidgetProvider() {
             command == "@pick" -> Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_PICK_FILES, true)
                 .putExtra(BottomNav.EXTRA_TAB, BottomNav.Tab.INSTALL.name)
             command == "@guide" -> Intent(context, GuideActivity::class.java)
+            command.startsWith("@mini:") -> MiniApps.ALL.firstOrNull { it.id == command.removePrefix("@mini:") }?.let { Intent(context, it.screen) }
             command.startsWith("@tab:") -> when (command.removePrefix("@tab:")) {
                 "TERMINAL" -> Intent(context, TerminalActivity::class.java)
                 "APPS" -> Intent(context, AppsActivity::class.java)

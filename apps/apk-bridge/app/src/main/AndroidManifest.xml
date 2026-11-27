@@ -109,6 +109,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Mini apps (opened from the terminal's 🧩 and from widgets). -->
+        <activity
+            android:name=".BatteryActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MemoryActivity"
+            android:exported="false" />
+
         <activity
             android:name=".SettingsActivity"
             android:exported="false" />

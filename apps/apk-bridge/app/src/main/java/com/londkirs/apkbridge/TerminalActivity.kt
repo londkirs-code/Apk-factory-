@@ -772,6 +772,8 @@ class TerminalActivity : BossActivity() {
             contentDescription = tr("קיצור חדש", "New shortcut")
             setOnClickListener { addShortcut(input.text.toString().trim()) }
         })
+        // Mini apps: full screens built on ADB (battery, RAM…).
+        groupChips.addView(chip(tr("🧩 מיני־אפליקציות", "🧩 Mini apps"), accent = true).apply { setOnClickListener { miniApps() } })
         val selected = currentGroup()
         val open = prefs().getBoolean("shortcuts_open", true)
         // Tap a category: its shortcuts open below. Tap the open one again: they fold away (more room for the chat).
@@ -877,6 +879,15 @@ class TerminalActivity : BossActivity() {
                 }
             }
             .setNegativeButton(tr("סגור", "Close"), null)
+            .show()
+    }
+
+    /** The mini apps: screens with charts, details and actions, built on ADB. */
+    private fun miniApps() {
+        val apps = MiniApps.ALL
+        AlertDialog.Builder(this, DIALOG)
+            .setTitle(tr("🧩 מיני־אפליקציות", "🧩 Mini apps"))
+            .setItems(apps.map { it.title() + "\n" + it.description() }.toTypedArray()) { _, i -> startActivity(android.content.Intent(this, apps[i].screen)) }
             .show()
     }
 
