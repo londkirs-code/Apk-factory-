@@ -1,0 +1,206 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 86.8,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 6.78,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "shell",
+      "detail": "cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.46,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 3.24,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "tap",
+      "detail": "regex='^Wait$'",
+      "status": "passed",
+      "seconds": 3.49,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "shell",
+      "detail": "cmd='run-as com.londkirs.antigravityremote sh -c \\'mkdir -p files/bin && echo \"#!/system/bin/sh\" > files/bin/agy && echo \"echo STAND-IN-AGY started; pwd; echo BROWSER=\\\\$BROWSER; exit 0\" >> files/bin/agy && chmod 700 files/bin/agy && echo test-stand-in > files/agy.version && cat files/bin/agy\\'', expect='STAND-IN-AGY'",
+      "status": "passed",
+      "seconds": 0.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.34,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 4.14,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "shell",
+      "detail": "cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 5.74,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "tap",
+      "detail": "regex='^Wait$'",
+      "status": "skipped",
+      "seconds": 5.35,
+      "error": "element not found within 3s: regex='^Wait$'",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "wait_for",
+      "detail": "text='Start Antigravity'",
+      "status": "passed",
+      "seconds": 2.65,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "screenshot",
+      "detail": "name='home-installed'",
+      "status": "passed",
+      "seconds": 3.19,
+      "error": "",
+      "screenshot": "screenshots/001-home-installed.png"
+    },
+    {
+      "index": 13,
+      "action": "tap",
+      "detail": "text='Start Antigravity'",
+      "status": "passed",
+      "seconds": 3.89,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "wait",
+      "detail": "seconds=5",
+      "status": "passed",
+      "seconds": 5.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 5.61,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "tap",
+      "detail": "regex='^Wait$'",
+      "status": "skipped",
+      "seconds": 5.24,
+      "error": "element not found within 3s: regex='^Wait$'",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "screenshot",
+      "detail": "name='agy-session'",
+      "status": "passed",
+      "seconds": 4.41,
+      "error": "",
+      "screenshot": "screenshots/002-agy-session.png"
+    },
+    {
+      "index": 18,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.37,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.14,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "wait_for",
+      "detail": "text='Visual UI'",
+      "status": "failed",
+      "seconds": 17.34,
+      "error": "element not found within 15s: text='Visual UI'",
+      "screenshot": "screenshots/003-step20-wait_for-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-home-installed.png",
+    "002-agy-session.png",
+    "003-step20-wait_for-FAILED.png",
+    "004-final.png"
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 50.6,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 4.34,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "shell",
+      "detail": "cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.33,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 5.01,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "tap",
+      "detail": "regex='^Wait$'",
+      "status": "skipped",
+      "seconds": 5.4,
+      "error": "element not found within 3s: regex='^Wait$'",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "wait_for",
+      "detail": "text='Antigravity on Android'",
+      "status": "passed",
+      "seconds": 2.14,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "screenshot",
+      "detail": "name='home'",
+      "status": "passed",
+      "seconds": 2.91,
+      "error": "",
+      "screenshot": "screenshots/001-home.png"
+    },
+    {
+      "index": 7,
+      "action": "tap",
+      "detail": "text='Shell'",
+      "status": "passed",
+      "seconds": 3.53,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "wait",
+      "detail": "seconds=4",
+      "status": "passed",
+      "seconds": 4.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 4.97,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "tap",
+      "detail": "regex='^Wait$'",
+      "status": "skipped",
+      "seconds": 5.0,
+      "error": "element not found within 3s: regex='^Wait$'",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "screenshot",
+      "detail": "name='terminal-opened'",
+      "status": "passed",
+      "seconds": 2.68,
+      "error": "",
+      "screenshot": "screenshots/002-terminal-opened.png"
+    },
+    {
+      "index": 12,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.15,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "type",
+      "detail": "value='echo hello-from-terminal; id', enter=True",
+      "status": "passed",
+      "seconds": 1.44,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "screenshot",
+      "detail": "name='terminal-command'",
+      "status": "passed",
+      "seconds": 2.29,
+      "error": "",
+      "screenshot": "screenshots/003-terminal-command.png"
+    },
+    {
+      "index": 16,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.06,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-home.png",
+    "002-terminal-opened.png",
+    "003-terminal-command.png",
+    "004-final.png"
+  ]
+}

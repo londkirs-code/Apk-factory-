@@ -1,0 +1,29 @@
+<!doctype html><meta charset="utf-8">
+<title>UI test — antigravity-remote</title>
+<style>body{font-family:system-ui,sans-serif;margin:24px;background:#f6f7f9}
+.grid{display:flex;flex-wrap:wrap;gap:16px}figure{margin:0;background:#fff;padding:8px;border-radius:8px;box-shadow:0 1px 3px #0002}
+img{width:240px;display:block}figcaption{font-size:12px;margin-top:4px}table{border-collapse:collapse;background:#fff}
+td,th{border:1px solid #ddd;padding:4px 8px;font-size:13px;text-align:left}tr.failed{background:#fde8e8}tr.skipped{background:#fff7e0}
+pre{background:#222;color:#eee;padding:12px;overflow:auto}</style>
+<h1>UI test — antigravity-remote (scenario): PASSED</h1>
+<p>Package <code>com.londkirs.antigravityremote</code> · {&quot;model&quot;: &quot;sdk_gphone64_x86_64&quot;, &quot;sdk&quot;: &quot;33&quot;, &quot;release&quot;: &quot;13&quot;, &quot;abi&quot;: &quot;x86_64&quot;, &quot;locale&quot;: &quot;&quot;, &quot;screen&quot;: &quot;1080x2400&quot;}</p>
+<table><tr><th>#</th><th>Action</th><th>Detail</th><th>Result</th><th>Error</th></tr><tr class='passed'><td>1</td><td>launch</td><td>clear_data=True</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>2</td><td>shell</td><td>cmd=&#x27;pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS&#x27;, ignore_errors=True</td><td>passed</td><td></td></tr>
+<tr class='skipped'><td>3</td><td>tap</td><td>regex=&#x27;^Allow$&#x27;</td><td>skipped</td><td>element not found within 3s: regex=&#x27;^Allow$&#x27;</td></tr>
+<tr class='skipped'><td>4</td><td>tap</td><td>regex=&#x27;^Wait$&#x27;</td><td>skipped</td><td>element not found within 3s: regex=&#x27;^Wait$&#x27;</td></tr>
+<tr class='passed'><td>5</td><td>wait_for</td><td>text=&#x27;Antigravity on Android&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>6</td><td>screenshot</td><td>name=&#x27;home&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>7</td><td>tap</td><td>text=&#x27;Shell&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>8</td><td>wait</td><td>seconds=4</td><td>passed</td><td></td></tr>
+<tr class='skipped'><td>9</td><td>tap</td><td>regex=&#x27;^Allow$&#x27;</td><td>skipped</td><td>element not found within 3s: regex=&#x27;^Allow$&#x27;</td></tr>
+<tr class='skipped'><td>10</td><td>tap</td><td>regex=&#x27;^Wait$&#x27;</td><td>skipped</td><td>element not found within 3s: regex=&#x27;^Wait$&#x27;</td></tr>
+<tr class='passed'><td>11</td><td>screenshot</td><td>name=&#x27;terminal-opened&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>12</td><td>assert_foreground</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>13</td><td>type</td><td>value=&#x27;echo hello-from-terminal; id&#x27;, enter=True</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>14</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>15</td><td>screenshot</td><td>name=&#x27;terminal-command&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>16</td><td>assert_foreground</td><td></td><td>passed</td><td></td></tr></table>
+<h2>Screenshots</h2><div class="grid"><figure><a href="screenshots/001-home.png"><img src="screenshots/001-home.png" loading="lazy"></a><figcaption>001-home.png</figcaption></figure>
+<figure><a href="screenshots/002-terminal-opened.png"><img src="screenshots/002-terminal-opened.png" loading="lazy"></a><figcaption>002-terminal-opened.png</figcaption></figure>
+<figure><a href="screenshots/003-terminal-command.png"><img src="screenshots/003-terminal-command.png" loading="lazy"></a><figcaption>003-terminal-command.png</figcaption></figure>
+<figure><a href="screenshots/004-final.png"><img src="screenshots/004-final.png" loading="lazy"></a><figcaption>004-final.png</figcaption></figure></div>

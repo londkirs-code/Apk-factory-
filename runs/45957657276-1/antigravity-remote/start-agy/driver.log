@@ -1,0 +1,22 @@
+[ok] 01 launch clear_data=True
+[ok] 02 shell cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[skip] 03 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[ok] 04 tap regex='^Wait$'
+[ok] 05 shell cmd='run-as com.londkirs.antigravityremote sh -c \'mkdir -p files/bin && echo "#!/system/bin/sh" > files/bin/agy && echo "echo STAND-IN-AGY started; pwd; echo BROWSER=\\$BROWSER; exit 0" >> files/bin/agy && chmod 700 files/bin/agy && echo test-stand-in > files/agy.version && cat files/bin/agy\'', expect='STAND-IN-AGY'
+[ok] 06 back
+[ok] 07 launch
+[ok] 08 shell cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[skip] 09 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[skip] 10 tap regex='^Wait$' element not found within 3s: regex='^Wait$'
+[ok] 11 wait_for text='Start Antigravity'
+[ok] 12 screenshot name='home-installed'
+[ok] 13 tap text='Start Antigravity'
+[ok] 14 wait seconds=5
+[skip] 15 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[skip] 16 tap regex='^Wait$' element not found within 3s: regex='^Wait$'
+[ok] 17 screenshot name='agy-session'
+[ok] 18 assert_foreground
+[ok] 19 back
+[FAIL] 20 wait_for text='Visual UI' element not found within 15s: text='Visual UI'
+
+Result: FAILED — 20 steps, 4 screenshots, 0 crashes
