@@ -1,0 +1,44 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "explore",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 15.8,
+  "crashes": [
+    "Crash: E/AndroidRuntime( 8005): Process: com.londkirs.antigravityremote, PID: 8005\n--------- beginning of crash\nE/AndroidRuntime( 8005): FATAL EXCEPTION: main\nE/AndroidRuntime( 8005): Process: com.londkirs.antigravityremote, PID: 8005\nE/AndroidRuntime( 8005): java.lang.RuntimeException: Unable to start activity ComponentInfo{com.londkirs.antigravityremote/com.londkirs.antigravityremote.TerminalActivity}: java.lang.NullPointerException: Attempt to read from field 'int com.termux.view.TerminalRenderer.mTextSize' on a null object reference in method 'void com.termux.view.TerminalView.setTypeface(android.graphics.Typeface)'\nE/AndroidRuntime( 8005): \tat android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3645)\nE/AndroidRuntime( 8005): \tat android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3782)\nE/AndroidRuntime( 8005): \tat android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:101)\nE/AndroidRuntime( 8005): \tat android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:138)\nE/AndroidRuntime( 8005): \tat android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:95)\nE/AndroidRuntime( 8005): \tat android.app.ActivityThread$H.handleMessage(ActivityThread.java:2307)\nE/AndroidRuntime( 8005): \tat android.os.Handler.dispatchMessage(Handler.java:106)\nE/AndroidRuntime( 8005): \tat android.os.Looper.loopOnce(Looper.java:201)\nE/AndroidRuntime( 8005): \tat android.os.Looper.loop(Looper.java:288)\nE/AndroidRuntime( 8005): \tat android.app.ActivityThread.main(ActivityThread.java:7924)\nE/AndroidRuntime( 8005): \tat java.lang.reflect.Method.invoke(Native Method)\nE/AndroidRuntime( 8005): \tat com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:548)\nE/AndroidRuntime( 8005): \tat com.android.internal.os.ZygoteInit.main(ZygoteInit.java:936)\nE/AndroidRuntime( 8005): Caused by: java.lang.NullPointerException: Attempt to read from field 'int com.termux.view.TerminalRenderer.mTextSize' on a null object reference in method 'void com.termux.view.TerminalView.setTypeface(android.graphics.Typeface)'\nE/AndroidRuntime( 8005): \tat com.termux.view.TerminalView.setTypeface(TerminalView.java:454)\nE/AndroidRuntime( 8005): \tat com.londkirs.antigravityremote.TerminalActivity.onCreate(TerminalActivity.kt:118)\nE/AndroidRuntime( 8005): \tat android.app.Activity.performCreate(Activity.java:8342)\nE/AndroidRuntime( 8005): \tat android.app.Activity.performCreate(Activity.java:8321)\nE/AndroidRuntime( 8005): \tat android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1417)\nE/AndroidRuntime( 8005): \tat android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3626)\nE/AndroidRuntime( 8005): \t... 12 more\n\n--------- beginning of crash"
+  ],
+  "warnings": [
+    "explore: 1 distinct screens, 1 elements tapped, 0 relaunches, 8s"
+  ],
+  "screens": [
+    {
+      "signature": "110d7e2fd56e",
+      "screenshot": "screenshots/001-screen-1.png",
+      "found_at_action": "0"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "explore-tap",
+      "detail": "Shell",
+      "status": "failed",
+      "seconds": 1.25,
+      "error": "app crashed after this tap",
+      "screenshot": "screenshots/002-crash-after-Shell.png"
+    }
+  ],
+  "screenshots": [
+    "001-screen-1.png",
+    "002-crash-after-Shell.png",
+    "003-final.png"
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 27.7,
+  "crashes": [
+    "Crash: E/AndroidRuntime( 6676): Process: com.londkirs.antigravityremote, PID: 6676\n--------- beginning of crash\nE/AndroidRuntime( 6676): FATAL EXCEPTION: main\nE/AndroidRuntime( 6676): Process: com.londkirs.antigravityremote, PID: 6676\nE/AndroidRuntime( 6676): java.lang.RuntimeException: Unable to start activity ComponentInfo{com.londkirs.antigravityremote/com.londkirs.antigravityremote.TerminalActivity}: java.lang.NullPointerException: Attempt to read from field 'int com.termux.view.TerminalRenderer.mTextSize' on a null object reference in method 'void com.termux.view.TerminalView.setTypeface(android.graphics.Typeface)'\nE/AndroidRuntime( 6676): \tat android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3645)\nE/AndroidRuntime( 6676): \tat android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3782)\nE/AndroidRuntime( 6676): \tat android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:101)\nE/AndroidRuntime( 6676): \tat android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:138)\nE/AndroidRuntime( 6676): \tat android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:95)\nE/AndroidRuntime( 6676): \tat android.app.ActivityThread$H.handleMessage(ActivityThread.java:2307)\nE/AndroidRuntime( 6676): \tat android.os.Handler.dispatchMessage(Handler.java:106)\nE/AndroidRuntime( 6676): \tat android.os.Looper.loopOnce(Looper.java:201)\nE/AndroidRuntime( 6676): \tat android.os.Looper.loop(Looper.java:288)\nE/AndroidRuntime( 6676): \tat android.app.ActivityThread.main(ActivityThread.java:7924)\nE/AndroidRuntime( 6676): \tat java.lang.reflect.Method.invoke(Native Method)\nE/AndroidRuntime( 6676): \tat com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:548)\nE/AndroidRuntime( 6676): \tat com.android.internal.os.ZygoteInit.main(ZygoteInit.java:936)\nE/AndroidRuntime( 6676): Caused by: java.lang.NullPointerException: Attempt to read from field 'int com.termux.view.TerminalRenderer.mTextSize' on a null object reference in method 'void com.termux.view.TerminalView.setTypeface(android.graphics.Typeface)'\nE/AndroidRuntime( 6676): \tat com.termux.view.TerminalView.setTypeface(TerminalView.java:454)\nE/AndroidRuntime( 6676): \tat com.londkirs.antigravityremote.TerminalActivity.onCreate(TerminalActivity.kt:118)\nE/AndroidRuntime( 6676): \tat android.app.Activity.performCreate(Activity.java:8342)\nE/AndroidRuntime( 6676): \tat android.app.Activity.performCreate(Activity.java:8321)\nE/AndroidRuntime( 6676): \tat android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1417)\nE/AndroidRuntime( 6676): \tat android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3626)\nE/AndroidRuntime( 6676): \t... 12 more\n\n--------- beginning of crash"
+  ],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 3.85,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "tap",
+      "detail": "text='Wait'",
+      "status": "skipped",
+      "seconds": 11.0,
+      "error": "element not found within 10s: text='Wait'",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "wait_for",
+      "detail": "text='Antigravity on Android'",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "screenshot",
+      "detail": "name='home'",
+      "status": "passed",
+      "seconds": 2.45,
+      "error": "",
+      "screenshot": "screenshots/001-home.png"
+    },
+    {
+      "index": 5,
+      "action": "tap",
+      "detail": "text='Shell'",
+      "status": "passed",
+      "seconds": 3.76,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-home.png",
+    "002-final.png"
+  ]
+}

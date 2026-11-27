@@ -1,0 +1,8 @@
+[ok] 01 launch clear_data=True
+[skip] 02 tap text='Wait' element not found within 10s: text='Wait'
+[ok] 03 wait_for text='Antigravity on Android'
+[ok] 04 screenshot name='home'
+[ok] 05 tap text='Shell'
+App crashed — stopping scenario.
+
+Result: FAILED — 5 steps, 2 screenshots, 1 crashes
