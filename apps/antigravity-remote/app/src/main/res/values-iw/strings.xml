@@ -149,4 +149,8 @@
     <string name="chat_search_chats">חיפוש בצ\'אטים</string>
     <string name="chat_jump">מעבר להודעה האחרונה</string>
     <string name="chat_no_matches">לא נמצאו שיחות מתאימות</string>
+    <string name="select_chats">בחירת שיחות</string>
+    <string name="select_all_chats">בחירת הכול</string>
+    <string name="clear_selection">ניקוי בחירה</string>
+    <string name="confirm_delete_chats">למחוק מהרשימה את השיחות שנבחרו (%1$d)?</string>
 </resources>

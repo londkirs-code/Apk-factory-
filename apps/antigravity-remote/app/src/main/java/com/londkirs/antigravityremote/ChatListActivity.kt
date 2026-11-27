@@ -166,11 +166,57 @@ class ChatListActivity : Activity() {
             .show()
     }
 
+    private fun selectChats() {
+        val chats = ChatStore.all(this)
+        if (chats.isEmpty()) return
+        val checked = BooleanArray(chats.size)
+        val titles = chats.map { it.title.ifBlank { it.preview.ifBlank { getString(R.string.new_chat) } } }
+        fun updateButtons(dialog: AlertDialog) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = checked.any { it }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                .setText(if (checked.all { it }) R.string.clear_selection else R.string.select_all_chats)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.select_chats)
+            .setMultiChoiceItems(titles.toTypedArray(), checked) { activeDialog, index, selected ->
+                checked[index] = selected
+                updateButtons(activeDialog as AlertDialog)
+            }
+            .setNeutralButton(R.string.select_all_chats, null)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.delete, null)
+            .create()
+        dialog.setOnShowListener {
+            val delete = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val toggle = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+            toggle.setOnClickListener {
+                val select = !checked.all { it }
+                checked.fill(select)
+                checked.indices.forEach { dialog.listView.setItemChecked(it, select) }
+                updateButtons(dialog)
+            }
+            delete.setOnClickListener {
+                val ids = chats.filterIndexed { i, _ -> checked[i] }.map { it.id }.toSet()
+                AlertDialog.Builder(this)
+                    .setMessage(getString(R.string.confirm_delete_chats, ids.size))
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.delete) { _, _ ->
+                        ChatStore.deleteSelected(this, ids)
+                        dialog.dismiss()
+                        render()
+                    }.show()
+            }
+            updateButtons(dialog)
+        }
+        dialog.show()
+    }
+
     private fun showMenu(anchor: View) {
         val m = PopupMenu(this, anchor)
         m.menu.add(0, 1, 0, R.string.visual_ui)
         m.menu.add(0, 2, 1, R.string.terminal)
         m.menu.add(0, 3, 2, R.string.settings_screen)
+        m.menu.add(0, 4, 3, R.string.select_chats).isEnabled = ChatStore.all(this).isNotEmpty()
         m.setOnMenuItemClickListener {
             when (it.itemId) {
                 1 -> HubClient.ensureRunning(this) { ok ->
@@ -179,6 +225,7 @@ class ChatListActivity : Activity() {
                 }
                 2 -> startActivity(Intent(this, TerminalActivity::class.java))
                 3 -> startActivity(Intent(this, MainActivity::class.java))
+                4 -> selectChats()
             }
             true
         }

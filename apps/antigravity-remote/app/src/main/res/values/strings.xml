@@ -147,4 +147,8 @@
     <string name="chat_search_chats">Search chats</string>
     <string name="chat_jump">Jump to latest message</string>
     <string name="chat_no_matches">No matching chats</string>
+    <string name="select_chats">Select chats</string>
+    <string name="select_all_chats">Select all</string>
+    <string name="clear_selection">Clear selection</string>
+    <string name="confirm_delete_chats">Delete the selected chats (%1$d) from the list?</string>
 </resources>

@@ -53,7 +53,10 @@ object ChatStore {
         save(ctx, list)
     }
 
-    fun delete(ctx: Context, id: String) = save(ctx, all(ctx).filterNot { it.id == id })
+    fun delete(ctx: Context, id: String) = deleteSelected(ctx, setOf(id))
+
+    fun deleteSelected(ctx: Context, ids: Set<String>) =
+        save(ctx, all(ctx).filterNot { it.id in ids })
 }
 
 /** One row on the chat screen. */

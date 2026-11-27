@@ -410,6 +410,7 @@ class ChatActivity : Activity() {
             background = ChatUi.bubbleBg(this@ChatActivity, if (outgoing) ChatUi.OUT_BUBBLE else ChatUi.IN_BUBBLE, outgoing, rtl, tail = true)
             setPadding(dp(10), dp(6), dp(10), dp(4))
             elevation = dp(1).toFloat()
+            setOnClickListener { copy(item.text) }
             setOnLongClickListener { messageMenu(item, outgoing); true }
         }
         val body: CharSequence = if (outgoing) item.text else ChatUi.markdown(item.text)
@@ -418,8 +419,6 @@ class ChatActivity : Activity() {
             textSize = 16f; setTextColor(ChatUi.TEXT)
             maxWidth = (resources.displayMetrics.widthPixels * 0.78).toInt()
             setLineSpacing(0f, 1.1f)
-            android.text.util.Linkify.addLinks(this, android.text.util.Linkify.WEB_URLS)
-            setOnLongClickListener { messageMenu(item, outgoing); true }
         })
         val meta = android.text.SpannableStringBuilder(item.time)
         if (outgoing && item.time != "🕓") {
@@ -478,7 +477,10 @@ class ChatActivity : Activity() {
 
     private fun selectText(text: String) {
         val tv = TextView(this).apply {
-            this.text = text; setTextIsSelectable(true); textSize = 16f
+            this.text = text
+            android.text.util.Linkify.addLinks(this, android.text.util.Linkify.WEB_URLS)
+            setTextIsSelectable(true)
+            textSize = 16f
             setPadding(dp(20), dp(16), dp(20), dp(8)); setTextColor(ChatUi.TEXT)
         }
         AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(tv) })
