@@ -1,0 +1,381 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "explore",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 223.2,
+  "crashes": [],
+  "warnings": [
+    "explore: 11 distinct screens, 31 elements tapped, 0 relaunches, 215s"
+  ],
+  "screens": [
+    {
+      "signature": "8a705f31f67a",
+      "screenshot": "screenshots/001-screen-1.png",
+      "found_at_action": "0"
+    },
+    {
+      "signature": "f4badedb061a",
+      "screenshot": "screenshots/002-screen-2.png",
+      "found_at_action": "1"
+    },
+    {
+      "signature": "182863b4af35",
+      "screenshot": "screenshots/003-screen-3.png",
+      "found_at_action": "5"
+    },
+    {
+      "signature": "dfa47cd3b9f8",
+      "screenshot": "screenshots/004-screen-4.png",
+      "found_at_action": "7"
+    },
+    {
+      "signature": "e315f0f3bb21",
+      "screenshot": "screenshots/005-screen-5.png",
+      "found_at_action": "12"
+    },
+    {
+      "signature": "e05410d9a0b9",
+      "screenshot": "screenshots/007-screen-6.png",
+      "found_at_action": "16"
+    },
+    {
+      "signature": "6c5276e0180c",
+      "screenshot": "screenshots/008-screen-7.png",
+      "found_at_action": "21"
+    },
+    {
+      "signature": "dbe0792dc1c4",
+      "screenshot": "screenshots/009-screen-8.png",
+      "found_at_action": "24"
+    },
+    {
+      "signature": "5a8c4fbb2b03",
+      "screenshot": "screenshots/010-screen-9.png",
+      "found_at_action": "29"
+    },
+    {
+      "signature": "2c2b1968f396",
+      "screenshot": "screenshots/011-screen-10.png",
+      "found_at_action": "31"
+    },
+    {
+      "signature": "ad8c828171aa",
+      "screenshot": "screenshots/012-screen-11.png",
+      "found_at_action": "36"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "explore-tap",
+      "detail": "Connect to a computer instead",
+      "status": "passed",
+      "seconds": 1.62,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "explore-tap",
+      "detail": "Back",
+      "status": "passed",
+      "seconds": 1.51,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "explore-tap",
+      "detail": "Connect to a computer",
+      "status": "passed",
+      "seconds": 1.59,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "explore-tap",
+      "detail": "Paste a session link",
+      "status": "passed",
+      "seconds": 1.37,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "explore-tap",
+      "detail": "How to enable it on the computer",
+      "status": "passed",
+      "seconds": 1.34,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "explore-tap",
+      "detail": "Copy",
+      "status": "passed",
+      "seconds": 1.56,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "explore-tap",
+      "detail": "Edit",
+      "status": "passed",
+      "seconds": 1.61,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "explore-tap",
+      "detail": "Antigravity Remote Control (official)",
+      "status": "passed",
+      "seconds": 1.38,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "explore-tap",
+      "detail": "Antigravity Remote Control (official)",
+      "status": "passed",
+      "seconds": 1.9,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "explore-tap",
+      "detail": "https://antigravity.google/",
+      "status": "passed",
+      "seconds": 2.26,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "explore-tap",
+      "detail": "Cancel",
+      "status": "passed",
+      "seconds": 1.94,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "explore-tap",
+      "detail": "Open in app",
+      "status": "passed",
+      "seconds": 2.52,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "explore-tap",
+      "detail": "Back",
+      "status": "passed",
+      "seconds": 2.27,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "explore-tap",
+      "detail": "In Chrome",
+      "status": "passed",
+      "seconds": 2.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "explore",
+      "detail": "left app to com.android.chrome",
+      "status": "passed",
+      "seconds": 0,
+      "error": "",
+      "screenshot": "screenshots/006-left-app-to-com-android-chrome.png"
+    },
+    {
+      "index": 16,
+      "action": "explore-tap",
+      "detail": "New connection",
+      "status": "passed",
+      "seconds": 1.42,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "explore-tap",
+      "detail": "Name",
+      "status": "passed",
+      "seconds": 1.59,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "explore-tap",
+      "detail": "Name",
+      "status": "passed",
+      "seconds": 1.36,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "explore-tap",
+      "detail": "https://…",
+      "status": "passed",
+      "seconds": 1.36,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "explore-tap",
+      "detail": "Cancel",
+      "status": "passed",
+      "seconds": 1.42,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "explore-tap",
+      "detail": "LinearLayout",
+      "status": "passed",
+      "seconds": 1.68,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "explore-tap",
+      "detail": "Back",
+      "status": "passed",
+      "seconds": 3.6,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 23,
+      "action": "explore-tap",
+      "detail": "LinearLayout",
+      "status": "passed",
+      "seconds": 1.52,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 24,
+      "action": "explore-tap",
+      "detail": "Connect to a computer instead",
+      "status": "passed",
+      "seconds": 1.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "explore-tap",
+      "detail": "Connect to a computer",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 26,
+      "action": "explore-tap",
+      "detail": "Install",
+      "status": "passed",
+      "seconds": 1.45,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 27,
+      "action": "explore-tap",
+      "detail": "Connect to a computer instead",
+      "status": "passed",
+      "seconds": 1.51,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 28,
+      "action": "explore-tap",
+      "detail": "Connect to a computer instead",
+      "status": "passed",
+      "seconds": 1.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "explore-tap",
+      "detail": "Connect to a computer",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 30,
+      "action": "explore-tap",
+      "detail": "LinearLayout",
+      "status": "passed",
+      "seconds": 1.29,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 31,
+      "action": "explore-tap",
+      "detail": "Connect to a computer instead",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 32,
+      "action": "explore-tap",
+      "detail": "Connect to a computer",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-screen-1.png",
+    "002-screen-2.png",
+    "003-screen-3.png",
+    "004-screen-4.png",
+    "005-screen-5.png",
+    "006-left-app-to-com-android-chrome.png",
+    "007-screen-6.png",
+    "008-screen-7.png",
+    "009-screen-8.png",
+    "010-screen-9.png",
+    "011-screen-10.png",
+    "012-screen-11.png",
+    "013-final.png"
+  ]
+}
