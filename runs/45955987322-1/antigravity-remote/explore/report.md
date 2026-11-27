@@ -1,0 +1,51 @@
+# UI test — antigravity-remote (explore)
+
+**Result:** ✅ PASSED  
+**Package:** `com.londkirs.antigravityremote`  
+**Device:** sdk_gphone64_x86_64 · Android 13 (API 33) · 1080x2400  
+**Duration:** 78.3s
+
+## Steps
+
+| # | Action | Detail | Result | Time |
+|---|---|---|---|---|
+| 1 | explore-tap | Shell | ✅ | 1.28s |
+| 2 | explore-tap | ⋮ / More | ✅ | 1.25s |
+| 3 | explore-tap | ESC | ✅ | 1.23s |
+| 4 | explore-tap | TAB | ✅ | 1.25s |
+| 5 | explore-tap | CTRL | ✅ | 1.24s |
+| 6 | explore-tap | ALT | ✅ | 1.23s |
+| 7 | explore-tap | ↑ | ✅ | 1.24s |
+| 8 | explore-tap | ↓ | ✅ | 1.24s |
+| 9 | explore-tap | ← | ✅ | 1.24s |
+| 10 | explore-tap | → | ✅ | 1.24s |
+| 11 | explore-tap | ⏎ | ✅ | 1.24s |
+| 12 | explore-tap | ESC | ✅ | 1.23s |
+| 13 | explore-tap | TAB | ✅ | 1.23s |
+| 14 | explore-tap | CTRL | ✅ | 1.23s |
+| 15 | explore-tap | ALT | ✅ | 1.43s |
+| 16 | explore-tap | ↑ | ✅ | 1.24s |
+| 17 | explore-tap | ↓ | ✅ | 1.26s |
+| 18 | explore-tap | ← | ✅ | 1.24s |
+
+## Notes
+
+- explore: 3 distinct screens, 18 elements tapped, 0 relaunches, 72s
+
+## Screenshots
+
+**001-screen-1.png**
+
+<img src="screenshots/001-screen-1.png" width="270">
+
+**002-screen-2.png**
+
+<img src="screenshots/002-screen-2.png" width="270">
+
+**003-screen-3.png**
+
+<img src="screenshots/003-screen-3.png" width="270">
+
+**004-final.png**
+
+<img src="screenshots/004-final.png" width="270">

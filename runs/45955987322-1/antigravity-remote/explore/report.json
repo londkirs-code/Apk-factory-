@@ -1,0 +1,206 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "explore",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 78.3,
+  "crashes": [],
+  "warnings": [
+    "explore: 3 distinct screens, 18 elements tapped, 0 relaunches, 72s"
+  ],
+  "screens": [
+    {
+      "signature": "110d7e2fd56e",
+      "screenshot": "screenshots/001-screen-1.png",
+      "found_at_action": "0"
+    },
+    {
+      "signature": "a18d3797a0d1",
+      "screenshot": "screenshots/002-screen-2.png",
+      "found_at_action": "1"
+    },
+    {
+      "signature": "151284df7b9f",
+      "screenshot": "screenshots/003-screen-3.png",
+      "found_at_action": "2"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "explore-tap",
+      "detail": "Shell",
+      "status": "passed",
+      "seconds": 1.28,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "explore-tap",
+      "detail": "⋮ / More",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "explore-tap",
+      "detail": "ESC",
+      "status": "passed",
+      "seconds": 1.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "explore-tap",
+      "detail": "TAB",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "explore-tap",
+      "detail": "CTRL",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "explore-tap",
+      "detail": "ALT",
+      "status": "passed",
+      "seconds": 1.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "explore-tap",
+      "detail": "↑",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "explore-tap",
+      "detail": "↓",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "explore-tap",
+      "detail": "←",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "explore-tap",
+      "detail": "→",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "explore-tap",
+      "detail": "⏎",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "explore-tap",
+      "detail": "ESC",
+      "status": "passed",
+      "seconds": 1.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "explore-tap",
+      "detail": "TAB",
+      "status": "passed",
+      "seconds": 1.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "explore-tap",
+      "detail": "CTRL",
+      "status": "passed",
+      "seconds": 1.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "explore-tap",
+      "detail": "ALT",
+      "status": "passed",
+      "seconds": 1.43,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "explore-tap",
+      "detail": "↑",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "explore-tap",
+      "detail": "↓",
+      "status": "passed",
+      "seconds": 1.26,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "explore-tap",
+      "detail": "←",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-screen-1.png",
+    "002-screen-2.png",
+    "003-screen-3.png",
+    "004-final.png"
+  ]
+}
