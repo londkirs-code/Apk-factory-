@@ -1,6 +1,5 @@
 # Latest UI test: antigravity-remote
 
-Run: [45957657276-1](../runs/45957657276-1/summary.md)
+Run: [45959070635-1](../runs/45959070635-1/summary.md)
 
-- [start-agy](../runs/45957657276-1/antigravity-remote/start-agy/report.md)
-- [terminal-shell](../runs/45957657276-1/antigravity-remote/terminal-shell/report.md)
+- [explore](../runs/45959070635-1/antigravity-remote/explore/report.md)
