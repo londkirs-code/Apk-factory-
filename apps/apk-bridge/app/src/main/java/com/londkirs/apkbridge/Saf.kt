@@ -17,9 +17,20 @@ object Saf {
     fun create(cr: ContentResolver, parent: Uri, mime: String, name: String): Uri =
         DocumentsContract.createDocument(cr, parent, mime, name) ?: error(tr("לא ניתן ליצור קובץ $name", "Can't create file $name"))
 
-    fun writeText(cr: ContentResolver, parent: Uri, name: String, text: String) {
+    fun writeText(cr: ContentResolver, parent: Uri, name: String, text: String): Uri {
         val uri = create(cr, parent, "application/octet-stream", name)
         cr.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: error(tr("לא ניתן לכתוב $name", "Can't write $name"))
+        return uri
+    }
+
+    /**
+     * Writes [text] into [existing] (replacing what was there), or creates [name] in [parent] the first
+     * time. Creating again would make "name (1)" — so callers keep the returned file and pass it back.
+     */
+    fun writeOrReplace(cr: ContentResolver, parent: Uri, name: String, text: String, existing: Uri?): Uri {
+        if (existing == null) return writeText(cr, parent, name, text)
+        cr.openOutputStream(existing, "wt")?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: error(tr("לא ניתן לכתוב $name", "Can't write $name"))
+        return existing
     }
 
     fun readText(cr: ContentResolver, uri: Uri): String =

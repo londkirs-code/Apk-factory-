@@ -81,7 +81,17 @@ object BackupEngine {
                     .put("created", System.currentTimeMillis())
                     .put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
                     .put("android", Build.VERSION.RELEASE)
+                    .put("complete", false)
+                    .put("planned", JSONArray(items.toList() + fileSets.map { "files:" + it.key }))
                 val counts = JSONObject()
+                // Written right away and after every step, so a backup that stopped halfway can still be
+                // found and restored (it shows as partial). "complete" becomes true at the very end.
+                var manifestUri: Uri? = null
+                suspend fun saveManifest() {
+                    manifest.put("items", counts).put("updated", System.currentTimeMillis())
+                    manifestUri = withContext(Dispatchers.IO) { Saf.writeOrReplace(cr, folder, "manifest.json", manifest.toString(2), manifestUri) }
+                }
+                saveManifest()
                 val lines = mutableListOf<String>()
                 val steps = items.size + fileSets.size
                 var step = 0
@@ -94,6 +104,7 @@ object BackupEngine {
                         val n = withContext(Dispatchers.IO) { backupContacts(app, folder, filters.contactSources) }
                         counts.put(CONTACTS, n); lines += tr("👤 אנשי קשר: $n", "👤 Contacts: $n")
                         step++
+                        saveManifest()
                     }
                     if (CALLS in items) {
                         Bridge.progress(tr("מגבה יומן שיחות…", "Backing up call log…"), stepPct())
@@ -102,6 +113,7 @@ object BackupEngine {
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "calls.json", toJson(rows).toString()) }
                         counts.put(CALLS, rows.size); lines += tr("📞 שיחות: ${rows.size}", "📞 Calls: ${rows.size}")
                         step++
+                        saveManifest()
                     }
                     if (SMS in items) {
                         Bridge.progress(tr("מגבה הודעות SMS…", "Backing up SMS messages…"), stepPct())
@@ -110,6 +122,7 @@ object BackupEngine {
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "sms.json", toJson(rows).toString()) }
                         counts.put(SMS, rows.size); lines += tr("💬 הודעות: ${rows.size}", "💬 Messages: ${rows.size}")
                         step++
+                        saveManifest()
                     }
                     if (SETTINGS in items) {
                         Bridge.progress(tr("מגבה הגדרות טלפון…", "Backing up phone settings…"), stepPct())
@@ -119,6 +132,7 @@ object BackupEngine {
                         withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "settings.txt", text) }
                         counts.put(SETTINGS, 1); lines += tr("⚙ הגדרות טלפון", "⚙ Phone settings")
                         step++
+                        saveManifest()
                     }
                     if (TERMUX in items) {
                         lines += tr("🐚 טרמוקס: ", "🐚 Termux: ") + TermuxBackup.backup(c, app, folder) { msg -> Bridge.progress(msg, stepPct()) }
@@ -131,24 +145,28 @@ object BackupEngine {
                         }
                         counts.put(APPS, n); lines += tr("📦 אפליקציות: $n", "📦 Apps: $n")
                         step++
+                        saveManifest()
                     }
                     if (fileSets.isNotEmpty()) {
                         val filesDir = withContext(Dispatchers.IO) { Saf.mkdir(cr, folder, "files") }
                         val done = JSONArray()
+                        var filesJson: Uri? = null
                         for (set in fileSets) {
+                            // Described before copying, so a partial backup still knows where this folder goes back to.
+                            done.put(JSONObject().put("key", set.key).put("label", set.label).put("path", set.path))
+                            filesJson = withContext(Dispatchers.IO) { Saf.writeOrReplace(cr, folder, "files.json", done.toString(2), filesJson) }
                             val n = backupFiles(c, app, filesDir, set) { i, total ->
                                 Bridge.progress(tr("מגבה ${set.label}: $i/$total", "Backing up ${set.label}: $i/$total"), stepPct())
                             }
-                            done.put(JSONObject().put("key", set.key).put("label", set.label).put("path", set.path))
                             lines += tr("${set.label}: $n קבצים", "${set.label}: $n files")
                             step++
+                            counts.put("files", done.length())
+                            saveManifest()
                         }
-                        counts.put("files", done.length())
-                        withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "files.json", done.toString(2)) }
                     }
                 }
-                manifest.put("items", counts)
-                withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "manifest.json", manifest.toString(2)) }
+                manifest.put("complete", true)
+                saveManifest()
                 val summary = tr("✔ הגיבוי הסתיים (תיקייה TheBoss-backup-$stamp):\n", "✔ Backup finished (folder TheBoss-backup-$stamp):\n") + lines.joinToString("\n")
                 Bridge.announce(summary, 100)
                 result = Result(summary, null)
@@ -188,6 +206,7 @@ object BackupEngine {
         }
         val appsDir = withContext(Dispatchers.IO) { Saf.mkdir(cr, folder, "apps") }
         val index = JSONArray()
+        var indexUri: Uri? = null
         apps.forEachIndexed { i, info ->
             val ai = info.applicationInfo!!
             val label = pm.getApplicationLabel(ai).toString()
@@ -204,10 +223,13 @@ object BackupEngine {
                     Saf.writeText(cr, dir, "app.json", appJson(pm, info, label).toString(2))
                 }.isSuccess
             }
-            if (ok) index.put(JSONObject().put("package", info.packageName).put("label", label))
-            else Bridge.log(tr("גיבוי $label נכשל.", "Backup of $label failed."))
+            if (ok) {
+                index.put(JSONObject().put("package", info.packageName).put("label", label))
+                // Updated after each app, so a backup that stops halfway still lists what it has.
+                indexUri = withContext(Dispatchers.IO) { Saf.writeOrReplace(cr, folder, "apps.json", index.toString(2), indexUri) }
+            } else Bridge.log(tr("גיבוי $label נכשל.", "Backup of $label failed."))
         }
-        withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "apps.json", index.toString(2)) }
+        if (indexUri == null) withContext(Dispatchers.IO) { Saf.writeText(cr, folder, "apps.json", index.toString(2)) }
         return index.length()
     }
 
@@ -276,7 +298,11 @@ object BackupEngine {
         fun description(): String {
             val items = manifest.optJSONObject("items") ?: JSONObject()
             val date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).format(Date(manifest.optLong("created")))
-            return tr("גיבוי מ־$date · ${manifest.optString("device")} (Android ${manifest.optString("android")})", "Backup from $date · ${manifest.optString("device")} (Android ${manifest.optString("android")})")
+            val base = tr("גיבוי מ־$date · ${manifest.optString("device")} (Android ${manifest.optString("android")})", "Backup from $date · ${manifest.optString("device")} (Android ${manifest.optString("android")})")
+            // Older backups have no "complete": they were written only at the end, so they are whole.
+            return if (manifest.optBoolean("complete", true)) base
+            else base + tr("\n⚠ גיבוי חלקי — הגיבוי לא הגיע לסיום. אפשר לשחזר את מה שנשמר; הקובץ האחרון שהועתק עלול להיות חסר.",
+                "\n⚠ Partial backup — the backup didn't finish. You can restore what was saved; the last copied file may be incomplete.")
         }
     }
 
@@ -284,12 +310,20 @@ object BackupEngine {
     fun inspect(context: Context, tree: Uri): Inspection {
         val cr = context.contentResolver
         val root = Saf.root(tree)
-        val folder = if (Saf.child(cr, tree, root, "manifest.json") != null) root else {
+        // The chosen folder's own name (e.g. "TheBoss-backup-2026-11-27_10-30"), from the tree's document id.
+        val rootName = android.provider.DocumentsContract.getTreeDocumentId(tree).substringAfterLast('/').substringAfterLast(':')
+        val folder = if (Saf.child(cr, tree, root, "manifest.json") != null || rootName.startsWith("TheBoss-backup-")) root else {
             Saf.children(cr, tree, root).filter { it.isDir && it.name.startsWith("TheBoss-backup-") }
                 .maxByOrNull { it.name }?.uri ?: error(tr("לא נמצא גיבוי בתיקייה הזו. בחר תיקייה שמתחילה ב־TheBoss-backup.", "No backup found in this folder. Choose a folder starting with TheBoss-backup."))
         }
-        val manifestDoc = Saf.child(cr, tree, folder, "manifest.json") ?: error(tr("חסר קובץ manifest.json בגיבוי.", "The backup is missing manifest.json."))
-        val manifest = JSONObject(Saf.readText(cr, manifestDoc.uri))
+        val manifestDoc = Saf.child(cr, tree, folder, "manifest.json")
+        val manifest = if (manifestDoc != null) JSONObject(Saf.readText(cr, manifestDoc.uri)) else {
+            // A backup that stopped before older versions wrote manifest.json: rebuild what we can from the folder name.
+            val name = if (folder == root) rootName else Saf.children(cr, tree, root).firstOrNull { it.uri == folder }?.name ?: ""
+            val created = runCatching { SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US).parse(name.removePrefix("TheBoss-backup-"))?.time }.getOrNull()
+                ?: error(tr("חסר קובץ manifest.json בגיבוי.", "The backup is missing manifest.json."))
+            JSONObject().put("format", 1).put("created", created).put("device", "?").put("android", "?").put("complete", false)
+        }
         val names = Saf.children(cr, tree, folder).map { it.name }.toSet()
         val available = buildSet {
             if ("apps" in names) add(APPS)
