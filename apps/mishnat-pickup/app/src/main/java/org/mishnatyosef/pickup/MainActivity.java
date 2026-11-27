@@ -217,12 +217,19 @@ public class MainActivity extends Activity {
     private static String extractToken(String body) { return ApiClient.extractToken(body); }
 
     /** המסך המוצג כרגע. מקור אמת יחיד לניווט, לקיצורי המקשים ולמקש חזרה. */
-    private enum Screen { NONE, LOGIN, HOME, SETTINGS, SAVED_LISTS, HISTORY, DISPLAY_SETTINGS }
+    private enum Screen { NONE, LOGIN, HOME, SETTINGS, SAVED_LISTS, HISTORY, DISPLAY_SETTINGS, HUB, ORDER, GROUP }
     private Screen screen = Screen.NONE;
     /** לאן חוזרים ממסך רשימות שמורות, מהיסטוריית ההזמנות וממסך ההתחברות. */
     private Screen savedListsReturn = Screen.HOME, historyReturn = Screen.SAVED_LISTS;
-    private Button savedListsDeleteTile;
+    private Button savedListsDeleteTile, savedListsGroupTile;
+    /** הזמנות מסומנות (✓) במסכי ההזמנות: לאיחוד, מחיקה, שיתוף ויצירת רשימת איסוף. לא משנה שום תצוגה. */
+    private final Set<String> selectedOrders = new java.util.LinkedHashSet<>();
     private boolean loginReturnToSettings = false;
+    /** במסך הפתיחה: האם טופס ההתחברות פתוח (ההתחברות היא אפשרות, לא חובה). */
+    private boolean loginFormVisible = false;
+    /** רשימות איסוף (רשימה עם הזמנות בתוכה). */
+    private PickupGroups groups;
+    private static final String AUTO_GROUP_ID = "auto_latest";
     /** הפריט שהיה בפוקוס לפני שעזבנו את מסך הרשימה, כדי לחזור אליו ולא לראש הרשימה. */
     private String homeFocusKey = null;
     /** כפתורי הכותרת במסך הרשימה, לפי סדר הקריאה מימין לשמאל. */
@@ -257,6 +264,8 @@ public class MainActivity extends Activity {
     }
 
     private void installActionToasts(View view) {
+        // הודעות "מה הכפתור עושה" בוטלו: מוצגות רק הודעות חשובות.
+        if (true) return;
         if (view instanceof Button && !(view instanceof CheckBox)) {
             Button button = (Button) view;
             button.setOnTouchListener((v, event) -> {
@@ -289,9 +298,19 @@ public class MainActivity extends Activity {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
+    /** הודעה קצרה: מוצגת רק כשהיא חשובה (משהו לא קרה, או חסר משהו). אישורים רגילים לא מוצגים. */
     private void showActionToast(String message) {
-        if (message != null && !message.trim().isEmpty())
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        if (isImportantMessage(message)) Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    /** הודעה שתמיד מוצגת (למשל החלפת תצוגה מאוחדת / לפי רשימה). */
+    private void importantToast(String message) {
+        if (message != null && !message.trim().isEmpty()) Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private static boolean isImportantMessage(String message) {
+        if (message == null || message.trim().isEmpty()) return false;
+        return message.matches("(?s).*(לא |נכשל|אין |יש ל|צריך|שגיאה|פג |חסר|נמחק|אזהרה).*");
     }
 
     @Override protected void onCreate(Bundle state) {
@@ -303,6 +322,8 @@ public class MainActivity extends Activity {
         secretStore = new SecretStore(this);
         savedListStore = new SavedListStore(this);
         uiPreferences = getSharedPreferences("mishnat_pickup_ui", MODE_PRIVATE);
+        groups = new PickupGroups(uiPreferences);
+        migrateListGroup();
         Ui.applyTheme(nightModeActive());
         displayMode = Math.max(0, Math.min(5, uiPreferences.getInt("display_mode", 3)));
         sourceRegistry.migrateLegacy(legacyPreferences);
@@ -325,11 +346,11 @@ public class MainActivity extends Activity {
             if (!connectedSource.equals(activeSourceId)) {
                 switchSource(connectedSource, () -> {
                     showHomeScreen(false);
-                    syncAllAccounts();
+                    if (!manualGroupActive()) syncAllAccounts();
                 });
             } else {
                 showHomeScreen(false);
-                syncAllAccounts();
+                if (!manualGroupActive()) syncAllAccounts();
             }
         } else if (!sourceRegistry.all().isEmpty()) {
             // Imported and signed-out sources remain available offline.
@@ -426,7 +447,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (!showingSavedList && pendingList != null && !loading && !syncAllRunning
+        // סנכרון אוטומטי רק בתצוגת ההזמנה העדכנית: לא כשמוצגת רשימה שמורה או רשימות מסומנות יחד.
+        if (!showingSavedList && !manualGroupActive() && pendingList != null && !loading && !syncAllRunning
                 && System.currentTimeMillis() - lastSyncAttemptAt > 5 * 60 * 1000L) {
             if (combinedView || sourceRegistry != null && listSourceCount() > 1) syncAllAccounts();
             else if (!accessToken.isEmpty()) loadLatestOrder();
@@ -481,6 +503,11 @@ public class MainActivity extends Activity {
         loginProgress = null;
         loginErrorText = null;
 
+        // בלי בקשה מפורשת להתחבר מוצג מסך ברוכים הבאים: אפשר לעבוד עם רשימות בלי חשבון ובלי אינטרנט.
+        boolean wantsLogin = returnToSettings || loginFormVisible || (notice != null && notice.contains("התחבר"));
+        if (!wantsLogin) { showWelcomeScreen(notice); return; }
+        loginFormVisible = true;
+
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         LinearLayout root = Ui.screen(this);
@@ -498,21 +525,15 @@ public class MainActivity extends Activity {
         TextView appTitle = Ui.title(this, "משנת אוסף");
         appTitle.setGravity(Gravity.CENTER);
         root.addView(appTitle);
-        TextView loginSubtitle = Ui.text(this, "התחברות מאובטחת לחשבון משנת יוסף", Ui.T_BODY, Ui.MUTED, false);
+        TextView loginSubtitle = Ui.text(this, "התחברות לחשבון משנת יוסף (לא חובה): סנכרון ההזמנות מהאתר, היסטוריית הזמנות ופרטי איסוף.", Ui.T_BODY, Ui.MUTED, false);
         loginSubtitle.setGravity(Gravity.CENTER);
         root.addView(loginSubtitle, Ui.row(this, Ui.S1, Ui.S3));
         root.addView(buildNativeLoginForm());
-        if (hasCachedOrder()) root.addView(buildCachedListButton(), Ui.row(this, Ui.S2, Ui.S2));
-        Button savedLists = Ui.button(this, "רשימות שמורות", Ui.Kind.PRIMARY);
-        savedLists.setOnClickListener(v -> showSavedListsScreen(true));
-        root.addView(savedLists, Ui.row(this, Ui.S2, Ui.S2));
-        Button importOffline = Ui.button(this, "ייבוא רשימה מקובץ", Ui.Kind.SOFT);
-        importOffline.setOnClickListener(v -> openImportPicker());
-        root.addView(importOffline, Ui.row(this, Ui.S2, Ui.S2));
-        // גם בלי חשבון אפשר להביא רשימה שמישהו שיתף בענן.
-        Button cloudFetch = Ui.button(this, "הבאה מהענן לפי מספר", Ui.Kind.SOFT);
-        cloudFetch.setOnClickListener(v -> showCloudFetchDialog());
-        root.addView(cloudFetch, Ui.row(this, Ui.S2, Ui.S2));
+        if (!returnToSettings) {
+            Button back = Ui.button(this, "חזרה בלי להתחבר", Ui.Kind.SOFT);
+            back.setOnClickListener(v -> { loginFormVisible = false; showLoginScreen(""); });
+            root.addView(back, Ui.row(this, Ui.S2, Ui.S2));
+        }
         if (sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
             Button connections = Ui.button(this, returnToSettings ? "חזרה להגדרות" : "ניהול חיבורים", Ui.Kind.SOFT);
             connections.setOnClickListener(v -> { loginReturnToSettings = false; showAccountsScreen(); });
@@ -523,6 +544,12 @@ public class MainActivity extends Activity {
         presentScreen(scroll, Screen.LOGIN);
         if (loginEmailInput != null) loginEmailInput.requestFocus();
     }
+
+    /**
+     * מסך הפתיחה: ברוכים הבאים, כפתור ענק לייבוא רשימות (בלי חשבון ובלי אינטרנט),
+     * וההתחברות לאתר כאפשרות נוספת למי שרוצה סנכרון.
+     */
+    private void showWelcomeScreen(String notice) { showHub(notice); }
 
     private LinearLayout buildNativeLoginForm() {
         LinearLayout card = Ui.column(this);
@@ -1083,6 +1110,8 @@ public class MainActivity extends Activity {
         if (current == null || current instanceof EditText) return false;
         // תפריט רשת (שתי עמודות): למעלה/למטה נשארים באותה עמודה, כמו מסך אפליקציות.
         if (moveInGrid(current, direction)) return true;
+        // שורות של רשימה (✓, שם, כפתור צד): למעלה/למטה באותה עמודה, כמו רשת.
+        if (moveInListLines(current, direction)) return true;
         int explicit = direction == View.FOCUS_UP ? current.getNextFocusUpId() : current.getNextFocusDownId();
         if (explicit != View.NO_ID) return false;
         View next = android.view.FocusFinder.getInstance().findNextFocus(root, current, direction);
@@ -1096,12 +1125,78 @@ public class MainActivity extends Activity {
         }
         if (row == null) return false;
         for (ViewParent p = current.getParent(); p != null; p = p.getParent()) if (p == row) return false;
+        // כניסה לשורת רשימה מבחוץ: הפוקוס על השם עצמו, לא על ה-✓ שבתחילת השורה.
+        if (LIST_LINE_TAG.equals(row.getTag())) {
+            View main = lineMain(row);
+            if (main != null) return main == next ? false : main.requestFocus();
+        }
         boolean rtl = row.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
         for (int i = 0; i < row.getChildCount(); i++) {
             View candidate = row.getChildAt(rtl ? i : row.getChildCount() - 1 - i);
             if (candidate.getVisibility() != View.VISIBLE || !candidate.isEnabled()) continue;
             if (candidate.isFocusable()) return candidate == next ? false : candidate.requestFocus();
             if (candidate instanceof ViewGroup && candidate.requestFocus()) return true;
+        }
+        return false;
+    }
+
+    private static final String LIST_LINE_TAG = "list-line", LIST_MAIN_TAG = "list-main";
+
+    private static View lineMain(LinearLayout line) {
+        for (int i = 0; i < line.getChildCount(); i++) {
+            View child = line.getChildAt(i);
+            if (LIST_MAIN_TAG.equals(child.getTag()) && child.getVisibility() == View.VISIBLE) return child;
+        }
+        return null;
+    }
+
+    /** העמודה של רכיב בשורת רשימה: ✓, השם, או כפתור צד (לפי המקום מהסוף). */
+    private static String lineColumn(LinearLayout line, View child) {
+        if (child instanceof CheckBox) return "check";
+        if (LIST_MAIN_TAG.equals(child.getTag())) return "main";
+        int fromEnd = 0;
+        for (int i = line.getChildCount() - 1; i >= 0; i--) {
+            View c = line.getChildAt(i);
+            if (c == child) return "side" + fromEnd;
+            if (!(c instanceof CheckBox) && !LIST_MAIN_TAG.equals(c.getTag())) fromEnd++;
+        }
+        return "main";
+    }
+
+    private boolean moveInListLines(View current, int direction) {
+        ViewParent parent = current.getParent();
+        if (!(parent instanceof LinearLayout) || !LIST_LINE_TAG.equals(((View) parent).getTag())) return false;
+        LinearLayout line = (LinearLayout) parent;
+        if (!(line.getParent() instanceof ViewGroup)) return false;
+        ViewGroup container = (ViewGroup) line.getParent();
+        String column = lineColumn(line, current);
+        int step = direction == View.FOCUS_DOWN ? 1 : -1;
+        for (int i = container.indexOfChild(line) + step; i >= 0 && i < container.getChildCount(); i += step) {
+            View sibling = container.getChildAt(i);
+            if (sibling.getVisibility() != View.VISIBLE) continue;
+            if (!(sibling instanceof LinearLayout) || !LIST_LINE_TAG.equals(sibling.getTag())) {
+                if (sibling.isFocusable() || (sibling instanceof ViewGroup && ((ViewGroup) sibling).getDescendantFocusability() != ViewGroup.FOCUS_BLOCK_DESCENDANTS && hasFocusable((ViewGroup) sibling)))
+                    return false; // יציאה מהרשימה לכפתור אחר: ניווט רגיל
+                continue; // כותרת קטע וכדומה
+            }
+            LinearLayout target = (LinearLayout) sibling;
+            for (int j = 0; j < target.getChildCount(); j++) {
+                View c = target.getChildAt(j);
+                if (c.getVisibility() == View.VISIBLE && c.isEnabled() && c.isFocusable() && column.equals(lineColumn(target, c)))
+                    return c.requestFocus();
+            }
+            View main = lineMain(target);
+            return main != null && main.requestFocus();
+        }
+        return false;
+    }
+
+    private static boolean hasFocusable(ViewGroup group) {
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View c = group.getChildAt(i);
+            if (c.getVisibility() != View.VISIBLE) continue;
+            if (c.isFocusable()) return true;
+            if (c instanceof ViewGroup && hasFocusable((ViewGroup) c)) return true;
         }
         return false;
     }
@@ -1368,6 +1463,7 @@ public class MainActivity extends Activity {
         String next = "COMBINED_SUM".equals(sourceRegistry.viewMode())
                 ? "COMBINED_BY_SOURCE" : "COMBINED_SUM";
         sourceRegistry.setViewMode(next);
+        rememberGroupView(next);
         showingSavedList = false;
         showHomeScreen(false);
         showActionToast("מצב הרשימה שונה ל־" +
@@ -1404,9 +1500,9 @@ public class MainActivity extends Activity {
             }
             if (handleHomeShortcut(event)) return true;
         } else if (event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
-            // Menu פותח את ההגדרות מהרשימה, וסוגר אותן כשהן פתוחות. בשאר המסכים אין לו פעולה.
+            // Menu פותח את ההגדרות (מהאיסוף, מסך הבית, הזמנה ורשימה), וסוגר אותן כשהן פתוחות.
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                if (screen == Screen.HOME) { showSettingsScreen(); showActionToast("פתיחת מסך ההגדרות"); }
+                if (screen == Screen.HOME || screen == Screen.HUB || screen == Screen.ORDER || screen == Screen.GROUP) { showSettingsScreen(); showActionToast("פתיחת מסך ההגדרות"); }
                 else if (screen == Screen.SETTINGS) { closeSettings(); showActionToast("סגירת מסך ההגדרות"); }
             }
             return true;
@@ -1439,7 +1535,14 @@ public class MainActivity extends Activity {
             case DISPLAY_SETTINGS: showSettingsScreen(); return;
             case SAVED_LISTS: leaveSavedListsScreen(); return;
             case HISTORY: leaveHistoryScreen(); return;
+            case ORDER: leaveOrderScreen(); return;
+            case GROUP: leaveGroupScreen(); return;
+            case HUB:
+                if (hubSelecting) { hubSelecting = false; selectedOrders.clear(); showHub(null); return; }
+                break;
             case LOGIN:
+                // טופס ההתחברות (לא מההגדרות) חוזר למסך הפתיחה.
+                if (loginFormVisible && !loginReturnToSettings) { loginFormVisible = false; showHub(null); return; }
                 // מסך התחברות שנפתח מההגדרות (הוספת חשבון / התחברות מחדש) חוזר להגדרות.
                 if (loginReturnToSettings && sourceRegistry != null && !sourceRegistry.all().isEmpty()) {
                     loginReturnToSettings = false;
@@ -1458,14 +1561,26 @@ public class MainActivity extends Activity {
                     if (hadText) showActionToast("החיפוש נוקה");
                     return;
                 }
-                break;
+                // חזרה ממסך האיסוף: למסך הבית (כל הרשימות וההזמנות).
+                showHub(null);
+                return;
             default: break;
         }
         super.onBackPressed();
     }
 
+    /** המסך שממנו נכנסו להגדרות (מסך הפתיחה או המסך הראשי). */
+    private Screen settingsReturn = Screen.HOME;
+
     private void closeSettings() {
         accountsScreenVisible = false;
+        boolean noSources = sourceRegistry == null || sourceRegistry.all().isEmpty();
+        if (settingsReturn == Screen.LOGIN && noSources) { settingsReturn = Screen.HOME; showLoginScreen(""); return; }
+        Screen back = settingsReturn;
+        settingsReturn = Screen.HOME;
+        if (back == Screen.HUB) { showHub(null); return; }
+        // בלי חשבון ובלי רשימות חוזרים למסך הבית.
+        if ((sourceRegistry == null || sourceRegistry.all().isEmpty()) && !hasCachedOrder()) { showLoginScreen(""); return; }
         showHomeScreen(false);
     }
 
@@ -1485,6 +1600,7 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void showHomeScreen(boolean loadData) {
+        loginFormVisible = false;
         accountsScreenVisible = false;
         savedListsScreenVisible = false;
         savedListsReturnToLogin = false;
@@ -1506,14 +1622,25 @@ public class MainActivity extends Activity {
         root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         screen = Screen.NONE; // presentScreen לא ידרוס את המיקום שנשמר כבר
         presentScreen(root, Screen.HOME);
-        combinedView = listGroupActive()
-                || (!showingSavedList && sourceRegistry != null && !sourceRegistry.all().isEmpty() && !syncAllRunning);
+        // איסוף רק ברשימת איסוף. בלי רשימה פתוחה - הרשימה האוטומטית של ההזמנה האחרונה, אם יש.
+        if (!listGroupActive() && !syncAllRunning) {
+            ensureAutoGroupFromCaches();
+            PickupGroups.Group auto = groups.find(AUTO_GROUP_ID);
+            if (auto != null && !auto.members.isEmpty() && !showingSavedList) {
+                groups.setActive(auto.id);
+                sourceRegistry.setViewMode(auto.view);
+            }
+        }
+        // בלי רשימת איסוף פתוחה אין מה לאסוף: עוברים למסך הבית (אלא אם הזמנה נטענת עכשיו מהאתר).
+        if (!listGroupActive() && !syncAllRunning && !loading && !showingSavedList && !(loadData && !accessToken.isEmpty())) {
+            showHub(null);
+            return;
+        }
+        combinedView = listGroupActive();
         if (combinedView) loadCombinedSnapshot();
-        else if (cacheTrusted && hasCachedOrder()) loadCachedOrder();
+        else if ((syncAllRunning || loading || showingSavedList) && cacheTrusted && hasCachedOrder()) loadCachedOrder();
         if (products.isEmpty() && !loadData && (messageText == null || messageText.getVisibility() != View.VISIBLE))
-            showSyncMessage(accessToken.isEmpty()
-                    ? "אין עדיין רשימה להצגה. אפשר להתחבר לחשבון או לייבא רשימה דרך ההגדרות."
-                    : "אין עדיין רשימה להצגה. אפשר לסנכרן דרך ההגדרות.", false);
+            showSyncMessage("אין מוצרים ברשימת האיסוף. לחצו על השם כדי להוסיף הזמנות.", false);
         renderProducts(false);
         wireFocusOrder();
         pageScroll.post(() -> restoreHomePosition(restoreKey, restoreScroll));
@@ -1585,7 +1712,7 @@ public class MainActivity extends Activity {
     private void startQrScan() {
         if (!getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA)
                 && !(Build.VERSION.SDK_INT >= 17 && getPackageManager().hasSystemFeature("android.hardware.camera.any"))) {
-            showInfoDialog("אין מצלמה", "במכשיר הזה אין מצלמה. אפשר להעביר את הרשימה בקובץ, בבלוטות' או בהדבקת טקסט.");
+            showInfoDialog("אין מצלמה", "במכשיר הזה אין מצלמה. אפשר להעביר את ההזמנה בקובץ, בבלוטות' או בהדבקת טקסט.");
             return;
         }
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.CAMERA)
@@ -1641,7 +1768,7 @@ public class MainActivity extends Activity {
     private void showImportSummary(ImportParser.Bundle bundle) {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel=Ui.dialogPanel(this);
-        panel.addView(Ui.text(this,"נמצאו "+bundle.lists.size()+" רשימות",Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,"נמצאו "+bundle.lists.size()+" הזמנות",Ui.T_NAME,Ui.P900,true));
         boolean replacesExisting = false;
         for(ImportParser.ImportedList list:bundle.lists) {
             String name=list.accountName.isEmpty()?"רשימה מיובאת":list.accountName;
@@ -1652,16 +1779,16 @@ public class MainActivity extends Activity {
         }
         if(replacesExisting) panel.addView(Ui.banner(this,"נמצא מקור קיים. בדקו שתאריך העדכון בקובץ אינו ישן יותר; הייבוא עשוי להחליף את הרשימה המקומית."),Ui.row(this,Ui.S2,0));
         Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
-        Button apply=Ui.gridButton(this,"ייבא רשימות כחשבון",Ui.Kind.SOFT);
+        Button apply=Ui.gridButton(this,"ייבא הזמנות כחשבון",Ui.Kind.SOFT);
         cancel.setOnClickListener(v->{dialog.dismiss();ImportParser.delete(bundle.workDir);});
         apply.setOnClickListener(v->{
             dialog.dismiss();
             if(hasConnectedImportConflict(bundle))showImportConflict(bundle);
             else commitImport(bundle,false);
         });
-        Button saveSeparate=Ui.gridButton(this,"שמור כרשימות עצמאיות",Ui.Kind.SOFT);
+        Button saveSeparate=Ui.gridButton(this,"שמור כהזמנות עצמאיות",Ui.Kind.SOFT);
         saveSeparate.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,false);});
-        Button addCurrent=Ui.gridButton(this,"הוסף לרשימה הנוכחית",Ui.Kind.SOFT);
+        Button addCurrent=Ui.gridButton(this,"צרף להזמנה הנוכחית",Ui.Kind.SOFT);
         addCurrent.setEnabled(!activeSourceId.isEmpty()&&!currentOrderId.isEmpty());
         addCurrent.setOnClickListener(v->{dialog.dismiss();archiveImportedBundle(bundle,true);});
         addGridButtons(panel,saveSeparate,addCurrent,apply);
@@ -1689,10 +1816,10 @@ public class MainActivity extends Activity {
             for(SavedListStore.Entry entry:savedListStore.list())
                 if(entry.sourceId.equals(activeSourceId)&&entry.owner.equals(activeOwner)&&entry.orderId.equals(currentOrderId)){currentEntryId=entry.id;break;}
             if(currentEntryId.isEmpty()) {
-                Toast.makeText(this,"לא נמצאה הרשימה הנוכחית בארכיון. הקובץ לא מוזג.",Toast.LENGTH_LONG).show();
+                Toast.makeText(this,"לא נמצאה ההזמנה הנוכחית. הקובץ לא צורף.",Toast.LENGTH_LONG).show();
                 ImportParser.delete(bundle.workDir);return;
             }
-            SavedListStore.Entry editable=editableCopyIfSynced(findSavedEntry(currentEntryId));
+            SavedListStore.Entry editable=localTarget(findSavedEntry(currentEntryId));
             if(editable==null){Toast.makeText(this,"יצירת העותק נכשלה. הקובץ לא מוזג.",Toast.LENGTH_LONG).show();ImportParser.delete(bundle.workDir);return;}
             currentEntryId=editable.id;
         }
@@ -1708,10 +1835,11 @@ public class MainActivity extends Activity {
                                 ? "import-"+DataGuard.sha256(item.name).substring(0,16) : item.id;
                         String note=item.note==null?"":item.note;
                         if(item.unit!=null&&!item.unit.trim().isEmpty())note=note.isEmpty()?item.unit:note+" · "+item.unit;
-                        if(item.category!=null&&!item.category.trim().isEmpty())note=note.isEmpty()?item.category:note+" · "+item.category;
                         String imagePath="";
                         File image=bundle.imageFile(item.image);
                         if(image!=null&&image.isFile())imagePath=image.getAbsolutePath();
+                        // תמונה מקובץ ZIP נשמרת גם במטמון הכללי לפי הכתובת, כדי שתוצג בכל רשימה גם בלי אינטרנט.
+                        if(!imagePath.isEmpty()&&item.imageUrl!=null&&!item.imageUrl.isEmpty())copyIntoImageCache(image,item.imageUrl);
                         products.put(new JSONObject().put("key",key).put("name",item.name)
                                 .put("amount",item.quantity==null||item.quantity.isEmpty()?"1":item.quantity)
                                 .put("note",note).put("category",item.category==null?"":item.category).put("image_url",item.imageUrl==null?"":item.imageUrl)
@@ -1725,16 +1853,16 @@ public class MainActivity extends Activity {
                             .put("order_name",title).put("updated_at",list.updatedAt==null?"":list.updatedAt)
                             .put("imported",true).put("products",products);
                     if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))
-                        throw new Exception("לא ניתן לשמור את הרשימה '"+title+"'.");
+                        throw new Exception("לא ניתן לשמור את ההזמנה '"+title+"'.");
                     String archivedId=savedEntryId(source.id,owner,String.valueOf(syntheticId));
                     archived.add(archivedId);
                     rememberCloudOrigin(archivedId,list.accountId);
                 }
                 if(mergeCurrent)for(String id:archived)
-                    if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא מוזג לרשימה הנוכחית; העותקים המקוריים נשארו בארכיון.");
+                    if(!savedListStore.mergeEntries(targetId,id))throw new Exception("אחד הקבצים לא צורף להזמנה הנוכחית; העותקים המקוריים נשמרו.");
                 mainHandler.post(()->{
-                    ImportParser.delete(bundle.workDir);showSavedListsScreen(false);
-                    Toast.makeText(this,mergeCurrent?"הקבצים נוספו לרשימה הנוכחית ונשמרו גם כעותקים נפרדים.":"הקבצים נשמרו כרשימות עצמאיות.",Toast.LENGTH_LONG).show();
+                    ImportParser.delete(bundle.workDir);
+                    if(mergeCurrent)showSavedListsScreen(false);else showImportedOrders(archived);
                 });
             }catch(Exception e){
                 String error=safeError(e);mainHandler.post(()->{
@@ -1771,7 +1899,7 @@ public class MainActivity extends Activity {
     }
 
     private void commitImport(ImportParser.Bundle bundle,boolean separateConnected) {
-        showSyncMessage("שומר את הרשימות המיובאות…",false);
+        showSyncMessage("שומר את ההזמנות המיובאות…",false);
         cacheWorker.execute(() -> {
             List<String> created=new ArrayList<>();
             List<File[]> committed=new ArrayList<>();
@@ -1811,10 +1939,10 @@ public class MainActivity extends Activity {
                     File temp=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_tmp");
                     File backup=new File(sourceRegistry.sourceDir(item.source.id),"pickup_order_cache_backup");
                     ImportParser.delete(temp);ImportParser.delete(backup);
-                    if(!copyImportTree(item.ready,temp))throw new Exception("לא ניתן להכין רשימה לשמירה.");
+                    if(!copyImportTree(item.ready,temp))throw new Exception("לא ניתן להכין הזמנה לשמירה.");
                     boolean had=root.exists();
-                    if(had&&!root.renameTo(backup))throw new Exception("לא ניתן לגבות רשימה קיימת.");
-                    if(!temp.renameTo(root)){if(had)backup.renameTo(root);throw new Exception("שמירת רשימה נכשלה.");}
+                    if(had&&!root.renameTo(backup))throw new Exception("לא ניתן לגבות הזמנה קיימת.");
+                    if(!temp.renameTo(root)){if(had)backup.renameTo(root);throw new Exception("שמירת הזמנה נכשלה.");}
                     committed.add(new File[]{root,backup});
                 }
                 for(PreparedImport item:prepared) {
@@ -1831,6 +1959,8 @@ public class MainActivity extends Activity {
                 for(File[] pair:committed)ImportParser.delete(pair[1]);
                 ImportParser.delete(bundle.workDir);
                 String last=targetIds.isEmpty()?"":targetIds.get(targetIds.size()-1);
+                final List<String> importedEntries=new ArrayList<>();
+                for(PreparedImport item:prepared)importedEntries.add(savedEntryId(item.source.id,item.owner,item.orderId));
                 mainHandler.post(() -> {
                     try {
                         if(!last.isEmpty()) {
@@ -1839,8 +1969,8 @@ public class MainActivity extends Activity {
                             accessToken=readEncryptedToken();activeOwner=preferences.getString(DataGuard.K_OWNER,"");
                             cacheTrusted=isCacheManifestValid(activeOwner);clearOrderMemory();
                         }
-                        showHomeScreen(false);showSyncMessage("הייבוא הושלם בהצלחה.",false);
-                    } catch(Exception e){showSyncMessage("הרשימות נשמרו, אך לא ניתן לפתוח אותן כרגע.",false);}
+                        showHomeScreen(false);showImportedOrders(importedEntries);
+                    } catch(Exception e){showSyncMessage("ההזמנות נשמרו, אך לא ניתן לפתוח אותן כרגע.",false);}
                 });
             } catch(Exception e) {
                 for(File[] pair:committed) {
@@ -1927,55 +2057,24 @@ public class MainActivity extends Activity {
     /** מסך ההגדרות מרכז את כל פעולות הניהול, החשבונות וההתנתקות. */
     private void showAccountsScreen() { showSettingsScreen(); }
     private static final String WHATS_NEW =
-            "• חלון הרשימות גדול יותר. ✓ בצד ימין של רשימות מציג אותן יחד. כל רשימה נחשבת כמו משתמש ששמו הוא שם הרשימה.\n"
-            + "• תצוגה לפי משתמש: גוש נפרד לכל משתמש עם כותרת, ובתוכו המוצרים לפי סדר הקטגוריות. גם \"נאספו\" מחולקת לפי משתמש.\n"
-            + "• עם ✓ על שתי רשימות ומעלה: \"איחוד\" שואל אם לשמור את המקוריות או למחוק אותן, ו\"מחיקה\" מוחקת את המסומנות.\n"
-            + "• 📱 שיתוף בקוד QR מהטלפון: חלון הרשימות ← שיתוף ← קוד QR. כמה קודים מתחלפים אוטומטית, והטלפון השני סורק בכל סדר.\n"
-            + "• 📷 סריקת קוד QR בלי אינטרנט: \"רשימה חדשה\" ← \"סריקת קוד QR\". הזמנה גדולה מתחלקת לכמה קודים שנסרקים בכל סדר. את הקודים מציג תוסף הדפדפן.\n"
-            + "• 🌙 מצב לילה (בהיר / כהה / לפי המכשיר), עם פלטת צבעים מלאה לכל המסכים. ♻️ איפוס תצוגה וצליל לברירת המחדל.\n"
-            + "• בראש ההגדרות: שלושה ריבועים - 🎨 תצוגה וצליל, ⌨️ מדריך המקשים, ✨ מה חדש.\n"
-            + "• הגדרות מסודרות: חשבונות למעלה כריבועים בשתי עמודות, ו\"תצוגה וצליל\" במסך משלו.\n"
-            + "• 🔄 סנכרון לכל הזמנה מהאתר, גם מההיסטוריה, עם הודעה על שינויים. אפשר לכבות סנכרון לרשימה מסוימת בתפריט שלה.\n"
-            + "• 🔄 ההזמנה העדכנית מהאתר מסומנת, עם הסבר על הסנכרון. הזמנה חדשה או שינוי באתר מוצגים בהודעה, והוספות שלך נשמרות בעותק ולא נמחקות.\n"
-            + "• חזרה תמיד חוזרת שלב אחד אחורה, גם מחלונות שנפתחו מתוך חלונות.\n"
-            + "• שיתוף כטקסט בוואטסאפ, SMS ומייל נשלח כהודעה רגילה. \"רשימה חדשה\" כולל גם קבלה בבלוטות' והדבקת טקסט.\n"
-            + "• עיצוב חדש לתפריטים: כפתורים בשתי עמודות בגודל אחיד, עם אימוג׳י גדול ושם מתחת, כמו מסך אפליקציות. במקשים, למעלה ולמטה נשארים באותה עמודה.\n"
-            + "• \"שיתוף\" בחלון הרשימות: ענן, JSON, TXT או ZIP עם תמונות, ואז וואטסאפ, SMS, מייל או שמירה במכשיר. משתף את המסומנות או את המוצגת, ואפשר לייבא הכול בחזרה.\n"
-            + "• \"רשימה חדשה\" שואל מאיפה: הזמנה קודמת באתר, הענן, קובץ או רשימה ריקה.\n"
-            + "• כל הפעולות זמינות גם בלי חשבון: רשימות חדשות, ייבוא ושיתוף בענן נשמרים ב\"רשימות במכשיר\".\n"
-            + "• רשימה ששותפה בענן מציגה את המספר שלה (☁️) ליד השם, בכותרת ובפעולות של הרשימה.\n"
-            + "• מדריך המקשים בהגדרות: תמונה במסך מלא. אישור או 5 מגדילים, 2/4/6/8 מזיזים, וכל מקש אחר סוגר.\n"
-            + "• שיתוף בענן: כל רשימה מקבלת מספר (1 עד 1000) לשבוע, ומכל מכשיר אפשר להביא אותה לפי המספר. רק המוצרים משותפים, בלי שמות חשבונות.\n"
-            + "• פס התקדמות האיסוף מתמלא מימין לשמאל.\n"
-            + "• רשימת \"נאספו\" פשוטה: לפי א-ב, בלי כותרות קטגוריות.\n"
-            + "• בהגדרות אפשר לבטל את כותרות הקטגוריות. המוצרים נשארים מסודרים לפי קטגוריות ועם הצבעים, ברצף אחד.\n"
-            + "• אפליקציה קלה יותר: האייקון החדש שוקל כ-19KB בלבד.\n"
-            + "• בהגדרות: מחיקת מטמון התמונות (עם הגודל שלו), ואפשרות להסתיר את הכמות לפי משפחה בתצוגה המאוחדת.\n"
-            + "• עיצוב חדש לכל האפליקציה: גווני סגול נקיים, טקסט גדול וברור שלא נחתך, ושוליים מסודרים גם במסכים קטנים.\n"
-            + "• כותרות וצבעים לקטגוריות: המוצרים מקובצים לפי קטגוריה, עם כותרת צבעונית ופס צבע בכל כרטיס.\n"
-            + "• לחיצה על שם הרשימה בכותרת מציגה מיד את כל הרשימות לבחירה, עם כפתור לפעולות לרשימה ולהגדרות.\n"
-            + "• בהזמנות הקודמות, ההזמנות הישנות נטענות אוטומטית כשמגיעים לתחתית.\n"
-            + "• ייבוא הזמנה מהעבר לתוך רשימה קיימת, מתוך הפעולות של הרשימה.\n"
-            + "• בכל חלון קופץ יש X בפינה השמאלית העליונה במקום כפתורי סגירה וביטול.\n"
-            + "• חלון הרשימות (לחיצה על השם בכותרת) ומסך הרשימות השמורות: פעולות קבועות למעלה כאריחים, והרשימות נגללות מתחת, עם ⋮ לפעולות.\n"
-            + "• בחלון הפעולות של רשימה יש חץ חזרה (וגם מקש חזרה) לחלון הקודם.\n"
-            + "• רשימות צפופות פחות: כרטיסי רשימה נמוכים בשורה אחת, אריחים קטנים יותר - רואים הרבה יותר רשימות בלי לגלול.\n"
-            + "• אימוג׳י מתאים בכל כפתור טקסט.\n"
-            + "• ניווט במקשים: מעבר למעלה או למטה לשורה של כמה כפתורים נוחת תמיד על הכפתור הימני, בכל המסכים ובחלונות (חוץ ממצב רשת).\n"
-            + "• שם מותאם אישית לכל רשימה (גם מתוך פעולות נוספות ברשימות השמורות).\n"
-            + "• איחוד כמה רשימות לרשימה חדשה.\n"
-            + "• הזמנה מהעבר: בחירה בין רשימה חדשה להוספה לרשימה קיימת.\n"
-            + "• ניווט: 2 ו-8 ממשיכים לנווט גם מתוך החיפוש; כניסה לשורת כפתורים מתחילה בכפתור הימני.\n"
-            + "• מצב רשת: לחיצה על מוצר כבר לא מקפיצה לראש העמוד ולא מאבדת את הבחירה.\n"
-            + "• תמונות: מטמון אחד לכל החשבונות, הורדה מראש של כל התמונות, ובלי ניסיונות חוזרים אחרי כישלון.";
+            "עיצוב חדש ומבנה פשוט יותר:\n\n"
+            + "• מסך הבית מרכז הכל: רשימות האיסוף למעלה, ההזמנות מתחת, ו\"הוספת הזמנה\" בפס התחתון.\n"
+            + "• הזמנה = החומר הגולמי (מהאתר, מקובץ או משותפת). לחיצה מציגה אותה במסך מלא, ומשם \"לרשימת איסוף\".\n"
+            + "• רשימת איסוף = מה שלוקחים לנקודת האיסוף. לחיצה פותחת לאיסוף; ⚙ פותח את הרשימה: תצוגה, כמות לכל הזמנה, וההזמנות שבה.\n"
+            + "• במסך האיסוף: 🏠 חוזר למסך הבית, לחיצה על השם עורכת את הרשימה, ו\"⋯\" מרכז הוספת הזמנות, איפוס והגדרות.\n"
+            + "• \"בחירת כמה הזמנות\" במסך הבית: ✓ על כמה הזמנות, ולמטה רשימת איסוף / שיתוף / איחוד / מחיקה.\n"
+            + "• אייקונים חדשים לכל כפתור, ערכת צבעים אחידה (יום ולילה), ומסגרת פוקוס ברורה לניווט במקשים.\n"
+            + "• הסברים קצרים בכל מסך, ו\"הוספת הזמנה\" עם הסבר לכל דרך.\n"
+            + "• חזרה תמיד צעד אחד: מהאיסוף למסך הבית, מהזמנה או מרשימה - למסך שממנו נכנסתם.\n"
+            + "• סנכרון חל רק על הזמנות מהחשבון; הזמנה מהאתר לא משתנה במכשיר (צירוף ומיזוג נעשים בעותק).";
 
     /** כרטיס קבוצה במסך ההגדרות: כותרת קטנה ותוכן על רקע בהיר. */
     private LinearLayout settingsCard(LinearLayout content, String title) {
         content.addView(Ui.section(this, title));
         LinearLayout card = Ui.column(this);
         card.setBackground(Ui.shape(this, Ui.SURFACE, Ui.R_CARD, 1, Ui.P200));
-        card.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2));
-        content.addView(card, Ui.row(this, 0, Ui.S1));
+        card.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S3));
+        content.addView(card, Ui.row(this, 0, Ui.S3));
         return card;
     }
 
@@ -1995,103 +2094,74 @@ public class MainActivity extends Activity {
     private void showSettingsScreen() {
         if (sourceMergeInProgress) { showSyncMessage("המקור מתאחד עם מקור קיים. המתינו רגע.", false); return; }
         if (syncAllRunning) { showSyncMessage("הסנכרון הסדרתי עדיין פועל. המתינו לסיומו.", false); return; }
+        if (screen == Screen.LOGIN) settingsReturn = Screen.LOGIN;
+        else if (screen == Screen.HOME) settingsReturn = Screen.HOME;
+        else if (screen == Screen.HUB || screen == Screen.ORDER || screen == Screen.GROUP) settingsReturn = Screen.HUB;
         accountsScreenVisible = true;
         logoutButton = null;
-        LinearLayout content = Ui.screen(this);
-        LinearLayout settingsHeader = new LinearLayout(this);
-        settingsHeader.setGravity(Gravity.CENTER_VERTICAL);
-        settingsHeader.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        TextView settingsTitle = Ui.text(this, "הגדרות", Ui.T_TITLE, Ui.P900, true);
-        settingsTitle.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        Button closeSettings = Ui.iconButton(this, Ui.IC_CLOSE, "סגירת ההגדרות", false);
-        closeSettings.setOnClickListener(v -> closeSettings());
-        settingsHeader.addView(closeSettings);
-        settingsHeader.addView(settingsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
-        content.addView(settingsHeader, Ui.row(this, 0, 0));
+        LinearLayout top = buildTopBar("הגדרות", "גרסה " + appVersionName(), this::closeSettings);
+        LinearLayout content = Ui.column(this);
 
-        // שורת קיצורים בראש ההגדרות: שלושה ריבועים.
-        Button displaySettings = Ui.gridButton(this, "תצוגה וצליל", Ui.Kind.SOFT);
-        displaySettings.setOnClickListener(v -> showDisplaySettingsScreen());
-        Button keysHelp = Ui.gridButton(this, "מדריך המקשים", Ui.Kind.SOFT);
-        keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
-        Button whatsNew = Ui.gridButton(this, "מה חדש", Ui.Kind.SOFT);
-        whatsNew.setOnClickListener(v -> showInfoDialog("מה חדש בגרסה " + appVersionName(), WHATS_NEW));
-        whatsNew.setContentDescription("מה חדש בגרסה " + appVersionName());
-        LinearLayout shortcuts = new LinearLayout(this);
-        shortcuts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        Button[] tiles = {displaySettings, keysHelp, whatsNew};
-        for (int i = 0; i < tiles.length; i++) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
-            if (i > 0) lp.setMarginStart(Ui.dp(this, Ui.S1));
-            shortcuts.addView(tiles[i], lp);
-        }
-        content.addView(shortcuts, Ui.row(this, Ui.S3, 0));
-
-        // 1. חשבונות: ריבוע לכל חשבון (שם ומצב), בשתי עמודות. לחיצה פותחת את הפעולות שלו.
-        LinearLayout accounts = settingsCard(content, "חשבונות");
+        // חשבונות
+        content.addView(sectionHeader("חשבונות באתר", 0));
+        content.addView(Ui.hint(this, "לא חובה. חשבון מחובר מביא את ההזמנה האחרונה אוטומטית, הזמנות קודמות ופרטי איסוף."));
+        Button firstAccount = null;
         for (SourceRegistry.Source source : sourceRegistry.all()) {
             if (LOCAL_LIST_OWNER.equals(source.ownerKey)) continue; // "רשימות במכשיר" אינו חשבון
             boolean imported = SourceRegistry.KIND_IMPORTED.equals(source.kind);
             boolean connected = !imported && secretStore.get(source.id) != null;
-            String status = imported ? "מיובאת" : (connected ? (source.id.equals(activeSourceId) ? "פעיל ✓" : "מחובר") : "מנותק");
+            String status = imported ? "מיובא" : (connected ? (source.id.equals(activeSourceId) ? "מחובר · פעיל" : "מחובר") : "מנותק - לחצו להתחברות");
             String label = source.label == null || source.label.trim().isEmpty() ? "חיבור ללא שם" : source.label.trim();
-            // כל הכפתורים בהגדרות באותו רקע; החשבון הפעיל מסומן בטקסט "פעיל ✓".
-            Button item = Ui.gridButton(this, label, Ui.Kind.SOFT);
-            android.text.SpannableString text = new android.text.SpannableString("👤\n" + label + "\n" + status);
-            text.setSpan(new android.text.style.RelativeSizeSpan(1.6f), 0, 2, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            text.setSpan(new android.text.style.RelativeSizeSpan(0.8f), text.length() - status.length(), text.length(),
-                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            item.setText(text);
-            item.setContentDescription(label + ", " + status);
+            Button item = Ui.listItem(this, Ui.IC_USER, label, status, connected && source.id.equals(activeSourceId), true);
             item.setOnClickListener(v -> showSourceActions(source));
-            addGridButton(accounts, item);
+            content.addView(item, Ui.row(this, 0, Ui.S2));
+            if (firstAccount == null) firstAccount = item;
         }
-        Button add = Ui.gridButton(this, listSourceCount() == 0 ? "התחברות לחשבון" : "הוספת חשבון", Ui.Kind.SOFT);
+        Button add = Ui.listItem(this, Ui.IC_PLUS, listSourceCount() == 0 ? "התחברות לחשבון" : "הוספת חשבון",
+                "אימייל וסיסמה, או קוד ב-SMS", false, true);
         add.setOnClickListener(v -> beginAddAccount());
-        addGridButton(accounts, add);
+        content.addView(add, Ui.row(this, 0, Ui.S2));
+        if (!connectedAccounts().isEmpty()) {
+            Button sync = Ui.listItem(this, Ui.IC_SYNC, "סנכרון עכשיו", "מעדכן את ההזמנות מהאתר", false, false);
+            sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
+            content.addView(sync, Ui.row(this, 0, Ui.S2));
+        }
 
-        // 2. רשימות: הפעולות היומיומיות, וכניסה למסך "תצוגה וצליל".
-        LinearLayout lists = settingsCard(content, "רשימות");
-        Button savedLists = Ui.gridButton(this, "רשימות שמורות", Ui.Kind.SOFT);
-        savedLists.setOnClickListener(v -> showSavedListsScreen(Screen.SETTINGS));
-        Button history = Ui.gridButton(this, "הזמנות קודמות", Ui.Kind.SOFT);
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v -> showOrderHistoryScreen(Screen.SETTINGS));
-        Button sync = Ui.gridButton(this, "סנכרון עם האתר", Ui.Kind.SOFT);
-        // הסנכרון מתבצע מול מסך הרשימה, כדי שההתקדמות וההודעות יוצגו למשתמש.
-        sync.setOnClickListener(v -> { closeSettings(); syncAllAccounts(); });
-        addGridButtons(lists, savedLists, history, sync);
+        // תצוגה ועזרה
+        content.addView(sectionHeader("תצוגה ועזרה", 0));
+        Button display = Ui.listItem(this, Ui.IC_PALETTE, "תצוגה וצליל", "מצב לילה, גודל הכרטיסים, קטגוריות, צליל ורטט", false, true);
+        display.setOnClickListener(v -> showDisplaySettingsScreen());
+        content.addView(display, Ui.row(this, 0, Ui.S2));
+        Button keysHelp = Ui.listItem(this, Ui.IC_KEYBOARD, "מדריך המקשים", "כל הקיצורים לטלפון מקשים ולמקלדת", false, true);
+        keysHelp.setOnClickListener(v -> new KeysHelpViewer(this).show());
+        content.addView(keysHelp, Ui.row(this, 0, Ui.S2));
+        Button whatsNew = Ui.listItem(this, Ui.IC_SPARKLE, "מה חדש", "השינויים בגרסה " + appVersionName(), false, true);
+        whatsNew.setOnClickListener(v -> showInfoDialog("מה חדש בגרסה " + appVersionName(), WHATS_NEW));
+        content.addView(whatsNew, Ui.row(this, 0, Ui.S2));
 
-        // 3. ייבוא ונתונים.
-        LinearLayout data = settingsCard(content, "ייבוא ונתונים");
-        Button importFile = Ui.gridButton(this, "ייבוא קובץ", Ui.Kind.SOFT);
-        importFile.setOnClickListener(v -> openImportPicker());
-        Button cloudServer = Ui.gridButton(this, "כתובת שרת הענן", Ui.Kind.SOFT);
+        // נתונים
+        content.addView(sectionHeader("נתונים", 0));
+        Button cloudServer = Ui.listItem(this, Ui.IC_CLOUD, "כתובת שרת הענן",
+                cloudUrl().isEmpty() ? "לא הוגדר" : "מוגדר", false, true);
         cloudServer.setOnClickListener(v -> showCloudServerDialog());
-        Button clearImages = Ui.gridButton(this, "מחיקת מטמון התמונות", Ui.Kind.SOFT);
+        content.addView(cloudServer, Ui.row(this, 0, Ui.S2));
+        Button clearImages = Ui.listItem(this, Ui.IC_PHOTO, "מחיקת מטמון התמונות", "מחשב…", false, false);
         clearImages.setOnClickListener(v -> confirmClearImageCache());
-        Button clear = Ui.gridButton(this, "מחיקת כל הנתונים", Ui.Kind.SOFT); // מוגן בחלון אישור
-        clear.setOnClickListener(v -> confirmClearSavedData());
-        addGridButtons(data, importFile, cloudServer, clearImages, clear);
-        TextView dataStatus = Ui.text(this, (cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר")
-                + " · מטמון התמונות: מחשב…", Ui.T_NOTE, Ui.MUTED, false);
-        data.addView(dataStatus, Ui.row(this, Ui.S2, Ui.S1));
-        final String cloudStatus = cloudUrl().isEmpty() ? "שרת הענן: לא הוגדר" : "שרת הענן: מוגדר";
+        content.addView(clearImages, Ui.row(this, 0, Ui.S2));
         cacheWorker.execute(() -> {
             long bytes = images.diskCacheBytes();
-            mainHandler.post(() -> dataStatus.setText(cloudStatus + " · מטמון התמונות: " + formatBytes(bytes)));
+            mainHandler.post(() -> {
+                Button fresh = Ui.listItem(this, Ui.IC_PHOTO, "מחיקת מטמון התמונות",
+                        formatBytes(bytes) + " · התמונות יורדו שוב כשצריך", false, false);
+                clearImages.setText(fresh.getText());
+            });
         });
+        Button clear = Ui.listItem(this, Ui.IC_TRASH, "מחיקת כל הנתונים", "מטמון, תמונות וסימוני איסוף; ההזמנות נשארות", false, false);
+        clear.setOnClickListener(v -> confirmClearSavedData()); // מוגן בחלון אישור
+        content.addView(clear, Ui.row(this, 0, Ui.S2));
 
-        TextView versionLine = Ui.text(this, "גרסה " + appVersionName(), Ui.T_NOTE, Ui.MUTED, false);
-        versionLine.setGravity(Gravity.CENTER);
-        content.addView(versionLine, Ui.row(this, Ui.S4, 0));
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
-        presentScreen(scroll, Screen.SETTINGS);
-        // מקלדת: הפוקוס מתחיל בפעולה הראשונה (החשבון הראשון), ולמעלה ממנה נמצא כפתור הסגירה.
-        if (!focusFirstButton(accounts)) savedLists.requestFocus();
+        presentScreen(screenFrame(top, content, null), Screen.SETTINGS);
+        (firstAccount != null ? firstAccount : add).requestFocus();
     }
 
     private static final String PREF_THEME = "theme_mode"; // light / dark / system
@@ -2133,8 +2203,8 @@ public class MainActivity extends Activity {
 
         LinearLayout display = settingsCard(content, "📏 תצוגה");
         addDisplaySettings(display);
-        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "🏷️ כותרות הקטגוריות", true, Ui.S1, Ui.S1);
-        addFeedbackCheckbox(display, PREF_FAMILY_BREAKDOWN, "👨‍👩‍👧 כמות לפי משפחה (בתצוגה המאוחדת)", true, 0, Ui.S1);
+        addFeedbackCheckbox(display, PREF_CATEGORY_HEADERS, "🏷️ כותרות הקטגוריות", false, Ui.S1, Ui.S1);
+        // "כמות לפי הזמנה" נקבעת לכל רשימת איסוף בהגדרות שלה (לא כאן, כדי שלא יהיו שתי הגדרות סותרות).
 
         LinearLayout sound = settingsCard(content, "🔔 צליל ורטט");
         addFeedbackSettings(sound);
@@ -2181,7 +2251,7 @@ public class MainActivity extends Activity {
                     long before = images.diskCacheBytes();
                     images.clear();
                     mainHandler.post(() -> {
-                        Toast.makeText(this, "נמחקו " + formatBytes(before) + " של תמונות.", Toast.LENGTH_LONG).show();
+
                         if (screen == Screen.SETTINGS) showSettingsScreen();
                     });
                 }));
@@ -2219,7 +2289,7 @@ public class MainActivity extends Activity {
         }
         addSourceAction(panel, dialog, SourceRegistry.KIND_IMPORTED.equals(source.kind)
                         ? "הסר רשימה מהמכשיר" : "הסר חיבור ורשימה מהמכשיר",
-                () -> showModernConfirm("הסרת מקור", "החיבור והעותק הפעיל יוסרו מהמכשיר. רשימות שכבר נשמרו בארכיון יישארו במסך רשימות שמורות עד למחיקה ידנית.", "הסר", () -> removeSource(source.id)));
+                () -> showModernConfirm("הסרת מקור", "החיבור והעותק הפעיל יוסרו מהמכשיר. הזמנות שכבר נשמרו יישארו במסך הבית עד למחיקה ידנית.", "הסר", () -> removeSource(source.id)));
         Button cancel = Ui.button(this, "סגירה", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
         panel.addView(cancel, Ui.row(this, Ui.S2, 0));
@@ -2270,13 +2340,9 @@ public class MainActivity extends Activity {
         } catch (Exception e) { return -1; }
     }
 
-    private boolean syncDisabled(String entryId) {
-        return uiPreferences != null && uiPreferences.getBoolean("nosync_" + entryId, false);
-    }
-
     /** האם הרשימה מתעדכנת מהאתר בכל סנכרון (הזמנה מהאתר, והסנכרון לא כובה לה). */
     private boolean isSyncedEntry(SavedListStore.Entry entry) {
-        return serverOrderId(entry) > 0 && !syncDisabled(entry.id);
+        return serverOrderId(entry) > 0;
     }
 
     private long lastEntrySync(SavedListStore.Entry entry) {
@@ -2291,30 +2357,29 @@ public class MainActivity extends Activity {
     /** שורה קצרה: מצב הסנכרון ומועד הבדיקה האחרונה. */
     private String syncedDetails(SavedListStore.Entry entry) {
         if (serverOrderId(entry) <= 0) return "";
-        if (syncDisabled(entry.id)) return "⏸ הסנכרון כבוי לרשימה הזו";
         long last = lastEntrySync(entry);
         return "🔄 מסונכרן · בדיקה אחרונה: " + (last > 0
                 ? new SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(new Date(last)) : "עוד לא");
     }
 
-    private void setEntrySync(SavedListStore.Entry entry, boolean enabled) {
-        uiPreferences.edit().putBoolean("nosync_" + entry.id, !enabled).apply();
-        showActionToast(enabled ? "הסנכרון הופעל לרשימה" : "הסנכרון כובה לרשימה");
-        refreshHomeTitle();
-        if (screen == Screen.SAVED_LISTS) refreshSavedListsScreen();
+    /** הזמנה מהאתר לא משתנה במכשיר: כל הוספה, מיזוג או ייבוא לתוכה נעשים בעותק מקומי שלה. */
+    private SavedListStore.Entry localTarget(SavedListStore.Entry entry) {
+        if (entry == null) return null;
+        if (serverOrderId(entry) <= 0) return entry;
+        String newId = savedListStore.copyAsLocal(entry.id, "עותק של " + displayTitle(entry));
+        return newId.isEmpty() ? null : findSavedEntry(newId);
     }
 
     /**
-     * סנכרון הזמנות שמורות מהאתר (מההיסטוריה ומהזמנות קודמות), בזמן סנכרון החשבון. רץ על תהליך הרשת.
-     * מחזיר הודעות על שינויים. רשימה ישנה שהמשתמש הוסיף לה מוצרים - הסנכרון שלה נכבה, כדי שלא יימחק כלום.
+     * סנכרון הזמנות שמורות מהחשבון (מההיסטוריה ומהזמנות קודמות), בזמן סנכרון החשבון. רץ על תהליך הרשת.
+     * הסנכרון חל רק על הזמנות מהחשבון, בלי קשר לרשימות איסוף. מוצרים שנוספו במכשיר נשמרים.
      * עד 12 הזמנות אחרונות בכל סנכרון.
      */
-    private List<String> syncSavedOrders(String sourceId, long latestId, RequestSession session) {
-        List<String> notices = new ArrayList<>();
+    private void syncSavedOrders(String sourceId, long latestId, RequestSession session) {
         List<SavedListStore.Entry> candidates = new ArrayList<>();
         for (SavedListStore.Entry e : savedListStore.list()) {
             long id = serverOrderId(e);
-            if (e.sourceId.equals(sourceId) && id > 0 && id != latestId && !syncDisabled(e.id)) candidates.add(e);
+            if (e.sourceId.equals(sourceId) && id > 0 && id != latestId) candidates.add(e);
         }
         java.util.Collections.sort(candidates, (a, b) -> Long.compare(b.archivedAt, a.archivedAt));
         int checked = 0;
@@ -2325,29 +2390,15 @@ public class MainActivity extends Activity {
                 List<ProductRow> rows = parseProducts(order);
                 if (rows.isEmpty()) continue;
                 sortByCategory(rows, null);
+                uiPreferences.edit().putLong("lastsync_" + e.id, System.currentTimeMillis()).apply();
+                String serverPrint = DataGuard.fingerprint(rows);
                 JSONObject data = savedListStore.readEntry(e.id);
+                if (serverPrint.equals(data.optString("_server_print", ""))) continue;
                 JSONArray old = data.optJSONArray("products");
-                List<ProductRow> before = new ArrayList<>();
                 Map<String, String> imageFiles = new HashMap<>();
-                Set<String> serverKeys = new HashSet<>();
-                for (ProductRow r : rows) serverKeys.add(r.key);
-                boolean userAdded = false;
                 if (old != null) for (int i = 0; i < old.length(); i++) {
                     JSONObject o = old.optJSONObject(i); if (o == null) continue;
-                    ProductRow p = new ProductRow(first(o, "key"), first(o, "name"), first(o, "image_url"), first(o, "amount"),
-                            first(o, "note"), "", first(o, "category"), o.optInt("category_order", 0));
-                    before.add(p);
-                    imageFiles.put(p.key, first(o, "image_file"));
-                    if (!serverKeys.contains(p.key)) userAdded = true;
-                }
-                String serverPrint = DataGuard.fingerprint(rows);
-                String lastPrint = data.optString("_server_print", "");
-                uiPreferences.edit().putLong("lastsync_" + e.id, System.currentTimeMillis()).apply();
-                if (serverPrint.equals(lastPrint)) continue;
-                if (lastPrint.isEmpty()) {
-                    // סנכרון ראשון של רשימה ישנה: אם הוסיפו לה מוצרים - לא נוגעים בה, ומכבים לה סנכרון.
-                    if (userAdded) { uiPreferences.edit().putBoolean("nosync_" + e.id, true).apply(); continue; }
-                    if (DataGuard.fingerprint(before).equals(serverPrint)) { savedListStore.setServerPrint(e.id, serverPrint); continue; }
+                    imageFiles.put(first(o, "key"), first(o, "image_file"));
                 }
                 JSONArray items = new JSONArray();
                 for (ProductRow p : rows) {
@@ -2356,37 +2407,13 @@ public class MainActivity extends Activity {
                             .put("amount", p.amount).put("note", p.note).put("category", p.category)
                             .put("category_order", p.categoryOrder).put("image_file", file == null ? "" : file));
                 }
-                if (savedListStore.replaceProducts(e.id, items, serverPrint)) {
-                    String changes = describeOrderChanges(before, rows);
-                    notices.add("🔄 \"" + displayTitle(e) + "\" עודכנה באתר." + changes);
-                }
+                savedListStore.replaceProducts(e.id, items, serverPrint);
             } catch (Exception error) {
                 if (isAuthError(safeError(error))) break;
             }
         }
-        return notices;
     }
 
-    /**
-     * לפני שינוי תוכן של רשימה: אם זו ההזמנה העדכנית מהאתר, השינוי נעשה בעותק נפרד,
-     * כי הסנכרון הבא היה דורס אותו. מחזיר את הרשימה שאפשר לשנות.
-     */
-    private SavedListStore.Entry editableCopyIfSynced(SavedListStore.Entry entry) {
-        if (!isSyncedEntry(entry)) return entry;
-        try {
-            JSONObject data = savedListStore.readEntry(entry.id);
-            long id = System.currentTimeMillis();
-            String title = "עותק של " + displayTitle(entry);
-            data.put("order_id", id).put("order_name", title).put("imported", true);
-            SourceRegistry.Source source = sourceRegistry.find(entry.sourceId);
-            if (source == null || !savedListStore.archiveSnapshot(source.id, source.label, data, null)) return null;
-            SavedListStore.Entry copy = findSavedEntry(savedEntryId(source.id, entry.owner, String.valueOf(id)));
-            if (copy != null) Toast.makeText(this, "ההזמנה העדכנית מתעדכנת מהאתר, לכן השינוי נשמר בעותק נפרד: " + title, Toast.LENGTH_LONG).show();
-            return copy;
-        } catch (Exception e) { return null; }
-    }
-
-    private final List<String> syncNotices = new ArrayList<>();
 
     /** מוצרים מההזמנה השמורה במכשיר (לפני שהסנכרון מחליף אותה), לצורך השוואה. */
     private List<ProductRow> cachedOrderRows() {
@@ -2429,14 +2456,6 @@ public class MainActivity extends Activity {
         if (names.size() > 8) out.append(" ועוד ").append(names.size() - 8);
     }
 
-    /** מציג את כל ההודעות שהצטברו בסנכרון, בחלון אחד. */
-    private void flushSyncNotices() {
-        if (syncNotices.isEmpty()) return;
-        String text = android.text.TextUtils.join("\n\n", syncNotices);
-        syncNotices.clear();
-        showInfoDialog("עדכון מהאתר", text);
-    }
-
     /** פתיחה מחדש של חלון, עם אותו "קודם" שהיה לו. */
     private Runnable reopen(Runnable parent, Runnable self) {
         return () -> openChild(parent, self);
@@ -2459,7 +2478,7 @@ public class MainActivity extends Activity {
      * כפתור בודד בסוף תופס חצי רוחב, כדי שהרשת תישאר אחידה.
      */
     private void addGridButton(LinearLayout container, Button button) {
-        int gap = Ui.dp(this, Ui.S1);
+        int gap = Ui.dp(this, Ui.GRID_GAP);
         View last = container.getChildCount() > 0 ? container.getChildAt(container.getChildCount() - 1) : null;
         if (last instanceof LinearLayout && GRID_ROW_TAG.equals(last.getTag())) {
             LinearLayout row = (LinearLayout) last;
@@ -2478,7 +2497,8 @@ public class MainActivity extends Activity {
         row.addView(button, new LinearLayout.LayoutParams(0, -1, 1f));
         View spacer = new View(this);
         spacer.setTag(GRID_SPACER_TAG);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 1, 1f);
+        // גם המרווח בגובה "מלא": אחרת שורה עם כפתור יחיד מתכווצת לגובה 0 (כך נעלם "התחברות לחשבון").
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
         lp.setMarginStart(gap);
         row.addView(spacer, lp);
         container.addView(row, Ui.row(this, gap, 0));
@@ -2493,21 +2513,27 @@ public class MainActivity extends Activity {
         gridEqualizePending.put(container, Boolean.TRUE);
         container.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
             @Override public void onGlobalLayout() {
-                List<Button> buttons = new ArrayList<>();
+                // כל השורות בגובה הכפתור הגבוה ביותר. מודדים את הגובה הטבעי של כל כפתור (לפי הרוחב שלו),
+                // וקובעים גובה קבוע לשורות. ממשיכים להאזין: חלון צף משנה רוחב אחרי המדידה הראשונה.
+                List<LinearLayout> rows = new ArrayList<>();
                 int max = 0;
                 for (int i = 0; i < container.getChildCount(); i++) {
                     View row = container.getChildAt(i);
-                    if (!(row instanceof LinearLayout) || !GRID_ROW_TAG.equals(row.getTag())) continue;
+                    if (!(row instanceof LinearLayout) || !GRID_ROW_TAG.equals(row.getTag()) || row.getVisibility() == View.GONE) continue;
+                    rows.add((LinearLayout) row);
                     for (int j = 0; j < ((LinearLayout) row).getChildCount(); j++) {
                         View child = ((LinearLayout) row).getChildAt(j);
-                        if (child instanceof Button) { buttons.add((Button) child); max = Math.max(max, child.getHeight()); }
+                        if (!(child instanceof Button) || child.getVisibility() == View.GONE || child.getWidth() <= 0) continue;
+                        child.measure(View.MeasureSpec.makeMeasureSpec(child.getWidth(), View.MeasureSpec.EXACTLY),
+                                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                        max = Math.max(max, child.getMeasuredHeight());
                     }
                 }
                 if (max <= 0) return; // עוד לא נמדד
-                if (Build.VERSION.SDK_INT >= 16) container.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                else container.getViewTreeObserver().removeGlobalOnLayoutListener(this);
-                gridEqualizePending.remove(container);
-                for (Button b : buttons) if (b.getHeight() != max) { b.setMinHeight(max); b.setMinimumHeight(max); }
+                for (LinearLayout row : rows) {
+                    ViewGroup.LayoutParams lp = row.getLayoutParams();
+                    if (lp != null && lp.height != max) { lp.height = max; row.setLayoutParams(lp); }
+                }
             }
         });
     }
@@ -2717,7 +2743,7 @@ public class MainActivity extends Activity {
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){current.setText(labels[progress]);}
             @Override public void onStartTrackingTouch(SeekBar bar){}
-            @Override public void onStopTrackingTouch(SeekBar bar){apply.run();Toast.makeText(MainActivity.this, "גודל התצוגה: "+labels[displayMode], Toast.LENGTH_SHORT).show();}
+            @Override public void onStopTrackingTouch(SeekBar bar){apply.run();}
         });
         slider.setOnKeyListener((v,keyCode,event)->{
             if(event.getAction()==KeyEvent.ACTION_DOWN&&(keyCode==KeyEvent.KEYCODE_DPAD_LEFT||keyCode==KeyEvent.KEYCODE_DPAD_RIGHT
@@ -2772,7 +2798,7 @@ public class MainActivity extends Activity {
         option.setFocusable(true);
         option.setOnCheckedChangeListener((button, checked) -> {
             uiPreferences.edit().putBoolean(key, checked).apply();
-            Toast.makeText(this, label + (checked ? " הופעל" : " כובה"), Toast.LENGTH_SHORT).show();
+
         });
         return option;
     }
@@ -2896,6 +2922,8 @@ public class MainActivity extends Activity {
 
     private void showPartialCollectionDialog(String key) {
         ProductRow product=findProduct(key);if(product==null)return;
+        java.util.List<SourcePart> listParts=combinedView?combinedParts.get(key):null;
+        if(listParts!=null&&listParts.size()>1){showPerListCollectionDialog(key,product,listParts);return;}
         final int remainingUnits=(int)Math.floor(remainingQuantity(product)+0.000001);
         if(remainingUnits<=0)return;
         if(remainingUnits==1){applyPartialCollection(key,1);return;}
@@ -2926,6 +2954,83 @@ public class MainActivity extends Activity {
         slider.setFocusable(true);slider.setFocusableInTouchMode(true);slider.requestFocus();
     }
 
+    /**
+     * תצוגה מאוחדת: מוצר שמגיע מכמה רשימות. בוחרים כמה נאסף לכל רשימה בנפרד (− / + / הכל),
+     * כך שברור לאיזו רשימה נאסף ולאיזו עוד לא.
+     */
+    private void showPerListCollectionDialog(String key,ProductRow product,java.util.List<SourcePart> parts){
+        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel=Ui.dialogPanel(this);
+        panel.addView(Ui.text(this,"איסוף לפי רשימה",Ui.T_NAME,Ui.P900,true));
+        panel.addView(Ui.text(this,product.name,Ui.T_BODY,Ui.INK,true),Ui.row(this,Ui.S2,Ui.S2));
+        final int[] values=new int[parts.size()];
+        final int[] totals=new int[parts.size()];
+        LinearLayout body=Ui.column(this);
+        Button firstFocus=null;
+        for(int i=0;i<parts.size();i++){
+            SourcePart part=parts.get(i);
+            totals[i]=(int)Math.round(parseQuantity(part.product.amount));
+            values[i]=part.collected?totals[i]:(int)Math.round(part.partialQuantity);
+            final int index=i;
+            LinearLayout row=new LinearLayout(this);row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);row.setGravity(Gravity.CENTER_VERTICAL);
+            TextView label=Ui.text(this,part.sourceLabel+" · הוזמנו "+part.product.amount,Ui.T_BODY,Ui.INK,false);
+            row.addView(label,new LinearLayout.LayoutParams(0,-2,1f));
+            TextView value=Ui.text(this,"",Ui.T_NAME,Ui.P800,true);value.setGravity(Gravity.CENTER);value.setMinWidth(Ui.dp(this,56));
+            Runnable show=()->value.setText(values[index]+"/"+totals[index]);show.run();
+            Button minus=Ui.button(this,"−",Ui.Kind.SOFT),plus=Ui.button(this,"+",Ui.Kind.SOFT),all=Ui.button(this,"הכל",Ui.Kind.SOFT);
+            minus.setOnClickListener(v->{if(values[index]>0)values[index]--;show.run();});
+            plus.setOnClickListener(v->{if(values[index]<totals[index])values[index]++;show.run();});
+            all.setOnClickListener(v->{values[index]=values[index]==totals[index]?0:totals[index];show.run();});
+            int gap=Ui.dp(this,Ui.S1);
+            LinearLayout.LayoutParams lp1=new LinearLayout.LayoutParams(Ui.dp(this,48),-2);lp1.setMarginStart(gap);
+            LinearLayout.LayoutParams lp2=new LinearLayout.LayoutParams(-2,-2);lp2.setMarginStart(gap);
+            LinearLayout.LayoutParams lp3=new LinearLayout.LayoutParams(Ui.dp(this,48),-2);lp3.setMarginStart(gap);
+            LinearLayout.LayoutParams lp4=new LinearLayout.LayoutParams(-2,-2);lp4.setMarginStart(gap);
+            row.addView(all,lp4);row.addView(plus,lp1);row.addView(value,lp2);row.addView(minus,lp3);
+            body.addView(row,Ui.row(this,Ui.S2,0));
+            if(firstFocus==null)firstFocus=all;
+        }
+        ScrollView scroll=new ScrollView(this);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));
+        panel.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
+        Button save=Ui.button(this,"אישור",Ui.Kind.PRIMARY),cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);
+        save.setOnClickListener(v->{dialog.dismiss();applyPerListCollection(key,parts,values,totals);});
+        cancel.setOnClickListener(v->dialog.dismiss());
+        panel.addView(buttonPair(save,cancel),Ui.row(this,Ui.S3,0));
+        dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
+        ignoreOpeningKeyRelease(dialog);
+        final Button focus=firstFocus;
+        if(focus!=null){focus.requestFocus();panel.post(focus::requestFocus);}
+    }
+
+    /**
+     * חלון שנפתח בלחיצה ארוכה (5 / אנטר): השחרור של אותה לחיצה מגיע לחלון ו"לוחץ" על מה שבפוקוס
+     * (למשל ה-X שסוגר). מתעלמים משחרורים עד הלחיצה הראשונה שמתחילה בתוך החלון.
+     */
+    private void ignoreOpeningKeyRelease(Dialog dialog) {
+        final boolean[] armed = {false};
+        dialog.setOnKeyListener((d, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) armed[0] = true;
+            if (!armed[0]) return true;   // עוד השחרור (או החזרות) של הלחיצה הארוכה שפתחה את החלון
+            return handleDialogKey(dialog, event);
+        });
+    }
+
+    private void applyPerListCollection(String key,java.util.List<SourcePart> parts,int[] values,int[] totals){
+        double sum=0,total=0;
+        for(int i=0;i<parts.size();i++){
+            SourcePart part=parts.get(i);
+            part.partialQuantity=Math.max(0,Math.min(values[i],totals[i]));
+            part.collected=values[i]>=totals[i];
+            sum+=part.partialQuantity;total+=totals[i];
+        }
+        if(sum>=total-0.000001){collected.add(key);partialCollected.remove(key);}
+        else{collected.remove(key);if(sum>0)partialCollected.put(key,sum);else partialCollected.remove(key);}
+        persistCombinedParts(parts);
+        renderProducts(false);
+        ProductCard card=productCards.get(key);if(card!=null)card.row.requestFocus();
+        performFeedback(false,sum>0);checkCelebration();
+    }
+
     private void applyPartialCollection(String key,double quantity) {
         ProductRow product=findProduct(key);if(product==null)return;double total=parseQuantity(product.amount);
         ProductCard partialCardBefore=partialCards.get(key);
@@ -2941,9 +3046,17 @@ public class MainActivity extends Activity {
         performFeedback(false, quantity > 0);checkCelebration();
     }
     private void showSavedListsScreen() { showSavedListsScreen(savedListsReturn); }
+
+    /** חלון לפתוח שוב ביציאה ממסך ניהול ההזמנות (חזרה צעד אחד), למשל חלון רשימות האיסוף. */
+    private Runnable savedListsReturnDialog;
+
+    /** מסך ניהול ההזמנות מתוך חלון; "חזרה" ממנו פותח שוב את אותו חלון. */
+    private void openOrdersScreen(Runnable reopenDialog) {
+        showHub(null);
+    }
     private void showSavedListsScreen(boolean fromLogin) { showSavedListsScreen(fromLogin ? Screen.LOGIN : Screen.HOME); }
     /** רענון מסך הרשימות השמורות בלי לשנות את המסך שאליו חוזרים ממנו. */
-    private void refreshSavedListsScreen() { showSavedListsScreen(savedListsReturn); }
+    private void refreshSavedListsScreen() { if (screen == Screen.HOME) refreshHomeTitle(); else showHub(null); }
 
     /** כותרת אחידה למסכי משנה: כפתור חזרה (חץ ימינה) ושם המסך. */
     private LinearLayout buildSubScreenHeader(String titleText, Runnable onBack) {
@@ -2951,118 +3064,40 @@ public class MainActivity extends Activity {
         Button back=Ui.iconButton(this,Ui.IC_BACK,"חזרה",false);
         back.setTag("screen_back_button");
         back.setOnClickListener(v->onBack.run());header.addView(back);
-        TextView title=Ui.text(this,titleText,Ui.T_TITLE,Ui.P900,true);
+        int size=Ui.dp(this,Ui.iconButtonDp(this));
+        back.setLayoutParams(new LinearLayout.LayoutParams(size,size));
+        TextView title=Ui.text(this,Ui.stripEmoji(titleText),Ui.T_TITLE-2,Ui.P900,true);
         LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(0,-2,1f);titleLp.setMarginStart(Ui.dp(this,Ui.S3));
         header.addView(title,titleLp);
         return header;
     }
 
-    private void showSavedListsScreen(Screen returnTo) {
-        savedListsScreenVisible=true;
-        savedListsReturn=returnTo==null?Screen.HOME:returnTo;
-        savedListsReturnToLogin=savedListsReturn==Screen.LOGIN;
-        // למעלה, קבוע: כותרת ואריחי הפעולות. למטה, נגלל: הרשימות. כך הפעולות תמיד בהישג יד.
-        LinearLayout root=Ui.column(this);root.setBackgroundColor(Ui.BG);
-        LinearLayout top=Ui.column(this);
-        int pad=Ui.dp(this,Ui.screenPad(this));
-        top.setPadding(pad,Ui.dp(this,Ui.S3),pad,Ui.dp(this,Ui.S2));
-        top.addView(buildSubScreenHeader("רשימות שמורות",this::leaveSavedListsScreen),Ui.row(this,0,Ui.S1));
-        List<SavedListStore.Entry> entries=savedListStore.list();Collections.sort(entries,(a,b)->Long.compare(b.archivedAt,a.archivedAt));
-        Button history=Ui.tile(this,Ui.IC_HISTORY,"הזמנות קודמות");
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v->showOrderHistoryScreen(Screen.SAVED_LISTS));
-        Button create=Ui.tile(this,Ui.IC_PLUS,"רשימה חדשה");
-        create.setOnClickListener(v->createNewSavedList());
-        Button mergeLists=Ui.tile(this,Ui.IC_MERGE,"איחוד");
-        mergeLists.setEnabled(entries.size()>=2);
-        mergeLists.setOnClickListener(v->mergeTileClicked());
-        Button deleteTile=Ui.tile(this,Ui.IC_CLOSE,"מחיקה");
-        deleteTile.setVisibility(checkedEntries().size()>=2?View.VISIBLE:View.GONE);
-        deleteTile.setOnClickListener(v->confirmDeleteChecked());
-        savedListsDeleteTile=deleteTile;
-        Button shareTile=Ui.tile(this,Ui.IC_SHARE,"שיתוף");
-        shareTile.setOnClickListener(v->shareTileClicked(null));
-        top.addView(tileRow(history,create,shareTile,mergeLists,deleteTile),Ui.row(this,0,0));
-        root.addView(top,new LinearLayout.LayoutParams(-1,-2));
-
-        LinearLayout content=Ui.column(this);
-        content.setPadding(pad,0,pad,Ui.dp(this,Ui.S8));
-        if(entries.isEmpty())content.addView(Ui.banner(this,"עדיין לא נשמרו רשימות במכשיר."),Ui.row(this,Ui.S2,0));
-        else content.addView(compactSection(entries.size()+" רשימות במכשיר"));
-        View firstOpen=null;
-        for(SavedListStore.Entry entry:entries){
-            String details=withBadge(withBadge(entry.itemCount+" פריטים · "+entry.sourceLabel,cloudBadge(entry.id)),isSyncedEntry(entry)?"🔄 מסונכרן":"");
-            LinearLayout line=buildListLine(entry,displayTitle(entry),details,isDisplayedList(entry),
-                    ()->openSavedList(entry),()->showSavedListActions(entry),()->{
-                        if(savedListsDeleteTile!=null)savedListsDeleteTile.setVisibility(checkedEntries().size()>=2?View.VISIBLE:View.GONE);});
-            content.addView(line,Ui.row(this,0,Ui.S1));
-            if(firstOpen==null)firstOpen=line.getChildAt(0);
-        }
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
-        scroll.addView(content,new ScrollView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT));
-        root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
-        presentScreen(root,Screen.SAVED_LISTS);
-        // מקלדת: הפוקוס מתחיל ברשימה הראשונה, ואם אין רשימות - בכפתור יצירת רשימה.
-        if(firstOpen!=null)firstOpen.requestFocus();else if(history.isEnabled())history.requestFocus();else create.requestFocus();
-    }
+    /** מסך ניהול ההזמנות הישן הוחלף במסך הבית, שבו נמצאות גם רשימות האיסוף וגם ההזמנות. */
+    private void showSavedListsScreen(Screen returnTo) { showHub(null); }
 
     private void showSavedListActions(SavedListStore.Entry entry) { showSavedListActions(entry, null); }
 
     /** פעולות לרשימה. back - לאן חוזרים בכפתור החזרה ובמקש חזרה (למשל לחלון בחירת הרשימות). */
     private void showSavedListActions(SavedListStore.Entry entry, Runnable back) {
-        Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel=Ui.dialogPanel(this);
-        panel.addView(Ui.text(this,displayTitle(entry),Ui.T_NAME,Ui.P900,true));
-        panel.addView(Ui.text(this,entry.itemCount+" פריטים",Ui.T_NOTE,Ui.MUTED,false),Ui.row(this,Ui.S1,Ui.S2));
-        String cloud=cloudDetails(entry.id);
-        if(!cloud.isEmpty())panel.addView(Ui.text(this,cloud,Ui.T_BODY,Ui.P700,true),Ui.row(this,0,Ui.S2));
-        String sync=syncedDetails(entry);
-        if(!sync.isEmpty())panel.addView(Ui.text(this,sync,Ui.T_NOTE,Ui.P700,false),Ui.row(this,0,Ui.S2));
-        currentMenuReopen=()->showSavedListActions(entry,back);
-        if(serverOrderId(entry)>0){
-            boolean off=syncDisabled(entry.id);
-            addSourceAction(panel,dialog,off?"הפעלת סנכרון":"כיבוי סנכרון",()->setEntrySync(entry,off));
-        }
-        addListEntryActions(panel,dialog,entry,back==null?this::refreshSavedListsScreen:this::refreshHomeTitle,true);
-        currentMenuReopen=null;
-        dialog.setContentView(panel);dialog.show();
-        if(back!=null)pendingDialogParent=null;
-        styleConfirmWindow(dialog);
-        if(back!=null)addDialogBackButton(dialog,back);
-        focusFirstButton(panel);
+        showOrderMore(entry, back != null ? back : () -> showOrderScreen(entry, null));
     }
 
     /**
      * הפעולות על רשימה שמורה. אותה קבוצה בדיוק מופיעה גם ב"פעולות נוספות" במסך הרשימות השמורות
-     * וגם ב"פעולות לרשימה" מהכותרת, כדי שהשניים יהיו מקבילים.
+     * וגם ב"פעולות להזמנה" מהכותרת, כדי שהשניים יהיו מקבילים.
      */
     private void addListEntryActions(LinearLayout panel, Dialog dialog, SavedListStore.Entry entry,
                                      Runnable afterRename, boolean includeOpen) {
-        if (includeOpen && !isDisplayedList(entry))
-            addSourceAction(panel, dialog, "פתיחת הרשימה", () -> openSavedList(entry));
-        addSourceAction(panel, dialog, "ייבוא הזמנה מהעבר לרשימה", () -> importHistoryInto(entry));
+        // פתיחה והפיכה לרשימת איסוף נמצאות בחלון ההזמנה עצמו (לחיצה על ההזמנה).
+        addSourceAction(panel, dialog, "צירוף הזמנה מהעבר", () -> importHistoryInto(entry));
         addSourceAction(panel, dialog, "שינוי שם", () -> showRenameDialog(entry.owner, entry.orderId,
                 displayTitle(entry), entry.title, afterRename));
-        addSourceAction(panel, dialog, "מיזוג לתוך רשימה אחרת", () -> showMergeTargetDialog(entry));
+        addSourceAction(panel, dialog, "מיזוג לתוך הזמנה אחרת", () -> showMergeTargetDialog(entry));
 
-        addSourceAction(panel, dialog, "מחיקה מהרשימות השמורות", () -> showModernConfirm("מחיקת רשימה שמורה",
-                "הרשימה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק רשימה",
+        addSourceAction(panel, dialog, "מחיקת ההזמנה", () -> showModernConfirm("מחיקת הזמנה",
+                "ההזמנה והעותק המקומי שלה יימחקו מהמכשיר בלבד. נתוני החשבון המקוון לא יושפעו.", "מחק הזמנה",
                 () -> deleteSavedListEntry(entry)));
     }
-
-    /** פעולות כלליות על רשימות: אותן פעולות שבראש מסך הרשימות השמורות. */
-    private void addGeneralListActions(LinearLayout panel, Dialog dialog) {
-        if (showingSavedList && !connectedAccounts().isEmpty())
-            addSourceAction(panel, dialog, "חזרה להזמנה העדכנית מהאתר", this::returnToLatestOrder);
-        if (!connectedAccounts().isEmpty())
-            addSourceAction(panel, dialog, "הזמנות קודמות מהאתר", () -> showOrderHistoryScreen(Screen.SAVED_LISTS));
-        addSourceAction(panel, dialog, "יצירת רשימה חדשה", this::createNewSavedList);
-        addSourceAction(panel, dialog, "הבאה מהענן לפי מספר", this::showCloudFetchDialog);
-        if (savedListStore.list().size() >= 2)
-            addSourceAction(panel, dialog, "איחוד רשימות", this::showMergeListsDialog);
-        addSourceAction(panel, dialog, "כל הרשימות השמורות", () -> showSavedListsScreen(Screen.HOME));
-    }
-
 
     private void showOrderHistoryScreen() { showOrderHistoryScreen(Screen.SAVED_LISTS); }
 
@@ -3171,9 +3206,9 @@ public class MainActivity extends Activity {
         intro.addView(accountRow,Ui.row(this,0,Ui.S2));
         if(target!=null){
             // מצב ייבוא לרשימה: בחירת הזמנה מוסיפה אותה ישירות לרשימה הזו.
-            TextView into=Ui.banner(this,"בחירת הזמנה תוסיף את המוצרים שלה לרשימה: "+displayTitle(target));
+            TextView into=Ui.banner(this,"בחירת הזמנה תצרף את המוצרים שלה להזמנה: "+displayTitle(target));
             intro.addView(into,Ui.row(this,0,Ui.S1));
-        } else intro.addView(Ui.text(this,"בחר הזמנה כדי לשמור אותה כרשימה חדשה או להוסיף אותה לרשימה קיימת.",Ui.T_NOTE,Ui.MUTED,false));
+        } else intro.addView(Ui.text(this,"בחרו הזמנה כדי לשמור אותה כהזמנה חדשה או לצרף אותה להזמנה קיימת.",Ui.T_NOTE,Ui.MUTED,false));
         content.addView(intro,Ui.row(this,0,Ui.S2));
         historyContent=content;historyMoreButton=null;
         content.addView(Ui.banner(this,"טוען הזמנות קודמות…"));
@@ -3315,7 +3350,7 @@ public class MainActivity extends Activity {
             body.addView(choose, Ui.row(this, Ui.S1, Ui.S1));
             if (first == null) first = choose;
         }
-        if (first == null) body.addView(Ui.text(this, "אין רשימות שמורות.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
+        if (first == null) body.addView(Ui.text(this, "אין הזמנות", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S2, 0));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -3330,107 +3365,6 @@ public class MainActivity extends Activity {
         if (first != null) first.requestFocus(); else cancel.requestFocus();
     }
 
-    /**
-     * לחיצה על שם הרשימה בכותרת. פריסה נקייה:
-     * למעלה (קבוע, לא נגלל): אריחי פעולות - הזמנות קודמות, רשימה חדשה, איחוד, הגדרות;
-     * מתחתיו הרשימה המוצגת עם כפתור ⋮ לכל הפעולות שלה.
-     * למטה (נגלל): שאר הרשימות השמורות - לחיצה פותחת, ⋮ לפעולות.
-     */
-    private void showListSwitcher() {
-        List<SavedListStore.Entry> entries = savedListStore.list();
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "רשימות", Ui.T_NAME, Ui.P900, true));
-        Runnable reopen = this::showListSwitcher;
-        // שינוי ✓ מרענן את המסך הראשי כשהחלון נסגר.
-        final boolean[] checksChanged = {false};
-        final Button[] deleteRef = {null}, mergeRef = {null};
-        Runnable groupChanged = () -> {
-            checksChanged[0] = true;
-            int visibility = checkedEntries().size() >= 2 ? View.VISIBLE : View.GONE;
-            if (deleteRef[0] != null) deleteRef[0].setVisibility(visibility);
-            if (mergeRef[0] != null) mergeRef[0].setVisibility(visibility);
-        };
-        dialog.setOnDismissListener(d -> { if (checksChanged[0] && screen == Screen.HOME) showHomeScreen(false); });
-
-        // פעולות קבועות למעלה
-        Button history = Ui.tile(this, Ui.IC_HISTORY, "הזמנות קודמות");
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, () -> showOrderHistoryScreen(Screen.HOME)); });
-        Button create = Ui.tile(this, Ui.IC_PLUS, "רשימה חדשה");
-        create.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, this::createNewSavedList); });
-        // "איחוד" ו"מחיקה" מופיעים רק כשמסומנות (✓) לפחות שתי רשימות, ופועלים על המסומנות.
-        boolean twoChecked = checkedEntries().size() >= 2;
-        Button merge = Ui.tile(this, Ui.IC_MERGE, "איחוד");
-        merge.setVisibility(twoChecked ? View.VISIBLE : View.GONE);
-        merge.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, this::mergeTileClicked); });
-        // "מחיקה" מופיע רק כשמסומנות (✓) שתי רשימות או יותר, ומוחק את המסומנות.
-        Button deleteTile = Ui.tile(this, Ui.IC_CLOSE, "מחיקה");
-        deleteTile.setVisibility(checkedEntries().size() >= 2 ? View.VISIBLE : View.GONE);
-        deleteTile.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, this::confirmDeleteChecked); });
-        deleteRef[0] = deleteTile;
-        mergeRef[0] = merge;
-        // "שיתוף" תמיד מופיע: משתף את הרשימות המסומנות, ואם אין - את הרשימה המוצגת.
-        Button shareTile = Ui.tile(this, Ui.IC_SHARE, "שיתוף");
-        final SavedListStore.Entry shownForShare = combinedView ? null : findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
-        shareTile.setOnClickListener(v -> { dialog.dismiss(); openChild(this::showListSwitcher, () -> shareTileClicked(shownForShare)); });
-        panel.addView(tileRow(history, create, shareTile, merge, deleteTile), Ui.row(this, Ui.S2, 0));
-
-        if (listGroupActive()) {
-            Button leave = Ui.button(this, "ביטול כל הסימונים ויציאה מהתצוגה המשותפת", Ui.Kind.SOFT);
-            leave.setOnClickListener(v -> { dialog.dismiss(); leaveListGroup(); showHomeScreen(false); });
-            panel.addView(leave, Ui.row(this, Ui.S1, 0));
-        }
-        if (showingSavedList && !connectedAccounts().isEmpty()) {
-            Button latest = Ui.button(this, "חזרה להזמנה העדכנית מהאתר", Ui.Kind.PRIMARY);
-            latest.setOnClickListener(v -> { dialog.dismiss(); returnToLatestOrder(); });
-            panel.addView(latest, Ui.row(this, Ui.S2, 0));
-        }
-
-        SavedListStore.Entry current = null;
-        if (!combinedView && !currentOrderId.isEmpty()) {
-            archiveCurrentSnapshot(activeSourceId);
-            current = findSavedEntry(savedEntryId(activeSourceId, activeOwner, currentOrderId));
-        }
-        View focus = null;
-        if (current != null) {
-            final SavedListStore.Entry shown = current;
-            panel.addView(compactSection("מוצגת עכשיו"));
-            LinearLayout line = buildListLine(shown, homeDisplayTitle(), withBadge(withBadge(shown.itemCount + " פריטים", cloudBadge(shown.id)), isSyncedEntry(shown) ? "🔄 מסונכרן" : ""), true,
-                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); },
-                    () -> { dialog.dismiss(); showSavedListActions(shown, reopen); }, groupChanged);
-            panel.addView(line, Ui.row(this, 0, 0));
-        }
-
-        // שאר הרשימות - נגללות
-        int others = 0;
-        LinearLayout body = Ui.column(this);
-        for (SavedListStore.Entry entry : entries) {
-            if (isDisplayedList(entry)) continue;
-            others++;
-            LinearLayout line = buildListLine(entry, displayTitle(entry), withBadge(withBadge(entry.itemCount + " פריטים", cloudBadge(entry.id)), isSyncedEntry(entry) ? "🔄 מסונכרן" : ""), false,
-                    () -> { dialog.dismiss(); openSavedList(entry); },
-                    () -> { dialog.dismiss(); showSavedListActions(entry, reopen); }, groupChanged);
-            body.addView(line, Ui.row(this, 0, Ui.S1));
-            if (focus == null) focus = line.getChildAt(0);
-        }
-        panel.addView(compactSection(others == 0 ? "אין רשימות שמורות נוספות" : "רשימות שמורות · " + others));
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
-        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        dialog.setContentView(panel);
-        dialog.show();
-        styleConfirmWindow(dialog);
-        // חלון צף גדול: כמעט כל רוחב המסך (עד 640dp) ו-94% מהגובה.
-        if (dialog.getWindow() != null) {
-            android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-            int width = Math.min(metrics.widthPixels - Ui.dp(this, 16), Ui.dp(this, 640));
-            dialog.getWindow().setLayout(width, (int) (metrics.heightPixels * 0.94f));
-        }
-        if (focus != null) focus.requestFocus(); else history.requestFocus();
-    }
-
     /** כותרת קטע קומפקטית לחלונות ולרשימות. */
     private TextView compactSection(String text) {
         TextView t = Ui.text(this, text, Ui.T_NOTE, Ui.P700, true);
@@ -3438,19 +3372,35 @@ public class MainActivity extends Activity {
         return t;
     }
 
+    /** כל האריחים בשורה אחת, ברוחב שווה (אריחים מוסתרים לא תופסים מקום). */
+    private LinearLayout tileRowOneLine(Button... tiles) {
+        LinearLayout row = new LinearLayout(this);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        boolean firstVisible = true;
+        for (Button tile : tiles) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
+            if (!firstVisible) lp.setMarginStart(Ui.dp(this, Ui.S1));
+            if (tile.getVisibility() != View.GONE) firstVisible = false;
+            row.addView(tile, lp);
+        }
+        return row;
+    }
+
     /** שורה של אריחים ברוחב שווה; במסך צר מאוד - שתי שורות של שניים. */
     private LinearLayout tileRow(Button... tiles) {
+        // עד 4 אריחים בשורה; יותר - שורות של 3 (במסך צר מאוד: 2). אריחים מוסתרים לא תופסים מקום.
         boolean narrow = getResources().getConfiguration().screenWidthDp < 300 && tiles.length > 3;
+        int perRow = narrow ? 2 : tiles.length > 4 ? 3 : tiles.length;
         LinearLayout column = Ui.column(this);
         LinearLayout row = null;
         for (int i = 0; i < tiles.length; i++) {
-            if (row == null || (narrow && i == 2)) {
+            if (row == null || i % perRow == 0) {
                 row = new LinearLayout(this);
                 row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-                column.addView(row, Ui.row(this, i == 0 ? 0 : Ui.S1, 0));
+                column.addView(row, Ui.row(this, i == 0 ? 0 : Ui.GRID_GAP, 0));
             }
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
-            if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(this, Ui.S1));
+            if (row.getChildCount() > 0) lp.setMarginStart(Ui.dp(this, Ui.GRID_GAP));
             row.addView(tiles[i], lp);
         }
         return column;
@@ -3462,12 +3412,12 @@ public class MainActivity extends Activity {
                                        Runnable open, Runnable more, Runnable onChecked) {
         LinearLayout line = buildListLine(name, details, highlighted, open, more);
         CheckBox box = new CheckBox(this);
-        box.setChecked(listGroup().contains(entry.id));
-        box.setContentDescription("הצגה יחד עם רשימות אחרות: " + name);
+        box.setChecked(selectedOrders.contains(entry.id));
+        box.setContentDescription("סימון הזמנה: " + name);
         if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
         box.setBackground(Ui.focusFrame(this));
         box.setOnCheckedChangeListener((b, checked) -> {
-            setListChecked(entry, checked);
+            if (checked) selectedOrders.add(entry.id); else selectedOrders.remove(entry.id);
             if (onChecked != null) onChecked.run();
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -3479,11 +3429,18 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildListLine(String name, String details, boolean highlighted, Runnable open, Runnable more) {
+        return buildListLine(name, details, highlighted, open, more, Ui.IC_MORE, "פעולות ל" + name);
+    }
+
+    private LinearLayout buildListLine(String name, String details, boolean highlighted, Runnable open, Runnable more,
+                                       int moreIcon, String moreDescription) {
         Button row = Ui.listRow(this, name, details, highlighted);
         row.setOnClickListener(v -> open.run());
-        Button actions = Ui.iconButton(this, Ui.IC_MORE, "פעולות ל" + name, false);
+        row.setTag(LIST_MAIN_TAG);
+        Button actions = Ui.iconButton(this, moreIcon, moreDescription, false);
         actions.setOnClickListener(v -> more.run());
         LinearLayout line = new LinearLayout(this);
+        line.setTag(LIST_LINE_TAG);
         line.setGravity(Gravity.CENTER_VERTICAL);
         line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         line.addView(row, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -3502,17 +3459,6 @@ public class MainActivity extends Activity {
     }
 
 
-    /** חזרה מרשימה שמורה להזמנה העדכנית מהאתר. */
-    private void returnToLatestOrder() {
-        leaveListGroup();
-        showingSavedList = false;
-        if (listSourceCount() > 1) { showHomeScreen(false); syncAllAccounts(); return; }
-        if (accessToken.isEmpty()) {
-            String other = firstConnectedAccountId();
-            if (!other.isEmpty()) { switchSource(other, () -> showHomeScreen(true)); return; }
-        }
-        showHomeScreen(!accessToken.isEmpty());
-    }
 
     /** איחוד כמה רשימות שמורות לרשימה חדשה. הרשימות המקוריות נשארות כמו שהן. */
     private void showMergeListsDialog() {
@@ -3520,8 +3466,8 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "איחוד רשימות", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "סמנו לפחות שתי רשימות. תיווצר רשימה חדשה עם כל המוצרים; כמויות של מוצרים זהים יסוכמו. הרשימות המקוריות נשמרות.",
+        panel.addView(Ui.text(this, "איחוד הזמנות", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "סמנו לפחות שתי הזמנות. תיווצר הזמנה חדשה עם כל המוצרים; כמויות של מוצרים זהים יסוכמו. ההזמנות המקוריות נשמרות.",
                 Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
         LinearLayout body = Ui.column(this);
         final List<CheckBox> boxes = new ArrayList<>();
@@ -3541,12 +3487,12 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
         panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        Button create = Ui.button(this, "איחוד לרשימה חדשה", Ui.Kind.PRIMARY);
+        Button create = Ui.button(this, "איחוד להזמנה חדשה", Ui.Kind.PRIMARY);
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         create.setOnClickListener(v -> {
             List<SavedListStore.Entry> chosen = new ArrayList<>();
             for (CheckBox box : boxes) if (box.isChecked()) chosen.add((SavedListStore.Entry) box.getTag());
-            if (chosen.size() < 2) { showActionToast("יש לסמן לפחות שתי רשימות"); return; }
+            if (chosen.size() < 2) { showActionToast("יש לסמן לפחות שתי הזמנות"); return; }
             dialog.dismiss();
             mergeIntoNewList(chosen);
         });
@@ -3564,7 +3510,7 @@ public class MainActivity extends Activity {
 
     /** הרשימות שמסומנות ב-✓ וקיימות. */
     private List<SavedListStore.Entry> checkedEntries() {
-        Set<String> ids = new HashSet<>(listGroup());
+        Set<String> ids = new HashSet<>(selectedOrders);
         List<SavedListStore.Entry> result = new ArrayList<>();
         if (ids.isEmpty()) return result;
         for (SavedListStore.Entry entry : savedListStore.list()) if (ids.contains(entry.id)) result.add(entry);
@@ -3578,9 +3524,9 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "איחוד " + chosen.size() + " רשימות מסומנות", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "איחוד " + chosen.size() + " הזמנות מסומנות", Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "כמויות של מוצרים זהים יסוכמו.", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button keep = Ui.gridButton(this, "רשימה מאוחדת חדשה (המקוריות נשמרות)", Ui.Kind.SOFT);
+        Button keep = Ui.gridButton(this, "הזמנה מאוחדת חדשה (המקוריות נשמרות)", Ui.Kind.SOFT);
         keep.setOnClickListener(v -> { dialog.dismiss(); mergeIntoNewList(chosen, false); });
         Button replace = Ui.gridButton(this, "איחוד ומחיקת המקוריות", Ui.Kind.SOFT);
         replace.setOnClickListener(v -> { dialog.dismiss(); mergeIntoNewList(chosen, true); });
@@ -3593,10 +3539,10 @@ public class MainActivity extends Activity {
 
     private void confirmDeleteChecked() {
         List<SavedListStore.Entry> chosen = checkedEntries();
-        if (chosen.isEmpty()) { showActionToast("לא סומנו רשימות"); return; }
-        showModernConfirm("מחיקת " + chosen.size() + " רשימות", "למחוק את הרשימות המסומנות? אי אפשר לבטל.", "מחיקה",
+        if (chosen.isEmpty()) { showActionToast("לא סומנו הזמנות"); return; }
+        showModernConfirm("מחיקת " + chosen.size() + " הזמנות", "למחוק את ההזמנות המסומנות? אי אפשר לבטל.", "מחיקה",
                 () -> deleteEntries(chosen, () -> {
-                    showActionToast("נמחקו " + chosen.size() + " רשימות");
+                    showActionToast("נמחקו " + chosen.size() + " הזמנות");
                     if (screen == Screen.SAVED_LISTS) refreshSavedListsScreen(); else showHomeScreen(false);
                 }));
     }
@@ -3627,7 +3573,10 @@ public class MainActivity extends Activity {
             final boolean wiped = activeWiped;
             mainHandler.post(() -> {
                 if (wiped) { cacheTrusted = false; activeOwner = ""; clearOrderMemory(); }
-                leaveListGroup();
+                // הזמנה שנמחקה יוצאת מכל רשימות האיסוף; השאר נשארות כמו שהן.
+                for (SavedListStore.Entry entry : entries) { groups.removeMemberEverywhere(entry.id); selectedOrders.remove(entry.id); }
+                PickupGroups.Group active = groups.active();
+                if (active != null && active.members.isEmpty()) groups.delete(active.id);
                 if (done != null) done.run();
             });
         });
@@ -3641,7 +3590,7 @@ public class MainActivity extends Activity {
         }
         String title = name.length() > 80 ? name.substring(0, 80) : name.toString();
         String id = createEmptySavedList(title);
-        if (id.isEmpty()) { Toast.makeText(this, "יצירת הרשימה המאוחדת נכשלה.", Toast.LENGTH_LONG).show(); return; }
+        if (id.isEmpty()) { Toast.makeText(this, "יצירת ההזמנה המאוחדת נכשלה.", Toast.LENGTH_LONG).show(); return; }
         int merged = 0;
         for (SavedListStore.Entry entry : chosen) if (savedListStore.mergeEntries(id, entry.id)) merged++;
         // מיזוג משנה את שם הרשימה לפי שמות המקור; מחזירים את השם שנבחר.
@@ -3651,8 +3600,8 @@ public class MainActivity extends Activity {
             savedListStore.archiveSnapshot(data.optString("_source_id"), data.optString("_source_label"), data, null);
         } catch (Exception ignored) { }
         SavedListStore.Entry result = findSavedEntry(id);
-        if (merged == 0 || result == null) { Toast.makeText(this, "האיחוד נכשל; הרשימות המקוריות לא השתנו.", Toast.LENGTH_LONG).show(); return; }
-        Toast.makeText(this, "נוצרה רשימה מאוחדת מ-" + merged + " רשימות.", Toast.LENGTH_LONG).show();
+        if (merged == 0 || result == null) { Toast.makeText(this, "האיחוד נכשל; ההזמנות המקוריות לא השתנו.", Toast.LENGTH_LONG).show(); return; }
+
         if (deleteOriginals) {
             List<SavedListStore.Entry> originals = new ArrayList<>();
             for (SavedListStore.Entry entry : chosen) if (!entry.id.equals(result.id)) originals.add(entry);
@@ -3685,12 +3634,12 @@ public class MainActivity extends Activity {
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
         panel.addView(Ui.text(this, "לאן להוסיף את ההזמנה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button asNew = Ui.gridButton(this, "רשימה חדשה", Ui.Kind.SOFT);
+        Button asNew = Ui.gridButton(this, "הזמנה חדשה", Ui.Kind.SOFT);
         asNew.setOnClickListener(v -> { dialog.dismiss(); saveHistoricalOrder(id, title, historyRow, null); });
-        Button toExisting = Ui.gridButton(this, "הוספה לרשימה קיימת", Ui.Kind.SOFT);
+        Button toExisting = Ui.gridButton(this, "צירוף להזמנה קיימת", Ui.Kind.SOFT);
         toExisting.setEnabled(!savedListStore.list().isEmpty());
         toExisting.setOnClickListener(v -> { dialog.dismiss();
-            pickSavedList("הוספה לרשימה", "", entry -> saveHistoricalOrder(id, title, historyRow, entry)); });
+            pickSavedList("צירוף להזמנה", "", entry -> saveHistoricalOrder(id, title, historyRow, entry)); });
         addGridButtons(panel, asNew, toExisting);
         Button cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
         cancel.setOnClickListener(v -> dialog.dismiss());
@@ -3703,11 +3652,10 @@ public class MainActivity extends Activity {
 
     private void saveHistoricalOrder(long id,String title,JSONObject historyRow,SavedListStore.Entry targetIn) {
         if(accessToken.isEmpty()||activeSourceId.isEmpty()){Toast.makeText(this,"אין חיבור פעיל לשמירת ההזמנה.",Toast.LENGTH_LONG).show();return;}
-        // הוספה להזמנה העדכנית מהאתר נעשית בעותק, כדי שהסנכרון לא ימחק אותה.
-        final SavedListStore.Entry target=targetIn==null?null:editableCopyIfSynced(targetIn);
+        final SavedListStore.Entry target=localTarget(targetIn);
         if(targetIn!=null&&target==null){Toast.makeText(this,"יצירת העותק נכשלה.",Toast.LENGTH_LONG).show();return;}
         final RequestSession session=new RequestSession(authGeneration,accessToken);
-        Toast.makeText(this,"טוען את פרטי ההזמנה…",Toast.LENGTH_SHORT).show();
+
         network.execute(()->{
             try {
                 JSONObject order=unwrapOrder(apiGetObject("/api/orders/"+id,session));List<ProductRow> rows=parseProducts(order);
@@ -3724,17 +3672,17 @@ public class MainActivity extends Activity {
                 if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
                 if(target!=null){
                     // הוספה לרשימה קיימת: הפריטים מתאחדים לתוכה, והעותק הזמני נמחק (אלא אם נשמר כבר קודם).
-                    if(!savedListStore.mergeEntries(target.id,historyEntryId))throw new Exception("ההוספה לרשימה נכשלה.");
+                    if(!savedListStore.mergeEntries(target.id,historyEntryId))throw new Exception("הצירוף להזמנה נכשל.");
                     if(!existedBefore)savedListStore.delete(historyEntryId);
                 }
                 if(!session.isCurrent(this))return;
                 mainHandler.post(()->{
                     if(target!=null){
-                        Toast.makeText(this,"ההזמנה נוספה לרשימה "+displayTitle(target)+".",Toast.LENGTH_LONG).show();
+
                         SavedListStore.Entry updated=findSavedEntry(target.id);
                         // הרשימה שעודכנה נפתחת, כדי שהמוצרים החדשים יוצגו מיד.
                         if(updated!=null){openSavedList(updated);return;}
-                    } else Toast.makeText(this,"ההזמנה נשמרה כרשימה חדשה במסך רשימות שמורות.",Toast.LENGTH_LONG).show();
+                    }
                     if(screen==Screen.HISTORY)leaveHistoryScreen();
                 });
             } catch(Exception e) {String error=safeError(e);mainHandler.post(()->Toast.makeText(this,"שמירת ההזמנה נכשלה: "+error,Toast.LENGTH_LONG).show());}
@@ -3768,33 +3716,50 @@ public class MainActivity extends Activity {
     }
 
     /** "רשימה חדשה": בחירה מאיפה הרשימה תגיע. */
+    /** "הוספת הזמנה": כל הדרכים להביא הזמנה, כל אחת עם הסבר קצר. */
     private void createNewSavedList() {
         final Runnable self = reopen(pendingDialogParent, this::createNewSavedList);
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "רשימה חדשה", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "מאיפה להביא את הרשימה?", Ui.T_BODY, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S2));
-        Button history = Ui.gridButton(this, "מהזמנה קודמת באתר", Ui.Kind.SOFT);
-        history.setEnabled(!connectedAccounts().isEmpty());
-        history.setOnClickListener(v -> { dialog.dismiss(); openChild(self, () -> showOrderHistoryScreen(Screen.SAVED_LISTS)); });
-        Button cloud = Ui.gridButton(this, "מהענן לפי מספר", Ui.Kind.SOFT);
-        cloud.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showCloudFetchDialog); });
-        Button file = Ui.gridButton(this, "ייבוא מקובץ", Ui.Kind.SOFT);
-        file.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::openImportPicker); });
-        Button qr = Ui.gridButton(this, "סריקת קוד QR", Ui.Kind.SOFT);
-        qr.setOnClickListener(v -> { dialog.dismiss(); startQrScan(); });
-        Button bluetooth = Ui.gridButton(this, "קבלה בבלוטות'", Ui.Kind.SOFT);
-        bluetooth.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showBluetoothReceive); });
-        Button paste = Ui.gridButton(this, "הדבקת טקסט", Ui.Kind.SOFT);
-        paste.setOnClickListener(v -> { dialog.dismiss(); openChild(self, this::showPasteImport); });
-        Button blank = Ui.gridButton(this, "רשימה ריקה", Ui.Kind.SOFT);
-        blank.setOnClickListener(v -> { dialog.dismiss(); createBlankSavedList(); });
-        addGridButtons(panel, history, qr, cloud, file, bluetooth, paste, blank);
-        dialog.setContentView(panel);
-        dialog.show();
-        styleConfirmWindow(dialog);
-        (history.isEnabled() ? history : cloud).requestFocus();
+        boolean account = !connectedAccounts().isEmpty();
+        List<SheetItem> items = new ArrayList<>();
+        items.add(new SheetItem(Ui.IC_HISTORY, "הזמנה מהאתר", account ? "הזמנות קודמות מהחשבון שלך"
+                : "הזמנות מהחשבון באתר (צריך התחברות)", () -> {
+            if (requireLoginForHistory()) return; openChild(self, () -> showOrderHistoryScreen(Screen.SAVED_LISTS)); }));
+        items.add(new SheetItem(Ui.IC_QR, "סריקת קוד QR", "מצלמים קוד שמוצג בטלפון אחר", this::startQrScan));
+        items.add(new SheetItem(Ui.IC_CLOUD, "מהענן לפי מספר", "מספר שקיבלתם בהודעה, בתוקף 7 ימים",
+                () -> openChild(self, this::showCloudFetchDialog)));
+        items.add(new SheetItem(Ui.IC_FILE, "מקובץ", "קובץ TXT או ZIP ששמרתם או קיבלתם", () -> openChild(self, this::openImportPicker)));
+        items.add(new SheetItem(Ui.IC_BLUETOOTH, "קבלה בבלוטות'", "קבלת קובץ ממכשיר קרוב", () -> openChild(self, this::showBluetoothReceive)));
+        items.add(new SheetItem(Ui.IC_CLIPBOARD, "הדבקת טקסט", "טקסט שהועתק מהתוסף לדפדפן או מהודעה",
+                () -> openChild(self, this::showPasteImport)));
+        showSheet("הוספת הזמנה", "מאיפה מגיעה ההזמנה? אחרי ההוספה אפשר לשים אותה ברשימת איסוף.", items, null);
+    }
+
+    /** הזמנות קודמות מהאתר דורשות חשבון: בלי חשבון מחובר עוברים לטופס ההתחברות. */
+    private boolean requireLoginForHistory() {
+        if (!connectedAccounts().isEmpty()) return false;
+        loginFormVisible = true;
+        showLoginScreen("כדי לייבא הזמנות קודמות מהאתר צריך להתחבר לחשבון משנת יוסף.");
+        return true;
+    }
+
+    /**
+     * אחרי ייבוא: הזמנה אחת נפתחת בחלון שלה (ומשם "לרשימת איסוף");
+     * כמה הזמנות - מסך ניהול ההזמנות, כשהן כבר מסומנות, כדי ליצור מהן רשימת איסוף בלחיצה.
+     */
+    private void showImportedOrders(List<String> entryIds) {
+        List<SavedListStore.Entry> found = new ArrayList<>();
+        for (String id : entryIds) { SavedListStore.Entry e = findSavedEntry(id); if (e != null) found.add(e); }
+        if (found.isEmpty()) { showHub(null); return; }
+        if (found.size() == 1) { showOrderScreen(found.get(0), () -> showHub(null)); return; }
+        final List<String> ids = new ArrayList<>();
+        for (SavedListStore.Entry e : found) ids.add(e.id);
+        showHub(null);
+        List<SheetItem> items = new ArrayList<>();
+        items.add(new SheetItem(Ui.IC_BASKET, "רשימת איסוף מכולן", "ההזמנות יחד ברשימה אחת, ונפתחת לאיסוף", () -> {
+            PickupGroups.Group g = groups.create(defaultGroupName(), ids);
+            g.view = PickupGroups.VIEW_COMBINED; groups.save(g); activateGroup(g); }));
+        items.add(new SheetItem(Ui.IC_CHECK, "לא עכשיו", "ההזמנות נשמרו ברשימת ההזמנות", () -> { }));
+        showSheet("נוספו " + found.size() + " הזמנות", "", items, null);
     }
 
     private void createBlankSavedList() {
@@ -3804,9 +3769,9 @@ public class MainActivity extends Activity {
             String owner=activeOwner;
             if(source==null||owner.isEmpty()){source=localListSource();owner=source.ownerKey;}
             long id=System.currentTimeMillis();
-            JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name","רשימה חדשה").put("imported",true).put("products",new JSONArray());
-            if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת הרשימה נכשלה.");
-            refreshSavedListsScreen();Toast.makeText(this,"נוצרה רשימה חדשה.",Toast.LENGTH_LONG).show();
+            JSONObject snapshot=new JSONObject().put("order_id",id).put("owner",owner).put("order_name","הזמנה חדשה").put("imported",true).put("products",new JSONArray());
+            if(!savedListStore.archiveSnapshot(source.id,source.label,snapshot,sourceRegistry.prefs(source.id)))throw new Exception("שמירת ההזמנה נכשלה.");
+            refreshSavedListsScreen();
         } catch(Exception e){Toast.makeText(this,safeError(e),Toast.LENGTH_LONG).show();}
     }
     // ---- שיתוף בענן: מספר אקראי 1-1000 לכל רשימה, בתוקף 7 ימים (השרת: cloud/Code.gs) ----
@@ -3878,7 +3843,15 @@ public class MainActivity extends Activity {
     /** סיומת לכותרת המסך הראשי כשהרשימה המוצגת שותפה בענן. */
     private String homeCloudSuffix() {
         // 🔄: מה שמוצג הוא ההזמנה העדכנית מהאתר (מתעדכנת בסנכרון).
-        if (combinedView) return !listGroupActive() && listSourceCount() > 0 ? "  🔄" : "";
+        if (combinedView) {
+            if (!listGroupActive()) return listSourceCount() > 0 ? "  🔄" : "";
+            StringBuilder numbers = new StringBuilder();
+            for (String entryId : listGroup()) {
+                long[] cloud = cloudNumber(entryId);
+                if (cloud != null) numbers.append(numbers.length() == 0 ? "  ☁️ " : ", ").append(cloud[0]);
+            }
+            return numbers.toString();
+        }
         if (currentOrderId.isEmpty()) return "";
         String id = savedEntryId(activeSourceId, activeOwner, currentOrderId);
         String badge = cloudBadge(id);
@@ -3893,14 +3866,14 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "הבאה מהענן", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "הקלידו את מספר הרשימה ששותפה (1 עד 1000).", Ui.T_NOTE, Ui.MUTED, false),
+        panel.addView(Ui.text(this, "הקלידו את מספר הענן של ההזמנה ששותפה (1 עד 1000).", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, 0));
-        EditText input = createLoginInput("מספר הרשימה", InputType.TYPE_CLASS_NUMBER);
+        EditText input = createLoginInput("מספר בענן", InputType.TYPE_CLASS_NUMBER);
         input.setGravity(Gravity.CENTER);
         input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4)});
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         panel.addView(input, Ui.row(this, Ui.S3, Ui.S3));
-        Button fetch = Ui.button(this, "הבאת הרשימה", Ui.Kind.PRIMARY);
+        Button fetch = Ui.button(this, "הבאת ההזמנה", Ui.Kind.PRIMARY);
         Runnable run = () -> {
             int number;
             try { number = Integer.parseInt(input.getText().toString().trim()); } catch (Exception e) { number = 0; }
@@ -3927,7 +3900,7 @@ public class MainActivity extends Activity {
     /** הרשימה מהשרת עוברת במסלול הייבוא הרגיל: חלון סיכום ואז שמירה כרשימה או כמקור. */
     private void fetchCloudList(int number) {
         final String server = cloudUrl();
-        Toast.makeText(this, "מביא את רשימה " + number + "…", Toast.LENGTH_SHORT).show();
+
         network.execute(() -> {
             try {
                 CloudShare.Fetched fetched = CloudShare.fetch(server, number);
@@ -3973,7 +3946,7 @@ public class MainActivity extends Activity {
         input.requestFocus();
     }
 
-    // ---- שיתוף: בחירת פורמט (ענן / JSON / TXT / ZIP), ואז בחירת דרך (וואטסאפ / SMS / מייל / שמירה / אחר) ----
+    // ---- שיתוף: בחירת פורמט (ענן / העתקה / TXT / ZIP / QR), ואז בחירת דרך (וואטסאפ / SMS / מייל / שמירה / אחר) ----
 
     private static final int REQUEST_SAVE_SHARE = 4712;
     private File pendingSaveFile;
@@ -3983,8 +3956,8 @@ public class MainActivity extends Activity {
         List<SavedListStore.Entry> chosen = checkedEntries();
         if (chosen.isEmpty() && shown != null) chosen.add(shown);
         if (!chosen.isEmpty()) { showShareFormats(chosen); return; }
-        if (savedListStore.list().isEmpty()) { showActionToast("אין רשימות לשיתוף"); return; }
-        pickSavedList("איזו רשימה לשתף?", "", entry -> {
+        if (savedListStore.list().isEmpty()) { showActionToast("אין הזמנות לשיתוף"); return; }
+        pickSavedList("איזו הזמנה לשתף?", "", entry -> {
             List<SavedListStore.Entry> one = new ArrayList<>();
             one.add(entry);
             showShareFormats(one);
@@ -3996,25 +3969,63 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        String heading = entries.size() == 1 ? "שיתוף \"" + displayTitle(entries.get(0)) + "\"" : "שיתוף " + entries.size() + " רשימות";
+        String heading = entries.size() == 1 ? "שיתוף \"" + displayTitle(entries.get(0)) + "\"" : "שיתוף " + entries.size() + " הזמנות";
         panel.addView(Ui.text(this, heading, Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה. שמות חשבונות לא נשלחים.", Ui.T_NOTE, Ui.MUTED, false),
+        panel.addView(Ui.text(this, "כל הפורמטים אפשר לייבא בחזרה באפליקציה, עם שם ההזמנה ושם המשפחה.", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, Ui.S2));
-        Button cloud = Ui.gridButton(this, entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל רשימה)", Ui.Kind.SOFT);
+        boolean allInCloud = true;
+        for (SavedListStore.Entry entry : entries) if (cloudNumber(entry.id) == null) allInCloud = false;
+        Button cloud = Ui.gridButton(this, allInCloud
+                ? (entries.size() == 1 ? "מספר בענן " + cloudNumber(entries.get(0).id)[0] : "מספרי בענן")
+                : entries.size() == 1 ? "בענן (מספר לשבוע)" : "בענן (מספר לכל הזמנה)", Ui.Kind.SOFT);
         cloud.setOnClickListener(v -> { dialog.dismiss(); shareEntriesToCloud(entries, self); });
-        Button json = Ui.gridButton(this, "קובץ JSON", Ui.Kind.SOFT);
-        json.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "json", self); });
+        // העתקה ללוח בפורמט הטקסט שאפשר לייבא ("הדבקת טקסט").
+        Button copy = Ui.gridButton(this, "העתקה ללוח", Ui.Kind.SOFT);
+        copy.setOnClickListener(v -> {
+            dialog.dismiss();
+            cacheWorker.execute(() -> {
+                try {
+                    final String text = ListExporter.text(exportsFor(entries));
+                    mainHandler.post(() -> copyShareText(null, text, true));
+                } catch (Exception e) {
+                    mainHandler.post(() -> showInfoDialog("ההעתקה לא הצליחה", safeError(e)));
+                }
+            });
+        });
         Button txt = Ui.gridButton(this, "קובץ טקסט (TXT)", Ui.Kind.SOFT);
         txt.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "txt", self); });
         Button zip = Ui.gridButton(this, "קובץ ZIP עם תמונות", Ui.Kind.SOFT);
         zip.setOnClickListener(v -> { dialog.dismiss(); buildShareFile(entries, "zip", self); });
         Button qr = Ui.gridButton(this, "קוד QR לסריקה", Ui.Kind.SOFT);
         qr.setOnClickListener(v -> { dialog.dismiss(); showShareQr(entries); });
-        addGridButtons(panel, qr, cloud, json, txt, zip);
+        // שיתוף ישיר באפליקציה אחרת: הרשימה כטקסט וגם כקובץ TXT, דרך חלון השיתוף של המכשיר.
+        Button other = Ui.gridButton(this, "שיתוף באפליקציה אחרת", Ui.Kind.SOFT);
+        other.setOnClickListener(v -> { dialog.dismiss(); shareToOtherApp(entries); });
+        addGridButtons(panel, other, qr, cloud, copy, txt, zip);
         dialog.setContentView(panel);
         dialog.show();
         styleConfirmWindow(dialog);
         cloud.requestFocus();
+    }
+
+    private void shareToOtherApp(List<SavedListStore.Entry> entries) {
+        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " הזמנות";
+        cacheWorker.execute(() -> {
+            try {
+                String text = ListExporter.text(exportsFor(entries));
+                File dir = ShareFileProvider.shareDir(this);
+                String safe = base.replaceAll("[\\\\/:*?\"<>|\\n\\r]", "_").trim();
+                if (safe.length() > 50) safe = safe.substring(0, 50);
+                File file = new File(dir, "משנת אוסף - " + safe + ".txt");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                    out.write(text.getBytes(StandardCharsets.UTF_8));
+                }
+                mainHandler.post(() -> sendShare("other", file, text));
+            } catch (Exception e) {
+                String error = safeError(e);
+                mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
+            }
+        });
     }
 
     /** שיתוף בקודי QR על המסך: טלפון אחר סורק בלי אינטרנט. הזמנה גדולה או כמה הזמנות - כמה קודים. */
@@ -4034,13 +4045,52 @@ public class MainActivity extends Activity {
         List<ListExporter.Export> exports = new ArrayList<>();
         for (SavedListStore.Entry entry : entries) {
             JSONObject data = savedListStore.readEntry(entry.id);
-            exports.add(new ListExporter.Export(displayTitle(entry), data.optJSONArray("products")));
+            exports.add(new ListExporter.Export(displayTitle(entry), familyName(entry), data.optJSONArray("products")));
         }
         return exports;
     }
 
+    /** שם המשפחה (שם החשבון) של רשימה, לשיתוף. ריק כשזה שם כללי ולא שם של משפחה. */
+    private String familyName(SavedListStore.Entry entry) {
+        String label = entry == null || entry.sourceLabel == null ? "" : entry.sourceLabel.trim();
+        java.util.List<String> generic = java.util.Arrays.asList("רשימה שמורה", "רשימה מיובאת", "רשימה מקובץ טקסט",
+                "רשימה מהענן", "רשימה משותפת", "הורדה מהאתר", "רשימות שלי");
+        if (label.startsWith("רשימה ") && label.contains("מהענן")) return "";
+        return generic.contains(label) ? "" : label;
+    }
+
+    /**
+     * ZIP עם תמונות: ברוב הרשימות התמונה שמורה במטמון הכללי לפי כתובת (ולא ב-image_file של הרשימה).
+     * לכל מוצר מוצאים את התמונה במטמון, ואם היא עוד לא הורדה - מורידים אותה עכשיו.
+     */
+    private void copyIntoImageCache(File image, String imageUrl) {
+        File target = images.cacheFile(imageUrl);
+        if (target == null || (target.isFile() && target.length() > 0)) return;
+        File dir = target.getParentFile();
+        if (dir != null && !dir.isDirectory() && !dir.mkdirs()) return;
+        try (java.io.FileInputStream in = new java.io.FileInputStream(image);
+             java.io.FileOutputStream out = new java.io.FileOutputStream(target)) {
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+        } catch (Exception e) { target.delete(); }
+    }
+
+    private void attachImages(List<ListExporter.Export> exports) {
+        for (ListExporter.Export export : exports) {
+            if (export.products == null) continue;
+            for (int i = 0; i < export.products.length(); i++) {
+                JSONObject p = export.products.optJSONObject(i);
+                if (p == null) continue;
+                File own = new File(p.optString("image_file", ""));
+                if (own.isFile() && own.length() > 0) continue;
+                File cached = images.cachedOrDownload(p.optString("image_url", ""));
+                try { if (cached != null) p.put("image_file", cached.getAbsolutePath()); } catch (Exception ignored) { }
+            }
+        }
+    }
+
     private void buildShareFile(List<SavedListStore.Entry> entries, String format, Runnable back) {
-        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " רשימות";
+        final String base = entries.size() == 1 ? displayTitle(entries.get(0)) : entries.size() + " הזמנות";
         showActionToast("מכין את הקובץ…");
         cacheWorker.execute(() -> {
             try {
@@ -4052,7 +4102,7 @@ public class MainActivity extends Activity {
                 if (safe.length() > 50) safe = safe.substring(0, 50);
                 File file = new File(dir, "משנת אוסף - " + safe + "." + format);
                 String inline = null;
-                if ("zip".equals(format)) ListExporter.zip(exports, file);
+                if ("zip".equals(format)) { attachImages(exports); ListExporter.zip(exports, file); }
                 else {
                     String content = "json".equals(format) ? ListExporter.json(exports, null).toString(2) : ListExporter.text(exports);
                     try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
@@ -4064,7 +4114,7 @@ public class MainActivity extends Activity {
                 String message = inline != null ? inline
                         : "רשימת איסוף ממשנת אוסף: " + base + ". לפתיחה: באפליקציה \"רשימה חדשה\" ← \"ייבוא מקובץ\".";
                 final boolean textOnly = inline != null;
-                mainHandler.post(() -> showShareTargets(textOnly ? "שליחת הרשימה כטקסט" : "שליחת הקובץ", file, message, textOnly, back));
+                mainHandler.post(() -> showShareTargets(textOnly ? "שליחת ההזמנה כטקסט" : "שליחת הקובץ", file, message, textOnly, back));
             } catch (Exception e) {
                 String error = safeError(e);
                 mainHandler.post(() -> showInfoDialog("השיתוף לא הצליח", error));
@@ -4072,31 +4122,98 @@ public class MainActivity extends Activity {
         });
     }
 
-    /** העלאה לענן: מספר לכל רשימה, ואז אפשר לשלוח את המספרים. */
+    /** מגבלה: כל משתמש (מכשיר) מחזיק עד 3 רשימות פעילות בענן. */
+    private static final int MAX_CLOUD_UPLOADS = 3;
+    private static final String PREF_CLOUD_UPLOADS = "cloud_uploads";
+
+    /** העלאות פעילות (שעוד לא פג תוקפן) מהמכשיר הזה. */
+    private int activeCloudUploads() {
+        String saved = uiPreferences.getString(PREF_CLOUD_UPLOADS, "");
+        if (saved == null || saved.isEmpty()) return 0;
+        long now = System.currentTimeMillis();
+        StringBuilder keep = new StringBuilder();
+        int count = 0;
+        for (String item : saved.split(",")) {
+            try {
+                long expires = Long.parseLong(item.split("\\|")[1]);
+                if (expires > now) { count++; if (keep.length() > 0) keep.append(','); keep.append(item); }
+            } catch (Exception ignored) { }
+        }
+        if (!keep.toString().equals(saved)) uiPreferences.edit().putString(PREF_CLOUD_UPLOADS, keep.toString()).apply();
+        return count;
+    }
+
+    private void recordCloudUpload(int number, long expiresAt) {
+        activeCloudUploads();
+        String saved = uiPreferences.getString(PREF_CLOUD_UPLOADS, "");
+        long expires = expiresAt > 0 ? expiresAt : System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000;
+        String item = number + "|" + expires;
+        uiPreferences.edit().putString(PREF_CLOUD_UPLOADS, saved == null || saved.isEmpty() ? item : saved + "," + item).apply();
+    }
+
+    /**
+     * שיתוף בענן: רשימה שכבר יש לה מספר בענן בתוקף - שולחים את אותו מספר בלי להעלות שוב.
+     * רשימה בלי מספר מועלית (עד 3 העלאות פעילות למשתמש), ואז אפשר לשלוח את המספרים בכל הדרכים.
+     */
     private void shareEntriesToCloud(List<SavedListStore.Entry> entries, Runnable back) {
         final String server = cloudUrl(), device = cloudDeviceId();
-        final List<String> titles = new ArrayList<>();
-        for (SavedListStore.Entry entry : entries) titles.add(displayTitle(entry));
-        Toast.makeText(this, "מעלה לענן…", Toast.LENGTH_SHORT).show();
+        final List<String> titles = new ArrayList<>(), labels = new ArrayList<>();
+        for (SavedListStore.Entry entry : entries) {
+            titles.add(displayTitle(entry));
+            String family = familyName(entry);
+            labels.add(family.isEmpty() ? displayTitle(entry) : displayTitle(entry) + " · " + family);
+        }
+        final long[][] existing = new long[entries.size()][];
+        int needed = 0;
+        for (int i = 0; i < entries.size(); i++) {
+            existing[i] = cloudNumber(entries.get(i).id);
+            if (existing[i] == null) needed++;
+        }
+        final int allowed = Math.max(0, MAX_CLOUD_UPLOADS - activeCloudUploads());
+        if (needed > 0 && allowed == 0 && needed == entries.size()) {
+            showInfoDialog("הגעת למגבלת הענן", "אפשר להחזיק עד " + MAX_CLOUD_UPLOADS
+                    + " הזמנות בענן בו-זמנית. כל מספר פג אחרי 7 ימים ואז אפשר להעלות שוב.\n"
+                    + "הזמנה שכבר יש לה מספר בענן אפשר לשתף שוב בלי הגבלה.");
+            return;
+        }
         network.execute(() -> {
             StringBuilder lines = new StringBuilder();
             String firstError = "";
-            int done = 0;
+            int done = 0, uploadedNow = 0;
             for (int i = 0; i < entries.size(); i++) {
                 SavedListStore.Entry entry = entries.get(i);
+                if (existing[i] != null) {
+                    String until = existing[i][1] > 0 ? new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(existing[i][1])) : "";
+                    String when = existing[i][1] > 0 ? CloudShare.uploadedLabel(existing[i][1] - CloudShare.KEEP_MS) : "";
+                    lines.append(labels.get(i)).append(": מספר ").append(existing[i][0])
+                            .append(when.isEmpty() ? "" : " · " + when)
+                            .append(until.isEmpty() ? "" : " (בתוקף עד " + until + ")").append('\n');
+                    done++;
+                    continue;
+                }
+                if (uploadedNow >= allowed) {
+                    if (firstError.isEmpty()) firstError = "הגעת למגבלה של " + MAX_CLOUD_UPLOADS + " הזמנות בענן.";
+                    lines.append(labels.get(i)).append(": לא הועלתה (מגבלת ").append(MAX_CLOUD_UPLOADS).append(" הזמנות בענן)\n");
+                    continue;
+                }
                 try {
                     JSONObject data = savedListStore.readEntry(entry.id);
-                    JSONObject payload = CloudShare.buildPayload(titles.get(i), data.optJSONArray("products"));
+                    // שם הרשימה בענן כולל גם את הפרשה (שם המכירה), אם הוא לא כבר בשם.
+                    String parasha = data.optString("order_name", "").trim(), cloudTitle = titles.get(i);
+                    if (!parasha.isEmpty() && !cloudTitle.contains(parasha)) cloudTitle = cloudTitle + " · " + parasha;
+                    JSONObject payload = CloudShare.buildPayload(cloudTitle, data.optJSONArray("products"));
                     CloudShare.Uploaded uploaded = CloudShare.upload(server, payload, device);
-                    done++;
+                    done++; uploadedNow++;
                     String until = uploaded.expiresAt > 0 ? new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(uploaded.expiresAt)) : "";
-                    lines.append(titles.get(i)).append(": מספר ").append(uploaded.number)
-                            .append(until.isEmpty() ? "" : " (עד " + until + ")").append('\n');
+                    String when = CloudShare.uploadedLabel(uploaded.expiresAt > 0 ? uploaded.expiresAt - CloudShare.KEEP_MS : System.currentTimeMillis());
+                    lines.append(labels.get(i)).append(": מספר ").append(uploaded.number)
+                            .append(" · ").append(when)
+                            .append(until.isEmpty() ? "" : " (בתוקף עד " + until + ")").append('\n');
                     final String id = entry.id;
-                    mainHandler.post(() -> setCloudNumber(id, uploaded.number, uploaded.expiresAt));
+                    mainHandler.post(() -> { setCloudNumber(id, uploaded.number, uploaded.expiresAt); recordCloudUpload(uploaded.number, uploaded.expiresAt); });
                 } catch (Exception e) {
                     if (firstError.isEmpty()) firstError = safeError(e);
-                    lines.append(titles.get(i)).append(": לא הועלתה\n");
+                    lines.append(labels.get(i)).append(": לא הועלתה\n");
                 }
             }
             final int ok = done;
@@ -4105,7 +4222,7 @@ public class MainActivity extends Activity {
                 refreshHomeTitle();
                 if (ok == 0) { showInfoDialog("השיתוף לא הצליח", error); return; }
                 String message = "רשימות איסוף במשנת אוסף (\"רשימה חדשה\" ← \"מהענן לפי מספר\"):\n" + summary;
-                showShareTargets(ok == 1 ? "הרשימה הועלתה לענן" : ok + " רשימות הועלו לענן", null, message, true, back);
+                showShareTargets(ok == 1 ? "מספר הענן של ההזמנה" : ok + " מספרי ענן", null, message, true, back);
             });
         });
     }
@@ -4132,11 +4249,12 @@ public class MainActivity extends Activity {
         Button mail = Ui.gridButton(this, "במייל", Ui.Kind.SOFT);
         mail.setOnClickListener(v -> { dialog.dismiss(); sendShare("mail", attached, message); });
         addGridButtons(panel, whatsapp, sms, mail);
-        if (file != null) {
-            Button save = Ui.gridButton(this, "שמירה במכשיר", Ui.Kind.SOFT);
-            save.setOnClickListener(v -> { dialog.dismiss(); saveShareFile(file); });
-            addGridButton(panel, save);
-        }
+        Button copy = Ui.gridButton(this, "העתקה ללוח", Ui.Kind.SOFT);
+        copy.setOnClickListener(v -> { dialog.dismiss(); copyShareText(file, message, textOnly); });
+        addGridButton(panel, copy);
+        Button save = Ui.gridButton(this, "שמירה במכשיר", Ui.Kind.SOFT);
+        save.setOnClickListener(v -> { dialog.dismiss(); saveShareFile(file != null ? file : messageFile(heading, message)); });
+        addGridButton(panel, save);
         Button other = Ui.gridButton(this, "אפליקציה אחרת", Ui.Kind.SOFT);
         other.setOnClickListener(v -> { dialog.dismiss(); sendShare("other", file, textOnly && file != null ? "" : message); });
         addGridButton(panel, other);
@@ -4200,7 +4318,46 @@ public class MainActivity extends Activity {
     }
 
     /** שמירה במכשיר: המשתמש בוחר תיקייה ושם, ומשם אפשר להעביר את הקובץ ידנית לאן שרוצים. */
+    /** העתקה ללוח: הטקסט של הרשימה (בקובץ JSON/TXT - תוכן הקובץ, אחרת ההודעה). */
+    private void copyShareText(File file, String message, boolean textOnly) {
+        String text = message;
+        try {
+            if (!textOnly && file != null && (file.getName().endsWith(".json") || file.getName().endsWith(".txt"))
+                    && file.length() < 500000)
+                text = new String(readAll(file), StandardCharsets.UTF_8);
+            android.content.ClipboardManager clip = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clip == null) throw new Exception("אין לוח העתקה");
+            clip.setPrimaryClip(android.content.ClipData.newPlainText("משנת אוסף", text));
+            importantToast("הועתק ללוח");
+        } catch (Exception e) {
+            showInfoDialog("ההעתקה לא הצליחה", safeError(e));
+        }
+    }
+
+    private static byte[] readAll(File file) throws Exception {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192]; int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+            return out.toByteArray();
+        }
+    }
+
+    /** הודעה (למשל מספרי ענן) כקובץ טקסט, כדי שאפשר לשמור אותה במכשיר. */
+    private File messageFile(String heading, String message) {
+        try {
+            String safe = (heading == null ? "שיתוף" : heading).replaceAll("[\\\\/:*?\"<>|\\n\\r]", "_").trim();
+            if (safe.length() > 50) safe = safe.substring(0, 50);
+            File file = new File(ShareFileProvider.shareDir(this), "משנת אוסף - " + safe + ".txt");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                out.write((message == null ? "" : message).getBytes(StandardCharsets.UTF_8));
+            }
+            return file;
+        } catch (Exception e) { return null; }
+    }
+
     private void saveShareFile(File file) {
+        if (file == null) { showInfoDialog("השמירה לא הצליחה", "לא ניתן להכין את הקובץ."); return; }
         try {
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -4263,9 +4420,9 @@ public class MainActivity extends Activity {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
         panel.addView(Ui.text(this, "הדבקת טקסט", Ui.T_NAME, Ui.P900, true));
-        panel.addView(Ui.text(this, "מדביקים רשימה שהתקבלה כהודעה. שורה לכל מוצר: שם | כמות.", Ui.T_NOTE, Ui.MUTED, false),
+        panel.addView(Ui.text(this, "מדביקים הזמנה שהתקבלה כהודעה. שורה לכל מוצר: שם | כמות.", Ui.T_NOTE, Ui.MUTED, false),
                 Ui.row(this, Ui.S1, 0));
-        EditText input = createLoginInput("הדביקו כאן את הרשימה", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        EditText input = createLoginInput("הדביקו כאן את ההזמנה", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         input.setSingleLine(false);
         input.setMinLines(5);
         input.setMaxLines(10);
@@ -4278,7 +4435,7 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) { }
         panel.addView(input, Ui.row(this, Ui.S2, Ui.S2));
-        Button go = Ui.button(this, "ייבוא הרשימה", Ui.Kind.PRIMARY);
+        Button go = Ui.button(this, "ייבוא ההזמנה", Ui.Kind.PRIMARY);
         go.setOnClickListener(v -> {
             String text = input.getText().toString().trim();
             if (text.isEmpty()) { input.setError("אין טקסט"); return; }
@@ -4295,14 +4452,14 @@ public class MainActivity extends Activity {
 
     private void showMergeTargetDialog(SavedListStore.Entry source) {
         Dialog dialog=new Dialog(this);dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);LinearLayout panel=Ui.dialogPanel(this);
-        panel.addView(Ui.text(this,"בחר רשימת יעד למיזוג",Ui.T_NAME,Ui.P900,true));int choices=0;
+        panel.addView(Ui.text(this,"בחרו הזמנת יעד למיזוג",Ui.T_NAME,Ui.P900,true));int choices=0;
         for(SavedListStore.Entry target:savedListStore.list()) {
             if(target.id.equals(source.id))continue;choices++;
             Button choose=Ui.button(this,displayTitle(target)+" · "+target.itemCount+" פריטים",Ui.Kind.SOFT);
-            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+displayTitle(source)+"' יצורפו ל '"+displayTitle(target)+"'. כמויות של פריטים זהים יסוכמו; רשימת המקור תישאר שמורה.","מזג רשימות",()->{SavedListStore.Entry editable=editableCopyIfSynced(target);boolean ok=editable!=null&&savedListStore.mergeEntries(editable.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"הרשימות מוזגו בהצלחה.":"המיזוג נכשל; הרשימות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
+            choose.setOnClickListener(v->{dialog.dismiss();showModernConfirm("אישור מיזוג","הפריטים מ '"+displayTitle(source)+"' יצורפו ל '"+displayTitle(target)+"'. כמויות של פריטים זהים יסוכמו; הזמנת המקור תישאר שמורה.","מזג הזמנות",()->{SavedListStore.Entry editable=localTarget(target);boolean ok=editable!=null&&savedListStore.mergeEntries(editable.id,source.id);refreshSavedListsScreen();Toast.makeText(this,ok?"ההזמנות מוזגו בהצלחה.":"המיזוג נכשל; ההזמנות המקוריות נשמרו.",Toast.LENGTH_LONG).show();});});
             panel.addView(choose,Ui.row(this,Ui.S2,0));
         }
-        if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי רשימות שמורות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
+        if(choices==0)panel.addView(Ui.text(this,"צריך לפחות שתי הזמנות כדי למזג.",Ui.T_BODY,Ui.MUTED,false));
         Button cancel=Ui.button(this,"ביטול",Ui.Kind.SOFT);cancel.setOnClickListener(v->dialog.dismiss());panel.addView(cancel,Ui.row(this,Ui.S2,0));
         dialog.setContentView(panel);dialog.show();styleConfirmWindow(dialog);
     }
@@ -4310,9 +4467,11 @@ public class MainActivity extends Activity {
     private void leaveSavedListsScreen() {
         Screen target=savedListsReturn;
         savedListsScreenVisible=false;savedListsReturnToLogin=false;savedListsReturn=Screen.HOME;
+        Runnable dialogBack=savedListsReturnDialog;savedListsReturnDialog=null;
         if(target==Screen.LOGIN)showLoginScreen("");
         else if(target==Screen.SETTINGS)showSettingsScreen();
         else showHomeScreen(false);
+        if(dialogBack!=null)dialogBack.run();
     }
 
     private void deleteSavedListEntry(SavedListStore.Entry entry) {
@@ -4346,7 +4505,13 @@ public class MainActivity extends Activity {
         showSavedListsScreen(returnTo);
     }
 
+    /** פתיחת הזמנה: חלון צף לצפייה. איסוף נעשה רק ברשימת איסוף. */
     private void openSavedList(SavedListStore.Entry entry) {
+        showOrderPreview(entry, null);
+    }
+
+    /** הדרך הישנה: טעינת הזמנה בודדת למסך הראשי (לא בשימוש מאז שהאיסוף רק ברשימות איסוף). */
+    private void openSavedListForCollecting(SavedListStore.Entry entry) {
         leaveListGroup();
         SourceRegistry.Source source=sourceRegistry.find(entry.sourceId);
         String archiveId=entry.id;
@@ -4414,89 +4579,82 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout buildHomeTitleRow() {
-        // שם המכירה במרכז, והכפתורים בשני הצדדים: מימין הגדרות ואיפוס, משמאל שתי התצוגות.
-        // לשני הצדדים אותו רוחב, כדי שהשם יהיה באמצע המסך בדיוק.
-        // במסך צר השם יורד לשורה משלו (במרכז), מתחת לכפתורים.
+        // מימין: כפתור הבית (כל הרשימות וההזמנות). באמצע: שם רשימת האיסוף (לחיצה - עריכת הרשימה).
+        // משמאל: שתי התצוגות (רק ברשימה עם כמה הזמנות) ו"⋯" לפעולות.
+        // לשני הצדדים אותו רוחב, כדי שהשם יהיה באמצע המסך בדיוק. במסך צר השם יורד לשורה משלו.
         boolean wide = Ui.wideHeader(this);
         int size = Ui.dp(this, Ui.iconButtonDp(this));
         int gap = Ui.dp(this, Ui.S1);
         headerButtons.clear();
 
-        Button settings = Ui.iconButton(this, Ui.IC_SETTINGS, "הגדרות", false);
-        settings.setTag("home_first_header_button");
-        settings.setOnClickListener(v -> showSettingsScreen());
-        resetButton = Ui.iconButton(this, Ui.IC_RESET, "איפוס ליקוט", false);
-        resetButton.setOnClickListener(v -> {
-            if (!confirmResetCollection()) showActionToast("אין סימוני איסוף לאיפוס");
-        });
-        // שני כפתורי התצוגה: רשימה מאוחדת ורשימה לפי חשבון. הכפתור של התצוגה הפעילה מודגש.
+        Button hub = Ui.iconButton(this, Ui.IC_HOME, "כל הרשימות וההזמנות", false);
+        hub.setTag("home_first_header_button");
+        hub.setOnClickListener(v -> showHub(null));
+        resetButton = null;
+        Button more = Ui.iconButton(this, Ui.IC_MORE, "פעולות: הוספת הזמנות, איפוס, הגדרות", false);
+        more.setOnClickListener(v -> showCollectMore());
         boolean unifiedMode = sourceRegistry != null && "COMBINED_SUM".equals(sourceRegistry.viewMode());
-        Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "רשימה מאוחדת", unifiedMode);
-        Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "רשימה לפי חשבון", !unifiedMode);
-        // עם חשבון אחד בלבד שתי התצוגות זהות, ולכן הכפתורים מוסתרים (המקום נשמר כדי שהשם יישאר באמצע).
-        boolean multipleSources = sourceRegistry != null && (listGroupActive() ? listGroup().size() > 1 : listSourceCount() > 1);
-        unified.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
-        byAccount.setVisibility(multipleSources ? View.VISIBLE : View.INVISIBLE);
+        Button unified = buildViewModeButton("COMBINED_SUM", Ui.IC_LIST_SINGLE, "תצוגה מאוחדת", unifiedMode);
+        Button byAccount = buildViewModeButton("COMBINED_BY_SOURCE", Ui.IC_LIST_STACK, "תצוגה לפי הזמנה", !unifiedMode);
+        // עם הזמנה אחת שתי התצוגות זהות, ולכן הכפתורים לא מוצגים.
+        boolean multipleSources = sourceRegistry != null && listGroupActive() && listGroup().size() > 1;
+        unified.setVisibility(multipleSources ? View.VISIBLE : View.GONE);
+        byAccount.setVisibility(multipleSources ? View.VISIBLE : View.GONE);
 
         LinearLayout rightSide = new LinearLayout(this);
         rightSide.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        rightSide.addView(settings, new LinearLayout.LayoutParams(size, size));
-        LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(size, size);
-        resetLp.setMarginStart(gap);
-        rightSide.addView(resetButton, resetLp);
+        rightSide.addView(hub, new LinearLayout.LayoutParams(size, size));
 
         LinearLayout leftSide = new LinearLayout(this);
-        leftSide.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        leftSide.addView(unified, new LinearLayout.LayoutParams(size, size));
+        leftSide.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        leftSide.addView(more, new LinearLayout.LayoutParams(size, size));
         LinearLayout.LayoutParams byAccountLp = new LinearLayout.LayoutParams(size, size);
-        byAccountLp.setMarginStart(gap);
+        byAccountLp.leftMargin = gap;
         leftSide.addView(byAccount, byAccountLp);
+        LinearLayout.LayoutParams unifiedLp = new LinearLayout.LayoutParams(size, size);
+        unifiedLp.leftMargin = gap;
+        leftSide.addView(unified, unifiedLp);
 
         TextView title = Ui.text(this, homeDisplayTitle() + homeCloudSuffix(), wide ? Ui.T_TITLE : Ui.T_NAME + 2, Ui.P900, true);
         homeTitleText = title;
-        // השם הוא כפתור: מסגרת, חץ למטה ומשוב לחיצה. לחיצה פותחת מעבר בין רשימות.
+        // השם הוא כפתור: חץ למטה ומשוב לחיצה. לחיצה פותחת את עריכת רשימת האיסוף.
         title.setClickable(true);
         title.setFocusable(true);
         title.setFocusableInTouchMode(false);
         title.setId(View.generateViewId());
-        title.setContentDescription("בחירת רשימה");
-        title.setBackground(Ui.interactive(this, Ui.P100, Ui.P300, Ui.P200, Ui.P700, Ui.R_BUTTON));
+        title.setContentDescription("עריכת רשימת האיסוף: שם, תצוגה והזמנות");
+        title.setBackground(Ui.interactive(this, Ui.BG, Ui.BG, Ui.P100, Ui.FOCUS, Ui.R_BUTTON));
         title.setPadding(Ui.dp(this, Ui.S3), Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S1));
         Drawable chevron = new Ui.IconDrawable(this, Ui.IC_CHEVRON_DOWN, Ui.P700, 20, 1f);
         chevron.setBounds(0, 0, Ui.dp(this, 20), Ui.dp(this, 20));
         title.setCompoundDrawablesRelative(null, null, chevron, null);
         title.setCompoundDrawablePadding(Ui.dp(this, Ui.S1));
-        title.setOnClickListener(v -> showListSwitcher());
-        // לחיצה ארוכה על השם: שינוי שם לרשימה הנוכחית.
-        title.setOnLongClickListener(v -> {
-            if (combinedView || currentOrderId.isEmpty()) {
-                showActionToast("שינוי שם לרשימה נעשה ממסך רשימות שמורות");
-                return true;
-            }
-            showRenameDialog(activeOwner, currentOrderId, homeDisplayTitle(), currentOrderTitle, this::refreshHomeTitle);
-            return true;
+        title.setOnClickListener(v -> {
+            PickupGroups.Group active = groups.active();
+            if (active != null) showGroupScreen(active, () -> showHomeScreen(false));
+            else showHub(null);
         });
         title.setGravity(Gravity.CENTER);
         // השם מוצג במלואו; שם ארוך יורד לשורה נוספת ולא נחתך.
 
-        headerButtons.add(settings); headerButtons.add(resetButton);
+        headerButtons.add(hub);
         if (multipleSources) { headerButtons.add(unified); headerButtons.add(byAccount); }
+        headerButtons.add(more);
 
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        int sideWidth = size * 2 + gap;
+        int sideWidth = size * 3 + gap * 2;
         row.addView(rightSide, new LinearLayout.LayoutParams(sideWidth, size));
         headerStacked = !wide;
         if (wide) {
-            // השם ברוחב התוכן שלו, ממורכז בין שני הצדדים.
             FrameLayout middle = new FrameLayout(this);
             FrameLayout.LayoutParams inner = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
             middle.addView(title, inner);
             LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, -2, 1f);
             titleLp.setMargins(Ui.dp(this, Ui.S2), 0, Ui.dp(this, Ui.S2), 0);
             row.addView(middle, titleLp);
-            headerButtons.add(2, title);
+            headerButtons.add(1, title);
         } else {
             row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         }
@@ -4507,7 +4665,7 @@ public class MainActivity extends Activity {
         stacked.addView(row, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-2, -2);
         titleLp.gravity = Gravity.CENTER_HORIZONTAL;
-        titleLp.topMargin = Ui.dp(this, Ui.S2);
+        titleLp.topMargin = Ui.dp(this, Ui.S1);
         stacked.addView(title, titleLp);
         return stacked;
     }
@@ -4518,9 +4676,10 @@ public class MainActivity extends Activity {
         button.setOnClickListener(v -> {
             if (syncAllRunning || active) return;
             sourceRegistry.setViewMode(mode);
+            rememberGroupView(mode);
             showingSavedList = false;
             showHomeScreen(false);
-            showActionToast("COMBINED_SUM".equals(mode) ? "רשימה מאוחדת מכל החשבונות" : "רשימות נפרדות לפי חשבון");
+            importantToast("COMBINED_SUM".equals(mode) ? "תצוגה מאוחדת" : "תצוגה לפי הזמנה");
         });
         return button;
     }
@@ -4624,7 +4783,7 @@ public class MainActivity extends Activity {
         String text = value == null ? "" : value.trim();
         if (screen != Screen.HOME || messageText == null) {
             // מחוץ למסך הרשימה אין שורת הודעות; הודעה חשובה מוצגת כ-Toast במקום להיעלם.
-            if (!text.isEmpty()) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+            if (isImportantMessage(text)) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
             return;
         }
         messageText.setText(text);
@@ -4676,7 +4835,7 @@ public class MainActivity extends Activity {
     }
 
     private void confirmClearSavedData() {
-        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק את המטמון הפעיל, התמונות וסימוני האיסוף? הרשימות שבארכיון יישארו עד למחיקה ידנית במסך רשימות שמורות.", "מחיקה", this::clearAllSavedData);
+        showModernConfirm("מחיקת כל הנתונים השמורים", "למחוק את המטמון הפעיל, התמונות וסימוני האיסוף? ההזמנות השמורות יישארו עד למחיקה ידנית במסך הבית.", "מחיקה", this::clearAllSavedData);
     }
 
     private void clearAllSavedData() {
@@ -4829,7 +4988,7 @@ public class MainActivity extends Activity {
 
     private void syncAllAccounts() {
         if (syncAllRunning) return;
-        leaveListGroup();
+        // הסנכרון לא נוגע ברשימות המסומנות (✓): הן משתנות רק ידנית.
         showingSavedList=false;
         syncQueue.clear();
         for (SourceRegistry.Source source : sourceRegistry.all()) {
@@ -4860,7 +5019,7 @@ public class MainActivity extends Activity {
     }
 
     private void advanceSyncQueue() {
-        if(!syncAllRunning){flushSyncNotices();return;}
+        if(!syncAllRunning){return;}
         if(!syncAwaitingResult)return;
         syncAwaitingResult=false;
         cacheWorker.execute(() -> mainHandler.post(this::syncNextAccount));
@@ -4871,14 +5030,15 @@ public class MainActivity extends Activity {
         syncAllRunning=false;syncAwaitingResult=false;syncQueue.clear();
         final String restoreId=syncReturnSource,restoreMode=syncReturnMode;
         Runnable finish=()->{sourceRegistry.setViewMode(restoreMode);showHomeScreen(false);
-            showSyncMessage("הסנכרון הסתיים עבור "+syncQueueTotal+" טוקנים.",false);
-            flushSyncNotices();};
+            showSyncMessage("הסנכרון הסתיים עבור "+syncQueueTotal+" טוקנים.",false);};
         if(!restoreId.isEmpty()&&!restoreId.equals(activeSourceId)&&sourceRegistry.find(restoreId)!=null)
             switchSource(restoreId,finish);
         else finish.run();
     }
 
-    private void loadLatestOrder() {        if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
+    private void loadLatestOrder() {
+        if (manualGroupActive() && !syncAllRunning) return; // רשימת איסוף ידנית פתוחה: לא מחליפים אותה בהזמנה מהאתר
+        if (combinedView && !syncAllRunning) { syncAllAccounts(); return; }
         if (loading || accessToken.isEmpty()) return;
         final RequestSession session = new RequestSession(authGeneration, accessToken);
         final String requestSourceId = activeSourceId;
@@ -4913,11 +5073,10 @@ public class MainActivity extends Activity {
                 // is rendered as soon as it arrives, while the account name loads quietly.
                 fetchAccountProfileName(requestSourceId, session.token);
                 // גם הזמנות שמורות מההיסטוריה מתעדכנות מהאתר (רשימות שהסנכרון לא כובה להן).
-                final List<String> savedNotices = syncSavedOrders(requestSourceId, id, session);
+                syncSavedOrders(requestSourceId, id, session);
                 final String resolvedOwner = owner;
                 final String resolvedToken = session.token;
                 mainHandler.post(() -> {
-                    syncNotices.addAll(savedNotices);
                     onFreshOrder(session.generation, resolvedToken, resolvedOwner, id, order, parsed, orderTitle, pickupInfo);
                 });
             } catch (Exception error) {
@@ -5084,28 +5243,6 @@ public class MainActivity extends Activity {
 
         String fingerprint = DataGuard.fingerprint(rows);
         DataGuard.Verdict verdict = DataGuard.judge(preferences, stableOwner, orderId, fingerprint);
-        // הסנכרון כובה להזמנה הזו: שינוי באתר לא מחליף את הרשימה במכשיר.
-        if (verdict == DataGuard.Verdict.CONTENT_CHANGED
-                && syncDisabled(savedEntryId(activeSourceId, stableOwner, String.valueOf(orderId)))) {
-            sourceRegistry.markSynced(activeSourceId);
-            showSyncMessage("", false);
-            mainHandler.post(this::advanceSyncQueue);
-            return;
-        }
-        // הודעה למשתמש: הזמנה חדשה, או שינוי בהזמנה הקיימת (כדי ששום דבר לא ישתנה בלי שהוא יודע).
-        if (verdict == DataGuard.Verdict.NEW_ORDER || verdict == DataGuard.Verdict.CONTENT_CHANGED) {
-            SourceRegistry.Source noticeSource = sourceRegistry.find(activeSourceId);
-            String account = noticeSource == null || noticeSource.label == null ? "" : " (" + noticeSource.label + ")";
-            String name = orderTitle == null || orderTitle.trim().isEmpty() ? "הזמנה " + orderId : orderTitle.trim();
-            if (verdict == DataGuard.Verdict.NEW_ORDER) {
-                syncNotices.add("📦 הזמנה חדשה באתר" + account + ": " + name + " · " + rows.size()
-                        + " מוצרים.\nההזמנה הקודמת נשמרה ברשימות השמורות, עם סימוני האיסוף שלה.");
-            } else {
-                String changes = describeOrderChanges(cachedOrderRows(), rows);
-                syncNotices.add("🔄 ההזמנה \"" + name + "\"" + account + " עודכנה באתר."
-                        + (changes.isEmpty() ? "" : changes) + "\nסימוני האיסוף נשמרו.");
-            }
-        }
         Set<String> retainedTicks = new HashSet<>();
         Map<String,Double> retainedPartials = new HashMap<>();
         if (verdict != DataGuard.Verdict.SAME) {
@@ -5168,6 +5305,7 @@ public class MainActivity extends Activity {
                     // רשימות שנשמרו לפני שהתווסף שם המכירה מקבלות אותו בסנכרון הבא.
                     updateCachedOrderName(orderTitle, pickupInfo);
                     archiveCurrentSnapshot(sourceForArchive);
+                    mainHandler.post(() -> markLatestOrder(sourceForArchive, stableOwner, String.valueOf(orderId)));
                 }
                 mainHandler.post(this::advanceSyncQueue);
             });
@@ -5195,6 +5333,7 @@ public class MainActivity extends Activity {
                 if (generation != authGeneration || !requestToken.equals(accessToken)) return;
                 DataGuard.saveMeta(preferences, stableOwner, orderId, fingerprint, tokenFingerprint);
                 archiveCurrentSnapshot(sourceForArchive);
+                mainHandler.post(() -> markLatestOrder(sourceForArchive, stableOwner, String.valueOf(orderId)));
             } catch (Exception cacheError) {
                 android.util.Log.w("MishnatPickup",
                         "Offline cache update failed; stale snapshot was not retained", cacheError);
@@ -5392,11 +5531,11 @@ public class MainActivity extends Activity {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = Ui.dialogPanel(this);
-        panel.addView(Ui.text(this, "שם לרשימה", Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.text(this, "שם להזמנה", Ui.T_NAME, Ui.P900, true));
         if (originalName != null && !originalName.isEmpty())
             panel.addView(Ui.text(this, "שם המקור: " + originalName + ". השאירו ריק כדי לחזור אליו.",
                     Ui.T_NOTE, Ui.MUTED, false), Ui.row(this, Ui.S1, 0));
-        EditText input = createLoginInput("שם לרשימה", InputType.TYPE_CLASS_TEXT);
+        EditText input = createLoginInput("שם להזמנה", InputType.TYPE_CLASS_TEXT);
         input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         input.setTextDirection(View.TEXT_DIRECTION_RTL);
         input.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
@@ -5654,7 +5793,7 @@ public class MainActivity extends Activity {
     private static final String PREF_CATEGORY_HEADERS = "show_category_headers";
 
     private boolean categoryHeadersEnabled() {
-        return uiPreferences == null || uiPreferences.getBoolean(PREF_CATEGORY_HEADERS, true);
+        return uiPreferences != null && uiPreferences.getBoolean(PREF_CATEGORY_HEADERS, false); // ברירת מחדל: כבוי
     }
 
     /**
@@ -5835,12 +5974,32 @@ public class MainActivity extends Activity {
                     GridLayout.spec(row), GridLayout.spec(2 - column, 1f));
             // גובה לפי התוכן (שם ארוך יורד שורה ולא נחתך); כל הכרטיסים בשורה נמתחים לגובה הגבוה שבהם.
             lp.width = 0; lp.height = ViewGroup.LayoutParams.WRAP_CONTENT; lp.setGravity(Gravity.FILL);
-            lp.setMargins(Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2));
+            lp.setMargins(Ui.dp(this, 3), Ui.dp(this, 3), Ui.dp(this, 3), Ui.dp(this, 3));
             grid.addView(card.row, lp);
             gridPositions.put(card.row, new int[]{row, column});
             column++;
             if (column == 3) { column = 0; row++; }
         }
+        equalizeGridCards(grid);
+    }
+
+    /** כל כרטיסי הרשת באותו גובה: הגובה של הכרטיס הגבוה ביותר. */
+    private void equalizeGridCards(final GridLayout grid) {
+        grid.post(() -> {
+            int base = Ui.dp(this, 150), max = base;
+            List<View> cards = new ArrayList<>();
+            for (int i = 0; i < grid.getChildCount(); i++) {
+                View child = grid.getChildAt(i);
+                if (!gridPositions.containsKey(child) || child.getVisibility() == View.GONE || child.getWidth() <= 0) continue;
+                cards.add(child);
+                child.setMinimumHeight(base);
+                child.measure(View.MeasureSpec.makeMeasureSpec(child.getWidth(), View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                max = Math.max(max, child.getMeasuredHeight());
+            }
+            for (View card : cards) card.setMinimumHeight(max);
+            grid.requestLayout();
+        });
     }
 
     /** הכרטיס הקרוב ביותר בשורה הסמוכה (מעל או מתחת) ברשת. */
@@ -6105,6 +6264,8 @@ public class MainActivity extends Activity {
         combinedPickupInfos.clear();
         currentPickupInfo = null;
         boolean group = listGroupActive();
+        Set<String> usedListLabels = new HashSet<>();
+        PickupGroups.Group pickupGroup = group ? groups.active() : null;
         if (group) {
             List<String> names = new ArrayList<>();
             for (String entryId : listGroup()) {
@@ -6114,7 +6275,7 @@ public class MainActivity extends Activity {
                     JSONObject snapshot = savedListStore.readEntry(entryId);
                     JSONArray rows = snapshot.optJSONArray("products");
                     if (rows == null) continue;
-                    String label = displayTitle(entry);
+                    String label = pickupGroup == null ? displayTitle(entry) : pickupGroup.label(entryId, displayTitle(entry));
                     names.add(label);
                     JSONObject savedInfo = snapshot.optJSONObject("pickup_info");
                     if (savedInfo != null) combinedPickupInfos.add(new JSONObject(savedInfo.toString()).put("_source_label", label));
@@ -6145,7 +6306,8 @@ public class MainActivity extends Activity {
                     }
                 } catch (Exception ignored) { }
             }
-            orderNames.add(names.size() <= 2 ? android.text.TextUtils.join(" + ", names) : names.size() + " רשימות יחד");
+            orderNames.add(pickupGroup != null && !pickupGroup.name.isEmpty() ? pickupGroup.name
+                    : names.size() <= 2 ? android.text.TextUtils.join(" + ", names) : names.size() + " רשימות יחד");
         }
         if (!group) for (SourceRegistry.Source source : sourceRegistry.all()) {
             File root = new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache");
@@ -6164,6 +6326,10 @@ public class MainActivity extends Activity {
                 String savedName = customName(snapshot.optString("owner", ""), orderId);
                 if (savedName.isEmpty()) savedName = snapshot.optString("order_name", "").trim();
                 if (!savedName.isEmpty()) orderNames.add(savedName);
+                // הפירוט בכל מוצר הוא לפי רשימה (שם הרשימה). שני שמות זהים - מוסיפים את שם החשבון.
+                String listLabel = savedName.isEmpty() ? (source.label == null ? "" : source.label) : savedName;
+                if (!usedListLabels.add(listLabel) && source.label != null && !source.label.isEmpty())
+                    listLabel = listLabel + " (" + source.label + ")";
                 JSONObject savedInfo = snapshot.optJSONObject("pickup_info");
                 if (savedInfo != null) {
                     // שם החשבון מצורף כדי להבחין בין נקודות איסוף של חשבונות שונים.
@@ -6192,7 +6358,7 @@ public class MainActivity extends Activity {
                     if(original.key.isEmpty()||original.name.isEmpty())continue;
                     boolean done=ticks.contains(DataGuard.tick(original));
                     double partial=done?parseQuantity(original.amount):Math.max(0,partials.optDouble(original.key,0));
-                    SourcePart part=new SourcePart(source.id,orderId,original,done,partial,source.label);
+                    SourcePart part=new SourcePart(source.id,orderId,original,done,partial,listLabel);
                     String displayKey="COMBINED_SUM".equals(sourceRegistry.viewMode())
                             ? original.key : source.id+"__"+original.key;
                     java.util.List<SourcePart> list=grouped.get(displayKey);
@@ -6231,7 +6397,7 @@ public class MainActivity extends Activity {
         // כשכל החשבונות מציגים את אותה מכירה, שמה מוצג בכותרת; אחרת כל השמות יחד.
         setCurrentOrderTitle(orderNames.size() <= 2 ? android.text.TextUtils.join(" · ", orderNames) : "");
         syncCompletionState();
-        if(products.isEmpty()) showSyncMessage("אין רשימות שמורות להצגה בתצוגה המאוחדת.", false);
+        if(products.isEmpty()) showSyncMessage("אין הזמנות", false);
         else showSyncMessage("", false);
     }
 
@@ -6273,42 +6439,881 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
+    /** המשתמשים (רשימות שמורות) של רשימת האיסוף הפעילה, לפי הסדר. */
     private List<String> listGroup() {
-        List<String> ids = new ArrayList<>();
-        if (uiPreferences == null) return ids;
-        try {
-            JSONArray a = new JSONArray(uiPreferences.getString(PREF_LIST_GROUP, "[]"));
-            for (int i = 0; i < a.length(); i++) ids.add(a.optString(i, ""));
-        } catch (Exception ignored) { }
-        return ids;
+        PickupGroups.Group g = groups == null ? null : groups.active();
+        return g == null ? new ArrayList<>() : new ArrayList<>(g.members);
     }
 
-    /** כמה רשימות יחד: פעיל כשמסומנות (✓) לפחות שתי רשימות. */
+    /** רשימת איסוף פתוחה שאינה הרשימה האוטומטית של ההזמנה האחרונה (סנכרון אוטומטי לא מפריע לה). */
+    private boolean manualGroupActive() {
+        PickupGroups.Group g = groups == null ? null : groups.active();
+        return g != null && !g.members.isEmpty() && !AUTO_GROUP_ID.equals(g.id);
+    }
+
+    /** רשימת איסוף פעילה עם לפחות הזמנה אחת. */
     private boolean listGroupActive() {
-        return listGroup().size() >= 2;
+        return !listGroup().isEmpty();
     }
 
+    /** הסימון הישן (✓ על כמה רשימות) הופך לרשימת איסוף אחת. */
+    private void migrateListGroup() {
+        try {
+            JSONArray old = new JSONArray(uiPreferences.getString(PREF_LIST_GROUP, "[]"));
+            if (old.length() > 0 && groups.all().isEmpty()) {
+                List<String> ids = new ArrayList<>();
+                for (int i = 0; i < old.length(); i++) ids.add(old.optString(i, ""));
+                PickupGroups.Group g = groups.create("רשימת איסוף", ids);
+                if (ids.size() >= 2) groups.setActive(g.id);
+            }
+        } catch (Exception ignored) { }
+        uiPreferences.edit().remove(PREF_LIST_GROUP).remove(PREF_LIST_GROUP_ACTIVE).apply();
+    }
+
+    /** משתמשי רשימת האיסוף הפעילה. בלי רשימה פעילה - נוצרת חדשה. רשימה בלי משתמשים נמחקת. */
     private void setListGroup(List<String> ids) {
-        JSONArray a = new JSONArray(); for (String id : ids) a.put(id);
-        uiPreferences.edit().putString(PREF_LIST_GROUP, a.toString()).remove(PREF_LIST_GROUP_ACTIVE).apply();
+        PickupGroups.Group g = groups.active();
+        if (g == null) {
+            if (ids.isEmpty()) return;
+            g = groups.create(defaultGroupName(), ids);
+            g.view = sourceRegistry == null ? PickupGroups.VIEW_COMBINED : sourceRegistry.viewMode();
+            groups.save(g);
+            groups.setActive(g.id);
+            return;
+        }
+        if (ids.isEmpty()) { groups.delete(g.id); return; }
+        g.members.clear(); g.members.addAll(ids);
+        groups.save(g);
     }
 
-    /** סימון ✓ ליד רשימה: מוסיף או מוריד אותה מהתצוגה המשותפת. */
+    /**
+     * פתיחת הזמנה: חלון צף עם המוצרים שלה, לצפייה בלבד. איסוף נעשה רק ברשימת איסוף.
+     */
+    private void showOrderPreview(SavedListStore.Entry entry, Runnable parent) { showOrderScreen(entry, parent); }
+
+    /**
+     * ההזמנה האחרונה מכל חשבון (מסונכרנת מהאתר) היא רשימת איסוף אוטומטית: "ההזמנה האחרונה".
+     * הזמנה חדשה מאותו חשבון מחליפה את הקודמת ברשימה; מצב האיסוף של הקודמת נשמר בהזמנה עצמה.
+     */
+    private void markLatestOrder(String sourceId, String owner, String orderId) {
+        if (groups == null || sourceId == null || orderId == null) return;
+        String entryId = savedEntryId(sourceId, owner, orderId);
+        SavedListStore.Entry entry = findSavedEntry(entryId);
+        if (entry == null) return;
+        PickupGroups.Group g = groups.find(AUTO_GROUP_ID);
+        boolean created = false;
+        if (g == null) { g = new PickupGroups.Group(); g.id = AUTO_GROUP_ID; g.created = System.currentTimeMillis(); created = true; }
+        boolean changed = created;
+        for (int i = g.members.size() - 1; i >= 0; i--) {
+            String m = g.members.get(i);
+            if (m.startsWith(sourceId + "_") && !m.equals(entryId)) { g.members.remove(i); changed = true; }
+        }
+        if (!g.members.contains(entryId)) { g.members.add(entryId); changed = true; }
+        String name = g.members.size() == 1 ? displayTitle(entry) : "ההזמנות האחרונות";
+        if (!name.equals(g.name)) { g.name = name; changed = true; }
+        if (changed) groups.save(g);
+        if (groups.active() == null) {
+            groups.setActive(g.id);
+            if (sourceRegistry != null) sourceRegistry.setViewMode(g.view);
+        }
+        // ההזמנה נטענה למסך לזמן קצר: חוזרים מיד לרשימת האיסוף (האיסוף נשמר רק שם).
+        if (!syncAllRunning && screen == Screen.HOME && !combinedViewMatchesGroup()) showHomeScreen(false);
+        else if (changed && !syncAllRunning && screen == Screen.HOME && AUTO_GROUP_ID.equals(groups.active().id)) showHomeScreen(false);
+        else if (changed && !syncAllRunning && screen == Screen.HUB) showHub(null);
+    }
+
+    private boolean combinedViewMatchesGroup() {
+        return combinedView && listGroupActive();
+    }
+
+    /** אחרי עדכון: ההזמנה העדכנית שכבר שמורה מכל חשבון נכנסת לרשימת האיסוף האוטומטית. */
+    private void ensureAutoGroupFromCaches() {
+        if (groups == null || sourceRegistry == null || groups.find(AUTO_GROUP_ID) != null) return;
+        for (SourceRegistry.Source source : sourceRegistry.all()) {
+            if (!SourceRegistry.KIND_ACCOUNT.equals(source.kind)) continue;
+            File manifest = new File(new File(sourceRegistry.sourceDir(source.id), "pickup_order_cache"), "order.json");
+            if (!manifest.isFile()) continue;
+            try {
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                try (InputStream in = new FileInputStream(manifest)) {
+                    byte[] buffer = new byte[8192]; int n;
+                    while ((n = in.read(buffer)) != -1) bytes.write(buffer, 0, n);
+                }
+                JSONObject snapshot = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+                long orderId = snapshot.optLong("order_id", -1);
+                if (orderId <= 0) continue;
+                archiveCurrentSnapshot(source.id);
+                markLatestOrder(source.id, snapshot.optString("owner", ""), String.valueOf(orderId));
+            } catch (Exception ignored) { }
+        }
+    }
+
+    /** "רשימת איסוף" מההזמנות המסומנות: שם, יצירה ופתיחה. */
+    private void createGroupFromSelection() {
+        final List<String> ids = new ArrayList<>();
+        for (SavedListStore.Entry e : checkedEntries()) ids.add(e.id);
+        if (ids.isEmpty()) { showActionToast("סמנו לפחות הזמנה אחת"); return; }
+        String name = ids.size() == 1 ? displayTitle(findSavedEntry(ids.get(0))) : defaultGroupName();
+        PickupGroups.Group g = groups.create(name, ids);
+        g.view = PickupGroups.VIEW_COMBINED;
+        groups.save(g);
+        selectedOrders.clear();
+        hubSelecting = false;
+        savedListsScreenVisible = false;
+        activateGroup(g);
+    }
+
+    private String defaultGroupName() {
+        return "רשימת איסוף " + new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date());
+    }
+
+    /** ✓ ליד רשימה: מוסיף אותה כמשתמש לרשימת האיסוף הפעילה, או מוציא אותה. */
     private void setListChecked(SavedListStore.Entry entry, boolean checked) {
         List<String> ids = listGroup();
-        // הרשימה המוצגת עכשיו נשמרת, כדי שהסימונים העדכניים שלה ייכנסו לתצוגה המשותפת.
+        // הרשימה המוצגת עכשיו נשמרת, כדי שהסימונים העדכניים שלה ייכנסו לרשימת האיסוף.
         if (checked && !combinedView && !currentOrderId.isEmpty()) archiveCurrentSnapshot(activeSourceId);
         if (checked && !ids.contains(entry.id)) ids.add(entry.id);
         if (!checked) ids.remove(entry.id);
         setListGroup(ids);
-        if (ids.size() >= 2) showActionToast(ids.size() + " רשימות מסומנות יוצגו יחד");
-        else if (ids.size() == 1) showActionToast("סמנו עוד רשימה כדי להציג יחד");
-        if (ids.size() >= 2) showingSavedList = false;
+        if (!ids.isEmpty()) showingSavedList = false;
     }
 
-    /** יציאה מהתצוגה המשותפת: כל הסימונים (✓) מתבטלים. */
+    /** יציאה מרשימת האיסוף: היא נשמרת כמו שהיא (משתמשים, הגדרות ומצב האיסוף), ואפשר לחזור אליה. */
     private void leaveListGroup() {
-        if (uiPreferences != null && !listGroup().isEmpty()) setListGroup(new ArrayList<>());
+        if (groups != null) groups.setActive("");
+    }
+
+    private void activateGroup(PickupGroups.Group g) {
+        if (!combinedView && !currentOrderId.isEmpty()) archiveCurrentSnapshot(activeSourceId);
+        groups.setActive(g.id);
+        if (sourceRegistry != null) sourceRegistry.setViewMode(g.view);
+        showingSavedList = false;
+        showHomeScreen(false);
+    }
+
+    /** החלפת תצוגה כשרשימת איסוף פעילה נשמרת בהגדרות שלה. */
+    private void rememberGroupView(String mode) {
+        PickupGroups.Group g = groups == null ? null : groups.active();
+        if (g == null) return;
+        g.view = PickupGroups.VIEW_BY_USER.equals(mode) ? PickupGroups.VIEW_BY_USER : PickupGroups.VIEW_COMBINED;
+        groups.save(g);
+    }
+
+    private String groupProgress(PickupGroups.Group g) {
+        int total = 0, done = 0;
+        for (String id : g.members) {
+            SavedListStore.Entry e = findSavedEntry(id);
+            if (e == null) continue;
+            try {
+                JSONObject snapshot = savedListStore.readEntry(id);
+                JSONArray rows = snapshot.optJSONArray("products");
+                JSONArray ticks = new JSONArray(snapshot.optString("_collected_ticks", "[]"));
+                total += rows == null ? 0 : rows.length();
+                done += Math.min(ticks.length(), rows == null ? 0 : rows.length());
+            } catch (Exception ignored) { }
+        }
+        return total == 0 ? "" : "נאספו " + done + " מתוך " + total;
+    }
+
+    // =====================================================================
+    // מבנה האפליקציה:
+    //   מסך הבית (HUB): כל רשימות האיסוף וכל ההזמנות במקום אחד, עם "הוספת הזמנה".
+    //   מסך הזמנה (ORDER): צפייה בהזמנה (חומר גולמי) והוספה שלה לרשימת איסוף.
+    //   מסך רשימת איסוף (GROUP): מה יש ברשימה ואיך היא מוצגת; משם פותחים לאיסוף.
+    //   מסך האיסוף (HOME): הכלי שעובדים איתו בנקודת האיסוף.
+    // חזרה תמיד צעד אחד: איסוף ← בית, הזמנה/רשימה ← המסך שממנו נכנסו.
+    // =====================================================================
+
+    /** האם מסך הבית במצב בחירה של כמה הזמנות (✓ לכל הזמנה ופס פעולות למטה). */
+    private boolean hubSelecting = false;
+    /** לאן חוזרים ממסך ההזמנה ומסך רשימת האיסוף. */
+    private Runnable orderBack, groupBack;
+
+    /** שורת כותרת אחידה: חזרה (אם יש), כותרת ותת-כותרת, וכפתורי אייקון בסוף. */
+    private LinearLayout buildTopBar(String title, String subtitle, Runnable back, View... trailing) {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = Ui.dp(this, Ui.screenPad(this));
+        bar.setPadding(pad, Ui.dp(this, Ui.S3), pad, Ui.dp(this, Ui.S2));
+        int size = Ui.dp(this, Ui.iconButtonDp(this));
+        if (back != null) {
+            Button b = Ui.iconButton(this, Ui.IC_BACK, "חזרה", false);
+            b.setTag("screen_back_button");
+            b.setOnClickListener(v -> back.run());
+            bar.addView(b, new LinearLayout.LayoutParams(size, size));
+        }
+        LinearLayout titles = Ui.column(this);
+        titles.addView(Ui.text(this, title, Ui.T_TITLE - 2, Ui.P900, true));
+        if (subtitle != null && !subtitle.isEmpty())
+            titles.addView(Ui.text(this, subtitle, Ui.T_HINT, Ui.MUTED, false));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+        lp.setMarginStart(Ui.dp(this, back != null ? Ui.S3 : 0));
+        lp.setMarginEnd(Ui.dp(this, Ui.S2));
+        bar.addView(titles, lp);
+        for (View v : trailing) {
+            if (v == null) continue;
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(size, size);
+            p.setMarginStart(Ui.dp(this, Ui.S1));
+            bar.addView(v, p);
+        }
+        return bar;
+    }
+
+    /** כותרת קטע עם מספר (תג) לצידה. */
+    private LinearLayout sectionHeader(String title, int count) {
+        LinearLayout row = new LinearLayout(this);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView t = Ui.text(this, title, Ui.T_SECTION + 1, Ui.P900, true);
+        row.addView(t, new LinearLayout.LayoutParams(-2, -2));
+        if (count > 0) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.setMarginStart(Ui.dp(this, Ui.S2));
+            row.addView(Ui.chip(this, String.valueOf(count)), lp);
+        }
+        row.setLayoutParams(Ui.row(this, Ui.S5, Ui.S1));
+        return row;
+    }
+
+    /** שורת רשימה: הפריט עצמו (עמודת "שם"), ואופציונלית ✓ בהתחלה וכפתור צד בסוף. ניווט במקשים לפי עמודות. */
+    private LinearLayout listLine(CheckBox box, Button main, Button side) {
+        LinearLayout line = new LinearLayout(this);
+        line.setTag(LIST_LINE_TAG);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        if (box != null) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.setMarginEnd(Ui.dp(this, Ui.S1));
+            line.addView(box, lp);
+        }
+        main.setTag(LIST_MAIN_TAG);
+        line.addView(main, new LinearLayout.LayoutParams(0, -2, 1f));
+        if (side != null) {
+            int size = Ui.dp(this, Ui.iconButtonDp(this));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+            lp.setMarginStart(Ui.dp(this, Ui.S2));
+            line.addView(side, lp);
+        }
+        return line;
+    }
+
+    private CheckBox styledCheck(String description) {
+        CheckBox box = new CheckBox(this);
+        box.setContentDescription(description);
+        if (Build.VERSION.SDK_INT >= 21) box.setButtonTintList(Ui.tint(Ui.P600));
+        box.setBackground(Ui.focusFrame(this));
+        box.setPadding(Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S1), Ui.dp(this, Ui.S1));
+        return box;
+    }
+
+    /** כפתורים ברוחב שווה בשורה אחת (לפס התחתון). */
+    private LinearLayout equalRow(View... views) {
+        LinearLayout row = new LinearLayout(this);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        boolean first = true;
+        for (View v : views) {
+            if (v == null) continue;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+            if (!first) lp.setMarginStart(Ui.dp(this, Ui.S2));
+            first = false;
+            row.addView(v, lp);
+        }
+        return row;
+    }
+
+    /** מסך עם כותרת קבועה למעלה, תוכן נגלל, ופס פעולות קבוע למטה (אופציונלי). */
+    private LinearLayout screenFrame(LinearLayout top, LinearLayout content, LinearLayout bottom) {
+        LinearLayout root = Ui.column(this);
+        root.setBackgroundColor(Ui.BG);
+        root.addView(top, new LinearLayout.LayoutParams(-1, -2));
+        int pad = Ui.dp(this, Ui.screenPad(this));
+        content.setPadding(pad, 0, pad, Ui.dp(this, Ui.S6));
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        if (bottom != null) root.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
+        return root;
+    }
+
+    private String hubSubtitle() {
+        List<SourceRegistry.Source> accounts = connectedAccounts();
+        if (accounts.isEmpty()) return "בלי חשבון · הכל נשמר במכשיר";
+        if (accounts.size() == 1) {
+            String label = accounts.get(0).label == null ? "" : accounts.get(0).label.trim();
+            return label.isEmpty() ? "חשבון מחובר" : "מחובר: " + label;
+        }
+        return accounts.size() + " חשבונות מחוברים";
+    }
+
+    private String groupDetails(PickupGroups.Group g, boolean active) {
+        String details = g.members.size() == 1 ? "הזמנה אחת" : g.members.size() + " הזמנות";
+        String progress = groupProgress(g);
+        if (!progress.isEmpty()) details += " · " + progress;
+        if (active) details = "פתוחה עכשיו · " + details;
+        return details;
+    }
+
+    private String orderDetails(SavedListStore.Entry e) {
+        String details = e.itemCount + " פריטים";
+        String family = familyName(e);
+        if (!family.isEmpty()) details += " · " + family;
+        if (serverOrderId(e) > 0) details += " · מהאתר";
+        return withBadge(details, cloudBadge(e.id));
+    }
+
+    /** מסך הבית: רשימות האיסוף, ההזמנות, והוספת הזמנה. */
+    private void showHub(String notice) {
+        loginFormVisible = false;
+        savedListsScreenVisible = false;
+        accountsScreenVisible = false;
+        orderBack = null; groupBack = null;
+        List<SavedListStore.Entry> entries = savedListStore.list();
+        Collections.sort(entries, (a, b) -> Long.compare(b.archivedAt, a.archivedAt));
+        Set<String> ids = new HashSet<>();
+        for (SavedListStore.Entry e : entries) ids.add(e.id);
+        selectedOrders.retainAll(ids);
+        if (entries.size() < 1) hubSelecting = false;
+        List<PickupGroups.Group> all = groups.all();
+        PickupGroups.Group active = groups.active();
+
+        Button settings = Ui.iconButton(this, Ui.IC_SETTINGS, "הגדרות", false);
+        settings.setOnClickListener(v -> showSettingsScreen());
+        LinearLayout top = buildTopBar("משנת אוסף", hubSubtitle(), null, settings);
+        LinearLayout content = Ui.column(this);
+        if (notice != null && !notice.isEmpty()) content.addView(Ui.banner(this, notice));
+        View firstFocus = null;
+
+        if (entries.isEmpty() && all.isEmpty()) {
+            content.addView(Ui.emptyState(this, Ui.IC_BASKET, "ברוכים הבאים למשנת אוסף",
+                    "מוסיפים הזמנה, יוצרים ממנה רשימת איסוף, ומסמנים כל מוצר שנאסף."));
+            View hero = Ui.heroTile(this, Ui.IC_DOWNLOAD, "הוספת הזמנה", "מקובץ, QR, ענן, בלוטות' או טקסט");
+            hero.setOnClickListener(v -> createNewSavedList());
+            int side = Math.min(Ui.dp(this, 220), (int) (getResources().getDisplayMetrics().widthPixels * 0.6f));
+            LinearLayout.LayoutParams heroLp = new LinearLayout.LayoutParams(side, side);
+            heroLp.gravity = Gravity.CENTER_HORIZONTAL;
+            heroLp.topMargin = Ui.dp(this, Ui.S2); heroLp.bottomMargin = Ui.dp(this, Ui.S3);
+            content.addView(hero, heroLp);
+            firstFocus = hero;
+            LinearLayout how = Ui.card(this);
+            how.addView(Ui.text(this, "איך זה עובד", Ui.T_SECTION, Ui.P900, true));
+            how.addView(Ui.text(this, "1. הזמנה: מוסיפים את ההזמנה - מהאתר, מקובץ או ממישהו ששיתף.\n"
+                    + "2. רשימת איסוף: שמים בה הזמנה אחת או כמה הזמנות יחד.\n"
+                    + "3. איסוף: בנקודת האיסוף מסמנים כל מוצר שנלקח, ורואים מה נשאר.",
+                    Ui.T_HINT, Ui.INK, false), Ui.row(this, Ui.S1, 0));
+            content.addView(how, Ui.row(this, Ui.S2, 0));
+        } else {
+            // ---- רשימות איסוף ----
+            content.addView(sectionHeader("רשימות איסוף", all.size()));
+            content.addView(Ui.hint(this, "מה שלוקחים לנקודת האיסוף: הזמנה אחת או כמה יחד. לחיצה פותחת לאיסוף, ⚙ - הגדרות הרשימה."));
+            for (PickupGroups.Group g : all) {
+                boolean isActive = active != null && active.id.equals(g.id);
+                Button main = Ui.listItem(this, Ui.IC_BASKET, g.name, groupDetails(g, isActive), isActive, false);
+                main.setOnClickListener(v -> { if (g.members.isEmpty()) showGroupScreen(g, () -> showHub(null)); else activateGroup(g); });
+                Button more = Ui.iconButton(this, Ui.IC_SETTINGS, "הגדרות " + g.name, false);
+                more.setOnClickListener(v -> showGroupScreen(g, () -> showHub(null)));
+                content.addView(listLine(null, main, more), Ui.row(this, 0, Ui.S2));
+                if (firstFocus == null) firstFocus = main;
+            }
+            if (all.isEmpty())
+                content.addView(Ui.text(this, "עוד אין רשימות איסוף. פותחים הזמנה ולוחצים \"לרשימת איסוף\", או יוצרים רשימה חדשה.",
+                        Ui.T_HINT, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S1));
+            Button newGroup = Ui.button(this, "רשימת איסוף חדשה", Ui.Kind.SOFT);
+            newGroup.setOnClickListener(v -> startNewGroup(() -> showHub(null)));
+            content.addView(newGroup, Ui.row(this, Ui.S1, 0));
+
+            // ---- הזמנות ----
+            content.addView(sectionHeader("הזמנות", entries.size()));
+            content.addView(Ui.hint(this, hubSelecting
+                    ? "מסמנים ✓ על ההזמנות, ובוחרים פעולה בפס למטה."
+                    : "החומר הגולמי: הזמנות מהאתר, מקובץ או ממישהו ששיתף. לחיצה מציגה את ההזמנה."));
+            final List<CheckBox> boxes = new ArrayList<>();
+            for (SavedListStore.Entry e : entries) {
+                Button main = Ui.listItem(this, Ui.IC_BOX, displayTitle(e), orderDetails(e), false, !hubSelecting);
+                CheckBox box = null;
+                if (hubSelecting) {
+                    final CheckBox b = styledCheck("סימון " + displayTitle(e));
+                    b.setChecked(selectedOrders.contains(e.id));
+                    b.setOnCheckedChangeListener((x, checked) -> {
+                        if (checked) selectedOrders.add(e.id); else selectedOrders.remove(e.id);
+                        updateHubSelectionBar();
+                    });
+                    main.setOnClickListener(v -> b.setChecked(!b.isChecked()));
+                    box = b;
+                    boxes.add(b);
+                } else main.setOnClickListener(v -> showOrderScreen(e, () -> showHub(null)));
+                content.addView(listLine(box, main, null), Ui.row(this, 0, Ui.S2));
+                if (firstFocus == null) firstFocus = main;
+            }
+            if (entries.isEmpty())
+                content.addView(Ui.text(this, "אין הזמנות במכשיר.", Ui.T_HINT, Ui.MUTED, false), Ui.row(this, Ui.S1, 0));
+            if (entries.size() >= 2 || hubSelecting) {
+                Button select = Ui.button(this, hubSelecting ? "סיום בחירה" : "בחירת כמה הזמנות", Ui.Kind.SOFT);
+                select.setOnClickListener(v -> { hubSelecting = !hubSelecting; if (!hubSelecting) selectedOrders.clear(); showHub(null); });
+                content.addView(select, Ui.row(this, Ui.S1, 0));
+            }
+        }
+
+        // ---- חשבון (לא חובה) ----
+        if (connectedAccounts().isEmpty()) {
+            LinearLayout account = Ui.card(this);
+            account.addView(Ui.text(this, "יש לכם חשבון באתר משנת יוסף?", Ui.T_SECTION, Ui.P900, true));
+            account.addView(Ui.text(this, "לא חובה. התחברות מביאה את ההזמנה האחרונה אוטומטית, הזמנות קודמות ופרטי איסוף.",
+                    Ui.T_HINT, Ui.MUTED, false), Ui.row(this, Ui.S1, Ui.S1));
+            Button login = Ui.button(this, "התחברות לחשבון", Ui.Kind.SOFT);
+            login.setOnClickListener(v -> { loginFormVisible = true; showLoginScreen(""); });
+            account.addView(login, Ui.row(this, Ui.S1, 0));
+            content.addView(account, Ui.row(this, Ui.S5, 0));
+        }
+
+        LinearLayout bottom = Ui.bottomBar(this);
+        hubBottom = bottom;
+        fillHubBottom(bottom, active);
+        presentScreen(screenFrame(top, content, bottom), Screen.HUB);
+        if (firstFocus != null) firstFocus.requestFocus();
+        else focusFirstButton(bottom);
+    }
+
+    private LinearLayout hubBottom;
+
+    private void fillHubBottom(LinearLayout bottom, PickupGroups.Group active) {
+        bottom.removeAllViews();
+        if (hubSelecting) {
+            int count = selectedOrders.size();
+            Button make = Ui.tile(this, Ui.IC_BASKET, "רשימת איסוף");
+            make.setContentDescription("יצירת רשימת איסוף מההזמנות המסומנות");
+            make.setOnClickListener(v -> createGroupFromSelection());
+            Button share = Ui.tile(this, Ui.IC_SHARE, "שיתוף");
+            share.setOnClickListener(v -> { List<SavedListStore.Entry> chosen = checkedEntries(); if (!chosen.isEmpty()) showShareFormats(chosen); });
+            Button merge = Ui.tile(this, Ui.IC_MERGE, "איחוד");
+            merge.setContentDescription("איחוד ההזמנות המסומנות להזמנה אחת");
+            merge.setOnClickListener(v -> mergeTileClicked());
+            Button delete = Ui.tile(this, Ui.IC_TRASH, "מחיקה");
+            delete.setOnClickListener(v -> confirmDeleteChecked());
+            make.setEnabled(count >= 1); share.setEnabled(count >= 1); merge.setEnabled(count >= 2); delete.setEnabled(count >= 1);
+            bottom.addView(equalRow(make, share, merge, delete), new LinearLayout.LayoutParams(-1, -2));
+            return;
+        }
+        Button add = Ui.button(this, "הוספת הזמנה", Ui.Kind.PRIMARY);
+        add.setOnClickListener(v -> createNewSavedList());
+        Button resume = null;
+        if (active != null && !active.members.isEmpty()) {
+            resume = Ui.button(this, "המשך איסוף", Ui.Kind.SOFT);
+            resume.setContentDescription("המשך איסוף: " + active.name);
+            resume.setOnClickListener(v -> showHomeScreen(false));
+        }
+        bottom.addView(equalRow(add, resume), new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void updateHubSelectionBar() {
+        if (screen != Screen.HUB || hubBottom == null || !hubSelecting) return;
+        View focused = getCurrentFocus();
+        fillHubBottom(hubBottom, groups.active());
+        if (focused != null && focused.getParent() != null) focused.requestFocus();
+    }
+
+    // ---------- מסך הזמנה ----------
+
+    /** הזמנה במסך מלא: המוצרים לצפייה, ולמטה "לרשימת איסוף" ו"שיתוף". */
+    private void showOrderScreen(SavedListStore.Entry entryIn, Runnable back) {
+        final SavedListStore.Entry entry = entryIn == null ? null : findSavedEntry(entryIn.id);
+        if (entry == null) { leaveOrderScreen(); return; }
+        if (back != null) orderBack = back;
+        final Runnable self = () -> showOrderScreen(entry, null);
+        Button more = Ui.iconButton(this, Ui.IC_MORE, "פעולות להזמנה", false);
+        more.setOnClickListener(v -> showOrderMore(entry, self));
+        String family = familyName(entry);
+        String subtitle = "הזמנה · " + entry.itemCount + " פריטים" + (family.isEmpty() ? "" : " · " + family);
+        LinearLayout top = buildTopBar(displayTitle(entry), subtitle, this::leaveOrderScreen, more);
+        LinearLayout content = Ui.column(this);
+        content.addView(Ui.hint(this, serverOrderId(entry) > 0
+                ? "הזמנה מהחשבון באתר: מתעדכנת אוטומטית. כדי לאסוף, מוסיפים אותה לרשימת איסוף."
+                : "לצפייה. כדי לאסוף, מוסיפים את ההזמנה לרשימת איסוף."));
+        List<String> inGroups = new ArrayList<>();
+        for (PickupGroups.Group g : groups.all()) if (g.members.contains(entry.id)) inGroups.add(g.name);
+        if (!inGroups.isEmpty())
+            content.addView(Ui.text(this, "ברשימות: " + android.text.TextUtils.join(", ", inGroups), Ui.T_HINT, Ui.P700, true),
+                    Ui.row(this, 0, Ui.S2));
+        String cloud = cloudDetails(entry.id);
+        if (!cloud.isEmpty()) content.addView(Ui.text(this, cloud, Ui.T_HINT, Ui.P700, true), Ui.row(this, 0, Ui.S2));
+        addOrderProducts(content, entry);
+
+        LinearLayout bottom = Ui.bottomBar(this);
+        Button toGroup = Ui.button(this, "לרשימת איסוף", Ui.Kind.PRIMARY);
+        toGroup.setOnClickListener(v -> showAddToGroupSheet(entry, self));
+        Button share = Ui.button(this, "שיתוף", Ui.Kind.SOFT);
+        share.setOnClickListener(v -> { List<SavedListStore.Entry> one = new ArrayList<>(); one.add(entry); showShareFormats(one); });
+        bottom.addView(equalRow(toGroup, share), new LinearLayout.LayoutParams(-1, -2));
+        presentScreen(screenFrame(top, content, bottom), Screen.ORDER);
+        toGroup.requestFocus();
+    }
+
+    private void leaveOrderScreen() {
+        Runnable back = orderBack;
+        orderBack = null;
+        if (back != null) back.run(); else showHub(null);
+    }
+
+    /** המוצרים של הזמנה: אותם כרטיסים כמו באיסוף (תמונה, שם, הערה, כמות, צבע הקטגוריה), בלי סימון. */
+    private void addOrderProducts(LinearLayout body, SavedListStore.Entry entry) {
+        int mode = displayMode == 5 ? 3 : displayMode;
+        boolean headers = categoryHeadersEnabled();
+        try {
+            JSONArray rows = savedListStore.readEntry(entry.id).optJSONArray("products");
+            String category = null;
+            int shown = 0;
+            for (int i = 0; rows != null && i < rows.length(); i++) {
+                JSONObject o = rows.optJSONObject(i);
+                if (o == null) continue;
+                String imageFile = first(o, "image_file"), imagePath = "";
+                if (!imageFile.isEmpty()) { File image = new File(imageFile); if (image.isFile() && image.length() > 0) imagePath = image.getAbsolutePath(); }
+                ProductRow product = new ProductRow(first(o, "key"), first(o, "name"), first(o, "image_url"), first(o, "amount"),
+                        first(o, "note"), imagePath, first(o, "category"), o.optInt("category_order", 0));
+                if (product.name.isEmpty()) continue;
+                if (headers && !product.category.isEmpty() && !product.category.equals(category))
+                    body.addView(Ui.categoryHeader(this, product.category, 0), Ui.row(this, Ui.S2, Ui.S1));
+                category = product.category;
+                Ui.CardViews views = Ui.productCard(this, mode);
+                views.root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                Ui.bindProduct(views, product.name, product.note, product.amount.isEmpty() ? "1" : product.amount, false);
+                Ui.bindCategory(views, product.category);
+                if (mode != 0) {
+                    if (!product.imagePath.isEmpty()) images.loadLegacy(product, views.image);
+                    else if (!product.imageUrl.isEmpty()) images.load(product.imageUrl, views.image);
+                    else views.image.setImageDrawable(Ui.photoPlaceholder(this));
+                }
+                views.root.setFocusable(true);
+                body.addView(views.root, Ui.row(this, 0, Ui.S1));
+                shown++;
+            }
+            if (shown == 0) body.addView(Ui.emptyState(this, Ui.IC_BOX, "אין מוצרים בהזמנה", ""));
+        } catch (Exception e) {
+            body.addView(Ui.text(this, "לא ניתן לקרוא את ההזמנה.", Ui.T_BODY, Ui.MUTED, false));
+        }
+    }
+
+    /** "לרשימת איסוף": רשימה חדשה מההזמנה, או הוספה לרשימה קיימת. */
+    private void showAddToGroupSheet(SavedListStore.Entry entry, Runnable back) {
+        List<SheetItem> items = new ArrayList<>();
+        items.add(new SheetItem(Ui.IC_PLUS, "רשימת איסוף חדשה", "רשימה עם ההזמנה הזו, ונפתחת לאיסוף", () -> {
+            List<String> one = new ArrayList<>(); one.add(entry.id);
+            PickupGroups.Group g = groups.create(displayTitle(entry), one);
+            activateGroup(g);
+        }));
+        for (PickupGroups.Group g : groups.all()) {
+            if (g.members.contains(entry.id)) continue;
+            items.add(new SheetItem(Ui.IC_BASKET, g.name, "הוספה לרשימה · " + groupDetails(g, false), () -> {
+                g.members.add(entry.id); groups.save(g); applyGroupIfActive(g);
+                importantToast("ההזמנה נוספה ל\"" + g.name + "\"");
+                back.run();
+            }));
+        }
+        showSheet("לרשימת איסוף", items.size() == 1 ? "תיווצר רשימת איסוף חדשה עם ההזמנה."
+                : "בוחרים רשימה קיימת, או יוצרים חדשה. ההזמנה נשארת גם ברשימת ההזמנות.", items, null);
+    }
+
+    /** פעולות נוספות להזמנה (⋯): שם, צירוף, מיזוג ומחיקה. */
+    private void showOrderMore(SavedListStore.Entry entry, Runnable self) {
+        boolean fromSite = serverOrderId(entry) > 0;
+        List<SheetItem> items = new ArrayList<>();
+        items.add(new SheetItem(Ui.IC_EDIT, "שינוי שם", "השם שמוצג באפליקציה", () ->
+                showRenameDialog(entry.owner, entry.orderId, displayTitle(entry), entry.title, self)));
+        items.add(new SheetItem(Ui.IC_HISTORY, "צירוף הזמנה מהעבר", fromSite
+                ? "נוצר עותק עם שתי ההזמנות; ההזמנה מהאתר לא משתנה" : "המוצרים של הזמנה קודמת מהאתר מתווספים לכאן",
+                () -> importHistoryInto(entry)));
+        items.add(new SheetItem(Ui.IC_MERGE, "מיזוג לתוך הזמנה אחרת", "המוצרים מתווספים להזמנה שבוחרים", () -> showMergeTargetDialog(entry)));
+        items.add(new SheetItem(Ui.IC_TRASH, "מחיקת ההזמנה", "מהמכשיר בלבד; גם יוצאת מרשימות האיסוף", () ->
+                showModernConfirm("מחיקת הזמנה", "ההזמנה תימחק מהמכשיר ותצא מכל רשימות האיסוף. באתר שום דבר לא משתנה.", "מחיקה",
+                        () -> { List<SavedListStore.Entry> one = new ArrayList<>(); one.add(entry);
+                            deleteEntries(one, () -> { orderBack = null; showHub(null); }); })));
+        showSheet(displayTitle(entry), "", items, null);
+    }
+
+    // ---------- מסך רשימת איסוף ----------
+
+    /** רשימת איסוף: פתיחה לאיסוף, תצוגה, וההזמנות שבה. */
+    private void showGroupScreen(PickupGroups.Group gIn, Runnable back) {
+        final PickupGroups.Group g = gIn == null ? null : groups.find(gIn.id);
+        if (g == null) { leaveGroupScreen(); return; }
+        if (back != null) groupBack = back;
+        final Runnable self = () -> showGroupScreen(g, null);
+        PickupGroups.Group active = groups.active();
+        final boolean isActive = active != null && active.id.equals(g.id);
+        Button more = Ui.iconButton(this, Ui.IC_MORE, "פעולות לרשימת האיסוף", false);
+        more.setOnClickListener(v -> showGroupMore(g, self));
+        LinearLayout top = buildTopBar(g.name, "רשימת איסוף · " + groupDetails(g, isActive), this::leaveGroupScreen, more);
+        LinearLayout content = Ui.column(this);
+        content.addView(Ui.hint(this, "כאן קובעים מה ברשימה ואיך היא מוצגת. מסמנים מוצרים במסך האיסוף."));
+
+        if (g.members.size() >= 2) {
+            content.addView(sectionHeader("תצוגה", 0));
+            boolean byUser = PickupGroups.VIEW_BY_USER.equals(g.view);
+            Button combined = Ui.button(this, (byUser ? "" : "✓ ") + "מאוחדת", byUser ? Ui.Kind.SOFT : Ui.Kind.PRIMARY);
+            combined.setContentDescription("תצוגה מאוחדת" + (byUser ? "" : ", נבחרה"));
+            combined.setOnClickListener(v -> { g.view = PickupGroups.VIEW_COMBINED; groups.save(g); applyGroupIfActive(g); self.run(); });
+            Button perUser = Ui.button(this, (byUser ? "✓ " : "") + "לפי הזמנה", byUser ? Ui.Kind.PRIMARY : Ui.Kind.SOFT);
+            perUser.setContentDescription("תצוגה לפי הזמנה" + (byUser ? ", נבחרה" : ""));
+            perUser.setOnClickListener(v -> { g.view = PickupGroups.VIEW_BY_USER; groups.save(g); applyGroupIfActive(g); self.run(); });
+            content.addView(equalRow(combined, perUser), Ui.row(this, Ui.S1, Ui.S1));
+            content.addView(Ui.hint(this, byUser ? "לפי הזמנה: גוש נפרד לכל הזמנה, עם הכותרת שלה."
+                    : "מאוחדת: כל המוצרים יחד, וכמויות של מוצר זהה מסוכמות."));
+            Button breakdown = Ui.toggleItem(this, Ui.IC_LIST_STACK, "כמות לכל הזמנה",
+                    "ליד כל מוצר: כמה הזמינה כל הזמנה", g.breakdown);
+            breakdown.setOnClickListener(v -> { g.breakdown = !g.breakdown; groups.save(g); applyGroupIfActive(g); self.run(); });
+            content.addView(breakdown, Ui.row(this, Ui.S1, 0));
+        }
+
+        content.addView(sectionHeader("הזמנות ברשימה", g.members.size()));
+        content.addView(Ui.hint(this, g.members.isEmpty() ? "הרשימה ריקה. מוסיפים הזמנה אחת או יותר."
+                : "לחיצה על הזמנה: הצגה, שם ברשימה, סדר או הוצאה מהרשימה."));
+        for (int i = 0; i < g.members.size(); i++) {
+            final int index = i;
+            final String entryId = g.members.get(i);
+            final SavedListStore.Entry entry = findSavedEntry(entryId);
+            final String original = entry == null ? "הזמנה שנמחקה" : displayTitle(entry);
+            final String label = g.label(entryId, original);
+            String details = entry == null ? "" : orderDetails(entry) + (label.equals(original) ? "" : " · " + original);
+            Button main = Ui.listItem(this, Ui.IC_BOX, label, details, false, false);
+            main.setOnClickListener(v -> showMemberSheet(g, index, entry, label, original, self));
+            content.addView(listLine(null, main, null), Ui.row(this, 0, Ui.S2));
+        }
+        Button add = Ui.button(this, "הוספת הזמנות", Ui.Kind.SOFT);
+        add.setOnClickListener(v -> pickGroupMembers(g, self));
+        content.addView(add, Ui.row(this, Ui.S1, 0));
+
+        LinearLayout bottom = Ui.bottomBar(this);
+        Button open = Ui.button(this, isActive ? "המשך איסוף" : "פתיחה לאיסוף", Ui.Kind.PRIMARY);
+        open.setEnabled(!g.members.isEmpty());
+        open.setOnClickListener(v -> { groupBack = null; activateGroup(g); });
+        bottom.addView(equalRow(open), new LinearLayout.LayoutParams(-1, -2));
+        presentScreen(screenFrame(top, content, bottom), Screen.GROUP);
+        (g.members.isEmpty() ? add : open).requestFocus();
+    }
+
+    private void leaveGroupScreen() {
+        Runnable back = groupBack;
+        groupBack = null;
+        if (back != null) back.run(); else showHub(null);
+    }
+
+    /** פעולות להזמנה בתוך רשימת איסוף. */
+    private void showMemberSheet(PickupGroups.Group g, int index, SavedListStore.Entry entry, String label, String original, Runnable self) {
+        final String entryId = g.members.get(index);
+        List<SheetItem> items = new ArrayList<>();
+        if (entry != null) items.add(new SheetItem(Ui.IC_EYE, "הצגת ההזמנה", "כל המוצרים שלה", () -> showOrderScreen(entry, self)));
+        items.add(new SheetItem(Ui.IC_EDIT, "שם ברשימה", "שם אחר רק בתוך רשימת האיסוף הזו", () -> askGroupName(label, n -> {
+            if (n.isEmpty() || n.equals(original)) g.labels.remove(entryId); else g.labels.put(entryId, n);
+            groups.save(g); applyGroupIfActive(g); self.run(); }, self)));
+        if (index > 0) items.add(new SheetItem(Ui.IC_ARROW_UP, "הזזה למעלה", "", () -> {
+            java.util.Collections.swap(g.members, index, index - 1); groups.save(g); applyGroupIfActive(g); self.run(); }));
+        if (index < g.members.size() - 1) items.add(new SheetItem(Ui.IC_ARROW_DOWN, "הזזה למטה", "", () -> {
+            java.util.Collections.swap(g.members, index, index + 1); groups.save(g); applyGroupIfActive(g); self.run(); }));
+        items.add(new SheetItem(Ui.IC_MINUS, "הוצאה מהרשימה", "ההזמנה עצמה נשארת במכשיר", () -> {
+            g.members.remove(entryId); g.labels.remove(entryId); groups.save(g); applyGroupIfActive(g); self.run(); }));
+        showSheet(label, "", items, null);
+    }
+
+    /** פעולות לרשימת האיסוף (⋯): שם, שיתוף, איפוס ומחיקה. */
+    private void showGroupMore(PickupGroups.Group g, Runnable self) {
+        List<SheetItem> items = new ArrayList<>();
+        items.add(new SheetItem(Ui.IC_EDIT, "שינוי שם", "", () -> askGroupName(g.name, n -> {
+            if (!n.isEmpty()) { g.name = n; groups.save(g); applyGroupIfActive(g); } self.run(); }, self)));
+        if (!g.members.isEmpty()) items.add(new SheetItem(Ui.IC_SHARE, "שיתוף הרשימה", "כל ההזמנות שבה, בקובץ, QR או ענן", () -> {
+            List<SavedListStore.Entry> entries = new ArrayList<>();
+            for (String m : g.members) { SavedListStore.Entry e = findSavedEntry(m); if (e != null) entries.add(e); }
+            if (!entries.isEmpty()) showShareFormats(entries);
+        }));
+        if (!groupProgress(g).isEmpty()) items.add(new SheetItem(Ui.IC_RESET, "איפוס האיסוף", "כל המוצרים חוזרים ל\"לא נאסף\"", () ->
+                showModernConfirm("איפוס האיסוף", "להחזיר את כל המוצרים ברשימה \"" + g.name + "\" ללא נאסף?", "איפוס",
+                        () -> { resetGroupProgress(g); self.run(); })));
+        items.add(new SheetItem(Ui.IC_TRASH, "מחיקת רשימת האיסוף", "ההזמנות עצמן נשארות במכשיר", () ->
+                showModernConfirm("מחיקת רשימת האיסוף", "למחוק את \"" + g.name + "\"? ההזמנות שבה נשארות ברשימת ההזמנות.", "מחיקה",
+                        () -> { groups.delete(g.id); groupBack = null; showHub(null); })));
+        showSheet(g.name, "", items, null);
+    }
+
+    /** איפוס מצב האיסוף של כל ההזמנות ברשימה. */
+    private void resetGroupProgress(PickupGroups.Group g) {
+        for (String id : g.members) savedListStore.setProgress(id, "[]", "{}");
+        PickupGroups.Group active = groups.active();
+        if (active != null && active.id.equals(g.id)) { collected.clear(); partialCollected.clear(); }
+    }
+
+    /** רשימת איסוף חדשה: בוחרים הזמנות, והיא נפתחת לאיסוף. בלי הזמנות - קודם מוסיפים הזמנה. */
+    private void startNewGroup(Runnable back) {
+        if (savedListStore.list().isEmpty()) { createNewSavedList(); return; }
+        pickOrders("רשימת איסוף חדשה", "בוחרים הזמנה אחת או יותר. אפשר להוסיף עוד אחר כך.", new HashSet<>(), "יצירה ופתיחה", chosen -> {
+            if (chosen.isEmpty()) { if (back != null) back.run(); return; }
+            String name = chosen.size() == 1 ? displayTitle(findSavedEntry(chosen.get(0))) : defaultGroupName();
+            PickupGroups.Group g = groups.create(name, chosen);
+            g.view = PickupGroups.VIEW_COMBINED;
+            groups.save(g);
+            activateGroup(g);
+        }, back);
+    }
+
+    /** בחירת הזמנות להוספה לרשימת איסוף. */
+    private void pickGroupMembers(PickupGroups.Group g, Runnable parent) {
+        pickOrders("הוספת הזמנות", "מסמנים את ההזמנות שייכנסו לרשימה \"" + g.name + "\".", new HashSet<>(g.members), "הוספה", chosen -> {
+            for (String id : chosen) if (!g.members.contains(id)) g.members.add(id);
+            groups.save(g);
+            applyGroupIfActive(g);
+            if (parent != null) parent.run();
+        }, parent);
+    }
+
+    private interface OrdersCallback { void done(List<String> chosen); }
+
+    /** חלון בחירת הזמנות (✓), עם מעבר להוספת הזמנה חדשה. */
+    private void pickOrders(String title, String hint, Set<String> exclude, String okLabel, OrdersCallback callback, Runnable parent) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
+        panel.addView(Ui.hint(this, hint), Ui.row(this, Ui.S1, Ui.S1));
+        LinearLayout body = Ui.column(this);
+        final List<CheckBox> boxes = new ArrayList<>();
+        final List<String> ids = new ArrayList<>();
+        List<SavedListStore.Entry> entries = savedListStore.list();
+        Collections.sort(entries, (a, b) -> Long.compare(b.archivedAt, a.archivedAt));
+        for (SavedListStore.Entry entry : entries) {
+            if (exclude.contains(entry.id)) continue;
+            CheckBox box = styledCheck(displayTitle(entry));
+            box.setText(displayTitle(entry) + "\n" + orderDetails(entry));
+            box.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Ui.T_BODY * Ui.textScale(this));
+            box.setTextColor(Ui.INK);
+            box.setPadding(Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2), Ui.dp(this, Ui.S2));
+            body.addView(box, Ui.row(this, 0, Ui.S1));
+            boxes.add(box); ids.add(entry.id);
+        }
+        if (boxes.isEmpty()) body.addView(Ui.text(this, "אין הזמנות נוספות. אפשר להוסיף הזמנה חדשה.", Ui.T_BODY, Ui.MUTED, false));
+        Button importNew = Ui.button(this, "הוספת הזמנה חדשה", Ui.Kind.SOFT);
+        importNew.setOnClickListener(v -> { dialog.dismiss(); createNewSavedList(); });
+        body.addView(importNew, Ui.row(this, Ui.S2, 0));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button ok = Ui.button(this, okLabel, Ui.Kind.PRIMARY);
+        ok.setEnabled(!boxes.isEmpty());
+        ok.setOnClickListener(v -> {
+            List<String> chosen = new ArrayList<>();
+            for (int i = 0; i < boxes.size(); i++) if (boxes.get(i).isChecked()) chosen.add(ids.get(i));
+            if (chosen.isEmpty()) { showActionToast("לא סומנו הזמנות"); return; }
+            dialog.dismiss();
+            callback.done(chosen);
+        });
+        panel.addView(ok, Ui.row(this, Ui.S2, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        sizeLargeDialog(dialog);
+        if (!boxes.isEmpty()) boxes.get(0).requestFocus(); else importNew.requestFocus();
+    }
+
+    // ---------- חלון פעולות ----------
+
+    private static final class SheetItem {
+        final int icon; final String title, details; final Runnable action;
+        SheetItem(int icon, String title, String details, Runnable action) {
+            this.icon = icon; this.title = title; this.details = details; this.action = action;
+        }
+    }
+
+    /** חלון פעולות: רשימה של פעולות, כל אחת עם אייקון, שם והסבר קצר. */
+    private void showSheet(String title, String hint, List<SheetItem> items, Runnable back) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, title, Ui.T_NAME, Ui.P900, true));
+        if (hint != null && !hint.isEmpty()) panel.addView(Ui.hint(this, hint), Ui.row(this, Ui.S1, 0));
+        LinearLayout body = Ui.column(this);
+        Button first = null;
+        for (SheetItem item : items) {
+            Button b = Ui.listItem(this, item.icon, item.title, item.details, false, false);
+            b.setOnClickListener(v -> { dialog.dismiss(); item.action.run(); });
+            body.addView(b, Ui.row(this, Ui.S2, 0));
+            if (first == null) first = b;
+        }
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, -2));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        if (back != null) addDialogBackButton(dialog, back);
+        if (first != null) first.requestFocus();
+    }
+
+    /** "⋯" במסך האיסוף: הוספת הזמנות, איפוס, עריכת הרשימה והגדרות. */
+    private void showCollectMore() {
+        PickupGroups.Group active = groups.active();
+        List<SheetItem> items = new ArrayList<>();
+        if (active != null) items.add(new SheetItem(Ui.IC_PLUS, "הוספת הזמנות לרשימה", "מההזמנות שבמכשיר, או הזמנה חדשה",
+                () -> pickGroupMembers(active, null)));
+        else items.add(new SheetItem(Ui.IC_PLUS, "הוספת הזמנה", "מקובץ, QR, ענן, בלוטות' או טקסט", this::createNewSavedList));
+        items.add(new SheetItem(Ui.IC_RESET, "איפוס האיסוף", "כל המוצרים חוזרים לממתינים", () -> {
+            if (!confirmResetCollection()) showActionToast("אין סימוני איסוף לאיפוס"); }));
+        if (active != null) items.add(new SheetItem(Ui.IC_EDIT, "עריכת רשימת האיסוף", "שם, תצוגה וההזמנות שבה",
+                () -> showGroupScreen(active, () -> showHomeScreen(false))));
+        items.add(new SheetItem(Ui.IC_SETTINGS, "הגדרות", "חשבונות, תצוגה וצליל, מקשים", this::showSettingsScreen));
+        showSheet("פעולות", "", items, null);
+    }
+
+    private void sizeLargeDialog(Dialog dialog) {
+        if (dialog.getWindow() == null) return;
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int width = Math.min(metrics.widthPixels - Ui.dp(this, 16), Ui.dp(this, 640));
+        dialog.getWindow().setLayout(width, (int) (metrics.heightPixels * 0.9f));
+    }
+
+    private void refreshHomeTitleIfGroup() {
+        if (screen == Screen.HOME && listGroupActive()) showHomeScreen(false);
+    }
+
+    private interface NameCallback { void done(String name); }
+
+    private void askGroupName(String current, NameCallback callback) { askGroupName(current, callback, null); }
+
+    private void askGroupName(String current, NameCallback callback, Runnable parent) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = Ui.dialogPanel(this);
+        panel.addView(Ui.text(this, "שם", Ui.T_NAME, Ui.P900, true));
+        EditText input = createLoginInput("שם", InputType.TYPE_CLASS_TEXT);
+        input.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        input.setTextDirection(View.TEXT_DIRECTION_RTL);
+        input.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        input.setText(current == null ? "" : current);
+        input.setSelection(input.getText().length());
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        panel.addView(input, Ui.row(this, Ui.S3, Ui.S3));
+        Button save = Ui.button(this, "שמירה", Ui.Kind.PRIMARY), cancel = Ui.button(this, "ביטול", Ui.Kind.SOFT);
+        Runnable apply = () -> {
+            String value = input.getText().toString().trim();
+            if (value.length() > 60) value = value.substring(0, 60);
+            hideKeyboard(input);
+            dialog.dismiss();
+            callback.done(value);
+        };
+        save.setOnClickListener(v -> apply.run());
+        cancel.setOnClickListener(v -> { hideKeyboard(input); dialog.dismiss(); if (parent != null) parent.run(); });
+        input.setOnEditorActionListener((v, actionId, event) -> { apply.run(); return true; });
+        panel.addView(buttonPair(save, cancel), Ui.row(this, 0, 0));
+        dialog.setContentView(panel);
+        dialog.show();
+        styleConfirmWindow(dialog);
+        input.requestFocus();
+    }
+
+    /** רשימת האיסוף הפעילה השתנתה: מרעננים את המסך הראשי עם ההגדרות שלה. */
+    private void applyGroupIfActive(PickupGroups.Group g) {
+        PickupGroups.Group active = groups.active();
+        if (active == null || !active.id.equals(g.id)) return;
+        if (sourceRegistry != null) sourceRegistry.setViewMode(g.view);
+        if (screen == Screen.HOME) showHomeScreen(false);
     }
 
     private static final String PREF_FAMILY_BREAKDOWN = "show_family_breakdown";
@@ -6318,7 +7323,9 @@ public class MainActivity extends Activity {
         boolean any=false,all=true;
         StringBuilder detail=new StringBuilder();
         // בהגדרות אפשר להסתיר את הפירוט לפי משפחה (שם החשבון וכמה כל אחד הזמין).
-        boolean breakdown=uiPreferences==null||uiPreferences.getBoolean(PREF_FAMILY_BREAKDOWN,true);
+        PickupGroups.Group activeGroup=groups==null?null:groups.active();
+        boolean breakdown=activeGroup!=null&&listGroupActive()?activeGroup.breakdown
+                :uiPreferences==null||uiPreferences.getBoolean(PREF_FAMILY_BREAKDOWN,true);
         // לפי משתמש יש כותרת עם שם המשתמש, ולכן אין צורך לחזור על השם בכל מוצר.
         if(parts.size()==1&&perUserLayout())breakdown=false;
         Set<String> notes=new java.util.LinkedHashSet<>();
@@ -6327,7 +7334,11 @@ public class MainActivity extends Activity {
             String note=part.product.note==null?"":part.product.note.trim();
             if(breakdown){
                 if(detail.length()>0)detail.append(" · ");
-                detail.append(part.sourceLabel).append(" ").append(part.product.amount);
+                detail.append(part.sourceLabel).append(" ");
+                // באיסוף חלקי: כמה נאסף לכל רשימה.
+                if(part.collected&&parts.size()>1)detail.append("✓");
+                else if(part.partialQuantity>0)detail.append(Quantities.format(part.partialQuantity)).append("/").append(part.product.amount);
+                else detail.append(part.product.amount);
                 if(!note.isEmpty())detail.append(" (").append(note).append(")");
             } else if(!note.isEmpty()&&notes.add(note)){
                 if(detail.length()>0)detail.append(" · ");
@@ -6374,6 +7385,11 @@ public class MainActivity extends Activity {
             part.collected=part.partialQuantity>=partTotal-0.000001;}
         if(quantity>=total-0.000001){collected.add(key);partialCollected.remove(key);}
         else{collected.remove(key);if(quantity>0)partialCollected.put(key,quantity);else partialCollected.remove(key);}
+        persistCombinedParts(parts);
+    }
+
+    /** שמירת מצב האיסוף של כל רשימה במוצר מאוחד (חשבונות או רשימות שמורות). */
+    private void persistCombinedParts(java.util.List<SourcePart> parts){
         final java.util.List<SourcePart> copy=new ArrayList<>(parts);
         cacheWorker.execute(()->{
             for(SourcePart part:copy){if(part.sourceId.startsWith(GROUP_PART_PREFIX)){saveGroupPart(part);continue;}

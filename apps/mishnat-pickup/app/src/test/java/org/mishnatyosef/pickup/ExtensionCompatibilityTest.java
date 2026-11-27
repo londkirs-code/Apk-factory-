@@ -42,7 +42,9 @@ public class ExtensionCompatibilityTest {
         assertEquals("קווקר הכנה מהירה", first.items.get(1).name);
         assertEquals("2", first.items.get(1).quantity);
         assertEquals("קטניות ושימורים", first.items.get(1).category);
-        assertEquals("הזמנה | שנייה לבדיקה", bundle.lists.get(1).orderName);
+        // ב-JSON השם המקורי; בטקסט וב-QR ה-| מוחלף ב-/ (כי | מפריד בין שם הרשימה למשפחה).
+        String second = bundle.lists.get(1).orderName;
+        assertTrue(second, "הזמנה | שנייה לבדיקה".equals(second) || "הזמנה / שנייה לבדיקה".equals(second));
         assertEquals(2, bundle.lists.get(1).items.size());
     }
 

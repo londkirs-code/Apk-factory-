@@ -95,4 +95,33 @@ public class ListExporterTest {
     public void emptyExportIsRejected() throws Exception {
         ListExporter.json(Arrays.asList(new ListExporter.Export("ריקה", new JSONArray())), null);
     }
+
+    /** שם המשפחה עובר בכל הפורמטים, ושתי משפחות עם אותו שם רשימה נשארות שתי רשימות. */
+    private List<ListExporter.Export> twoFamilies() throws Exception {
+        JSONArray a = new JSONArray().put(new JSONObject().put("key", "a").put("name", "חלב").put("amount", "2").put("category", "חלב"));
+        JSONArray b = new JSONArray().put(new JSONObject().put("key", "b").put("name", "לחם").put("amount", "1"));
+        return Arrays.asList(new ListExporter.Export("מכירת חנוכה", "משפחת כהן", a),
+                new ListExporter.Export("מכירת חנוכה", "משפחת לוי", b));
+    }
+
+    private void assertFamilies(ImportParser.Bundle bundle) {
+        assertEquals(2, bundle.lists.size());
+        assertEquals("מכירת חנוכה", bundle.lists.get(0).orderName);
+        assertEquals("משפחת כהן", bundle.lists.get(0).accountName);
+        assertEquals("חלב", bundle.lists.get(0).items.get(0).name);
+        assertEquals("מכירת חנוכה", bundle.lists.get(1).orderName);
+        assertEquals("משפחת לוי", bundle.lists.get(1).accountName);
+        assertEquals("לחם", bundle.lists.get(1).items.get(0).name);
+    }
+
+    @Test public void familyNameTravelsInEveryFormat() throws Exception {
+        assertFamilies(parse(ListExporter.json(twoFamilies(), null).toString().getBytes(StandardCharsets.UTF_8)));
+        String text = ListExporter.text(twoFamilies());
+        assertTrue(text.contains("\n## מכירת חנוכה | משפחת כהן\n"));
+        assertFamilies(parse(text.getBytes(StandardCharsets.UTF_8)));
+        List<String> chunks = ListExporter.qrChunks(twoFamilies(), 120);
+        StringBuilder joined = new StringBuilder();
+        for (String chunk : chunks) joined.append(chunk).append('\n');
+        assertFamilies(parse(joined.toString().getBytes(StandardCharsets.UTF_8)));
+    }
 }

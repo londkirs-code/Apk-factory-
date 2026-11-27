@@ -20,7 +20,8 @@ import java.util.zip.ZipOutputStream;
 /**
  * ייצוא רשימות לשיתוף, בפורמטים שהאפליקציה יודעת לייבא בחזרה (ImportParser):
  * JSON (mishnat-pickup-list), TXT (שורה לכל מוצר, "## שם" לכל רשימה) ו-ZIP (list.json + images/).
- * נשלחים רק המוצרים: בלי שמות חשבונות, בלי פרטי התחברות ובלי נתיבים מקומיים.
+ * נשלחים המוצרים ושם המשפחה של הרשימה (אם יש), בלי פרטי התחברות ובלי נתיבים מקומיים.
+ * בטקסט ובקוד QR כותרת הרשימה היא "## שם הרשימה | שם המשפחה" (בלי משפחה: "## שם הרשימה").
  */
 final class ListExporter {
     private ListExporter() {}
@@ -29,8 +30,18 @@ final class ListExporter {
 
     /** רשימה אחת לייצוא: שם + המוצרים השמורים שלה (products של רשימה שמורה). */
     static final class Export {
-        final String title; final JSONArray products;
-        Export(String title, JSONArray products) { this.title = title; this.products = products; }
+        final String title, family; final JSONArray products;
+        Export(String title, JSONArray products) { this(title, "", products); }
+        Export(String title, String family, JSONArray products) {
+            this.title = title; this.family = family == null ? "" : family.trim(); this.products = products;
+        }
+    }
+
+    /** כותרת רשימה בטקסט: "## שם | משפחה". | בתוך השמות מוחלף ב-/. */
+    private static String header(JSONObject list) throws Exception {
+        String name = cell(list.getJSONObject("order").optString("name", ""));
+        String family = familyOf(list);
+        return "## " + (name.isEmpty() ? "רשימה" : name) + (family.isEmpty() ? "" : " | " + cell(family));
     }
 
     /** קובץ JSON. כש-images לא null, מוצרים עם תמונה שמורה מקבלים "image": "images/..." והקובץ נרשם במפה. */
@@ -45,7 +56,8 @@ final class ListExporter {
             if (items.length() == 0) continue;
             String id = "share-" + stamp + "-" + l;
             lists.put(new JSONObject()
-                    .put("account", new JSONObject().put("id", id).put("name", "רשימה משותפת"))
+                    .put("account", new JSONObject().put("id", id).put("name",
+                            export.family.isEmpty() ? "רשימה משותפת" : limit(oneLine(export.family), 200)))
                     .put("order", new JSONObject().put("id", id).put("name", title(export.title)))
                     .put("items", items));
         }
@@ -94,7 +106,7 @@ final class ListExporter {
         JSONArray lists = json.getJSONArray("lists");
         for (int l = 0; l < lists.length(); l++) {
             JSONObject list = lists.getJSONObject(l);
-            out.append("\n## ").append(oneLine(list.getJSONObject("order").optString("name", "רשימה"))).append('\n');
+            out.append('\n').append(header(list)).append('\n');
             JSONArray items = list.getJSONArray("items");
             for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.getJSONObject(i);
@@ -133,7 +145,7 @@ final class ListExporter {
     /**
      * חלוקה לקודי QR - זהה לגמרי ל-toQrChunks בתוסף (browser-extension/src/core.js), כדי שקודים
      * מהטלפון ומהמחשב ייסרקו באותה צורה. כל קוד הוא טקסט שהייבוא מקבל:
-     * "#משנת אוסף 1/3", "## הזמנה", "### קטגוריה", "שם | כמות | | הערה".
+     * "#משנת אוסף 1/3", "## הזמנה | משפחה", "### קטגוריה", "שם | כמות | | הערה".
      */
     static List<String> qrChunks(List<Export> exports, int maxBytes) throws Exception {
         int limit = maxBytes > 0 ? maxBytes : 900;
@@ -143,8 +155,7 @@ final class ListExporter {
         int[] size = {0};
         for (int l = 0; l < lists.length(); l++) {
             JSONObject list = lists.getJSONObject(l);
-            String name = oneLine(list.getJSONObject("order").optString("name", ""));
-            String title = "## " + (name.isEmpty() ? "רשימה" : name);
+            String title = header(list);
             String category = null;
             if (size[0] + utf8(title) + 40 > limit) flush(chunks, lines, size);
             push(lines, size, title);
@@ -172,6 +183,13 @@ final class ListExporter {
         List<String> out = new java.util.ArrayList<>();
         for (int i = 0; i < chunks.size(); i++) out.add("#משנת אוסף " + (i + 1) + "/" + chunks.size() + "\n" + chunks.get(i));
         return out;
+    }
+
+    /** שם המשפחה של רשימה בקובץ (ריק כשזה השם הכללי). */
+    private static String familyOf(JSONObject list) {
+        JSONObject account = list.optJSONObject("account");
+        String name = account == null ? "" : oneLine(account.optString("name", ""));
+        return "רשימה משותפת".equals(name) ? "" : name;
     }
 
     private static void push(List<String> lines, int[] size, String line) {

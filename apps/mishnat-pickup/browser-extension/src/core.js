@@ -3,7 +3,7 @@
  *
  * 1. פענוח הזמנה מהשרת של משנת יוסף - העתק מדויק של OrderParser ו-OrderHistoryPage באפליקציה.
  * 2. ייצוא בפורמטים שהאפליקציה מייבאת (ImportParser) - העתק מדויק של ListExporter באפליקציה:
- *    JSON (mishnat-pickup-list), TXT ("## שם" לכל רשימה, "שם | כמות | | הערה | קטגוריה") ו-ZIP (list.json + images/).
+ *    JSON (mishnat-pickup-list), TXT ("## שם | משפחה" לכל רשימה, "שם | כמות | | הערה | קטגוריה") ו-ZIP (list.json + images/).
  * 3. כותב ZIP קטן (בלי דחיסה), בלי ספריות חיצוניות.
  *
  * כל שינוי בפורמט חייב להתעדכן גם באפליקציה. בדיקת ExtensionCompatibilityTest באפליקציה
@@ -240,6 +240,13 @@
   function oneLine(value) { return value === null || value === undefined ? '' : String(value).replace(/[\r\n]/g, ' ').trim(); }
   function cell(value) { return oneLine(value).replace(/\|/g, '/'); }
 
+  /** כותרת רשימה בטקסט ובקוד QR: "## שם | משפחה" (כמו באפליקציה). מהאתר אין משפחה. */
+  function header(list) {
+    const family = oneLine((list.account && list.account.name) || '');
+    const generic = !family || family === 'הורדה מהאתר' || family === 'רשימה משותפת';
+    return '## ' + (cell(list.order.name) || 'רשימה') + (generic ? '' : ' | ' + cell(family));
+  }
+
   function imageExtension(url) {
     const m = /\.(jpe?g|png|webp)(?:$|[?#])/i.exec(url || '');
     return m ? '.' + m[1].toLowerCase() : '.jpg';
@@ -301,7 +308,7 @@
     const json = toJson(exports, options);
     let out = '# משנת אוסף: רשימות איסוף. אפשר לייבא את הקובץ הזה באפליקציה.\n';
     for (const list of json.lists) {
-      out += '\n## ' + oneLine(list.order.name || 'רשימה') + '\n';
+      out += '\n' + header(list) + '\n';
       for (const item of list.items) {
         out += cell(item.name) + ' | ' + formatQuantity(item.quantity) + ' | | ' + cell(item.note || '') + ' | ' + cell(item.category || '') + '\n';
       }
@@ -411,7 +418,7 @@
     const flush = () => { if (lines.length) chunks.push(lines.join('\n')); lines = []; size = 0; };
     const push = (line) => { lines.push(line); size += utf8Length(line) + 1; };
     for (const list of json.lists) {
-      const title = '## ' + oneLine(list.order.name || 'רשימה');
+      const title = header(list);
       let category = null;
       if (size + utf8Length(title) + 40 > limitBytes) flush();
       push(title);

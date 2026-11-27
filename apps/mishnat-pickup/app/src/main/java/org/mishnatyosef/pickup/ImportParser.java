@@ -69,18 +69,23 @@ final class ImportParser {
                 continue;
             }
             if(line.startsWith("## ")) {
-                // רשימה חדשה באותו קובץ. רשימה באותו שם ממשיכה את הקודמת (למשל כמה קודי QR של אותה הזמנה).
-                String name=clean(line.substring(3));
+                // "## שם הרשימה | שם המשפחה" (המשפחה לא חובה). רשימה עם אותו שם ואותה משפחה ממשיכה את הקודמת
+                // (למשל כמה קודי QR של אותה הזמנה); אותו שם עם משפחה אחרת - רשימה נפרדת.
+                String[] parts=line.substring(3).split("\\|",-1);
+                String name=clean(parts[0]);
+                String family=parts.length>1?clean(parts[1]):"";
                 if(name.length()>200)name=name.substring(0,200);
+                if(family.length()>200)family=family.substring(0,200);
                 if(name.isEmpty())name="רשימה מקובץ טקסט";
+                String account=family.isEmpty()?TEXT_ACCOUNT:family;
                 currentCategory="";
-                if(name.equals(list.orderName))continue;
+                if(name.equals(list.orderName)&&account.equals(list.accountName))continue;
                 ImportedList existing=null;
-                for(ImportedList previous:lists)if(name.equals(previous.orderName)){existing=previous;break;}
+                for(ImportedList previous:lists)if(name.equals(previous.orderName)&&account.equals(previous.accountName)){existing=previous;break;}
                 if(!list.items.isEmpty()&&!lists.contains(list))lists.add(list);
                 if(existing!=null){list=existing;ids=idsByList.get(existing);continue;}
                 if(lists.size()>=MAX_LISTS)throw new Exception("הקובץ חייב להכיל בין 1 ל־20 רשימות.");
-                list=newTextList(name,lists.size());
+                list=newTextList(name,lists.size());list.accountName=account;
                 ids=new HashSet<>();
                 idsByList.put(list,ids);
                 continue;
@@ -123,10 +128,12 @@ final class ImportParser {
         Bundle bundle=new Bundle(dir);bundle.lists.addAll(lists);return bundle;
     }
 
+    private static final String TEXT_ACCOUNT="רשימה מקובץ טקסט";
+
     private static ImportedList newTextList(String name,int index) {
         ImportedList list=new ImportedList();
         list.accountId="text-"+java.util.UUID.randomUUID().toString();
-        list.accountName="רשימה מקובץ טקסט";
+        list.accountName=TEXT_ACCOUNT;
         list.orderId=String.valueOf(System.currentTimeMillis()+index);
         list.orderName=name;
         return list;
