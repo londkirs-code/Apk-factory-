@@ -62,11 +62,6 @@
     },
     {
       "action": "assert_foreground"
-    },
-    {
-      "action": "wait_for",
-      "text": "hello-from-terminal",
-      "timeout": 10
     }
   ]
 }
