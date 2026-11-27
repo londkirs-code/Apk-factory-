@@ -1,0 +1,16 @@
+[ok] 01 launch clear_data=True
+[ok] 02 shell cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[skip] 03 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[ok] 04 wait_for text='Antigravity on Android'
+[ok] 05 screenshot name='home'
+[ok] 06 tap text='Shell'
+[ok] 07 wait seconds=4
+[skip] 08 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[ok] 09 screenshot name='terminal-opened'
+[ok] 10 assert_foreground
+[ok] 11 type value='echo hello-from-terminal; id', enter=True
+[ok] 12 wait seconds=2
+[ok] 13 screenshot name='terminal-command'
+[ok] 14 assert_foreground
+
+Result: PASSED — 14 steps, 4 screenshots, 0 crashes
