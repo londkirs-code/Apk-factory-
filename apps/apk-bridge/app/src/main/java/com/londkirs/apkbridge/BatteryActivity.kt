@@ -6,6 +6,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -13,27 +14,26 @@ import java.util.Locale
 import kotlin.math.abs
 
 /**
- * 🔋 Battery mini app: level and state, live current and temperature charts, time left, health and
- * capacity, which apps use the battery (since the last full charge), and battery actions.
- * Live values come from Android itself every 2 s (no ADB needed); the rest over ADB.
+ * 🔋 Battery mini app, on one compact screen: a drawn battery (level, charging bolt) with state and
+ * time left, a strip of stats, a live current chart, what uses the battery since the last full
+ * charge (top 5, more on tap), and round action buttons. Live values from Android every 2 s; the
+ * rest over ADB.
  */
 class BatteryActivity : MiniAppActivity() {
     override val appTitle get() = tr("🔋 סוללה", "🔋 Battery")
 
-    private lateinit var ring: RingGauge
-    private lateinit var timeLeft: TextView
-    private lateinit var currentValue: TextView
-    private lateinit var currentChart: SparkLine
-    private lateinit var tempValue: TextView
-    private lateinit var tempChart: SparkLine
-    private lateinit var tiles: Map<String, TextView>
-    private lateinit var healthBody: LinearLayout
+    private lateinit var battery: BatteryView
+    private lateinit var stateText: TextView
+    private lateinit var timeText: TextView
+    private lateinit var flowText: TextView
+    private lateinit var stats: Map<String, TextView>
+    private lateinit var chartValue: TextView
+    private lateinit var chart: SparkLine
     private lateinit var usageBody: LinearLayout
     private lateinit var actionsBody: LinearLayout
 
     private val handler = Handler(Looper.getMainLooper())
     private val recentCurrent = ArrayDeque<Float>()
-    private var designMah = 0
     private var saverOn: Boolean? = null
     private var stayOn: Boolean? = null
 
@@ -41,59 +41,45 @@ class BatteryActivity : MiniAppActivity() {
         override fun run() { readLocal(); handler.postDelayed(this, 2000) }
     }
 
-    // region labels (one place for the tiles' names)
-    private val tTemp get() = tr("🌡 טמפרטורה", "🌡 Temperature")
-    private val tVolt get() = tr("⚡ מתח", "⚡ Voltage")
-    private val tPower get() = tr("🔌 הספק", "🔌 Power")
-    private val tHealth get() = tr("❤ מצב", "❤ Health")
-    private val tSource get() = tr("🔗 מקור טעינה", "🔗 Charging from")
-    private val tCharge get() = tr("🔋 טעינה נוכחית", "🔋 Charge now")
-    private val tTech get() = tr("🧪 סוג", "🧪 Type")
-    private val tCycles get() = tr("🔁 מחזורי טעינה", "🔁 Charge cycles")
-    // endregion
+    private val sTemp get() = tr("🌡 חום", "🌡 Temp")
+    private val sVolt get() = tr("⚡ מתח", "⚡ Voltage")
+    private val sHealth get() = tr("❤ מצב", "❤ Health")
+    private val sWear get() = tr("🩺 קיבולת", "🩺 Capacity")
+    private val sNow get() = tr("🔋 טעינה", "🔋 Charge")
+    private val sDesign get() = tr("📐 מקורית", "📐 Design")
+    private val sCycles get() = tr("🔁 מחזורים", "🔁 Cycles")
+    private val sTech get() = tr("🧪 סוג", "🧪 Type")
 
     override fun build() {
+        // Hero: the battery drawing, and the state next to it.
         val hero = Mini.card(page)
-        ring = RingGauge(this)
-        hero.addView(ring, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(190)))
-        timeLeft = TextView(this).apply { textSize = 15f; setTextColor(Theme.BODY); gravity = android.view.Gravity.CENTER }
-        hero.addView(timeLeft)
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        battery = BatteryView(this)
+        row.addView(battery)
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, 0, 0) }
+        stateText = TextView(this).apply { textSize = 16f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setTextColor(Theme.INK); textAlignment = View.TEXT_ALIGNMENT_VIEW_START }
+        timeText = TextView(this).apply { textSize = 13f; setTextColor(Theme.BODY); textAlignment = View.TEXT_ALIGNMENT_VIEW_START }
+        flowText = TextView(this).apply { textSize = 12.5f; setTextColor(Theme.MUTED); textAlignment = View.TEXT_ALIGNMENT_VIEW_START }
+        texts.addView(stateText); texts.addView(timeText); texts.addView(flowText)
+        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        hero.addView(row)
 
-        val live = Mini.card(page, tr("⚡ זרם בזמן אמת", "⚡ Live current"))
-        currentValue = TextView(this).apply { textSize = 26f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setTextColor(Theme.INK); textAlignment = View.TEXT_ALIGNMENT_VIEW_START }
-        live.addView(currentValue)
-        currentChart = SparkLine(this).apply { color = MiniColors.BLUE }
-        live.addView(currentChart)
-        live.addView(Mini.hint(this, tr("מתעדכן כל 2 שניות. בזמן טעינה הזרם נכנס, בזמן שימוש הוא יוצא.", "Updates every 2 seconds. While charging current flows in; while in use it flows out.")))
+        stats = Mini.stats(Mini.card(page), listOf(sTemp to "—", sVolt to "—", sHealth to "—", sWear to "—", sNow to "—", sDesign to "—", sCycles to "—", sTech to "—"))
 
-        val temp = Mini.card(page, tr("🌡 טמפרטורה", "🌡 Temperature"))
-        tempValue = TextView(this).apply { textSize = 22f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setTextColor(Theme.INK); textAlignment = View.TEXT_ALIGNMENT_VIEW_START }
-        temp.addView(tempValue)
-        tempChart = SparkLine(this).apply { color = MiniColors.ORANGE }
-        temp.addView(tempChart)
+        chartValue = Mini.badge(this)
+        val live = Mini.card(page, tr("⚡ זרם בזמן אמת", "⚡ Live current"), chartValue)
+        chart = SparkLine(this).apply { color = MiniColors.BLUE }
+        live.addView(chart)
 
-        val data = Mini.card(page, tr("📊 נתונים", "📊 Details"))
-        tiles = Mini.tiles(data, listOf(tTemp to "—", tVolt to "—", tPower to "—", tHealth to "—", tSource to "—", tCharge to "—", tTech to "—", tCycles to "—"))
+        usageBody = Mini.card(page, tr("🔥 צריכה מאז הטעינה המלאה", "🔥 Use since the last full charge"))
+        usageBody.addView(Mini.hint(this, tr("נטען…", "Loading…")))
 
-        healthBody = Mini.card(page, tr("🩺 בריאות הסוללה", "🩺 Battery health"))
-        healthBody.addView(Mini.hint(this, tr("נטען דרך ADB…", "Loading over ADB…")))
-
-        usageBody = Mini.card(page, tr("🔥 מי צורך סוללה", "🔥 What uses the battery"))
-        usageBody.addView(Mini.hint(this, tr("נטען דרך ADB…", "Loading over ADB…")))
-
-        actionsBody = Mini.card(page, tr("🛠 פעולות", "🛠 Actions"))
+        actionsBody = Mini.card(page)
         renderActions()
     }
 
-    override fun onResume() {
-        super.onResume()
-        handler.post(tick)
-    }
-
-    override fun onPause() {
-        handler.removeCallbacks(tick)
-        super.onPause()
-    }
+    override fun onResume() { super.onResume(); handler.post(tick) }
+    override fun onPause() { handler.removeCallbacks(tick); super.onPause() }
 
     // region live values (Android, no ADB)
 
@@ -113,24 +99,26 @@ class BatteryActivity : MiniAppActivity() {
         val raw = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: Int.MIN_VALUE
         val mA = if (raw == Int.MIN_VALUE || raw == 0) null else abs(if (abs(raw) > 10_000) raw / 1000f else raw.toFloat())
         val counter = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)?.takeIf { it > 0 && it != Int.MIN_VALUE }
-        val nowMah = counter?.let { if (it > 100_000) it / 1000 else it }  // µAh on most phones
+        val nowMah = counter?.let { if (it > 100_000) it / 1000 else it }
 
-        ring.fraction = level / 100f
-        ring.value = "$level%"
-        ring.color = when { charging -> MiniColors.TEAL; level <= 15 -> MiniColors.RED; level <= 35 -> MiniColors.YELLOW; else -> MiniColors.GREEN }
-        ring.caption = statusText(status) + if (plugged != 0) " · " + pluggedText(plugged) else ""
+        battery.level = level
+        battery.charging = charging
+        battery.color = when { charging -> MiniColors.TEAL; level <= 15 -> MiniColors.RED; level <= 35 -> MiniColors.YELLOW; else -> MiniColors.GREEN }
+        stateText.text = statusText(status) + if (plugged != 0) " · " + pluggedText(plugged) else ""
 
         if (mA != null) {
             recentCurrent.addLast(mA); while (recentCurrent.size > 10) recentCurrent.removeFirst()
-            currentChart.add(mA)
-            currentValue.text = (if (charging) "+" else "−") + String.format(Locale.US, "%.0f mA", mA)
-        } else currentValue.text = tr("הטלפון לא מדווח זרם", "The phone doesn't report current")
-        tempChart.add(temp)
-        tempValue.text = String.format(Locale.US, "%.1f°C", temp) + if (temp < 5) tr("   ⚠ ערך חריג — ייתכן שהחיישן מדווח ביחידות אחרות", "   ⚠ unusual — the sensor may use other units") else ""
+            chart.add(mA)
+            chartValue.text = (if (charging) "+" else "−") + String.format(Locale.US, "%.0f mA", mA)
+            flowText.text = String.format(Locale.US, "%.2f W · %.2f V", mA * voltage / 1_000_000f, voltage / 1000f)
+        } else {
+            chartValue.text = "—"
+            flowText.text = String.format(Locale.US, "%.2f V", voltage / 1000f)
+        }
 
         // Time left / to full, from the average current of the last ~20 s.
         val avg = recentCurrent.takeIf { it.isNotEmpty() }?.average()?.toFloat()
-        timeLeft.text = when {
+        timeText.text = when {
             status == BatteryManager.BATTERY_STATUS_FULL -> tr("✔ טעונה במלואה", "✔ Fully charged")
             charging -> {
                 val ms: Long = if (Build.VERSION.SDK_INT >= 28) bm?.computeChargeTimeRemaining() ?: -1L else -1L
@@ -139,19 +127,17 @@ class BatteryActivity : MiniAppActivity() {
                     avg != null && avg > 50 && nowMah != null && level in 1..99 -> ((nowMah * 100f / level - nowMah) / avg * 60).toLong()
                     else -> -1L
                 }
-                if (minutes > 0) tr("⏱ טעינה מלאה בעוד ${duration(minutes)}", "⏱ Full in ${duration(minutes)}") else tr("⏱ בטעינה", "⏱ Charging")
+                if (minutes > 0) tr("⏱ מלאה בעוד ${duration(minutes)}", "⏱ Full in ${duration(minutes)}") else tr("⏱ בטעינה", "⏱ Charging")
             }
-            avg != null && avg > 20 && nowMah != null -> tr("⏱ נותרו כ־${duration((nowMah / avg * 60).toLong())} בקצב הנוכחי", "⏱ About ${duration((nowMah / avg * 60).toLong())} left at this rate")
+            avg != null && avg > 20 && nowMah != null -> tr("⏱ נותרו כ־${duration((nowMah / avg * 60).toLong())}", "⏱ About ${duration((nowMah / avg * 60).toLong())} left")
             else -> ""
         }
 
-        tiles[tTemp]?.text = String.format(Locale.US, "%.1f°C", temp)
-        tiles[tVolt]?.text = String.format(Locale.US, "%.2f V", voltage / 1000f)
-        tiles[tPower]?.text = if (mA != null && voltage > 0) String.format(Locale.US, "%.2f W", mA * voltage / 1_000_000f) else "—"
-        tiles[tHealth]?.text = healthText(health)
-        tiles[tSource]?.text = if (plugged == 0) tr("לא מחובר", "Not plugged") else pluggedText(plugged)
-        tiles[tCharge]?.text = nowMah?.let { "$it mAh" } ?: "—"
-        tiles[tTech]?.text = tech.ifBlank { "—" }
+        stats[sTemp]?.text = String.format(Locale.US, "%.1f°", temp) + if (temp < 5) " ⚠" else ""
+        stats[sVolt]?.text = String.format(Locale.US, "%.2fV", voltage / 1000f)
+        stats[sHealth]?.text = healthText(health)
+        stats[sNow]?.text = nowMah?.let { "$it" } ?: "—"
+        stats[sTech]?.text = tech.ifBlank { "—" }
     }
 
     private fun duration(minutes: Long): String {
@@ -168,7 +154,7 @@ class BatteryActivity : MiniAppActivity() {
     }
 
     private fun pluggedText(p: Int) = when {
-        p and BatteryManager.BATTERY_PLUGGED_AC != 0 -> tr("מטען קיר", "Wall charger")
+        p and BatteryManager.BATTERY_PLUGGED_AC != 0 -> tr("מטען", "Charger")
         p and BatteryManager.BATTERY_PLUGGED_USB != 0 -> "USB"
         p and BatteryManager.BATTERY_PLUGGED_WIRELESS != 0 -> tr("אלחוטי", "Wireless")
         else -> tr("מחובר", "Plugged")
@@ -176,12 +162,12 @@ class BatteryActivity : MiniAppActivity() {
 
     private fun healthText(h: Int) = when (h) {
         BatteryManager.BATTERY_HEALTH_GOOD -> tr("תקינה", "Good")
-        BatteryManager.BATTERY_HEALTH_OVERHEAT -> tr("חמה מדי", "Overheat")
-        BatteryManager.BATTERY_HEALTH_DEAD -> tr("לא תקינה", "Dead")
-        BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> tr("מתח גבוה", "Over voltage")
-        BatteryManager.BATTERY_HEALTH_COLD -> tr("קרה מדי", "Cold")
+        BatteryManager.BATTERY_HEALTH_OVERHEAT -> tr("חמה", "Hot")
+        BatteryManager.BATTERY_HEALTH_DEAD -> tr("תקולה", "Dead")
+        BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> tr("מתח גבוה", "High V")
+        BatteryManager.BATTERY_HEALTH_COLD -> tr("קרה", "Cold")
         BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> tr("תקלה", "Failure")
-        else -> tr("לא ידוע", "Unknown")
+        else -> "—"
     }
 
     // endregion
@@ -194,48 +180,38 @@ class BatteryActivity : MiniAppActivity() {
         val cmd = "f=/sys/class/power_supply/battery; for k in cycle_count charge_full charge_full_design; do [ -r \$f/\$k ] && echo \"\$k=\$(cat \$f/\$k)\"; done; " +
             "echo \"saver=\$(settings get global low_power)\"; echo \"stayon=\$(settings get global stay_on_while_plugged_in)\"; echo '#STATS'; " +
             "dumpsys batterystats --charged 2>/dev/null | sed -n '/Estimated power use/,\$p' | head -160; echo '#UIDS'; pm list packages -U 2>/dev/null"
-        adb(cmd) { out -> if (out != null) renderAdb(out) else { renderHealth(emptyMap()); usageBody.removeAllViews(); usageBody.addView(Mini.hint(this, tr("נדרש חיבור ADB (צימוד).", "Needs an ADB connection (pairing)."))) } }
+        adb(cmd) { out ->
+            if (out != null) renderAdb(out) else {
+                usageBody.removeAllViews()
+                usageBody.addView(Mini.hint(this, tr("נדרש חיבור ADB (צימוד).", "Needs an ADB connection (pairing).")))
+            }
+        }
     }
 
     private fun renderAdb(out: String) {
         val head = out.substringBefore("#STATS")
-        val stats = out.substringAfter("#STATS", "").substringBefore("#UIDS")
+        val statsText = out.substringAfter("#STATS", "").substringBefore("#UIDS")
         val uids = out.substringAfter("#UIDS", "")
         val kv = head.lines().mapNotNull { l -> l.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() } }.toMap()
         saverOn = kv["saver"]?.let { it == "1" }
         stayOn = kv["stayon"]?.let { it != "0" && it != "null" }
-        Regex("Capacity: ([\\d.]+)").find(stats)?.let { designMah = it.groupValues[1].toFloat().toInt() }
-        renderHealth(kv)
-        renderUsage(stats, uids)
-        renderActions()
-    }
-
-    private fun renderHealth(kv: Map<String, String>) {
-        healthBody.removeAllViews()
-        val cycles = kv["cycle_count"]?.toIntOrNull()?.takeIf { it > 1 }
-        tiles[tCycles]?.text = cycles?.toString() ?: "—"
+        stats[sCycles]?.text = kv["cycle_count"]?.toIntOrNull()?.takeIf { it > 1 }?.toString() ?: "—"
+        stats[sDesign]?.text = Regex("Capacity: ([\\d.]+)").find(statsText)?.groupValues?.get(1)?.toFloat()?.toInt()?.let { "$it" } ?: "—"
+        // Capacity left of the original. The two values are sometimes in different units: normalize the ratio.
         val full = kv["charge_full"]?.toDoubleOrNull()
         val design = kv["charge_full_design"]?.toDoubleOrNull()
-        // The two are sometimes in different units (µAh / mAh / ×10): normalize the ratio.
         val pct = if (full != null && design != null && design > 0 && full > 0) {
             var r = full / design
             while (r > 1.2) r /= 10
             while (r < 0.12) r *= 10
             (r * 100).toInt().takeIf { it in 30..110 }
         } else null
-        if (pct != null) {
-            healthBody.addView(Mini.hint(this, tr("קיבולת שנשארה מהמקורית", "Capacity left of the original")))
-            val color = when { pct >= 85 -> MiniColors.GREEN; pct >= 70 -> MiniColors.YELLOW; else -> MiniColors.RED }
-            Mini.barRow(healthBody, tr("בריאות", "Health"), "$pct%", pct / 100f, color)
-            healthBody.addView(Mini.hint(this, when {
-                pct >= 85 -> tr("✔ הסוללה במצב טוב.", "✔ The battery is in good shape.")
-                pct >= 70 -> tr("הסוללה התבלתה מעט — זה רגיל אחרי שנה־שנתיים.", "The battery has worn a little — normal after a year or two.")
-                else -> tr("⚠ הסוללה שחוקה. אם הטלפון נכבה מהר, שווה להחליף סוללה.", "⚠ The battery is worn. If the phone dies quickly, consider replacing it.")
-            }))
-        } else {
-            healthBody.addView(Mini.hint(this, tr("הטלפון לא חושף את הקיבולת המקורית מול הנוכחית.", "The phone doesn't expose original vs. current capacity.")))
+        stats[sWear]?.apply {
+            text = pct?.let { "$it%" } ?: "—"
+            setTextColor(when { pct == null -> Theme.INK; pct >= 85 -> MiniColors.GREEN; pct >= 70 -> 0xFFB7791F.toInt(); else -> MiniColors.RED })
         }
-        if (designMah > 0) Mini.tiles(healthBody, listOf(tr("📐 קיבולת מקורית", "📐 Design capacity") to "$designMah mAh"))
+        renderUsage(statsText, uids)
+        renderActions()
     }
 
     /** Apps (and parts of the phone) by battery use since the last full charge, from batterystats. */
@@ -275,12 +251,11 @@ class BatteryActivity : MiniAppActivity() {
             usageBody.addView(Mini.hint(this, tr("אין עדיין נתוני צריכה (או שהטלפון לא חושף אותם).", "No usage data yet (or the phone doesn't expose it).")))
             return
         }
-        usageBody.addView(Mini.hint(this, tr("מאז הטעינה המלאה האחרונה · לחיצה על אפליקציה: פעולות", "Since the last full charge · tap an app for actions")))
-        val top = rows.sortedByDescending { it.third }.take(14)
+        val sorted = rows.sortedByDescending { it.third }.take(20)
         val total = rows.sumOf { it.third }.coerceAtLeast(0.01)
-        top.forEachIndexed { i, (name, pkg, mah) ->
-            val share = (mah / total).toFloat()
-            Mini.barRow(usageBody, name, String.format(Locale.US, "%.0f mAh · %d%%", mah, (share * 100).toInt()), share / (top.first().third / total).toFloat(),
+        val top = sorted.first().third
+        Mini.shortList(usageBody, sorted) { parent, i, (name, pkg, mah) ->
+            Mini.barRow(parent, name, String.format(Locale.US, "%d%% · %.0f mAh", (mah / total * 100).toInt(), mah), (mah / top).toFloat(),
                 MiniColors.PALETTE[i % MiniColors.PALETTE.size], pkg?.let { p -> { appMenu(p, name) } })
         }
     }
@@ -319,32 +294,25 @@ class BatteryActivity : MiniAppActivity() {
 
     private fun renderActions() {
         actionsBody.removeAllViews()
-        val saver = saverOn
-        val stay = stayOn
-        val resetStats = tr("♻ אפס סטטיסטיקה", "♻ Reset statistics")
+        val saver = saverOn == true
+        val stay = stayOn == true
+        val reset = tr("איפוס נתונים", "Reset stats")
         Mini.actions(actionsBody, listOf(
-            (if (saver == true) tr("🔋 חיסכון: פועל ✓", "🔋 Saver: on ✓") else tr("🔋 חיסכון בסוללה", "🔋 Battery saver")) to {
-                act(tr("חיסכון בסוללה", "Battery saver"), if (saver == true) "cmd power set-mode 0 && echo off" else "cmd power set-mode 1 && echo on")
+            Mini.Action("🔋", tr("חיסכון", "Saver"), active = saver) {
+                act(tr("חיסכון בסוללה", "Battery saver"), if (saver) "cmd power set-mode 0 && echo off" else "cmd power set-mode 1 && echo on")
             },
-            (if (stay == true) tr("🔌 דלוק בטעינה ✓", "🔌 Awake charging ✓") else tr("🔌 דלוק בזמן טעינה", "🔌 Awake while charging")) to {
-                act(tr("מסך בזמן טעינה", "Screen while charging"), if (stay == true) "svc power stayon false && echo normal" else "svc power stayon true && echo 'stays awake'")
+            Mini.Action("🔌", tr("דלוק בטעינה", "Awake charging"), active = stay) {
+                act(tr("מסך בזמן טעינה", "Screen while charging"), if (stay) "svc power stayon false && echo normal" else "svc power stayon true && echo 'stays awake'")
             },
-            tr("📊 שימוש בסוללה (Android)", "📊 Battery usage (Android)") to {
-                runCatching { startActivity(Intent(Intent.ACTION_POWER_USAGE_SUMMARY)) }
-                Unit
-            },
-            tr("🚀 אופטימיזציית סוללה", "🚀 Battery optimization") to {
-                runCatching { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-                Unit
-            },
-            tr("🎭 הצג 100% (תצוגה)", "🎭 Show 100% (display)") to { act(tr("הצגת 100%", "Show 100%"), "dumpsys battery set level 100 && echo 'display only'") },
-            tr("↺ סוללה אמיתית", "↺ Real battery") to { act(tr("ערכים אמיתיים", "Real values"), "dumpsys battery reset && echo reset") },
-            resetStats to {
-                act(resetStats, "dumpsys batterystats --reset && echo reset",
+            Mini.Action("📊", tr("שימוש", "Usage")) { runCatching { startActivity(Intent(Intent.ACTION_POWER_USAGE_SUMMARY)) } },
+            Mini.Action("🚀", tr("אופטימיזציה", "Optimize")) { runCatching { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
+            Mini.Action("🎭", tr("הצג 100%", "Show 100%")) { act(tr("הצגת 100% (רק בתצוגה)", "Show 100% (display only)"), "dumpsys battery set level 100 && echo 'display only'") },
+            Mini.Action("↺", tr("סוללה אמיתית", "Real battery")) { act(tr("ערכים אמיתיים", "Real values"), "dumpsys battery reset && echo reset") },
+            Mini.Action("♻", reset, danger = true) {
+                act(reset, "dumpsys batterystats --reset && echo reset",
                     tr("נתוני הצריכה של כל האפליקציות יתאפסו ויתחילו להיספר מעכשיו. להמשיך?", "Usage data of all apps is cleared and starts counting from now. Continue?"))
             },
-        ), danger = setOf(resetStats))
-        actionsBody.addView(Mini.hint(this, tr("\"הצג 100%\" משנה רק את המספר על המסך, לא את הטעינה. ↺ מחזיר.", "\"Show 100%\" only changes the number on screen, not the charge. ↺ undoes it.")))
+        ))
     }
 
     // endregion
