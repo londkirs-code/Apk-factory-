@@ -1,0 +1,105 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 52.9,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 7.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "shell",
+      "detail": "cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.1,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 6.02,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "shell",
+      "detail": "cmd='run-as com.londkirs.antigravityremote sh -c \\'mkdir -p files/bin && echo \"#!/system/bin/sh\" > files/bin/agy && echo \"echo STAND-IN-AGY started; pwd; echo BROWSER=\\\\$BROWSER; exit 0\" >> files/bin/agy && chmod 700 files/bin/agy && echo test-stand-in > files/agy.version && cat files/bin/agy\\'', expect='STAND-IN-AGY'",
+      "status": "passed",
+      "seconds": 0.16,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.02,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 4.47,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "shell",
+      "detail": "cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.23,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 5.94,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "wait_for",
+      "detail": "text='Start Antigravity'",
+      "status": "failed",
+      "seconds": 21.12,
+      "error": "element not found within 20s: text='Start Antigravity'",
+      "screenshot": "screenshots/001-step9-wait_for-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-step9-wait_for-FAILED.png",
+    "002-final.png"
+  ]
+}

@@ -1,0 +1,6 @@
+[ok] 01 launch clear_data=True
+[ok] 02 shell cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[skip] 03 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[FAIL] 04 wait_for text='Antigravity on Android' element not found within 20s: text='Antigravity on Android'
+
+Result: FAILED — 4 steps, 2 screenshots, 0 crashes

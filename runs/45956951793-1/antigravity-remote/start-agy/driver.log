@@ -1,0 +1,11 @@
+[ok] 01 launch clear_data=True
+[ok] 02 shell cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[skip] 03 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[ok] 04 shell cmd='run-as com.londkirs.antigravityremote sh -c \'mkdir -p files/bin && echo "#!/system/bin/sh" > files/bin/agy && echo "echo STAND-IN-AGY started; pwd; echo BROWSER=\\$BROWSER; exit 0" >> files/bin/agy && chmod 700 files/bin/agy && echo test-stand-in > files/agy.version && cat files/bin/agy\'', expect='STAND-IN-AGY'
+[ok] 05 back
+[ok] 06 launch
+[ok] 07 shell cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True
+[skip] 08 tap regex='^Allow$' element not found within 3s: regex='^Allow$'
+[FAIL] 09 wait_for text='Start Antigravity' element not found within 20s: text='Start Antigravity'
+
+Result: FAILED — 9 steps, 2 screenshots, 0 crashes

@@ -1,0 +1,60 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 35.7,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 3.55,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "shell",
+      "detail": "cmd='pm grant com.londkirs.antigravityremote android.permission.POST_NOTIFICATIONS', ignore_errors=True",
+      "status": "passed",
+      "seconds": 0.12,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "tap",
+      "detail": "regex='^Allow$'",
+      "status": "skipped",
+      "seconds": 5.03,
+      "error": "element not found within 3s: regex='^Allow$'",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait_for",
+      "detail": "text='Antigravity on Android'",
+      "status": "failed",
+      "seconds": 21.9,
+      "error": "element not found within 20s: text='Antigravity on Android'",
+      "screenshot": "screenshots/001-step4-wait_for-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-step4-wait_for-FAILED.png",
+    "002-final.png"
+  ]
+}
