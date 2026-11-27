@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">אנטיגרוויטי</string>
     <string name="main_title">אנטיגרוויטי באנדרואיד</string>
-    <string name="main_subtitle">אנטיגרוויטי רץ על המחשב שלך. האפליקציה מתחברת אליו מהטלפון: צפייה בסוכנים, שליחת הנחיות ואישור צעדים.</string>
+    <string name="main_subtitle">הרצת סוכן Antigravity ‏(agy) ישירות בטלפון, או חיבור ל־Antigravity שרץ על המחשב שלך.</string>
     <string name="connections">חיבורים</string>
     <string name="add_connection">+ הוספת חיבור</string>
     <string name="paste_link">הדבקת קישור לסשן</string>
@@ -37,5 +37,45 @@
     <string name="mic_denied">הרשאת המיקרופון נדחתה</string>
     <string name="no_browser">לא נמצא דפדפן</string>
     <string name="guide_title">איך מתחברים</string>
-    <string name="guide_body">אפשרות 1: Remote Control הרשמי (מומלץ)\n\n1. במחשב, פותחים את Antigravity ← Settings (‏Ctrl+, או Cmd+,).\n2. מפעילים את \"Enable Remote Control\" (בלשונית Application או Account, לפי הגרסה). ב־CLI: ‏agy --remote-control, או ‎/remote-control בתוך סשן.\n3. המחשב צריך להישאר דולק ו־Antigravity פתוח.\n4. באפליקציה לוחצים על \"Antigravity Remote Control (רשמי)\" ומתחברים עם אותו חשבון Google.\n5. בוחרים את המחשב שלך ברשימת המופעים.\n\nטיפ: כש־Antigravity מציג קוד QR של \"Open in Remote Control\", סורקים אותו במצלמת הטלפון והקישור נפתח באפליקציה.\n\nאם Google מסרב להתחבר בתוך האפליקציה, לוחצים על הכפתור \"Chrome\". ההתחברות דרך Chrome תמיד עובדת.\n\nאפשרות 2: גשר משלך\nכל כתובת אינטרנט שחושפת את המחשב שלך תעבוד: code-server, שולחן עבודה מרוחק noVNC, גשר מובייל בקוד פתוח ל־Antigravity, או מנהרת Cloudflare / Tailscale. לוחצים על \"הוספת חיבור\" ומזינים את הכתובת.\n\nלתשומת לבך: אי אפשר להריץ את Antigravity ישירות על אנדרואיד. הסוכנים תמיד רצים על המחשב שלך.</string>
+    <string name="guide_body">בטלפון הזה (ישירות)\n\n1. לוחצים על \"התקנת agy\". האפליקציה מורידה את גרסת האנדרואיד הרשמית של Antigravity CLI מבית Google ומאמתת את חתימת ה־SHA-512 שלה.\n2. לוחצים על \"הפעלת Antigravity\". ‏agy נפתח בטרמינל המובנה בתיקייה ‎~/projects.\n3. התחברות: agy פותח את ההתחברות של Google ב־Chrome. אחרי האישור, Chrome מחזיר אוטומטית ל־agy. אם לא נפתח כלום, לוחצים על \"פתיחה\" בפס הכחול.\n4. הסוכנים ממשיכים לרוץ ברקע (רואים זאת בהתראה). בתפריט אפשר לפתוח עוד סשנים או מסוף רגיל.\n\nדרוש טלפון ARM של 64 ביט. עורך הקוד הגרפי לא רץ על אנדרואיד, רק ה־CLI של הסוכן.\n\nאפשרות 1: Remote Control הרשמי (מומלץ)\n\n1. במחשב, פותחים את Antigravity ← Settings (‏Ctrl+, או Cmd+,).\n2. מפעילים את \"Enable Remote Control\" (בלשונית Application או Account, לפי הגרסה). ב־CLI: ‏agy --remote-control, או ‎/remote-control בתוך סשן.\n3. המחשב צריך להישאר דולק ו־Antigravity פתוח.\n4. באפליקציה לוחצים על \"Antigravity Remote Control (רשמי)\" ומתחברים עם אותו חשבון Google.\n5. בוחרים את המחשב שלך ברשימת המופעים.\n\nטיפ: כש־Antigravity מציג קוד QR של \"Open in Remote Control\", סורקים אותו במצלמת הטלפון והקישור נפתח באפליקציה.\n\nאם Google מסרב להתחבר בתוך האפליקציה, לוחצים על הכפתור \"Chrome\". ההתחברות דרך Chrome תמיד עובדת.\n\nאפשרות 2: גשר משלך\nכל כתובת אינטרנט שחושפת את המחשב שלך תעבוד: code-server, שולחן עבודה מרוחק noVNC, גשר מובייל בקוד פתוח ל־Antigravity, או מנהרת Cloudflare / Tailscale. לוחצים על \"הוספת חיבור\" ומזינים את הכתובת.\n\nב־Remote Control הסוכנים רצים על המחשב שלך.</string>
+    <string name="local_section">בטלפון הזה</string>
+    <string name="remote_section">מרחוק: מחשב שמריץ Antigravity</string>
+    <string name="local_title">Antigravity CLI ‏(agy) בטלפון הזה</string>
+    <string name="local_unsupported">המכשיר הזה אינו ARM של 64 ביט (arm64-v8a). גרסת האנדרואיד של agy מבית Google דורשת arm64.</string>
+    <string name="local_installed">מותקן: גרסה %1$s. הסוכנים רצים כאן בטלפון.</string>
+    <string name="local_not_installed">מוריד את גרסת האנדרואיד הרשמית של agy מבית Google (כ־65MB) ומריץ אותה ישירות בטרמינל מובנה.</string>
+    <string name="start_agy">הפעלת Antigravity</string>
+    <string name="shell">מסוף</string>
+    <string name="update">עדכון</string>
+    <string name="install_agy">התקנת agy</string>
+    <string name="installing">מתקין את Antigravity CLI</string>
+    <string name="stage_manifest">בודק מה הגרסה האחרונה…</string>
+    <string name="stage_download">מוריד… %1$d / %2$d MB</string>
+    <string name="stage_verify">מאמת חתימת SHA-512…</string>
+    <string name="stage_extract">מחלץ…</string>
+    <string name="install_done">Antigravity CLI %1$s מוכן</string>
+    <string name="install_failed">ההתקנה נכשלה</string>
+    <string name="notif_channel">סוכנים פעילים</string>
+    <string name="notif_title">Antigravity פועל</string>
+    <string name="notif_signin">לחיצה להשלמת ההתחברות</string>
+    <string name="stop_all">עצירת הכול</string>
+    <string name="open_link">פתיחה</string>
+    <string name="signin_link_found">זוהה קישור התחברות של Google</string>
+    <string name="finished">הסתיים</string>
+    <string name="paste">הדבקה</string>
+    <string name="keyboard">מקלדת</string>
+    <string name="new_agy">סשן Antigravity חדש</string>
+    <string name="new_shell">מסוף חדש</string>
+    <string name="switch_session">הסשן הבא</string>
+    <string name="font_bigger">טקסט גדול יותר</string>
+    <string name="font_smaller">טקסט קטן יותר</string>
+    <string name="close_session">סגירת הסשן הזה</string>
+    <string name="close_session_confirm">לסגור את הסשן? כל מה שרץ בו ייעצר.</string>
+    <string name="stop_all_confirm">לעצור את כל הסשנים והסוכנים?</string>
+    <plurals name="notif_sessions">
+        <item quantity="one">סשן אחד</item>
+        <item quantity="two">%1$d סשנים</item>
+        <item quantity="many">%1$d סשנים</item>
+        <item quantity="other">%1$d סשנים</item>
+    </plurals>
 </resources>

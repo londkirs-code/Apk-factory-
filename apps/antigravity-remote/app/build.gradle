@@ -9,9 +9,12 @@ android {
     defaultConfig {
         applicationId 'com.londkirs.antigravityremote'
         minSdk 24
-        targetSdk 34
+        // Like Termux: API 29+ forbids executing files from app storage (W^X), and agy is
+        // downloaded at runtime from Google, so the app must target API 28.
+        targetSdk 28
         versionCode 2
-        versionName '1.0'
+        versionName '2.0'
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -21,6 +24,13 @@ android {
         jvmTarget = '17'
     }
     buildTypes { release { minifyEnabled false } }
+    packagingOptions { jniLibs { useLegacyPackaging true } }
+}
+
+dependencies {
+    // Termux terminal emulator + view (Apache-2.0): PTY, VT100/xterm emulation and rendering.
+    implementation 'com.github.termux.termux-app:terminal-view:v0.118.1'
+    implementation 'com.github.termux.termux-app:terminal-emulator:v0.118.1'
 }
 
 // Keep the same APK Factory signing key used by the other applications.

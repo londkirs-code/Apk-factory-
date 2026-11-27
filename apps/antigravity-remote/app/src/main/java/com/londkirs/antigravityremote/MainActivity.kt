@@ -25,6 +25,7 @@ import java.util.UUID
 class MainActivity : Activity() {
 
     private lateinit var listBox: LinearLayout
+    private lateinit var localBox: LinearLayout
     private val textColor = Color.parseColor("#E8EAF6")
     private val mutedColor = Color.parseColor("#9AA3C7")
     private val cardColor = Color.parseColor("#1A1F36")
@@ -51,20 +52,18 @@ class MainActivity : Activity() {
             setPadding(0, dp(6), 0, dp(18))
         })
 
+        root.addView(sectionLabel(R.string.local_section))
+        localBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(localBox)
+
+        root.addView(sectionLabel(R.string.remote_section))
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         actions.addView(pillButton(getString(R.string.paste_link)) { pasteLink() }, weighted())
         actions.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
         actions.addView(pillButton(getString(R.string.setup_guide)) { showGuide() }, weighted())
         root.addView(actions)
 
-        root.addView(TextView(this).apply {
-            setText(R.string.connections)
-            textSize = 13f
-            setTextColor(mutedColor)
-            setTypeface(typeface, Typeface.BOLD)
-            setPadding(dp(4), dp(22), 0, dp(8))
-        })
-        listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, 0) }
         root.addView(listBox)
         root.addView(pillButton(getString(R.string.add_connection)) { editConnection(null) }.apply {
             (layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(8)
@@ -76,6 +75,119 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         render()
+        renderLocal()
+    }
+
+    private fun sectionLabel(res: Int) = TextView(this).apply {
+        setText(res)
+        textSize = 13f
+        setTextColor(mutedColor)
+        setTypeface(typeface, Typeface.BOLD)
+        setPadding(dp(4), dp(18), 0, dp(8))
+    }
+
+    // ---- Run Antigravity on this phone ------------------------------------------------------------
+
+    private fun renderLocal() {
+        localBox.removeAllViews()
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(cardColor)
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+        }
+        card.addView(TextView(this).apply {
+            setText(R.string.local_title)
+            textSize = 17f
+            setTextColor(textColor)
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        val supported = AgyInstaller.isSupportedDevice()
+        val installed = AgyInstaller.isInstalled(this)
+        val status = when {
+            !supported -> getString(R.string.local_unsupported)
+            installed -> getString(R.string.local_installed, AgyInstaller.installedVersion(this) ?: "?")
+            else -> getString(R.string.local_not_installed)
+        }
+        card.addView(TextView(this).apply {
+            text = status
+            textSize = 13f
+            setTextColor(mutedColor)
+            setPadding(0, dp(4), 0, 0)
+        })
+        if (supported) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(10), 0, 0)
+            }
+            val gap = { LinearLayout.LayoutParams(dp(8), 1) }
+            if (installed) {
+                row.addView(smallButton(getString(R.string.start_agy), true) { openTerminal(TerminalService.KIND_AGY) })
+                row.addView(View(this), gap())
+                row.addView(smallButton(getString(R.string.shell), false) { openTerminal(TerminalService.KIND_SHELL) })
+                row.addView(View(this), gap())
+                row.addView(smallButton(getString(R.string.update), false) { install() })
+            } else {
+                row.addView(smallButton(getString(R.string.install_agy), true) { install() })
+            }
+            card.addView(row)
+        }
+        localBox.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun openTerminal(kind: String?) {
+        startActivity(Intent(this, TerminalActivity::class.java).apply { kind?.let { putExtra(TerminalActivity.EXTRA_NEW, it) } })
+    }
+
+    private fun install() {
+        val bar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1000 }
+        val label = TextView(this).apply { setText(R.string.stage_manifest); setPadding(0, 0, 0, dp(8)) }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(16), dp(24), dp(8))
+            addView(label); addView(bar)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.installing)
+            .setView(box)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+        val main = android.os.Handler(mainLooper)
+        Thread {
+            try {
+                val release = AgyInstaller.install(this) { stage, done, total ->
+                    main.post {
+                        when (stage) {
+                            AgyInstaller.STAGE_MANIFEST -> { label.setText(R.string.stage_manifest); bar.isIndeterminate = true }
+                            AgyInstaller.STAGE_DOWNLOAD -> {
+                                label.text = getString(R.string.stage_download, done / 1048576, if (total > 0) total / 1048576 else 0)
+                                bar.isIndeterminate = total <= 0
+                                if (total > 0) bar.progress = (done * 1000 / total).toInt()
+                            }
+                            AgyInstaller.STAGE_VERIFY -> { label.setText(R.string.stage_verify); bar.isIndeterminate = true }
+                            AgyInstaller.STAGE_EXTRACT -> { label.setText(R.string.stage_extract); bar.isIndeterminate = true }
+                        }
+                    }
+                }
+                main.post {
+                    dialog.dismiss()
+                    renderLocal()
+                    Toast.makeText(this, getString(R.string.install_done, release.version), Toast.LENGTH_LONG).show()
+                    openTerminal(TerminalService.KIND_AGY)
+                }
+            } catch (e: Exception) {
+                main.post {
+                    dialog.dismiss()
+                    renderLocal()
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.install_failed)
+                        .setMessage(e.message ?: e.toString())
+                        .setPositiveButton(R.string.close, null)
+                        .show()
+                }
+            }
+        }.start()
     }
 
     private fun weighted() = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)

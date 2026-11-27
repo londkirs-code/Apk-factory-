@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Antigravity Remote</string>
     <string name="main_title">Antigravity on Android</string>
-    <string name="main_subtitle">Antigravity runs on your computer. This app connects to it from your phone: watch agents, send prompts, approve steps.</string>
+    <string name="main_subtitle">Run the Antigravity agent (agy) right on this phone, or connect to Antigravity running on your computer.</string>
     <string name="connections">Connections</string>
     <string name="add_connection">+ Add connection</string>
     <string name="paste_link">Paste session link</string>
@@ -37,5 +37,43 @@
     <string name="mic_denied">Microphone permission denied</string>
     <string name="no_browser">No browser found</string>
     <string name="guide_title">How to connect</string>
-    <string name="guide_body">OPTION 1: Official Remote Control (recommended)\n\n1. On your computer, open Antigravity → Settings (Ctrl+, / Cmd+,).\n2. Turn on \"Enable Remote Control\" (Application or Account section, depending on the version). In the CLI: agy --remote-control, or /remote-control inside a session.\n3. Keep the computer awake and Antigravity open.\n4. In this app tap \"Antigravity Remote Control (official)\" and sign in with the SAME Google account.\n5. Pick your computer in the instance switcher.\n\nTip: When Antigravity shows an \"Open in Remote Control\" QR code, scan it with the phone camera. The link opens in this app.\n\nIf Google refuses to sign in inside the app, use the \"Chrome\" button. Sign-in inside Chrome always works.\n\nOPTION 2: Your own bridge\nAny web address that exposes your computer works: code-server, a noVNC remote desktop, an open-source Antigravity mobile bridge, or a Cloudflare / Tailscale tunnel. Tap \"Add connection\" and enter its address.\n\nNote: Antigravity cannot run natively on Android. The agents always run on your computer.</string>
+    <string name="guide_body">ON THIS PHONE (native)\n\n1. Tap \"Install agy\". The app downloads Google\'s official Android build of the Antigravity CLI and checks its SHA-512 checksum.\n2. Tap \"Start Antigravity\". agy starts in the built-in terminal in ~/projects.\n3. Sign in: agy opens Google sign-in in Chrome. After you approve, Chrome returns to agy automatically. If nothing opens, tap \"Open\" on the blue banner.\n4. Agents keep running in the background (see the notification). Use the menu for more sessions or a plain shell.\n\nNeeds a 64-bit ARM phone. The desktop editor (GUI) does not run on Android, only the agent CLI.\n\nOPTION 1: Official Remote Control (recommended)\n\n1. On your computer, open Antigravity → Settings (Ctrl+, / Cmd+,).\n2. Turn on \"Enable Remote Control\" (Application or Account section, depending on the version). In the CLI: agy --remote-control, or /remote-control inside a session.\n3. Keep the computer awake and Antigravity open.\n4. In this app tap \"Antigravity Remote Control (official)\" and sign in with the SAME Google account.\n5. Pick your computer in the instance switcher.\n\nTip: When Antigravity shows an \"Open in Remote Control\" QR code, scan it with the phone camera. The link opens in this app.\n\nIf Google refuses to sign in inside the app, use the \"Chrome\" button. Sign-in inside Chrome always works.\n\nOPTION 2: Your own bridge\nAny web address that exposes your computer works: code-server, a noVNC remote desktop, an open-source Antigravity mobile bridge, or a Cloudflare / Tailscale tunnel. Tap \"Add connection\" and enter its address.\n\nWith Remote Control the agents run on your computer.</string>
+    <string name="local_section">ON THIS PHONE</string>
+    <string name="remote_section">REMOTE: COMPUTER RUNNING ANTIGRAVITY</string>
+    <string name="local_title">Antigravity CLI (agy) on this phone</string>
+    <string name="local_unsupported">This device is not 64-bit ARM (arm64-v8a). Google\'s Android build of agy needs arm64.</string>
+    <string name="local_installed">Installed: version %1$s. Agents run right here on the phone.</string>
+    <string name="local_not_installed">Downloads Google\'s official Android build of agy (about 65 MB) and runs it natively in a built-in terminal.</string>
+    <string name="start_agy">Start Antigravity</string>
+    <string name="shell">Shell</string>
+    <string name="update">Update</string>
+    <string name="install_agy">Install agy</string>
+    <string name="installing">Installing Antigravity CLI</string>
+    <string name="stage_manifest">Checking the latest version…</string>
+    <string name="stage_download">Downloading… %1$d / %2$d MB</string>
+    <string name="stage_verify">Verifying SHA-512 checksum…</string>
+    <string name="stage_extract">Extracting…</string>
+    <string name="install_done">Antigravity CLI %1$s is ready</string>
+    <string name="install_failed">Installation failed</string>
+    <string name="notif_channel">Running agents</string>
+    <string name="notif_title">Antigravity is running</string>
+    <string name="notif_signin">Tap to finish signing in</string>
+    <string name="stop_all">Stop all</string>
+    <string name="open_link">Open</string>
+    <string name="signin_link_found">Google sign-in link detected</string>
+    <string name="finished">finished</string>
+    <string name="paste">Paste</string>
+    <string name="keyboard">Keyboard</string>
+    <string name="new_agy">New Antigravity session</string>
+    <string name="new_shell">New shell</string>
+    <string name="switch_session">Next session</string>
+    <string name="font_bigger">Bigger text</string>
+    <string name="font_smaller">Smaller text</string>
+    <string name="close_session">Close this session</string>
+    <string name="close_session_confirm">Close this session? Anything running in it will stop.</string>
+    <string name="stop_all_confirm">Stop all sessions and agents?</string>
+    <plurals name="notif_sessions">
+        <item quantity="one">%1$d session</item>
+        <item quantity="other">%1$d sessions</item>
+    </plurals>
 </resources>
