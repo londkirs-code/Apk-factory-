@@ -1,0 +1,15 @@
+[ok] 01 launch clear_data=True
+[skip] 02 tap text='Allow' element not found within 4s: text='Allow'
+[ok] 03 shell cmd='run-as com.londkirs.antigravityremote sh -c \'mkdir -p files/bin && echo "#!/system/bin/sh" > files/bin/agy && echo "echo STAND-IN-AGY started; pwd; echo BROWSER=\\$BROWSER; exit 0" >> files/bin/agy && chmod 700 files/bin/agy && echo test-stand-in > files/agy.version && cat files/bin/agy\'', expect='STAND-IN-AGY'
+[ok] 04 back
+[ok] 05 launch
+[skip] 06 tap text='Allow' element not found within 4s: text='Allow'
+[ok] 07 wait_for text='Start Antigravity'
+[ok] 08 screenshot name='home-installed'
+[ok] 09 tap text='Start Antigravity'
+[ok] 10 wait seconds=5
+[ok] 11 tap text='Allow'
+[ok] 12 screenshot name='agy-session'
+[FAIL] 13 assert_foreground  foreground app is com.google.android.permissioncontroller, expected com.londkirs.antigravityremote
+
+Result: FAILED — 13 steps, 4 screenshots, 0 crashes

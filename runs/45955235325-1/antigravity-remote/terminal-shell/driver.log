@@ -1,0 +1,11 @@
+[ok] 01 launch clear_data=True
+[skip] 02 tap text='Allow' element not found within 4s: text='Allow'
+[ok] 03 wait_for text='Antigravity on Android'
+[ok] 04 screenshot name='home'
+[ok] 05 tap text='Shell'
+[ok] 06 wait seconds=4
+[ok] 07 tap text='Allow'
+[ok] 08 screenshot name='terminal-opened'
+[FAIL] 09 assert_foreground  foreground app is com.google.android.permissioncontroller, expected com.londkirs.antigravityremote
+
+Result: FAILED — 9 steps, 4 screenshots, 0 crashes
