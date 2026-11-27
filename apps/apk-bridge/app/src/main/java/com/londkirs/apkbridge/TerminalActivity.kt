@@ -120,10 +120,14 @@ class TerminalActivity : BossActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(HEADER)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setPadding(0, dp(8), dp(6), dp(8))
         }
-        header.addView(iconButton("→") { finish() })
-        header.addView(iconButton("☰") { openDrawer() }.apply { contentDescription = tr("שיחות", "Chats") })
+        // Back, in the corner (right in Hebrew, left in English), pointing the way back.
+        header.addView(iconButton(tr("→", "←")) { finish() }.apply {
+            contentDescription = tr("חזרה", "Back")
+            textSize = 22f
+            setPadding(dp(12), dp(6), dp(6), dp(6))
+        })
         header.addView(TextView(this).apply {
             text = ">_"
             textSize = 16f
@@ -131,8 +135,16 @@ class TerminalActivity : BossActivity() {
             setTextColor(HEADER)
             gravity = Gravity.CENTER
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFFFFFFF.toInt()) }
-        }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(4); marginEnd = dp(10) })
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(2); marginEnd = dp(10) })
+        // Tapping the chat's name opens the chats (new chat, earlier chats).
+        val titles = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            isClickable = true
+            isFocusable = true
+            contentDescription = tr("שיחות", "Chats")
+            setOnClickListener { openDrawer() }
+            Compat.focusRing(this, HEADER_TEXT, 8f)
+        }
         titleView = TextView(this).apply {
             text = "ADB Terminal"
             textSize = 17f
@@ -287,9 +299,10 @@ class TerminalActivity : BossActivity() {
         addMessage(Message(false, now(), tr("שלום! כאן אפשר להריץ כל פקודת ADB.\n\n", "Hi! Here you can run any ADB command.\n\n") +
             tr("• הקלד פקודה ולחץ ➤ (אפשר גם \"adb shell …\").\n", "• Type a command and tap ➤ (\"adb shell …\" works too).\n") +
             tr("• קיצור: לחיצה מריצה מיד, לחיצה ארוכה מעבירה לעריכה.\n", "• Shortcut: tap runs it right away, long-press moves it to editing.\n") +
-            tr("• + מוסיף קיצור משלך, ⚙ עורך ומוחק.\n", "• + adds your own shortcut, ⚙ edits and deletes.\n") +
+            tr("• + מוסיף קיצור משלך. עריכה ומחיקה: בתפריט ⋮ ← עריכת קיצורים.\n", "• + adds your own shortcut. Edit and delete: ⋮ menu → Edit shortcuts.\n") +
             tr("• לחיצה על הודעה מעתיקה אותה. לחיצה ארוכה: הרצה שוב, עריכה, שיתוף, שמירה כקובץ ועוד.\n", "• Tap a message to copy it. Long-press: run again, edit, share, save as a file and more.\n") +
-            tr("• ☰ למעלה: כל השיחות, ושיחה חדשה.\n", "• ☰ at the top: all chats, and a new chat.\n") +
+            tr("• לחיצה על שם השיחה למעלה: כל השיחות, ושיחה חדשה.\n", "• Tap the chat name at the top: all chats, and a new chat.\n") +
+            tr("• לחיצה על קטגוריה פותחת את הקיצורים שלה, ולחיצה נוספת מקפלת אותם.\n", "• Tap a category to open its shortcuts; tap it again to fold them away.\n") +
             tr("• boss torch — פנס. בקטגוריות למטה: הקלטת מסך, נקודה חמה, התראה, תצוגה ועוד.\n\n", "• boss torch — flashlight. In the categories below: screen recording, hotspot, notification, display and more.\n\n") +
             tr("הפקודות רצות כמשתמש shell (לא root).", "Commands run as the shell user (not root).")))
     }
@@ -752,25 +765,26 @@ class TerminalActivity : BossActivity() {
 
     private fun rebuildChips() {
         groupChips.removeAllViews()
-        groupChips.addView(chip(tr("📋 הדבק", "📋 Paste"), accent = true).apply { setOnClickListener { pasteFromClipboard() } })
+        // Paste is in the input line and editing shortcuts in the ⋮ menu, so here only "+" and the categories.
         groupChips.addView(chip("+", accent = true).apply {
             contentDescription = tr("קיצור חדש", "New shortcut")
             setOnClickListener { addShortcut(input.text.toString().trim()) }
         })
-        groupChips.addView(chip("⚙", accent = true).apply {
-            contentDescription = tr("עריכת קיצורים", "Edit shortcuts")
-            setOnClickListener { manageShortcuts() }
-        })
         val selected = currentGroup()
+        val open = prefs().getBoolean("shortcuts_open", true)
+        // Tap a category: its shortcuts open below. Tap the open one again: they fold away (more room for the chat).
         for (g in groups()) {
-            groupChips.addView(chip(groupLabel(g), accent = false, selected = g == selected).apply {
+            val isOpen = open && g == selected
+            groupChips.addView(chip(groupLabel(g) + if (isOpen) " ▴" else "", accent = false, selected = isOpen).apply {
                 setOnClickListener {
-                    prefs().edit().putString("shortcut_group", g).apply()
+                    if (isOpen) prefs().edit().putBoolean("shortcuts_open", false).apply()
+                    else prefs().edit().putString("shortcut_group", g).putBoolean("shortcuts_open", true).apply()
                     rebuildChips()
                     chipsScroll.scrollTo(0, 0)
                 }
             })
         }
+        chipsScroll.visibility = if (open) View.VISIBLE else View.GONE
         chips.removeAllViews()
         for ((i, sc) in shortcutsInGroup().withIndex()) {
             // Keypad phones: the first nine shortcuts of the category also run with the number keys 1–9.
@@ -996,7 +1010,7 @@ class TerminalActivity : BossActivity() {
     private fun renderTitle() {
         if (!::titleView.isInitialized) return
         val chat = TerminalChats.list(this).firstOrNull { it.id == chatId }
-        titleView.text = chat?.title?.takeIf { it.isNotBlank() } ?: "ADB Terminal"
+        titleView.text = (chat?.title?.takeIf { it.isNotBlank() } ?: "ADB Terminal") + "  ▾"
     }
 
     private fun buildDrawer() = LinearLayout(this).apply {
