@@ -3,13 +3,15 @@
   "grant_permissions": true,
   "steps": [
     {"action": "launch", "clear_data": true},
-    {"action": "wait_for", "text": "Antigravity", "timeout": 20},
+    {"action": "tap", "text": "Wait", "optional": true},
+    {"action": "wait_for", "text": "Antigravity on Android", "timeout": 20},
     {"action": "screenshot", "name": "home"},
-    {"action": "shell", "cmd": "getprop ro.product.cpu.abilist; getprop ro.dalvik.vm.native.bridge; ls /proc/sys/fs/binfmt_misc/ 2>&1 | head", "ignore_errors": true},
     {"action": "tap", "text": "Shell"},
     {"action": "wait", "seconds": 4},
+    {"action": "tap", "text": "Wait", "optional": true},
     {"action": "screenshot", "name": "terminal-opened"},
-    {"action": "type", "value": "echo hello-from-terminal; uname -m; id", "enter": true},
+    {"action": "assert_foreground"},
+    {"action": "type", "value": "echo hello-from-terminal; id", "enter": true},
     {"action": "wait", "seconds": 2},
     {"action": "screenshot", "name": "terminal-command"},
     {"action": "assert_foreground"}
