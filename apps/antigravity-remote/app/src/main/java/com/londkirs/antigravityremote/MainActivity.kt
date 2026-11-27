@@ -480,4 +480,3 @@ object SpannableHelper {
 /** A chat's picture: its emoji, the Antigravity icon ("agy"), or its first letter on a palette colour. */
 fun chatAvatar(a: android.app.Activity, c: Chat, sizeDp: Int): View =
     if (c.emoji == "agy") Ui.agentAvatar(a, sizeDp) else Ui.avatar(a, c.name(a), c.id, sizeDp, c.emoji)
-
