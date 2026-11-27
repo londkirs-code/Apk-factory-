@@ -4,6 +4,11 @@
 1. **ישירות בטלפון:** הרצת סוכן Antigravity ‏(`agy`) בטרמינל מובנה.
 2. **מרחוק:** חיבור ל־Antigravity שרץ על המחשב.
 
+## צ'אט (מסך ראשי)
+- רשימת שיחות ומסך שיחה בסגנון WhatsApp. האפליקציה מפעילה ברקע את `agy --hub` (פורט 4400) ומדברת איתו ב־Connect-RPC JSON על ‏`/exa.language_server_pb.LanguageServerService/*`, עם טוקן CSRF שנקרא מדף הבית של ה־hub.
+- קריאות: ‏`StartCascade` (תיקיית עבודה `~/projects`), ‏`SendUserCascadeMessage` (פקודות רצות אוטומטית, EAGER), ‏`GetCascadeTrajectorySteps` (ריענון כל 1.2 שניות), ‏`HandleCascadeUserInteraction` (אישור ודחייה), ‏`CancelCascadeInvocation`, ‏`Login` ו־`GetAuthStatus`.
+- פרטי הפרוטוקול נלמדו מקוד פתוח של הקהילה (AntiGem, ‏RadnusD). המימוש כאן עצמאי ולא מעתיק קוד.
+
 ## הרצה ישירות בטלפון
 - Google מפרסמת גרסת Android רשמית של Antigravity CLI. זו הגרסה שה־`install.sh` הרשמי בוחר כשמריצים אותו ב־Termux (`uname -o` = Android, פלטפורמה `android_arm64`). זה קובץ ELF שנבנה ב־NDK ל־Android 24 ומעלה, עם `/system/bin/linker64`, והוא תלוי רק ב־`libc`/`libm`/`libdl`/`liblog` של המערכת. לכן לא צריך glibc, proot או את טלאי ה־VA39 שהקהילה השתמשה בו לפני שהגרסה הזו יצאה.
 - בלחיצה על "התקנת agy" האפליקציה קוראת את ה־manifest הרשמי (`…run.app/manifests/android_arm64.json`), מורידה את ה־tar.gz מ־`storage.googleapis.com`, מאמתת SHA-512 מול ה־manifest ומחלצת את `antigravity` אל `files/bin/agy`. הקובץ לא נכלל ב־APK ולא מופץ מחדש.

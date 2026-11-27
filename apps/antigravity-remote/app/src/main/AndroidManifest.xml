@@ -45,6 +45,15 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|smallestScreenSize|uiMode|density|navigation"
             android:windowSoftInputMode="adjustResize|stateAlwaysVisible" />
 
+        <!-- WhatsApp-style chat with agy running on the phone (via its local hub). -->
+        <activity
+            android:name=".ChatListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".TerminalService"
             android:exported="false" />

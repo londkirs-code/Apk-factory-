@@ -35,6 +35,12 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Launcher opens the chats directly once agy is installed; this screen stays reachable from the chat menu.
+        if (savedInstanceState == null && intent?.action == Intent.ACTION_MAIN && AgyInstaller.isInstalled(this)) {
+            startActivity(Intent(this, ChatListActivity::class.java))
+            finish()
+            return
+        }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(28), dp(20), dp(20))
@@ -122,9 +128,11 @@ class MainActivity : Activity() {
         }
         val gap = { LinearLayout.LayoutParams(dp(8), 1) }
         if (installed) {
-            row.addView(smallButton(getString(R.string.start_agy), true) { openTerminal(TerminalService.KIND_AGY) })
+            row.addView(smallButton(getString(R.string.chat), true) { startActivity(Intent(this, ChatListActivity::class.java)) })
             row.addView(View(this), gap())
-            row.addView(smallButton(getString(R.string.visual_ui), true) { startHub() })
+            row.addView(smallButton(getString(R.string.start_agy), false) { openTerminal(TerminalService.KIND_AGY) })
+            row.addView(View(this), gap())
+            row.addView(smallButton(getString(R.string.visual_ui), false) { startHub() })
             row.addView(View(this), gap())
         } else if (supported) {
             row.addView(smallButton(getString(R.string.install_agy), true) { install() })
@@ -148,55 +156,16 @@ class MainActivity : Activity() {
         val label = TextView(this).apply { setText(R.string.hub_starting); setPadding(dp(24), dp(16), dp(24), dp(8)) }
         val dialog = AlertDialog.Builder(this).setView(label).setCancelable(false).create()
         dialog.show()
-        val main = android.os.Handler(mainLooper)
-        val conn = object : android.content.ServiceConnection {
-            override fun onServiceDisconnected(name: android.content.ComponentName?) {}
-            override fun onServiceConnected(name: android.content.ComponentName?, binder: android.os.IBinder?) {
-                val svc = (binder as TerminalService.LocalBinder).service
-                val conn = this
-                Thread {
-                    if (!hubAlive()) {
-                        val session = svc.hubSession() ?: run {
-                            val latch = java.util.concurrent.CountDownLatch(1)
-                            var created: com.termux.terminal.TerminalSession? = null
-                            main.post { created = svc.startHub(); latch.countDown() }
-                            latch.await()
-                            created!!
-                        }
-                        // The PTY process only starts once a terminal has a size; give it one.
-                        main.post { session.updateSize(100, 40) }
-                    }
-                    var ok = false
-                    for (i in 0 until 120) { // up to ~60 s
-                        if (hubAlive()) { ok = true; break }
-                        if (svc.hubSession() == null && i > 4) break
-                        Thread.sleep(500)
-                    }
-                    main.post {
-                        dialog.dismiss()
-                        runCatching { unbindService(conn) }
-                        if (ok) {
-                            startActivity(Intent(this@MainActivity, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.HUB_URL))
-                        } else {
-                            Toast.makeText(this@MainActivity, R.string.hub_failed, Toast.LENGTH_LONG).show()
-                            openTerminal(null)
-                        }
-                    }
-                }.start()
+        HubClient.ensureRunning(this) { ok ->
+            dialog.dismiss()
+            if (ok) {
+                startActivity(Intent(this, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.HUB_URL))
+            } else {
+                Toast.makeText(this, R.string.hub_failed, Toast.LENGTH_LONG).show()
+                openTerminal(null)
             }
         }
-        val intent = Intent(this, TerminalService::class.java)
-        startService(intent)
-        bindService(intent, conn, android.content.Context.BIND_AUTO_CREATE)
     }
-
-    private fun hubAlive(): Boolean = try {
-        val c = java.net.URL(TerminalService.HUB_URL).openConnection() as java.net.HttpURLConnection
-        c.connectTimeout = 800; c.readTimeout = 800
-        val code = c.responseCode
-        c.disconnect()
-        code in 100..599
-    } catch (e: Exception) { false }
 
     private fun install() {
         val bar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1000 }
@@ -233,7 +202,7 @@ class MainActivity : Activity() {
                     dialog.dismiss()
                     renderLocal()
                     Toast.makeText(this, getString(R.string.install_done, release.version), Toast.LENGTH_LONG).show()
-                    openTerminal(TerminalService.KIND_AGY)
+                    startActivity(Intent(this, ChatListActivity::class.java))
                 }
             } catch (e: Exception) {
                 main.post {
