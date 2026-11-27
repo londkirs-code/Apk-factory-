@@ -388,6 +388,20 @@ class GuideActivity : BossActivity() {
     }
 
     private fun faq() {
+        // Each answer comes with buttons that open exactly the screen it talks about.
+        val about = tr("ℹ פתח את אודות הטלפון", "ℹ Open About phone") to { openSettings(Settings.ACTION_DEVICE_INFO_SETTINGS) }
+        val dev = tr("🛠 פתח אפשרויות למפתחים", "🛠 Open Developer options") to { openDeveloperOptions() }
+        val wireless = tr("📡 פתח את ניפוי באגים אלחוטי", "📡 Open Wireless debugging") to { openDeveloperOptions(KEY_WIRELESS) }
+        val actionsFor = listOf(
+            listOf(about),
+            listOf(dev, tr("💻 למדריך עם מחשב", "💻 To the computer guide") to { part = Part.COMPUTER; index = 0; render() }),
+            listOf(wireless, tr("📶 הגדרות Wi‑Fi", "📶 Wi‑Fi settings") to { openSettings(Settings.ACTION_WIFI_SETTINGS) }),
+            listOf(dev),
+            listOf(dev),
+            listOf(tr("ℹ פרטי האפליקציה", "ℹ App info") to { openAppDetails() }, tr("♿ הגדרות נגישות", "♿ Accessibility settings") to { openAccessibility() }),
+            listOf(wireless, tr("⚙ הגדרות הבוס", "⚙ The Boss settings") to { startActivity(Intent(this, SettingsActivity::class.java)) },
+                tr("📋 העתק יומן", "📋 Copy log") to { copy(Bridge.logSnapshot()) }),
+        )
         val items = listOf(
             tr("לחצתי 7 פעמים ולא קרה כלום.", "I tapped 7 times and nothing happened.") to
                 tr("בודקים שלוחצים על השורה הנכונה: **מספר Build** (בשיאומי: **גרסת MIUI** או **גרסת OS**). אם הופיעה ההודעה **אתה כבר מפתח** — הכול בסדר, ממשיכים.", "Make sure you tap the right line: **Build number** (on Xiaomi: **MIUI version** or **OS version**). If the message **You are already a developer** appeared — all good, carry on."),
@@ -407,7 +421,8 @@ class GuideActivity : BossActivity() {
                 tr("3. מתחילים שוב את המדריך משלב 5.\n", "3. Start the guide again from step 5.\n") +
                 tr("4. עדיין לא עובד? לוחצים כאן **העתק יומן** ושולחים אותו לתמיכה.", "4. Still not working? Tap **Copy log** here and send it to support."),
         )
-        for ((q, a) in items) {
+        for ((n, qa) in items.withIndex()) {
+            val (q, a) = qa
             val card = card()
             card.addView(TextView(this).apply {
                 text = q
@@ -415,12 +430,9 @@ class GuideActivity : BossActivity() {
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(INK)
             }, wrap(6))
-            card.addView(bodyText(a), wrap(0))
+            card.addView(bodyText(a), wrap(8))
+            actionsFor.getOrNull(n)?.forEach { (label, action) -> card.addView(bigButton(label, primary = false) { action() }, wrap(6)) }
         }
-        val tools = card()
-        tools.addView(bigButton(tr("פתח אפשרויות למפתחים", "Open Developer options"), primary = false) { openDeveloperOptions() }, wrap(8))
-        tools.addView(bigButton(tr("פרטי האפליקציה (הגדרות מוגבלות)", "App info (restricted settings)"), primary = false) { openAppDetails() }, wrap(8))
-        tools.addView(bigButton(tr("העתק יומן", "Copy log"), primary = false) { copy(Bridge.logSnapshot()) }, wrap(0))
     }
 
     // endregion
@@ -455,7 +467,11 @@ class GuideActivity : BossActivity() {
             body = tr("זו תיקייה נסתרת בהגדרות. צריך לגלות אותה פעם אחת.\n\n$mine", "It's a hidden folder in Settings. You need to reveal it once.\n\n$mine"),
             otherPhones = other,
             tip = tr("הכפתור למטה פותח את מסך אודות הטלפון. אחרי שזה נעשה — הכפתור השני קופץ ישר לאפשרויות למפתחים.", "The button below opens the About phone screen. Once that's done — the second button jumps straight to Developer options."),
-            actions = listOf(tr("פתח את אודות הטלפון", "Open About phone") to { openSettings(Settings.ACTION_DEVICE_INFO_SETTINGS) }),
+            actions = listOf(
+                tr("ℹ פתח את אודות הטלפון", "ℹ Open About phone") to { openSettings(Settings.ACTION_DEVICE_INFO_SETTINGS) },
+                tr("🛠 פתח אפשרויות למפתחים", "🛠 Open Developer options") to { openDeveloperOptions() },
+                tr("⚙ פתח את ההגדרות", "⚙ Open Settings") to { openSettings(Settings.ACTION_SETTINGS) },
+            ),
             check = { Settings.Global.getInt(contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1 },
             okText = tr("אפשרויות למפתחים פתוחות!", "Developer options are unlocked!"),
         )
@@ -473,7 +489,10 @@ class GuideActivity : BossActivity() {
             title = tr("לוודא שיש Wi‑Fi", "Make sure there's Wi‑Fi"),
             body = tr("• הטלפון צריך להיות מחובר לרשת **Wi‑Fi** (סמל המניפה למעלה).\n", "• The phone must be connected to a **Wi‑Fi** network (the fan icon at the top).\n") +
                 tr("• **לא צריך אינטרנט** — מספיק להיות מחוברים לרשת, למשל של הבית או העבודה.", "• **No internet needed** — being connected to a network is enough, e.g. at home or at work."),
-            actions = listOf(tr("פתח הגדרות Wi‑Fi", "Open Wi‑Fi settings") to { tryStart(Compat.wifiPanelIntent()) }),
+            actions = listOf(
+                tr("📶 פתח את חלונית ה־Wi‑Fi", "📶 Open the Wi‑Fi panel") to { tryStart(Compat.wifiPanelIntent()) },
+                tr("⚙ כל הגדרות ה־Wi‑Fi", "⚙ All Wi‑Fi settings") to { openSettings(Settings.ACTION_WIFI_SETTINGS) },
+            ),
             check = { Bridge.isOnWifi() },
             okText = tr("מחובר ל־Wi‑Fi!", "Connected to Wi‑Fi!"),
         ),
@@ -483,7 +502,9 @@ class GuideActivity : BossActivity() {
                 tr("2. גוללים למטה עד **ניפוי באגים אלחוטי**.\n", "2. Scroll down to **Wireless debugging**.\n") +
                 tr("3. מדליקים את המתג לידו.\n", "3. Turn on the switch next to it.\n") +
                 tr("4. מופיעה שאלה אם לאפשר ברשת הזו — לוחצים **אישור** (או **אפשר**).", "4. When asked whether to allow on this network — tap **Allow** (or **OK**)."),
-            actions = listOf(tr("פתח אפשרויות למפתחים", "Open Developer options") to { openDeveloperOptions() }),
+            actions = listOf(
+                tr("📡 פתח ישר את ניפוי באגים אלחוטי", "📡 Go straight to Wireless debugging") to { openDeveloperOptions(KEY_WIRELESS) },
+            ),
             check = { Bridge.isWirelessDebuggingOn() == true },
             okText = tr("ניפוי באגים אלחוטי דולק!", "Wireless debugging is on!"),
         ),
@@ -495,8 +516,8 @@ class GuideActivity : BossActivity() {
                 tr("4. מדליקים את המתג ומאשרים.", "4. Turn on the switch and confirm."),
             warn = tr("אם המתג אפור ולא נלחץ (נפוץ באנדרואיד 13 ומעלה): הגדרות ← **אפליקציות** ← **הבוס** ← **שלוש הנקודות ⋮** למעלה ← **אפשר הגדרות מוגבלות**. אחר כך חוזרים לכאן ומנסים שוב.", "If the switch is grey and can't be tapped (common on Android 13 and up): Settings → **Apps** → **The Boss** → **three dots ⋮** at the top → **Allow restricted settings**. Then come back here and try again."),
             actions = listOf(
-                tr("הפעל צימוד אוטומטי", "Turn on automatic pairing") to { openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
-                tr("פרטי האפליקציה (אם המתג אפור)", "App info (if the switch is grey)") to { openAppDetails() },
+                tr("♿ הפעל צימוד אוטומטי (נגישות)", "♿ Turn on automatic pairing (Accessibility)") to { openAccessibility() },
+                tr("ℹ פרטי האפליקציה (אם המתג אפור)", "ℹ App info (if the switch is grey)") to { openAppDetails() },
             ),
             check = { PairingAccessibilityService.isEnabled(this) },
             okText = tr("הצימוד האוטומטי פעיל!", "Automatic pairing is on!"),
@@ -511,8 +532,8 @@ class GuideActivity : BossActivity() {
                 tr("6. מופיעה הודעה **הבוס צומד בהצלחה** — ומטר קונפטי 🎉", "6. The message **The Boss is paired** appears — and a shower of confetti 🎉"),
             tip = tr("אם לא הדלקת צימוד אוטומטי: לוחצים כאן **צימוד עם קוד דרך התראה**, נכנסים ל**התאמת מכשיר עם קוד התאמה**, מושכים את ההתראות מלמעלה ← **הזן קוד** ← מקלידים את 6 הספרות. לא סוגרים את חלון הקוד בזמן הזה.", "If you didn't turn on automatic pairing: tap **Pair with code via notification** here, go into **Pair device with pairing code**, pull down the notifications → **Enter code** → type the 6 digits. Don't close the code window meanwhile."),
             actions = listOf(
-                tr("פתח אפשרויות למפתחים", "Open Developer options") to { openDeveloperOptions() },
-                tr("צימוד עם קוד דרך התראה", "Pair with code via notification") to { notificationPairing() },
+                tr("📡 פתח ישר את ניפוי באגים אלחוטי", "📡 Go straight to Wireless debugging") to { openDeveloperOptions(KEY_WIRELESS) },
+                tr("🔔 צימוד עם קוד דרך התראה", "🔔 Pair with code via notification") to { notificationPairing() },
             ),
             check = { Bridge.isPaired },
             okText = tr("הצימוד הצליח!", "Paired successfully!"),
@@ -544,7 +565,7 @@ class GuideActivity : BossActivity() {
             title = tr("להדליק ניפוי באגים ב־USB", "Turn on USB debugging"),
             body = tr("1. פותחים את **אפשרויות למפתחים**.\n   ${devOptionsLocation()}\n", "1. Open **Developer options**.\n   ${devOptionsLocation()}\n") +
                 tr("2. מוצאים **ניפוי באגים ב־USB** ומדליקים.\n3. לוחצים **אישור**.", "2. Find **USB debugging** and turn it on.\n3. Tap **OK**."),
-            actions = listOf(tr("פתח אפשרויות למפתחים", "Open Developer options") to { openDeveloperOptions() }),
+            actions = listOf(tr("🔌 פתח ישר את ניפוי באגים ב־USB", "🔌 Go straight to USB debugging") to { openDeveloperOptions(KEY_USB) }),
             check = { Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1 },
             okText = tr("ניפוי באגים ב־USB דולק!", "USB debugging is on!"),
         ),
@@ -558,6 +579,9 @@ class GuideActivity : BossActivity() {
                 tr("6. נוצרת תיקייה בשם **platform-tools**.", "6. A folder named **platform-tools** is created."),
             tip = tr("לחיצה על **שתף** שולחת את הכתובת למחשב — למשל בוואטסאפ ווב או במייל — כדי לא להקליד אותה.", "Tapping **Share** sends the address to the computer — e.g. via WhatsApp Web or email — so you don't have to type it."),
             copies = listOf(tr("כתובת ההורדה", "Download address") to "https://developer.android.com/tools/releases/platform-tools"),
+            actions = listOf(tr("🌐 פתח את הדף בטלפון", "🌐 Open the page on the phone") to {
+                tryStart(Intent(Intent.ACTION_VIEW, Uri.parse("https://developer.android.com/tools/releases/platform-tools")))
+            }),
         ),
         Step(
             title = tr("לפתוח את חלון הפקודות במחשב", "Open the command window on the computer"),
@@ -600,11 +624,32 @@ class GuideActivity : BossActivity() {
 
     // region actions
 
-    private fun openDeveloperOptions() {
-        if (!tryStart(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))) {
-            Toast.makeText(this, tr("אפשרויות למפתחים עדיין סגורות — פתח אותן קודם (שלב 1).", "Developer options are still locked — unlock them first (step 1)."), Toast.LENGTH_LONG).show()
+    /**
+     * Developer options; with [highlight], the screen scrolls to that setting and marks it (as when
+     * it is found through the Settings search). While Developer options are still locked, About phone
+     * opens instead (where they are unlocked).
+     */
+    private fun openDeveloperOptions(highlight: String? = null) {
+        val unlocked = Settings.Global.getInt(contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1
+        if (!unlocked) {
+            Toast.makeText(this, tr("אפשרויות למפתחים עדיין סגורות — פותח את אודות הטלפון כדי לפתוח אותן (שלב 1).", "Developer options are still locked — opening About phone to unlock them (step 1)."), Toast.LENGTH_LONG).show()
             openSettings(Settings.ACTION_DEVICE_INFO_SETTINGS)
+            return
         }
+        if (!tryStart(highlighted(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS), highlight))) openSettings(Settings.ACTION_SETTINGS)
+    }
+
+    /** Accessibility settings, with The Boss's service marked. */
+    private fun openAccessibility() {
+        val service = android.content.ComponentName(this, PairingAccessibilityService::class.java).flattenToString()
+        if (!tryStart(highlighted(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS), service))) openSettings(Settings.ACTION_SETTINGS)
+    }
+
+    /** Asks the Settings app to scroll to and mark the preference [key] (ignored where not supported). */
+    private fun highlighted(intent: Intent, key: String?): Intent {
+        if (key == null) return intent
+        return intent.putExtra(EXTRA_FRAGMENT_ARG_KEY, key)
+            .putExtra(EXTRA_SHOW_FRAGMENT_ARGS, Bundle().apply { putString(EXTRA_FRAGMENT_ARG_KEY, key) })
     }
 
     private fun openSettings(action: String) {
@@ -631,7 +676,7 @@ class GuideActivity : BossActivity() {
             return
         }
         PairingService.start(this)
-        openDeveloperOptions()
+        openDeveloperOptions(KEY_WIRELESS)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -744,6 +789,11 @@ class GuideActivity : BossActivity() {
     // endregion
 
     companion object {
+        /** Keys of the settings in Android's Developer options screen (AOSP). */
+        private const val KEY_WIRELESS = "toggle_adb_wireless"
+        private const val KEY_USB = "enable_adb"
+        private const val EXTRA_FRAGMENT_ARG_KEY = ":settings:fragment_args_key"
+        private const val EXTRA_SHOW_FRAGMENT_ARGS = ":settings:show_fragment_args"
         private val INK = Theme.INK
         private val MUTED = Theme.MUTED
         private val ACCENT = Theme.ACCENT

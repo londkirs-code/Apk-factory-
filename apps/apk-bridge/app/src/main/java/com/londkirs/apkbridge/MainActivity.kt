@@ -717,8 +717,12 @@ class MainActivity : BossActivity() {
     }
 
     private fun openDeveloperOptions() {
+        // Straight to "Wireless debugging" (the Settings app scrolls to it and marks it).
+        val key = "toggle_adb_wireless"
         val intents = listOf(
-            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                .putExtra(":settings:fragment_args_key", key)
+                .putExtra(":settings:show_fragment_args", Bundle().apply { putString(":settings:fragment_args_key", key) }),
             Intent(Settings.ACTION_DEVICE_INFO_SETTINGS),
             Intent(Settings.ACTION_SETTINGS),
         )
