@@ -124,6 +124,8 @@ class MainActivity : Activity() {
         if (installed) {
             row.addView(smallButton(getString(R.string.start_agy), true) { openTerminal(TerminalService.KIND_AGY) })
             row.addView(View(this), gap())
+            row.addView(smallButton(getString(R.string.visual_ui), true) { startHub() })
+            row.addView(View(this), gap())
         } else if (supported) {
             row.addView(smallButton(getString(R.string.install_agy), true) { install() })
             row.addView(View(this), gap())
@@ -140,6 +142,61 @@ class MainActivity : Activity() {
     private fun openTerminal(kind: String?) {
         startActivity(Intent(this, TerminalActivity::class.java).apply { kind?.let { putExtra(TerminalActivity.EXTRA_NEW, it) } })
     }
+
+    /** Starts `agy --hub` in the background service and shows its web UI in the app's WebView. */
+    private fun startHub() {
+        val label = TextView(this).apply { setText(R.string.hub_starting); setPadding(dp(24), dp(16), dp(24), dp(8)) }
+        val dialog = AlertDialog.Builder(this).setView(label).setCancelable(false).create()
+        dialog.show()
+        val main = android.os.Handler(mainLooper)
+        val conn = object : android.content.ServiceConnection {
+            override fun onServiceDisconnected(name: android.content.ComponentName?) {}
+            override fun onServiceConnected(name: android.content.ComponentName?, binder: android.os.IBinder?) {
+                val svc = (binder as TerminalService.LocalBinder).service
+                val conn = this
+                Thread {
+                    if (!hubAlive()) {
+                        val session = svc.hubSession() ?: run {
+                            val latch = java.util.concurrent.CountDownLatch(1)
+                            var created: com.termux.terminal.TerminalSession? = null
+                            main.post { created = svc.startHub(); latch.countDown() }
+                            latch.await()
+                            created!!
+                        }
+                        // The PTY process only starts once a terminal has a size; give it one.
+                        main.post { session.updateSize(100, 40) }
+                    }
+                    var ok = false
+                    for (i in 0 until 120) { // up to ~60 s
+                        if (hubAlive()) { ok = true; break }
+                        if (svc.hubSession() == null && i > 4) break
+                        Thread.sleep(500)
+                    }
+                    main.post {
+                        dialog.dismiss()
+                        runCatching { unbindService(conn) }
+                        if (ok) {
+                            startActivity(Intent(this@MainActivity, WebActivity::class.java).putExtra(WebActivity.EXTRA_URL, TerminalService.HUB_URL))
+                        } else {
+                            Toast.makeText(this@MainActivity, R.string.hub_failed, Toast.LENGTH_LONG).show()
+                            openTerminal(null)
+                        }
+                    }
+                }.start()
+            }
+        }
+        val intent = Intent(this, TerminalService::class.java)
+        startService(intent)
+        bindService(intent, conn, android.content.Context.BIND_AUTO_CREATE)
+    }
+
+    private fun hubAlive(): Boolean = try {
+        val c = java.net.URL(TerminalService.HUB_URL).openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 800; c.readTimeout = 800
+        val code = c.responseCode
+        c.disconnect()
+        code in 100..599
+    } catch (e: Exception) { false }
 
     private fun install() {
         val bar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1000 }

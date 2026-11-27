@@ -44,6 +44,9 @@ class TerminalService : Service(), TerminalSessionClient {
         const val ACTION_STOP = "com.londkirs.antigravityremote.STOP"
         const val KIND_AGY = "agy"
         const val KIND_SHELL = "shell"
+        const val KIND_HUB = "hub"
+        const val HUB_PORT = 4400
+        const val HUB_URL = "http://localhost:4400/"
     }
 
     val sessions = mutableListOf<TerminalSession>()
@@ -112,11 +115,32 @@ class TerminalService : Service(), TerminalSessionClient {
         val agy = AgyInstaller.binary(this).absolutePath
         val script = "cd \"\$HOME/projects\" 2>/dev/null || cd \"\$HOME\"\n" +
             "\"$agy\"\n" +
+            "rc=\$?\n" +
             "echo\n" +
-            "echo \"[agy exited with code \$?]  Type 'agy' to start it again.\"\n" +
+            "echo \"[agy exited with code \$rc]  Type 'agy' to start it again.\"\n" +
             "exec /system/bin/sh -i\n"
         return start(arrayOf("sh", "-c", script), KIND_AGY)
     }
+
+    /**
+     * Starts agy's local web UI ("hub", as used by the Termux community scripts) on
+     * http://localhost:HUB_PORT; the app shows it in its WebView. Output stays in a terminal
+     * session so startup errors remain visible.
+     */
+    fun startHub(): TerminalSession {
+        val agy = AgyInstaller.binary(this).absolutePath
+        val script = "cd \"\$HOME/projects\" 2>/dev/null || cd \"\$HOME\"\n" +
+            "export AGY_ENABLE_HUB=1 GOMEMLIMIT=1536MiB\n" +
+            "echo \"Starting Antigravity UI on http://localhost:$HUB_PORT ...\"\n" +
+            "\"$agy\" --hub --hub-port=$HUB_PORT\n" +
+            "rc=\$?\n" +
+            "echo\n" +
+            "echo \"[agy --hub exited with code \$rc]\"\n" +
+            "exec /system/bin/sh -i\n"
+        return start(arrayOf("sh", "-c", script), KIND_HUB)
+    }
+
+    fun hubSession(): TerminalSession? = sessions.lastOrNull { kinds[it] == KIND_HUB && it.isRunning }
 
     fun startShell(): TerminalSession =
         start(arrayOf("sh", "-i"), KIND_SHELL)
@@ -176,6 +200,7 @@ class TerminalService : Service(), TerminalSessionClient {
         if (l != null) l.onOpenUrl(url) else {
             pendingUrl = url
             refreshNotification(url)
+            Connections.openInChrome(this, url)
         }
     }
 

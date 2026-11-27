@@ -10,6 +10,7 @@
 - הטרמינל מבוסס על ספריות terminal-view/terminal-emulator של Termux (רישיון Apache-2.0, דרך JitPack): ‏PTY, אמולציית xterm, ושורת מקשים נוספים (ESC, ‏TAB, ‏CTRL, ‏ALT, חיצים, ‏^C, הדבקה).
 - הסשנים רצים בתוך Foreground Service עם Wake Lock, כך שהסוכנים ממשיכים לרוץ גם כשהמסך כבוי.
 - התחברות: ‏`BROWSER` מצביע על `files/bin/open-url`. הסקריפט כותב את הכתובת לקובץ שהאפליקציה מאזינה לו (FileObserver) ופותחת ב־Chrome. ה־callback ל־localhost חוזר ל־agy באותו מכשיר. כגיבוי, קישור התחברות של Google שמודפס בטרמינל מזוהה ומוצג בפס עם כפתור "פתיחה".
+- **ממשק גרפי:** הכפתור מריץ `AGY_ENABLE_HUB=1 agy --hub --hub-port=4400`, בשיטה שבה משתמש RadnusD/Antigravity-for-Android ב־Termux, ומציג את http://localhost:4400 ב־WebView של האפליקציה. הפלט נשמר בסשן טרמינל כדי שאפשר יהיה לראות שגיאות.
 - סביבה: ‏`HOME=files/home`, תיקיית עבודה `~/projects`, ‏`TMPDIR=files/tmp`, ‏`SHELL=/system/bin/sh`, ‏`TERM=xterm-256color`.
 - `targetSdk 28`: בדיוק כמו ב־Termux. מ־API 29 אנדרואיד אוסר להריץ קבצים שהורדו לאחסון של האפליקציה (W^X).
 - דרישות: טלפון arm64-v8a. עורך הקוד הגרפי (Electron) לא רץ על אנדרואיד, רק ה־CLI של הסוכן.

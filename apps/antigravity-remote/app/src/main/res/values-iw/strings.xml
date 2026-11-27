@@ -78,4 +78,7 @@
         <item quantity="many">%1$d סשנים</item>
         <item quantity="other">%1$d סשנים</item>
     </plurals>
+    <string name="visual_ui">ממשק גרפי</string>
+    <string name="hub_starting">מפעיל את הממשק הגרפי של Antigravity ‏(agy --hub)…</string>
+    <string name="hub_failed">הממשק הגרפי לא עלה. הפרטים מוצגים בטרמינל.</string>
 </resources>

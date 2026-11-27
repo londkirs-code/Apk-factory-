@@ -69,6 +69,29 @@
     },
     {
       "action": "assert_foreground"
+    },
+    {
+      "action": "back"
+    },
+    {
+      "action": "wait_for",
+      "text": "Visual UI",
+      "timeout": 15
+    },
+    {
+      "action": "tap",
+      "text": "Visual UI"
+    },
+    {
+      "action": "wait",
+      "seconds": 10
+    },
+    {
+      "action": "screenshot",
+      "name": "visual-ui-stand-in"
+    },
+    {
+      "action": "assert_foreground"
     }
   ]
 }

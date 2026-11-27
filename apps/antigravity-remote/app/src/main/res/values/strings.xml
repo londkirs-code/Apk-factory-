@@ -76,4 +76,7 @@
         <item quantity="one">%1$d session</item>
         <item quantity="other">%1$d sessions</item>
     </plurals>
+    <string name="visual_ui">Visual UI</string>
+    <string name="hub_starting">Starting the Antigravity UI (agy --hub)…</string>
+    <string name="hub_failed">The Antigravity UI did not start. See the terminal for details.</string>
 </resources>

@@ -181,7 +181,11 @@ class TerminalActivity : Activity(), ServiceConnection, TerminalService.Listener
         val s = service ?: return
         val c = current ?: return
         val idx = s.sessions.indexOf(c) + 1
-        val label = if (s.kinds[c] == TerminalService.KIND_AGY) "Antigravity (agy)" else getString(R.string.shell)
+        val label = when (s.kinds[c]) {
+            TerminalService.KIND_AGY -> "Antigravity (agy)"
+            TerminalService.KIND_HUB -> "Antigravity UI (hub)"
+            else -> getString(R.string.shell)
+        }
         val state = if (c.isRunning || c.emulator == null) "" else " — " + getString(R.string.finished)
         title.text = "[$idx/${s.sessions.size}] ${c.title?.takeIf { it.isNotBlank() } ?: label}$state"
     }
