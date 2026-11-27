@@ -2,18 +2,66 @@
   "name": "antigravity-terminal-shell",
   "grant_permissions": true,
   "steps": [
-    {"action": "launch", "clear_data": true},
-    {"action": "tap", "text": "Wait", "optional": true},
-    {"action": "wait_for", "text": "Antigravity on Android", "timeout": 20},
-    {"action": "screenshot", "name": "home"},
-    {"action": "tap", "text": "Shell"},
-    {"action": "wait", "seconds": 4},
-    {"action": "tap", "text": "Wait", "optional": true},
-    {"action": "screenshot", "name": "terminal-opened"},
-    {"action": "assert_foreground"},
-    {"action": "type", "value": "echo hello-from-terminal; id", "enter": true},
-    {"action": "wait", "seconds": 2},
-    {"action": "screenshot", "name": "terminal-command"},
-    {"action": "assert_foreground"}
+    {
+      "action": "launch",
+      "clear_data": true
+    },
+    {
+      "action": "tap",
+      "text": "Allow",
+      "timeout": 4,
+      "optional": true
+    },
+    {
+      "action": "wait_for",
+      "text": "Antigravity on Android",
+      "timeout": 20
+    },
+    {
+      "action": "screenshot",
+      "name": "home"
+    },
+    {
+      "action": "tap",
+      "text": "Shell"
+    },
+    {
+      "action": "wait",
+      "seconds": 4
+    },
+    {
+      "action": "tap",
+      "text": "Allow",
+      "timeout": 4,
+      "optional": true
+    },
+    {
+      "action": "screenshot",
+      "name": "terminal-opened"
+    },
+    {
+      "action": "assert_foreground"
+    },
+    {
+      "action": "type",
+      "value": "echo hello-from-terminal; id",
+      "enter": true
+    },
+    {
+      "action": "wait",
+      "seconds": 2
+    },
+    {
+      "action": "screenshot",
+      "name": "terminal-command"
+    },
+    {
+      "action": "assert_foreground"
+    },
+    {
+      "action": "wait_for",
+      "text": "hello-from-terminal",
+      "timeout": 10
+    }
   ]
 }

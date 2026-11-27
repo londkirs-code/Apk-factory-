@@ -8,7 +8,8 @@
     },
     {
       "action": "tap",
-      "text": "Wait",
+      "text": "Allow",
+      "timeout": 4,
       "optional": true
     },
     {
@@ -25,7 +26,8 @@
     },
     {
       "action": "tap",
-      "text": "Wait",
+      "text": "Allow",
+      "timeout": 4,
       "optional": true
     },
     {
@@ -47,7 +49,8 @@
     },
     {
       "action": "tap",
-      "text": "Wait",
+      "text": "Allow",
+      "timeout": 4,
       "optional": true
     },
     {
