@@ -32,6 +32,7 @@ import kotlinx.coroutines.withContext
  * card), which folders (ready-made or any folder), Termux, contacts, calls, SMS and settings.
  */
 class BackupActivity : BossActivity() {
+    override val swipeTab get() = BottomNav.Tab.BACKUP
     // ── backup state
     private val backupBoxes = linkedMapOf<String, CheckBox>()
     private var backupApps: Set<String>? = null            // null = all user apps

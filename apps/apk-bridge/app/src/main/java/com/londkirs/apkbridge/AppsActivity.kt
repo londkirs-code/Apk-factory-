@@ -48,6 +48,7 @@ import java.util.zip.ZipOutputStream
  * (uninstall, disable/enable, force-stop, clear data, restore removed system apps, back up APKs).
  */
 class AppsActivity : BossActivity() {
+    override val swipeTab get() = BottomNav.Tab.APPS
     private class AppRow(
         val label: String,
         val pkg: String,

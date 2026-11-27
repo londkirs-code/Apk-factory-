@@ -80,7 +80,8 @@ object BottomNav {
      * as its own app window. No slide animation, so it feels like switching tabs.
      */
     @Suppress("DEPRECATION")
-    fun navigate(from: Activity, tab: Tab) {
+    /** [slide]: 1 = came by swiping to the next tab, -1 = to the previous one, 0 = tapped (no animation). */
+    fun navigate(from: Activity, tab: Tab, slide: Int = 0) {
         val isMain = from is MainActivity
         when (tab) {
             Tab.CONNECT, Tab.INSTALL -> {
@@ -103,6 +104,12 @@ object BottomNav {
                 if (!isMain) from.finish()
             }
         }
-        from.overridePendingTransition(0, 0)
+        // Swipes slide the new screen in from the side it comes from (mirrored in Hebrew).
+        val fromEnd = (slide > 0) != Lang.hebrew
+        when {
+            slide == 0 -> from.overridePendingTransition(0, 0)
+            fromEnd -> from.overridePendingTransition(R.anim.slide_in_from_right, R.anim.slide_out_to_left)
+            else -> from.overridePendingTransition(R.anim.slide_in_from_left, R.anim.slide_out_to_right)
+        }
     }
 }

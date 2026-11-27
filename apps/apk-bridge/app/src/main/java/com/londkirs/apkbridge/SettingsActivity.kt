@@ -20,6 +20,7 @@ import android.widget.Toast
 
 /** All APK Bridge preferences in one place. Every change is saved immediately. */
 class SettingsActivity : BossActivity() {
+    override val swipeTab get() = BottomNav.Tab.SETTINGS
     private lateinit var a11yState: TextView
     private lateinit var wirelessState: TextView
     private lateinit var wifiHelperState: TextView

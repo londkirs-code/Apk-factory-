@@ -38,6 +38,8 @@ import java.util.Locale
  * the user can add, edit and delete shortcuts. Commands run as the ADB "shell" user via [Bridge].
  */
 class TerminalActivity : BossActivity() {
+    override val swipeTab get() = BottomNav.Tab.TERMINAL
+    override fun swipeAllowed() = !drawerOpen()
     private class Message(
         val outgoing: Boolean,
         val ts: Long,             // when it was sent (ms); 0 for messages saved before 1.8

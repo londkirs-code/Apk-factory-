@@ -37,6 +37,12 @@ class BridgeApp : Application() {
 }
 
 class MainActivity : BossActivity() {
+    override val swipeTab get() = currentTab
+
+    /** Connection ⇄ Install are pages of this screen; the other tabs open their own screens. */
+    override fun onSwipeTo(tab: BottomNav.Tab, forward: Boolean) {
+        if (tab == BottomNav.Tab.CONNECT || tab == BottomNav.Tab.INSTALL) showTab(tab) else super.onSwipeTo(tab, forward)
+    }
     private lateinit var statusText: TextView
     private lateinit var connectionText: TextView
     private lateinit var progressBar: ProgressBar
