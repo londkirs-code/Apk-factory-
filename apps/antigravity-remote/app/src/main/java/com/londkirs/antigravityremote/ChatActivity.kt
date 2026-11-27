@@ -217,10 +217,10 @@ class ChatActivity : Activity() {
 
     private fun signIn() {
         showBanner(getString(R.string.chat_signin_wait))
+        // Login stays open until Chrome returns to the hub's callback port: run it on its own thread.
+        Thread { runCatching { HubClient.login() } }.start()
         io.execute {
-            runCatching { HubClient.login() }
-            // Wait for the browser round-trip.
-            for (i in 0 until 90) {
+            for (i in 0 until 150) {
                 if (runCatching { HubClient.hasValidAuth() }.getOrDefault(false)) {
                     main.post { authOk = true; showBanner(null); setStatus(getString(R.string.chat_online)) }
                     return@execute
@@ -286,7 +286,7 @@ class ChatActivity : Activity() {
         ChatItem.USER -> bubble(item, outgoing = true)
         ChatItem.AGENT -> bubble(item, outgoing = false)
         ChatItem.TOOL -> chip(item.text, ChatUi.TOOL_BG) { showDetails(item) }
-        ChatItem.ERROR -> chip("⚠️ " + item.text, ChatUi.ERROR_BG) { copy(item.text) }
+        ChatItem.ERROR -> chip("⚠️ " + item.text, ChatUi.ERROR_BG) { showError(item) }
         ChatItem.APPROVAL -> approval(item)
         else -> typing()
     }
@@ -452,6 +452,24 @@ class ChatActivity : Activity() {
             .setNeutralButton(R.string.copy) { _, _ -> copy(out ?: item.text) }
             .show()
             .findViewById<TextView>(android.R.id.message)?.typeface = Typeface.MONOSPACE
+    }
+
+    /** Full error text from the step (the bubble shows only the short user message). */
+    private fun showError(item: ChatItem) {
+        val s = item.step
+        val err = s?.optJSONObject("errorMessage")?.optJSONObject("error") ?: s?.optJSONObject("error")
+        val full = buildString {
+            append(item.text)
+            if (err != null) for (k in listOf("shortError", "modelErrorMessage", "fullError", "details")) {
+                val v = err.optString(k)
+                if (v.isNotBlank() && v != item.text) append("\n\n").append(k).append(":\n").append(v)
+            }
+        }
+        AlertDialog.Builder(this)
+            .setMessage(full.take(8000))
+            .setPositiveButton(R.string.close, null)
+            .setNeutralButton(R.string.copy) { _, _ -> copy(full) }
+            .show()
     }
 
     private fun copy(text: String) {

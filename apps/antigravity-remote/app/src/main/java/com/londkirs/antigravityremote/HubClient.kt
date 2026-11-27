@@ -105,7 +105,8 @@ object HubClient {
         call("GetAuthStatus", JSONObject()).optJSONObject("authResult")?.optBoolean("hasValidAuth") == true
 
     /** Asks the hub to start Google sign-in; it opens the URL through $BROWSER (our open-url bridge). */
-    fun login() { call("Login", JSONObject().put("isGcpTos", false), 15_000) }
+    /** Blocks until the browser round-trip finishes: the hub keeps its OAuth callback listener only while this call is open. */
+    fun login() { call("Login", JSONObject().put("isGcpTos", false), 10 * 60_000) }
 
     fun startCascade(cascadeId: String, workspaceDir: String) {
         val uri = "file://$workspaceDir"

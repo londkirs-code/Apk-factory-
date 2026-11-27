@@ -133,10 +133,11 @@ class TerminalService : Service(), TerminalSessionClient {
         // and the app sends it back in x-antigravity-csrf-token.
         val token = HubClient.newToken(this)
         val script = "cd \"\$HOME/projects\" 2>/dev/null || cd \"\$HOME\"\n" +
-            "export AGY_ENABLE_HUB=1 GOMEMLIMIT=1536MiB AGY_NO_UPDATE_PROMPT=1\n" +
+            // Same data dir as the interactive CLI, so the hub reuses the Google sign-in done in agy.
+            "export AGY_ENABLE_HUB=1 GOMEMLIMIT=1536MiB AGY_NO_UPDATE_PROMPT=1 CI=1\n" +
             "export ANTIGRAVITY_SERVER_CSRF_TOKEN=$token ANTIGRAVITY_CSRF_TOKEN=$token\n" +
             "echo \"Starting Antigravity UI on http://localhost:$HUB_PORT ...\"\n" +
-            "\"$agy\" --hub --hub-port=$HUB_PORT\n" +
+            "\"$agy\" --hub --hub-port=$HUB_PORT --app_data_dir=antigravity-cli --add-dir=\"\$HOME/projects\"\n" +
             "rc=\$?\n" +
             "echo\n" +
             "echo \"[agy --hub exited with code \$rc]\"\n" +

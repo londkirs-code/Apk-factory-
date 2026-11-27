@@ -134,7 +134,7 @@ object StepMapper {
             val err = s.optJSONObject("errorMessage")?.optJSONObject("error") ?: s.optJSONObject("error")
             if (err != null && (type.contains("ERROR") || status == "CORTEX_STEP_STATUS_ERROR")) {
                 val msg = err.optString("userErrorMessage").ifBlank { err.optString("shortError") }.ifBlank { err.optString("modelErrorMessage") }
-                if (msg.isNotBlank()) items += ChatItem(ChatItem.ERROR, msg, time, i)
+                if (msg.isNotBlank()) items += ChatItem(ChatItem.ERROR, msg, time, i, step = s)
                 continue
             }
 
