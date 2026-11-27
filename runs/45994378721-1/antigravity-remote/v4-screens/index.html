@@ -1,0 +1,85 @@
+<!doctype html><meta charset="utf-8">
+<title>UI test — antigravity-remote</title>
+<style>body{font-family:system-ui,sans-serif;margin:24px;background:#f6f7f9}
+.grid{display:flex;flex-wrap:wrap;gap:16px}figure{margin:0;background:#fff;padding:8px;border-radius:8px;box-shadow:0 1px 3px #0002}
+img{width:240px;display:block}figcaption{font-size:12px;margin-top:4px}table{border-collapse:collapse;background:#fff}
+td,th{border:1px solid #ddd;padding:4px 8px;font-size:13px;text-align:left}tr.failed{background:#fde8e8}tr.skipped{background:#fff7e0}
+pre{background:#222;color:#eee;padding:12px;overflow:auto}</style>
+<h1>UI test — antigravity-remote (scenario): PASSED</h1>
+<p>Package <code>com.londkirs.antigravityremote</code> · {&quot;model&quot;: &quot;sdk_gphone64_x86_64&quot;, &quot;sdk&quot;: &quot;33&quot;, &quot;release&quot;: &quot;13&quot;, &quot;abi&quot;: &quot;x86_64&quot;, &quot;locale&quot;: &quot;&quot;, &quot;screen&quot;: &quot;1080x2400&quot;}</p>
+<table><tr><th>#</th><th>Action</th><th>Detail</th><th>Result</th><th>Error</th></tr><tr class='passed'><td>1</td><td>launch</td><td>clear_data=True</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>2</td><td>wait_for</td><td>text=&#x27;Setup guide&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>3</td><td>tap</td><td>desc=&#x27;Connect to a computer instead&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>4</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>5</td><td>launch</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>6</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>7</td><td>screenshot</td><td>name=&#x27;01-home-tip&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>8</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>9</td><td>tap</td><td>text=&#x27;Got it&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>10</td><td>screenshot</td><td>name=&#x27;02-home-empty&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>11</td><td>tap</td><td>desc=&#x27;New chat&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>12</td><td>wait</td><td>seconds=3</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>13</td><td>screenshot</td><td>name=&#x27;03-chat-empty&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>14</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>15</td><td>tap</td><td>text=&#x27;Got it&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>16</td><td>tap</td><td>text=&#x27;Message&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>17</td><td>type</td><td>text=&#x27;Message&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>18</td><td>screenshot</td><td>name=&#x27;04b-keyboard&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>19</td><td>key</td><td>key=&#x27;BACK&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>20</td><td>screenshot</td><td>name=&#x27;04-chat-typed&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>21</td><td>tap</td><td>desc=&#x27;Attach&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>22</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>23</td><td>screenshot</td><td>name=&#x27;05-attach-sheet&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>24</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>25</td><td>tap</td><td>desc=&#x27;More&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>26</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>27</td><td>screenshot</td><td>name=&#x27;06-chat-menu&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>28</td><td>tap</td><td>text=&#x27;Chat info&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>29</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>30</td><td>screenshot</td><td>name=&#x27;07-chat-info&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>31</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>32</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>33</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>34</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>35</td><td>tap</td><td>text=&#x27;Got it&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>36</td><td>screenshot</td><td>name=&#x27;08-home-draft&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>37</td><td>long_press</td><td>text=&#x27;New chat&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>38</td><td>screenshot</td><td>name=&#x27;09-home-selection&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>39</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>40</td><td>tap</td><td>desc=&#x27;More&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>41</td><td>screenshot</td><td>name=&#x27;10-home-menu&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>42</td><td>tap</td><td>text=&#x27;Settings&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>43</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>44</td><td>screenshot</td><td>name=&#x27;11-settings&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>45</td><td>scroll_to</td><td>text=&#x27;App version&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>46</td><td>screenshot</td><td>name=&#x27;12-settings-advanced&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>47</td><td>scroll_to</td><td>text=&#x27;Theme&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>48</td><td>tap</td><td>text=&#x27;Theme&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>49</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>50</td><td>screenshot</td><td>name=&#x27;13-theme-sheet&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>51</td><td>tap</td><td>text=&#x27;Dark&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>52</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>53</td><td>screenshot</td><td>name=&#x27;14-settings-dark&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>54</td><td>back</td><td></td><td>passed</td><td></td></tr>
+<tr class='passed'><td>55</td><td>wait</td><td>seconds=1</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>56</td><td>screenshot</td><td>name=&#x27;15-home-dark&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>57</td><td>tap</td><td>text=&#x27;New chat&#x27;</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>58</td><td>wait</td><td>seconds=2</td><td>passed</td><td></td></tr>
+<tr class='passed'><td>59</td><td>screenshot</td><td>name=&#x27;16-chat-dark&#x27;</td><td>passed</td><td></td></tr></table>
+<h2>Screenshots</h2><div class="grid"><figure><a href="screenshots/001-01-home-tip.png"><img src="screenshots/001-01-home-tip.png" loading="lazy"></a><figcaption>001-01-home-tip.png</figcaption></figure>
+<figure><a href="screenshots/002-02-home-empty.png"><img src="screenshots/002-02-home-empty.png" loading="lazy"></a><figcaption>002-02-home-empty.png</figcaption></figure>
+<figure><a href="screenshots/003-03-chat-empty.png"><img src="screenshots/003-03-chat-empty.png" loading="lazy"></a><figcaption>003-03-chat-empty.png</figcaption></figure>
+<figure><a href="screenshots/004-04b-keyboard.png"><img src="screenshots/004-04b-keyboard.png" loading="lazy"></a><figcaption>004-04b-keyboard.png</figcaption></figure>
+<figure><a href="screenshots/005-04-chat-typed.png"><img src="screenshots/005-04-chat-typed.png" loading="lazy"></a><figcaption>005-04-chat-typed.png</figcaption></figure>
+<figure><a href="screenshots/006-05-attach-sheet.png"><img src="screenshots/006-05-attach-sheet.png" loading="lazy"></a><figcaption>006-05-attach-sheet.png</figcaption></figure>
+<figure><a href="screenshots/007-06-chat-menu.png"><img src="screenshots/007-06-chat-menu.png" loading="lazy"></a><figcaption>007-06-chat-menu.png</figcaption></figure>
+<figure><a href="screenshots/008-07-chat-info.png"><img src="screenshots/008-07-chat-info.png" loading="lazy"></a><figcaption>008-07-chat-info.png</figcaption></figure>
+<figure><a href="screenshots/009-08-home-draft.png"><img src="screenshots/009-08-home-draft.png" loading="lazy"></a><figcaption>009-08-home-draft.png</figcaption></figure>
+<figure><a href="screenshots/010-09-home-selection.png"><img src="screenshots/010-09-home-selection.png" loading="lazy"></a><figcaption>010-09-home-selection.png</figcaption></figure>
+<figure><a href="screenshots/011-10-home-menu.png"><img src="screenshots/011-10-home-menu.png" loading="lazy"></a><figcaption>011-10-home-menu.png</figcaption></figure>
+<figure><a href="screenshots/012-11-settings.png"><img src="screenshots/012-11-settings.png" loading="lazy"></a><figcaption>012-11-settings.png</figcaption></figure>
+<figure><a href="screenshots/013-12-settings-advanced.png"><img src="screenshots/013-12-settings-advanced.png" loading="lazy"></a><figcaption>013-12-settings-advanced.png</figcaption></figure>
+<figure><a href="screenshots/014-13-theme-sheet.png"><img src="screenshots/014-13-theme-sheet.png" loading="lazy"></a><figcaption>014-13-theme-sheet.png</figcaption></figure>
+<figure><a href="screenshots/015-14-settings-dark.png"><img src="screenshots/015-14-settings-dark.png" loading="lazy"></a><figcaption>015-14-settings-dark.png</figcaption></figure>
+<figure><a href="screenshots/016-15-home-dark.png"><img src="screenshots/016-15-home-dark.png" loading="lazy"></a><figcaption>016-15-home-dark.png</figcaption></figure>
+<figure><a href="screenshots/017-16-chat-dark.png"><img src="screenshots/017-16-chat-dark.png" loading="lazy"></a><figcaption>017-16-chat-dark.png</figcaption></figure></div>

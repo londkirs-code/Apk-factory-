@@ -1,0 +1,570 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 152.6,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 4.68,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='Setup guide'",
+      "status": "passed",
+      "seconds": 3.19,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "tap",
+      "detail": "desc='Connect to a computer instead'",
+      "status": "passed",
+      "seconds": 3.33,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.27,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 4.01,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.11,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "screenshot",
+      "detail": "name='01-home-tip'",
+      "status": "passed",
+      "seconds": 2.95,
+      "error": "",
+      "screenshot": "screenshots/001-01-home-tip.png"
+    },
+    {
+      "index": 8,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.17,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "tap",
+      "detail": "text='Got it'",
+      "status": "passed",
+      "seconds": 3.45,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "screenshot",
+      "detail": "name='02-home-empty'",
+      "status": "passed",
+      "seconds": 2.79,
+      "error": "",
+      "screenshot": "screenshots/002-02-home-empty.png"
+    },
+    {
+      "index": 11,
+      "action": "tap",
+      "detail": "desc='New chat'",
+      "status": "passed",
+      "seconds": 3.54,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "wait",
+      "detail": "seconds=3",
+      "status": "passed",
+      "seconds": 3.16,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "screenshot",
+      "detail": "name='03-chat-empty'",
+      "status": "passed",
+      "seconds": 3.57,
+      "error": "",
+      "screenshot": "screenshots/003-03-chat-empty.png"
+    },
+    {
+      "index": 14,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "tap",
+      "detail": "text='Got it'",
+      "status": "passed",
+      "seconds": 3.78,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "tap",
+      "detail": "text='Message'",
+      "status": "passed",
+      "seconds": 3.57,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "type",
+      "detail": "text='Message'",
+      "status": "passed",
+      "seconds": 4.73,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "screenshot",
+      "detail": "name='04b-keyboard'",
+      "status": "passed",
+      "seconds": 3.17,
+      "error": "",
+      "screenshot": "screenshots/004-04b-keyboard.png"
+    },
+    {
+      "index": 19,
+      "action": "key",
+      "detail": "key='BACK'",
+      "status": "passed",
+      "seconds": 0.92,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "screenshot",
+      "detail": "name='04-chat-typed'",
+      "status": "passed",
+      "seconds": 2.53,
+      "error": "",
+      "screenshot": "screenshots/005-04-chat-typed.png"
+    },
+    {
+      "index": 21,
+      "action": "tap",
+      "detail": "desc='Attach'",
+      "status": "passed",
+      "seconds": 3.2,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.08,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 23,
+      "action": "screenshot",
+      "detail": "name='05-attach-sheet'",
+      "status": "passed",
+      "seconds": 2.73,
+      "error": "",
+      "screenshot": "screenshots/006-05-attach-sheet.png"
+    },
+    {
+      "index": 24,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.18,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "tap",
+      "detail": "desc='More'",
+      "status": "passed",
+      "seconds": 3.3,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 26,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 27,
+      "action": "screenshot",
+      "detail": "name='06-chat-menu'",
+      "status": "passed",
+      "seconds": 2.35,
+      "error": "",
+      "screenshot": "screenshots/007-06-chat-menu.png"
+    },
+    {
+      "index": 28,
+      "action": "tap",
+      "detail": "text='Chat info'",
+      "status": "passed",
+      "seconds": 3.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.18,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 30,
+      "action": "screenshot",
+      "detail": "name='07-chat-info'",
+      "status": "passed",
+      "seconds": 2.28,
+      "error": "",
+      "screenshot": "screenshots/008-07-chat-info.png"
+    },
+    {
+      "index": 31,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.89,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 32,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.87,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 34,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 35,
+      "action": "tap",
+      "detail": "text='Got it'",
+      "status": "passed",
+      "seconds": 3.26,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 36,
+      "action": "screenshot",
+      "detail": "name='08-home-draft'",
+      "status": "passed",
+      "seconds": 3.01,
+      "error": "",
+      "screenshot": "screenshots/009-08-home-draft.png"
+    },
+    {
+      "index": 37,
+      "action": "long_press",
+      "detail": "text='New chat'",
+      "status": "passed",
+      "seconds": 4.09,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 38,
+      "action": "screenshot",
+      "detail": "name='09-home-selection'",
+      "status": "passed",
+      "seconds": 2.59,
+      "error": "",
+      "screenshot": "screenshots/010-09-home-selection.png"
+    },
+    {
+      "index": 39,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.88,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 40,
+      "action": "tap",
+      "detail": "desc='More'",
+      "status": "passed",
+      "seconds": 3.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 41,
+      "action": "screenshot",
+      "detail": "name='10-home-menu'",
+      "status": "passed",
+      "seconds": 2.28,
+      "error": "",
+      "screenshot": "screenshots/011-10-home-menu.png"
+    },
+    {
+      "index": 42,
+      "action": "tap",
+      "detail": "text='Settings'",
+      "status": "passed",
+      "seconds": 3.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 43,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.13,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 44,
+      "action": "screenshot",
+      "detail": "name='11-settings'",
+      "status": "passed",
+      "seconds": 2.29,
+      "error": "",
+      "screenshot": "screenshots/012-11-settings.png"
+    },
+    {
+      "index": 45,
+      "action": "scroll_to",
+      "detail": "text='App version'",
+      "status": "passed",
+      "seconds": 5.31,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 46,
+      "action": "screenshot",
+      "detail": "name='12-settings-advanced'",
+      "status": "passed",
+      "seconds": 2.32,
+      "error": "",
+      "screenshot": "screenshots/013-12-settings-advanced.png"
+    },
+    {
+      "index": 47,
+      "action": "scroll_to",
+      "detail": "text='Theme'",
+      "status": "passed",
+      "seconds": 5.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 48,
+      "action": "tap",
+      "detail": "text='Theme'",
+      "status": "passed",
+      "seconds": 3.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 49,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 50,
+      "action": "screenshot",
+      "detail": "name='13-theme-sheet'",
+      "status": "passed",
+      "seconds": 2.29,
+      "error": "",
+      "screenshot": "screenshots/014-13-theme-sheet.png"
+    },
+    {
+      "index": 51,
+      "action": "tap",
+      "detail": "text='Dark'",
+      "status": "passed",
+      "seconds": 3.03,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 52,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 53,
+      "action": "screenshot",
+      "detail": "name='14-settings-dark'",
+      "status": "passed",
+      "seconds": 2.33,
+      "error": "",
+      "screenshot": "screenshots/015-14-settings-dark.png"
+    },
+    {
+      "index": 54,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.88,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 55,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 56,
+      "action": "screenshot",
+      "detail": "name='15-home-dark'",
+      "status": "passed",
+      "seconds": 2.3,
+      "error": "",
+      "screenshot": "screenshots/016-15-home-dark.png"
+    },
+    {
+      "index": 57,
+      "action": "tap",
+      "detail": "text='New chat'",
+      "status": "passed",
+      "seconds": 3.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 58,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 59,
+      "action": "screenshot",
+      "detail": "name='16-chat-dark'",
+      "status": "passed",
+      "seconds": 2.48,
+      "error": "",
+      "screenshot": "screenshots/017-16-chat-dark.png"
+    }
+  ],
+  "screenshots": [
+    "001-01-home-tip.png",
+    "002-02-home-empty.png",
+    "003-03-chat-empty.png",
+    "004-04b-keyboard.png",
+    "005-04-chat-typed.png",
+    "006-05-attach-sheet.png",
+    "007-06-chat-menu.png",
+    "008-07-chat-info.png",
+    "009-08-home-draft.png",
+    "010-09-home-selection.png",
+    "011-10-home-menu.png",
+    "012-11-settings.png",
+    "013-12-settings-advanced.png",
+    "014-13-theme-sheet.png",
+    "015-14-settings-dark.png",
+    "016-15-home-dark.png",
+    "017-16-chat-dark.png"
+  ]
+}
