@@ -108,4 +108,14 @@
     <string name="chat_stop">Stop the agent</string>
     <string name="chat_model">Model: %1$s</string>
     <string name="chat_model_title">Choose a model</string>
+    <string name="rec_start">⏺ Start recording (for developer)</string>
+    <string name="rec_stop">⏹ Stop recording</string>
+    <string name="rec_note">Add a note to the recording</string>
+    <string name="rec_note_hint">What are you doing now? e.g. attaching an image</string>
+    <string name="rec_share">Share recording (%1$d entries)</string>
+    <string name="rec_share_title">Send recording</string>
+    <string name="rec_clear">Clear recording</string>
+    <string name="rec_empty">The recording is empty</string>
+    <string name="rec_cleared">Recording cleared</string>
+    <string name="rec_started_hint">Recording. Before each action, tap ● REC to add a note saying what you are about to do.</string>
 </resources>

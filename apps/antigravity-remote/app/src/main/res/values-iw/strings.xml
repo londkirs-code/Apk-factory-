@@ -110,4 +110,14 @@
     <string name="chat_stop">עצירת הסוכן</string>
     <string name="chat_model">מודל: %1$s</string>
     <string name="chat_model_title">בחירת מודל</string>
+    <string name="rec_start">⏺ התחלת הקלטה (למפתח)</string>
+    <string name="rec_stop">⏹ עצירת ההקלטה</string>
+    <string name="rec_note">הוספת הערה להקלטה</string>
+    <string name="rec_note_hint">מה אתה עושה עכשיו? למשל: מצרף תמונה</string>
+    <string name="rec_share">שיתוף ההקלטה (%1$d רשומות)</string>
+    <string name="rec_share_title">שליחת ההקלטה</string>
+    <string name="rec_clear">מחיקת ההקלטה</string>
+    <string name="rec_empty">ההקלטה ריקה</string>
+    <string name="rec_cleared">ההקלטה נמחקה</string>
+    <string name="rec_started_hint">ההקלטה פועלת. לפני כל פעולה לוחצים על ‎● REC ומוסיפים הערה שמתארת מה עומדים לעשות.</string>
 </resources>

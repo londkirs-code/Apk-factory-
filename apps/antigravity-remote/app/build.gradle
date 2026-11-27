@@ -13,7 +13,7 @@ android {
         // downloaded at runtime from Google, so the app must target API 28.
         targetSdk 28
         versionCode 8
-        versionName '3.3'
+        versionName '3.4'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
     compileOptions {
@@ -31,6 +31,8 @@ dependencies {
     // Termux terminal emulator + view (Apache-2.0): PTY, VT100/xterm emulation and rendering.
     implementation 'com.github.termux.termux-app:terminal-view:v0.118.1'
     implementation 'com.github.termux.termux-app:terminal-emulator:v0.118.1'
+    // Document-start script injection for the network recorder.
+    implementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Keep the same APK Factory signing key used by the other applications.

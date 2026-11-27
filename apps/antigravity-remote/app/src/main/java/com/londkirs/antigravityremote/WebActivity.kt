@@ -46,6 +46,10 @@ class WebActivity : Activity() {
         private const val MENU_SCREEN = 2
         private const val MENU_CHROME = 3
         private const val MENU_HOME = 4
+        private const val MENU_REC = 5
+        private const val MENU_REC_NOTE = 6
+        private const val MENU_REC_SHARE = 7
+        private const val MENU_REC_CLEAR = 8
     }
 
     private lateinit var web: WebView
@@ -59,6 +63,13 @@ class WebActivity : Activity() {
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private lateinit var content: FrameLayout
     private lateinit var chromeClient: WebChromeClient
+    private lateinit var recorder: NetRecorder
+    private var docStartScript = false
+    private lateinit var recBadge: TextView
+    private val recorderJs by lazy { assets.open("recorder.js").bufferedReader().readText() }
+
+    private fun isHubUrl(url: String?) = url != null &&
+        (url.startsWith("http://localhost:${TerminalService.HUB_PORT}") || url.startsWith("http://127.0.0.1:${TerminalService.HUB_PORT}"))
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -88,6 +99,12 @@ class WebActivity : Activity() {
             setPadding(dp(6), 0, dp(6), 0)
         }
         bar.addView(title, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        recBadge = TextView(this).apply {
+            text = "● REC"; setTextColor(Color.parseColor("#FF5252")); textSize = 12f
+            setPadding(dp(6), 0, dp(6), 0); visibility = View.GONE
+            setOnClickListener { addNote() }
+        }
+        bar.addView(recBadge)
         bar.addView(iconButton(android.R.drawable.ic_popup_sync, R.string.reload) { web.reload() })
         val more = iconButton(android.R.drawable.ic_menu_more, R.string.more) {}
         more.setOnClickListener { showMenu(it) }
@@ -189,6 +206,14 @@ class WebActivity : Activity() {
             .replace(Regex("""Version/\d+(\.\d+)*\s"""), "")
         applyUserAgent()
 
+        recorder = NetRecorder(this)
+        web.addJavascriptInterface(recorder, "AgyRec")
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            androidx.webkit.WebViewCompat.addDocumentStartJavaScript(web, recorderJs,
+                setOf("http://localhost:${TerminalService.HUB_PORT}", "http://127.0.0.1:${TerminalService.HUB_PORT}"))
+            docStartScript = true
+        }
+
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
 
@@ -209,6 +234,9 @@ class WebActivity : Activity() {
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                recorder.pageIsHub = isHubUrl(url)
+                if (recorder.pageIsHub && !docStartScript) view.evaluateJavascript(recorderJs, null)
+                updateRecBadge()
                 progress.visibility = View.VISIBLE
                 updateChrome(url)
             }
@@ -341,6 +369,12 @@ class WebActivity : Activity() {
         }
         menu.menu.add(0, MENU_CHROME, 2, R.string.open_externally)
         menu.menu.add(0, MENU_HOME, 3, R.string.home)
+        if (isHubUrl(web.url)) {
+            menu.menu.add(0, MENU_REC, 4, if (recorder.enabled) R.string.rec_stop else R.string.rec_start)
+            menu.menu.add(0, MENU_REC_NOTE, 5, R.string.rec_note)
+            menu.menu.add(0, MENU_REC_SHARE, 6, getString(R.string.rec_share, recorder.entries()))
+            menu.menu.add(0, MENU_REC_CLEAR, 7, R.string.rec_clear)
+        }
         menu.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 MENU_DESKTOP -> {
@@ -353,6 +387,19 @@ class WebActivity : Activity() {
                     applyKeepScreenOn()
                 }
                 MENU_CHROME -> Connections.openInChrome(this, web.url ?: Connections.OFFICIAL_URL)
+                MENU_REC -> {
+                    recorder.enabled = !recorder.enabled
+                    updateRecBadge()
+                    if (recorder.enabled) {
+                        recorder.note("recording started")
+                        Toast.makeText(this, R.string.rec_started_hint, Toast.LENGTH_LONG).show()
+                        web.reload() // capture the page's startup calls too
+                    }
+                }
+                MENU_REC_NOTE -> addNote()
+                MENU_REC_SHARE -> recorder.export()?.let { startActivity(Intent.createChooser(it, getString(R.string.rec_share_title))) }
+                    ?: Toast.makeText(this, R.string.rec_empty, Toast.LENGTH_SHORT).show()
+                MENU_REC_CLEAR -> { recorder.clear(); Toast.makeText(this, R.string.rec_cleared, Toast.LENGTH_SHORT).show() }
                 MENU_HOME -> {
                     startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
                     finish()
@@ -361,6 +408,23 @@ class WebActivity : Activity() {
             true
         }
         menu.show()
+    }
+
+    private fun updateRecBadge() {
+        recBadge.visibility = if (recorder.enabled && recorder.pageIsHub) View.VISIBLE else View.GONE
+    }
+
+    /** Labels the next part of the recording ("attached an image", "typed /"…). */
+    private fun addNote() {
+        val input = android.widget.EditText(this).apply { setHint(R.string.rec_note_hint) }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.rec_note)
+            .setView(input)
+            .setPositiveButton(R.string.save) { _, _ ->
+                input.text.toString().trim().takeIf { it.isNotEmpty() }?.let { recorder.note(it) }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun applyUserAgent() {
