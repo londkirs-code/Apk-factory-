@@ -516,11 +516,11 @@ class ChatActivity : Activity() {
                 setPadding(dp(14), dp(8), dp(14), dp(8))
                 setOnClickListener { chooseSlash(c) }
                 addView(TextView(this@ChatActivity).apply {
-                    text = "/" + c.title; textSize = 15f; setTextColor(ChatUi.TEXT); setTypeface(typeface, Typeface.BOLD)
+                    this.text = "/" + c.title; textSize = 15f; setTextColor(ChatUi.TEXT); setTypeface(typeface, Typeface.BOLD)
                     textDirection = View.TEXT_DIRECTION_LTR
                 })
                 if (c.description.isNotBlank()) addView(TextView(this@ChatActivity).apply {
-                    text = c.description; textSize = 12.5f; setTextColor(ChatUi.MUTED); maxLines = 2
+                    this.text = c.description; textSize = 12.5f; setTextColor(ChatUi.MUTED); maxLines = 2
                     ellipsize = android.text.TextUtils.TruncateAt.END
                 })
             })
