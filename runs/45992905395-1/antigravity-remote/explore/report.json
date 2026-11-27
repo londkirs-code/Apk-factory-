@@ -1,0 +1,263 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "explore",
+  "passed": true,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 95.9,
+  "crashes": [],
+  "warnings": [
+    "explore: 11 distinct screens, 19 elements tapped, 0 relaunches, 89s"
+  ],
+  "screens": [
+    {
+      "signature": "da39a3ee5e6b",
+      "screenshot": "screenshots/001-screen-1.png",
+      "found_at_action": "0"
+    },
+    {
+      "signature": "6d84d084d5d4",
+      "screenshot": "screenshots/002-screen-2.png",
+      "found_at_action": "1"
+    },
+    {
+      "signature": "7fd827380eec",
+      "screenshot": "screenshots/003-screen-3.png",
+      "found_at_action": "2"
+    },
+    {
+      "signature": "454b324e2e09",
+      "screenshot": "screenshots/004-screen-4.png",
+      "found_at_action": "4"
+    },
+    {
+      "signature": "3ae18df30d51",
+      "screenshot": "screenshots/005-screen-5.png",
+      "found_at_action": "5"
+    },
+    {
+      "signature": "8eb026327a38",
+      "screenshot": "screenshots/006-screen-6.png",
+      "found_at_action": "6"
+    },
+    {
+      "signature": "f559f145d3f4",
+      "screenshot": "screenshots/007-screen-7.png",
+      "found_at_action": "7"
+    },
+    {
+      "signature": "f081ec243ea9",
+      "screenshot": "screenshots/008-screen-8.png",
+      "found_at_action": "10"
+    },
+    {
+      "signature": "ac8e7b6a733c",
+      "screenshot": "screenshots/009-screen-9.png",
+      "found_at_action": "13"
+    },
+    {
+      "signature": "8b2744b1903f",
+      "screenshot": "screenshots/010-screen-10.png",
+      "found_at_action": "16"
+    },
+    {
+      "signature": "a3cd979a544f",
+      "screenshot": "screenshots/011-screen-11.png",
+      "found_at_action": "17"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "action": "explore-tap",
+      "detail": "Search",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "explore-tap",
+      "detail": "Close search",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "explore-tap",
+      "detail": "More",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "explore-tap",
+      "detail": "LinearLayout",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "explore-tap",
+      "detail": "Back",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "explore-tap",
+      "detail": "Search",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "explore-tap",
+      "detail": "Close search",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "explore-tap",
+      "detail": "More",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "explore-tap",
+      "detail": "LinearLayout",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 10,
+      "action": "explore-tap",
+      "detail": "e.g. Development, Tests",
+      "status": "passed",
+      "seconds": 1.27,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "explore-tap",
+      "detail": "Cancel",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "explore-tap",
+      "detail": "Install",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 13,
+      "action": "explore-tap",
+      "detail": "Back",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "explore-tap",
+      "detail": "All",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "explore-tap",
+      "detail": "Unread",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 16,
+      "action": "explore-tap",
+      "detail": "Search",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 17,
+      "action": "explore-tap",
+      "detail": "Close search",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "explore-tap",
+      "detail": "More",
+      "status": "passed",
+      "seconds": 1.25,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 19,
+      "action": "explore-tap",
+      "detail": "LinearLayout",
+      "status": "passed",
+      "seconds": 1.24,
+      "error": "",
+      "screenshot": ""
+    }
+  ],
+  "screenshots": [
+    "001-screen-1.png",
+    "002-screen-2.png",
+    "003-screen-3.png",
+    "004-screen-4.png",
+    "005-screen-5.png",
+    "006-screen-6.png",
+    "007-screen-7.png",
+    "008-screen-8.png",
+    "009-screen-9.png",
+    "010-screen-10.png",
+    "011-screen-11.png",
+    "012-final.png"
+  ]
+}

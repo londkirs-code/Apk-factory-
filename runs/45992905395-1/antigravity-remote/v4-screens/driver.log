@@ -1,0 +1,54 @@
+[ok] 01 launch clear_data=True
+[ok] 02 wait_for text='Setup guide'
+[ok] 03 tap desc='Connect to a computer instead'
+[ok] 04 wait seconds=1
+[ok] 05 launch
+[ok] 06 wait seconds=2
+[ok] 07 screenshot name='01-home-tip'
+[ok] 08 tap text='Got it'
+[ok] 09 screenshot name='02-home-empty'
+[ok] 10 tap desc='New chat'
+[ok] 11 wait seconds=3
+[ok] 12 screenshot name='03-chat-empty'
+[ok] 13 tap text='Got it'
+[ok] 14 type value='Hello agent, build me an app', hide_keyboard=True
+[ok] 15 screenshot name='04-chat-typed'
+[FAIL] 16 tap desc='Attach' element not found within 10s: desc='Attach'
+[ok] 17 wait seconds=1
+[ok] 18 screenshot name='05-attach-sheet'
+[ok] 19 back
+[ok] 20 tap desc='More'
+[ok] 21 wait seconds=1
+[ok] 22 screenshot name='06-chat-menu'
+[FAIL] 23 tap text='Chat info' element not found within 10s: text='Chat info'
+[ok] 24 wait seconds=1
+[ok] 25 screenshot name='07-chat-info'
+[ok] 26 back
+[ok] 27 back
+[ok] 28 wait seconds=1
+[ok] 29 screenshot name='08-home-draft'
+[FAIL] 30 long_press text='New chat' element not found within 10s: text='New chat'
+[ok] 31 screenshot name='09-home-selection'
+[ok] 32 back
+[FAIL] 33 tap desc='More' element not found within 10s: desc='More'
+[ok] 34 screenshot name='10-home-menu'
+[FAIL] 35 tap text='Settings' element not found within 10s: text='Settings'
+[ok] 36 wait seconds=1
+[ok] 37 screenshot name='11-settings'
+[FAIL] 38 scroll_to text='App version' not found after scrolling: text='App version'
+[ok] 39 screenshot name='12-settings-advanced'
+[FAIL] 40 scroll_to text='Theme' not found after scrolling: text='Theme'
+[FAIL] 41 tap text='Theme' element not found within 10s: text='Theme'
+[ok] 42 wait seconds=1
+[ok] 43 screenshot name='13-theme-sheet'
+[FAIL] 44 tap text='Dark' element not found within 10s: text='Dark'
+[ok] 45 wait seconds=2
+[ok] 46 screenshot name='14-settings-dark'
+[ok] 47 back
+[ok] 48 wait seconds=1
+[ok] 49 screenshot name='15-home-dark'
+[FAIL] 50 tap text='New chat' element not found within 10s: text='New chat'
+[ok] 51 wait seconds=2
+[ok] 52 screenshot name='16-chat-dark'
+
+Result: FAILED — 52 steps, 26 screenshots, 0 crashes

@@ -1,0 +1,516 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 276.7,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 5.19,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "wait_for",
+      "detail": "text='Setup guide'",
+      "status": "passed",
+      "seconds": 2.98,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "tap",
+      "detail": "desc='Connect to a computer instead'",
+      "status": "passed",
+      "seconds": 3.5,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.33,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 5,
+      "action": "launch",
+      "detail": "",
+      "status": "passed",
+      "seconds": 4.44,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "screenshot",
+      "detail": "name='01-home-tip'",
+      "status": "passed",
+      "seconds": 3.84,
+      "error": "",
+      "screenshot": "screenshots/001-01-home-tip.png"
+    },
+    {
+      "index": 8,
+      "action": "tap",
+      "detail": "text='Got it'",
+      "status": "passed",
+      "seconds": 3.4,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 9,
+      "action": "screenshot",
+      "detail": "name='02-home-empty'",
+      "status": "passed",
+      "seconds": 3.07,
+      "error": "",
+      "screenshot": "screenshots/002-02-home-empty.png"
+    },
+    {
+      "index": 10,
+      "action": "tap",
+      "detail": "desc='New chat'",
+      "status": "passed",
+      "seconds": 3.5,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 11,
+      "action": "wait",
+      "detail": "seconds=3",
+      "status": "passed",
+      "seconds": 3.27,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 12,
+      "action": "screenshot",
+      "detail": "name='03-chat-empty'",
+      "status": "passed",
+      "seconds": 3.3,
+      "error": "",
+      "screenshot": "screenshots/003-03-chat-empty.png"
+    },
+    {
+      "index": 13,
+      "action": "tap",
+      "detail": "text='Got it'",
+      "status": "passed",
+      "seconds": 3.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 14,
+      "action": "type",
+      "detail": "value='Hello agent, build me an app', hide_keyboard=True",
+      "status": "passed",
+      "seconds": 5.37,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 15,
+      "action": "screenshot",
+      "detail": "name='04-chat-typed'",
+      "status": "passed",
+      "seconds": 3.23,
+      "error": "",
+      "screenshot": "screenshots/004-04-chat-typed.png"
+    },
+    {
+      "index": 16,
+      "action": "tap",
+      "detail": "desc='Attach'",
+      "status": "failed",
+      "seconds": 11.63,
+      "error": "element not found within 10s: desc='Attach'",
+      "screenshot": "screenshots/005-step16-tap-FAILED.png"
+    },
+    {
+      "index": 17,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.35,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 18,
+      "action": "screenshot",
+      "detail": "name='05-attach-sheet'",
+      "status": "passed",
+      "seconds": 2.77,
+      "error": "",
+      "screenshot": "screenshots/006-05-attach-sheet.png"
+    },
+    {
+      "index": 19,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.1,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 20,
+      "action": "tap",
+      "detail": "desc='More'",
+      "status": "passed",
+      "seconds": 3.59,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 21,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.22,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 22,
+      "action": "screenshot",
+      "detail": "name='06-chat-menu'",
+      "status": "passed",
+      "seconds": 2.81,
+      "error": "",
+      "screenshot": "screenshots/007-06-chat-menu.png"
+    },
+    {
+      "index": 23,
+      "action": "tap",
+      "detail": "text='Chat info'",
+      "status": "failed",
+      "seconds": 10.66,
+      "error": "element not found within 10s: text='Chat info'",
+      "screenshot": "screenshots/008-step23-tap-FAILED.png"
+    },
+    {
+      "index": 24,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.2,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 25,
+      "action": "screenshot",
+      "detail": "name='07-chat-info'",
+      "status": "passed",
+      "seconds": 2.73,
+      "error": "",
+      "screenshot": "screenshots/009-07-chat-info.png"
+    },
+    {
+      "index": 26,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.79,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 27,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 1.32,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 28,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.4,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 29,
+      "action": "screenshot",
+      "detail": "name='08-home-draft'",
+      "status": "passed",
+      "seconds": 4.04,
+      "error": "",
+      "screenshot": "screenshots/010-08-home-draft.png"
+    },
+    {
+      "index": 30,
+      "action": "long_press",
+      "detail": "text='New chat'",
+      "status": "failed",
+      "seconds": 10.52,
+      "error": "element not found within 10s: text='New chat'",
+      "screenshot": "screenshots/011-step30-long_press-FAILED.png"
+    },
+    {
+      "index": 31,
+      "action": "screenshot",
+      "detail": "name='09-home-selection'",
+      "status": "passed",
+      "seconds": 3.22,
+      "error": "",
+      "screenshot": "screenshots/012-09-home-selection.png"
+    },
+    {
+      "index": 32,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.91,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 33,
+      "action": "tap",
+      "detail": "desc='More'",
+      "status": "failed",
+      "seconds": 10.03,
+      "error": "element not found within 10s: desc='More'",
+      "screenshot": "screenshots/013-step33-tap-FAILED.png"
+    },
+    {
+      "index": 34,
+      "action": "screenshot",
+      "detail": "name='10-home-menu'",
+      "status": "passed",
+      "seconds": 2.84,
+      "error": "",
+      "screenshot": "screenshots/014-10-home-menu.png"
+    },
+    {
+      "index": 35,
+      "action": "tap",
+      "detail": "text='Settings'",
+      "status": "failed",
+      "seconds": 10.13,
+      "error": "element not found within 10s: text='Settings'",
+      "screenshot": "screenshots/015-step35-tap-FAILED.png"
+    },
+    {
+      "index": 36,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 37,
+      "action": "screenshot",
+      "detail": "name='11-settings'",
+      "status": "passed",
+      "seconds": 2.85,
+      "error": "",
+      "screenshot": "screenshots/016-11-settings.png"
+    },
+    {
+      "index": 38,
+      "action": "scroll_to",
+      "detail": "text='App version'",
+      "status": "failed",
+      "seconds": 28.07,
+      "error": "not found after scrolling: text='App version'",
+      "screenshot": "screenshots/017-step38-scroll_to-FAILED.png"
+    },
+    {
+      "index": 39,
+      "action": "screenshot",
+      "detail": "name='12-settings-advanced'",
+      "status": "passed",
+      "seconds": 2.32,
+      "error": "",
+      "screenshot": "screenshots/018-12-settings-advanced.png"
+    },
+    {
+      "index": 40,
+      "action": "scroll_to",
+      "detail": "text='Theme'",
+      "status": "failed",
+      "seconds": 28.0,
+      "error": "not found after scrolling: text='Theme'",
+      "screenshot": "screenshots/019-step40-scroll_to-FAILED.png"
+    },
+    {
+      "index": 41,
+      "action": "tap",
+      "detail": "text='Theme'",
+      "status": "failed",
+      "seconds": 10.12,
+      "error": "element not found within 10s: text='Theme'",
+      "screenshot": "screenshots/020-step41-tap-FAILED.png"
+    },
+    {
+      "index": 42,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 43,
+      "action": "screenshot",
+      "detail": "name='13-theme-sheet'",
+      "status": "passed",
+      "seconds": 2.33,
+      "error": "",
+      "screenshot": "screenshots/021-13-theme-sheet.png"
+    },
+    {
+      "index": 44,
+      "action": "tap",
+      "detail": "text='Dark'",
+      "status": "failed",
+      "seconds": 10.08,
+      "error": "element not found within 10s: text='Dark'",
+      "screenshot": "screenshots/022-step44-tap-FAILED.png"
+    },
+    {
+      "index": 45,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.07,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 46,
+      "action": "screenshot",
+      "detail": "name='14-settings-dark'",
+      "status": "passed",
+      "seconds": 2.31,
+      "error": "",
+      "screenshot": "screenshots/023-14-settings-dark.png"
+    },
+    {
+      "index": 47,
+      "action": "back",
+      "detail": "",
+      "status": "passed",
+      "seconds": 0.9,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 48,
+      "action": "wait",
+      "detail": "seconds=1",
+      "status": "passed",
+      "seconds": 1.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 49,
+      "action": "screenshot",
+      "detail": "name='15-home-dark'",
+      "status": "passed",
+      "seconds": 2.31,
+      "error": "",
+      "screenshot": "screenshots/024-15-home-dark.png"
+    },
+    {
+      "index": 50,
+      "action": "tap",
+      "detail": "text='New chat'",
+      "status": "failed",
+      "seconds": 10.2,
+      "error": "element not found within 10s: text='New chat'",
+      "screenshot": "screenshots/025-step50-tap-FAILED.png"
+    },
+    {
+      "index": 51,
+      "action": "wait",
+      "detail": "seconds=2",
+      "status": "passed",
+      "seconds": 2.06,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 52,
+      "action": "screenshot",
+      "detail": "name='16-chat-dark'",
+      "status": "passed",
+      "seconds": 2.32,
+      "error": "",
+      "screenshot": "screenshots/026-16-chat-dark.png"
+    }
+  ],
+  "screenshots": [
+    "001-01-home-tip.png",
+    "002-02-home-empty.png",
+    "003-03-chat-empty.png",
+    "004-04-chat-typed.png",
+    "005-step16-tap-FAILED.png",
+    "006-05-attach-sheet.png",
+    "007-06-chat-menu.png",
+    "008-step23-tap-FAILED.png",
+    "009-07-chat-info.png",
+    "010-08-home-draft.png",
+    "011-step30-long_press-FAILED.png",
+    "012-09-home-selection.png",
+    "013-step33-tap-FAILED.png",
+    "014-10-home-menu.png",
+    "015-step35-tap-FAILED.png",
+    "016-11-settings.png",
+    "017-step38-scroll_to-FAILED.png",
+    "018-12-settings-advanced.png",
+    "019-step40-scroll_to-FAILED.png",
+    "020-step41-tap-FAILED.png",
+    "021-13-theme-sheet.png",
+    "022-step44-tap-FAILED.png",
+    "023-14-settings-dark.png",
+    "024-15-home-dark.png",
+    "025-step50-tap-FAILED.png",
+    "026-16-chat-dark.png"
+  ]
+}
