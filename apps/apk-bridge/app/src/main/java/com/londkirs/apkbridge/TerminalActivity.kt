@@ -161,7 +161,6 @@ class TerminalActivity : BossActivity() {
         header.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         header.addView(iconButton("⧉") { copyChat() }.apply { contentDescription = tr("העתק שיחה", "Copy chat") })
         header.addView(iconButton("🗑") { confirmClearChat() }.apply { contentDescription = tr("נקה שיחה", "Clear chat"); textSize = 18f })
-        header.addView(iconButton("⟲") { showHistory() }.apply { contentDescription = tr("היסטוריה", "History") })
         header.addView(iconButton("⋮") { menu() })
         root.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
@@ -176,24 +175,25 @@ class TerminalActivity : BossActivity() {
         }
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        // Shortcuts: a row of categories (with paste / add / edit), and the shortcuts of the chosen category.
+        // Shortcuts: the shortcuts of the open category, and below them (right above the input line) the
+        // row of categories, which always stays. Tapping a category opens its shortcuts above it.
         groupChips = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(6), dp(4), dp(6), 0)
+            setPadding(dp(6), dp(4), dp(6), dp(2))
         }
-        root.addView(HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(groupChips)
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         chips = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(6), dp(4), dp(6), dp(4))
+            setPadding(dp(6), dp(4), dp(6), 0)
         }
         chipsScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(chips)
         }
         root.addView(chipsScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(groupChips)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // Input bar: [ pill input ] (➤)
         val bar = LinearLayout(this).apply {
@@ -777,7 +777,7 @@ class TerminalActivity : BossActivity() {
         // Tap a category: its shortcuts open below. Tap the open one again: they fold away (more room for the chat).
         for (g in groups()) {
             val isOpen = open && g == selected
-            groupChips.addView(chip(groupLabel(g) + if (isOpen) " ▴" else "", accent = false, selected = isOpen).apply {
+            groupChips.addView(chip(groupLabel(g) + if (isOpen) " ▾" else "", accent = false, selected = isOpen).apply {
                 setOnClickListener {
                     if (isOpen) prefs().edit().putBoolean("shortcuts_open", false).apply()
                     else prefs().edit().putString("shortcut_group", g).putBoolean("shortcuts_open", true).apply()
@@ -907,6 +907,7 @@ class TerminalActivity : BossActivity() {
         val detect = prefs().getBoolean("clipboard_detect", true)
         val items = arrayOf(
             tr("הדבק מהלוח", "Paste from clipboard"),
+            tr("⟲ פקודות אחרונות", "⟲ Recent commands"),
             tr("עריכת קיצורים", "Edit shortcuts"),
             (if (detect) "✓ " else "") + tr("שאל כשבלוח יש פקודה", "Ask when the clipboard has a command"),
             tr("העתק את כל השיחה", "Copy the whole chat"),
@@ -918,12 +919,13 @@ class TerminalActivity : BossActivity() {
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> pasteFromClipboard()
-                    1 -> manageShortcuts()
-                    2 -> prefs().edit().putBoolean("clipboard_detect", !detect).apply()
-                    3 -> copyChat()
-                    4 -> confirmClearChat()
-                    5 -> keyHelp()
-                    6 -> finish()
+                    1 -> showHistory()
+                    2 -> manageShortcuts()
+                    3 -> prefs().edit().putBoolean("clipboard_detect", !detect).apply()
+                    4 -> copyChat()
+                    5 -> confirmClearChat()
+                    6 -> keyHelp()
+                    7 -> finish()
                 }
             }
             .show()
