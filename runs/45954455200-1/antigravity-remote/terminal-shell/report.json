@@ -1,0 +1,107 @@
+{
+  "app": "antigravity-remote",
+  "package": "com.londkirs.antigravityremote",
+  "mode": "scenario",
+  "passed": false,
+  "device": {
+    "model": "sdk_gphone64_x86_64",
+    "sdk": "33",
+    "release": "13",
+    "abi": "x86_64",
+    "locale": "",
+    "screen": "1080x2400"
+  },
+  "duration_seconds": 44.5,
+  "crashes": [],
+  "warnings": [],
+  "screens": [],
+  "steps": [
+    {
+      "index": 1,
+      "action": "launch",
+      "detail": "clear_data=True",
+      "status": "passed",
+      "seconds": 3.78,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 2,
+      "action": "tap",
+      "detail": "text='Wait'",
+      "status": "skipped",
+      "seconds": 10.41,
+      "error": "element not found within 10s: text='Wait'",
+      "screenshot": ""
+    },
+    {
+      "index": 3,
+      "action": "wait_for",
+      "detail": "text='Antigravity on Android'",
+      "status": "passed",
+      "seconds": 2.05,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 4,
+      "action": "screenshot",
+      "detail": "name='home'",
+      "status": "passed",
+      "seconds": 2.3,
+      "error": "",
+      "screenshot": "screenshots/001-home.png"
+    },
+    {
+      "index": 5,
+      "action": "tap",
+      "detail": "text='Shell'",
+      "status": "passed",
+      "seconds": 3.27,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 6,
+      "action": "wait",
+      "detail": "seconds=4",
+      "status": "passed",
+      "seconds": 4.04,
+      "error": "",
+      "screenshot": ""
+    },
+    {
+      "index": 7,
+      "action": "tap",
+      "detail": "text='Wait'",
+      "status": "skipped",
+      "seconds": 10.03,
+      "error": "element not found within 10s: text='Wait'",
+      "screenshot": ""
+    },
+    {
+      "index": 8,
+      "action": "screenshot",
+      "detail": "name='terminal-opened'",
+      "status": "passed",
+      "seconds": 2.2,
+      "error": "",
+      "screenshot": "screenshots/002-terminal-opened.png"
+    },
+    {
+      "index": 9,
+      "action": "assert_foreground",
+      "detail": "",
+      "status": "failed",
+      "seconds": 0.03,
+      "error": "foreground app is com.google.android.permissioncontroller, expected com.londkirs.antigravityremote",
+      "screenshot": "screenshots/003-step9-assert_foreground-FAILED.png"
+    }
+  ],
+  "screenshots": [
+    "001-home.png",
+    "002-terminal-opened.png",
+    "003-step9-assert_foreground-FAILED.png",
+    "004-final.png"
+  ]
+}
