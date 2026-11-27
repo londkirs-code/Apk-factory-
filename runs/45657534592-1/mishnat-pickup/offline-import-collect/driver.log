@@ -1,6 +1,0 @@
-[ok] 01 clear_data
-[ok] 02 push src='fixtures/ui-test-list.txt', dest='/sdcard/Download/ui-test-list.txt'
-[ok] 03 launch
-[FAIL] 04 wait_for text='כניסה לחשבון' element not found within 30s: text='כניסה לחשבון'
-
-Result: FAILED — 4 steps, 2 screenshots, 0 crashes
